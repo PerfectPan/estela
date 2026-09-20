@@ -1,0 +1,13 @@
+{
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "common/temp/**",
+    "common/deploy/**"
+  ],
+  "plugins": ["typescript", "unicorn"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  }
+}

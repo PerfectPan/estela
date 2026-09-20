@@ -1,0 +1,17 @@
+.DS_Store
+*.log
+coverage
+dist
+node_modules
+playwright-report
+test-results
+temp
+.ref
+*.tsbuildinfo
+
+# Rush
+common/deploy/
+common/temp/
+common/autoinstallers/*/.npmrc
+**/.rush/temp/
+.rush/temp/

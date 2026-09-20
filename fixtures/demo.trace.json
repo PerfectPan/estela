@@ -1,0 +1,54 @@
+{
+  "schema": "agent-trace/v0",
+  "host": "demo",
+  "session": {
+    "id": "demo-compaction",
+    "title": "Fix auth, then compact"
+  },
+  "events": [
+    {
+      "id": "e1",
+      "ts": 0,
+      "kind": "system",
+      "payload": { "text": "You are a coding agent." },
+      "original": { "type": "system" }
+    },
+    {
+      "id": "e2",
+      "ts": 1,
+      "kind": "user",
+      "payload": { "text": "Fix the auth bug in src/auth.ts" },
+      "original": { "type": "user" }
+    },
+    {
+      "id": "e3",
+      "ts": 2,
+      "kind": "tool_call",
+      "shadowedBy": "e5",
+      "payload": { "name": "read", "args": { "path": "src/auth.ts" } },
+      "original": { "type": "tool_call" }
+    },
+    {
+      "id": "e4",
+      "ts": 3,
+      "kind": "tool_result",
+      "shadowedBy": "e5",
+      "payload": { "name": "read", "text": "export const secret = 'sk-demoFAKESECRET_k2l3m4n5o6p7q8r9s0t1'" },
+      "original": { "type": "tool_result" }
+    },
+    {
+      "id": "e5",
+      "ts": 4,
+      "kind": "compaction",
+      "payload": { "summary": "Read src/auth.ts; secret remains in original until redact()." },
+      "original": { "type": "compaction" }
+    },
+    {
+      "id": "e6",
+      "ts": 5,
+      "kind": "assistant",
+      "payload": { "text": "The token check is inverted." },
+      "original": { "type": "assistant" }
+    }
+  ]
+}

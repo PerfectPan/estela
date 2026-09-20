@@ -1,0 +1,5 @@
+{
+  "name": "agent-trace",
+  "private": true,
+  "description": "Rush monorepo for the agent-trace viewer. Use rush, not root pnpm scripts."
+}

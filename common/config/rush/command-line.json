@@ -1,0 +1,27 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/command-line.schema.json",
+  "commands": [
+    {
+      "commandKind": "bulk",
+      "name": "test",
+      "summary": "Run unit tests",
+      "enableParallelism": true,
+      "ignoreMissingScript": true
+    },
+    {
+      "commandKind": "bulk",
+      "name": "lint",
+      "summary": "Run oxlint",
+      "enableParallelism": true,
+      "ignoreMissingScript": false
+    },
+    {
+      "commandKind": "bulk",
+      "name": "typecheck",
+      "summary": "Typecheck",
+      "enableParallelism": true,
+      "ignoreMissingScript": false
+    }
+  ],
+  "parameters": []
+}

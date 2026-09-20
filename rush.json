@@ -1,0 +1,54 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush.schema.json",
+  "rushVersion": "5.179.0",
+  "pnpmVersion": "10.15.0",
+  "nodeSupportedVersionRange": ">=20.11.0 <25.0.0",
+  "projectFolderMinDepth": 2,
+  "projectFolderMaxDepth": 2,
+  "gitPolicy": {},
+  "repository": {
+    "defaultBranch": "main"
+  },
+  "eventHooks": {
+    "preRushInstall": [],
+    "postRushInstall": [],
+    "preRushBuild": [],
+    "postRushBuild": [],
+    "preRushx": [],
+    "postRushx": []
+  },
+  "projects": [
+    {
+      "packageName": "@agent-trace/schema",
+      "projectFolder": "packages/schema"
+    },
+    {
+      "packageName": "@agent-trace/kernel",
+      "projectFolder": "packages/kernel"
+    },
+    {
+      "packageName": "@agent-trace/adapter-dsh",
+      "projectFolder": "packages/adapter-dsh"
+    },
+    {
+      "packageName": "@agent-trace/adapter-claude-code",
+      "projectFolder": "packages/adapter-claude-code"
+    },
+    {
+      "packageName": "@agent-trace/adapter-codex",
+      "projectFolder": "packages/adapter-codex"
+    },
+    {
+      "packageName": "@agent-trace/adapter-opencode",
+      "projectFolder": "packages/adapter-opencode"
+    },
+    {
+      "packageName": "@agent-trace/adapter-grok",
+      "projectFolder": "packages/adapter-grok"
+    },
+    {
+      "packageName": "@agent-trace/devframe",
+      "projectFolder": "packages/devframe"
+    }
+  ]
+}

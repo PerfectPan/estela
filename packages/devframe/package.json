@@ -1,0 +1,47 @@
+{
+  "name": "@agent-trace/devframe",
+  "type": "module",
+  "version": "0.0.0",
+  "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
+  "homepage": "https://devfra.me/",
+  "license": "MIT",
+  "bin": {
+    "agent-trace": "./bin.mjs"
+  },
+  "exports": {
+    ".": "./src/devframe.ts"
+  },
+  "scripts": {
+    "dev": "node bin.mjs",
+    "build": "vite build --config src/client/vite.config.ts",
+    "cli:build": "node bin.mjs build --out-dir dist/static",
+    "lint": "oxlint src",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agent-trace/adapter-claude-code": "workspace:*",
+    "@agent-trace/adapter-codex": "workspace:*",
+    "@agent-trace/adapter-dsh": "workspace:*",
+    "@agent-trace/adapter-grok": "workspace:*",
+    "@agent-trace/adapter-opencode": "workspace:*",
+    "@agent-trace/kernel": "workspace:*",
+    "@agent-trace/schema": "workspace:*",
+    "@kobalte/core": "^0.13.14",
+    "cva": "1.0.0-beta.12",
+    "devframe": "^1.0.0",
+    "solid-js": "^1.9.15",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/node": "^24.5.2",
+    "oxlint": "^1.83.0",
+    "tailwindcss": "^4.1.13",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "vite": "^7.1.5",
+    "vite-plugin-solid": "^2.11.8"
+  }
+}
