@@ -1,6 +1,6 @@
 # Agent Guidelines
 
-This repository is a local-first viewer for coding-agent session logs. Treat every change as if it may be reviewed and installed by someone other than the author.
+This repository is intended to become a maintainable, publishable project. Treat every change as if it may be reviewed, packaged, indexed, and installed by users.
 
 ## Working Rules
 
@@ -11,45 +11,49 @@ This repository is a local-first viewer for coding-agent session logs. Treat eve
 - Use `rg` for searches when available.
 - Update tests and documentation when behavior changes.
 
-## Product Rules
-
-- Canonical storage is ordered `events[]` plus `original`. Turn, step, and tree are projections.
-- Missing data is `unavailable`. Never invent.
-- Compaction is `kind: 'compaction'` plus `shadowedBy` on hidden events.
-- `reconstruct(trace, eventId)` is the product. A ledger without it is a transcript browser.
-- `getTrace` is one snapshot blob. No paging RPC. Do not use DevFrame streaming as session follow.
-- Adapters fail loud on unknown generations. Do not silently drop events.
-- UI is Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
-- Rush + pnpm. Do not add a root `pnpm-workspace.yaml`.
-- Technical plans use `docs/plans/0000-template.md`. Writing rules stay in the global `technical-design-docs` skill. Do not copy that skill into this repo.
-
-## Layers
-
-| Package | Owns | Must not |
-|---|---|---|
-| `@agent-trace/schema` | `Trace`, event kinds, `shadowedBy` | DevFrame, UI |
-| `@agent-trace/kernel` | load, fold, reconstruct, redact | DevFrame, UI |
-| `@agent-trace/adapter-dsh` | dsh disk formats | UI, inventing turn boundaries |
-| `@agent-trace/adapter-claude-code` | Claude Code JSONL | flattening sidechains into fake turns |
-| `@agent-trace/adapter-codex` | Codex `rollout-*.jsonl` | treating `token_count` as conversation |
-| `@agent-trace/adapter-opencode` | OpenCode `opencode.db#sessionId` | inventing turns |
-| `@agent-trace/adapter-grok` | Grok session directory | flattening subagents |
-| `@agent-trace/devframe` | RPC, CLI, SPA | parsing a host log |
-
 ## Project-Specific Commands
 
 ```bash
+# Install local Git hooks:
 ./scripts/install-git-hooks.sh
+
+# Repository checks:
 ./scripts/check-repository.sh
+
+# PR/MR title check:
 ./scripts/check-pr-title.sh "docs: update project template"
-node common/scripts/install-run-rush.js update
+
+# GitHub repository setup dry run:
+./scripts/configure-github-repository.sh --repo PerfectPan/agent-trace
+
+# Format:
+# No formatter is configured.
+
+# Lint:
 node common/scripts/install-run-rush.js lint
+
+# Test:
 node common/scripts/install-run-rush.js test
+
+# Typecheck:
 node common/scripts/install-run-rush.js typecheck
+
+# Build:
 node common/scripts/install-run-rush.js build
+
+# Package or release dry-run:
+# Packages are not published.
+
+# Security or package-specific hygiene scan:
+rg --hidden --no-ignore -n "private-token|secret|internal-domain.example|HOME_PATH_PLACEHOLDER" . \
+  --glob '!.git/**' \
+  --glob '!.omx/**' \
+  --glob '!AGENTS.md' \
+  --glob '!CONTRIBUTING.md' \
+  --glob '!SECURITY.md'
 ```
 
-There is no separate formatter and no package publish step. Do not claim implementation work is complete until the relevant commands pass, or until skipped commands are explained with concrete blockers.
+Do not claim implementation work is complete until the relevant commands pass, or until skipped commands are explained with concrete blockers.
 
 ## Development Workflow
 
@@ -60,19 +64,69 @@ For non-trivial changes:
 3. Keep the implementation scoped to the task and nearby code.
 4. Update tests and documentation when behavior, public contracts, or workflow expectations change.
 5. Ensure local Git hooks are installed for the checkout when practical.
-6. Run the commands above.
-7. Open or update the PR with motivation, implementation notes, exact validation, skipped gates, evidence, and risks.
+6. Run repository checks, title checks, and project-specific validation gates.
+7. For a newly created GitHub repository, configure branch protection with `scripts/configure-github-repository.sh --repo PerfectPan/agent-trace --apply` only when the repository plan allows it.
+8. Open or update the PR/MR with motivation, implementation notes, exact validation, skipped gates, evidence, and risks.
+
+## Repository Architecture
+
+- Organize code by domain boundaries, layer boundaries, and test boundaries before mechanical one-file-per-export preferences.
+- `@agent-trace/schema` and `@agent-trace/kernel` hold the trace rules. They must not import DevFrame or UI.
+- `packages/adapter-*` isolates host session formats. `@agent-trace/devframe` is the CLI and SPA entrypoint.
+- The stored record is ordered `events[]` plus `original`. Turns and trees are projections. Missing fields stay unavailable.
+- Compaction is `kind: 'compaction'` plus `shadowedBy`. `reconstruct(trace, eventId)` is the read model for what remained visible.
+- `getTrace` returns one snapshot. Do not add a paged RPC for the static report.
+- UI is Solid, Tailwind v4, and shadcn-solid. The monorepo is Rush. Do not add a root `pnpm-workspace.yaml`.
+- Do not introduce a shared abstraction unless it removes real duplication, clarifies a boundary, or matches an existing project pattern.
+- When a file starts mixing multiple responsibilities or layers, split by responsibility rather than by arbitrary size.
+- Substantial product behavior uses one Spec plus one detailed Plan. Technical refactors use a Plan. Record technical choices there before implementation.
+- Plans use `docs/plans/0000-template.md`. Writing rules stay in the installed `technical-design-docs` skill. Do not copy that skill into this repository.
 
 ## Documentation
 
 - Keep `README.md` focused on orientation, quick start, and current user-facing behavior.
 - Use `CONTRIBUTING.md` for contribution workflow.
 - Use `specs/` for active product behavior and `docs/plans/` for active technical designs. Current-state documentation owns implemented behavior.
-- Use `docs/` for durable current-state knowledge.
+- Use `docs/` for durable current-state knowledge such as architecture, development guides, operational runbooks, references, and onboarding tutorials.
 - Update `CHANGELOG.md` for user-facing changes unless the change is docs-only or repository-only.
+- When behavior, configuration, commands, APIs, deployment, architecture, or operations change, update the relevant docs in the same PR/MR or explain why no docs changed.
+
+## AI Delivery Workflow
+
+When an AI agent completes implementation work:
+
+1. Inspect `git status --short --branch`.
+2. Verify generated files, secrets, machine paths, and build artifacts are not staged.
+3. Run the required verification gates and record the exact commands.
+4. Commit pending changes with a concise conventional commit message.
+5. Push the branch and verify the remote head.
+6. Create or reuse a GitHub Pull Request when the task is not landing directly on `main`.
+7. Include a delivery summary with motivation, implementation notes, validation, and follow-up risks.
+
+## Review Evidence
+
+- PR/MR titles must follow `type(scope): summary`; use `scripts/check-pr-title.sh` to verify them.
+- PR/MR descriptions must include motivation, implementation notes, exact validation commands, skipped gates with reasons, and follow-up risks.
+- If a claim depends on logs, screenshots, package output, deployed behavior, or generated artifacts, attach or link the evidence in the PR/MR.
+- Update the PR/MR description after substantial code changes, review-driven revisions, rebases that change behavior, or validation reruns.
+- Keep GitHub PR and GitLab MR templates in sync if the project uses both hosting styles.
 
 ## Git
 
-- Branch names should be short and descriptive.
+- Branch names should be short and descriptive, such as `docs/external-release-plan`.
 - Commit messages should be concise and use conventional prefixes when they fit.
+- Signed commits are preferred when local git signing is configured.
 - Do not rewrite or discard user changes unless explicitly requested.
+
+## Publish Safety Check
+
+Before pushing public-facing or package-facing changes, scan for accidental private references. Adjust globs for the project stack:
+
+```bash
+rg --hidden --no-ignore -n "private-token|secret|internal-domain.example|HOME_PATH_PLACEHOLDER" . \
+  --glob '!.git/**' \
+  --glob '!.omx/**' \
+  --glob '!AGENTS.md' \
+  --glob '!CONTRIBUTING.md' \
+  --glob '!SECURITY.md'
+```
