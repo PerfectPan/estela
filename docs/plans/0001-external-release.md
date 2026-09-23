@@ -6,7 +6,7 @@
 - Last updated: 2026-09-23
 - Paired Spec: [`specs/0001-external-release.md`](../../specs/0001-external-release.md)
 
-This plan turns the MVP on `main` (065ae72) into a CLI that someone else can run with `npx`, without cloning the repository. It fixes the three entry points that `docs/VISION.md` promises (viewer, static report, MCP), because two of them fail today. It also removes Node.js from the core packages: schema, kernel, and adapters take their file and SQLite access as injected dependencies, and only the CLI shell provides Node implementations. It does not add viewer features, new hosts, or a browser file-open entry point.
+This plan turns the MVP on `main` (065ae72) into a CLI that someone else can run with `npx`, without cloning the repository. It fixes the three entry points the CLI already declares (viewer, `build` static report, `mcp`), because two of them fail today. It also removes Node.js from the core packages: schema, kernel, and adapters take their file and SQLite access as injected dependencies, and only the CLI shell provides Node implementations. It does not add viewer features, new hosts, or a browser file-open entry point.
 
 ## Contents
 
@@ -332,7 +332,7 @@ flowchart LR
 M3 checklist:
 
 1. Package name chosen (7, first row).
-2. If the repository goes public: `docs/VISION.md` removed or rewritten (it contains a local home path and `/tmp` research paths), and a secret scanner such as gitleaks run over the full history with no findings. The history since 065ae72 is short, so a clean check is cheap.
+2. If the repository goes public: a secret scanner such as gitleaks run over the full history with no findings. PR #3 deletes `docs/VISION.md` from the tree, but commit 065ae72 still contains it with a local home path and `/tmp` research paths. Decide whether that is acceptable or whether the history is squashed before the visibility change.
 3. `LICENSE` present at the root (MIT is already declared in `package.json`).
 4. README quick start is `npx <package>`, and the host table lists canonical JSON, Grok, Codex, OpenCode only.
 

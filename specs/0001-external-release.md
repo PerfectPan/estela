@@ -8,7 +8,7 @@ Paired Plan: [`docs/plans/0001-external-release.md`](../docs/plans/0001-external
 
 ## Problem And Scope
 
-`docs/VISION.md` promises three entry points: a local viewer, a redacted static report, and an MCP server that other agents call for `reconstruct`. Today a person who is not the author has to clone the repository, install Rush, and set an environment variable to open one session. The static report command exits 1. The MCP command exits 1. The CLI does not start on Node.js 20 even though `rush.json` allows it.
+The CLI already declares three entry points (`agent-trace --help` lists the dev server, `build`, and `mcp`): a local viewer, a redacted static report, and an MCP server that other agents call for `reconstruct`. Today a person who is not the author has to clone the repository, install Rush, and set an environment variable to open one session. The static report command exits 1. The MCP command exits 1. The CLI does not start on Node.js 20 even though `rush.json` allows it.
 
 In scope:
 
