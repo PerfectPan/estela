@@ -99,20 +99,49 @@ A bundling probe (appendix A.4) showed the approach in section 2.4 works: an esb
 | `scripts/smoke.mjs` (new) | Runs Spec scenarios against an installed bin | New |
 | CI | Runs smoke on the packed tarball | Extended |
 
+Solid arrows mean "imports". The dotted arrow is the injected implementation: kernel declares `TraceIO` and `SqliteIO`, `src/io/node.ts` implements them, and `src/cli.ts` passes that implementation into `loadTrace`. `adapter-dsh` and `adapter-claude-code` stay in the core but are not registered, so they are not drawn. DevFrame 1.0.0 and `@devframes/agentic` 1.0.0 host the RPC and are left out of the picture.
+
+```mermaid
+flowchart TB
+  subgraph shell["Shell: @agent-trace/devframe, Node.js 22.18+"]
+    direction LR
+    cli["src/cli.ts<br/>argv and env to TraceRef"]
+    io["src/io/node.ts<br/>node:fs/promises, node:sqlite"]
+    rpc["RPC<br/>get-trace, reconstruct"]
+  end
+  subgraph core["Core: no node:* imports"]
+    direction LR
+    hosts["adapter-grok<br/>adapter-codex<br/>adapter-opencode"]
+    kernel["@agent-trace/kernel<br/>TraceIO, SqliteIO, TraceRef<br/>loadTrace, fold, reconstruct, redact"]
+    schema["@agent-trace/schema"]
+  end
+  spa["SPA in the browser"]
+
+  cli --> io
+  cli --> hosts
+  rpc --> kernel
+  hosts --> kernel
+  kernel --> schema
+  io -. "implements" .-> kernel
+  spa --> rpc
+  spa --> kernel
+```
+
 ### 2.3 Main path
 
-```
-npx <package> ./session-dir
-  └─ dist/bin.mjs            version guard, then dynamic import
-       └─ dist/cli.mjs       bundled workspace code
-            ├─ argv: first positional → AGENT_TRACE_PATH (absolute)
-            ├─ build TraceRef { path, sessionId ← #id or AGENT_TRACE_SESSION }
-            ├─ loadTrace(ref, adapters, nodeIO)   ← kernel + adapters, no node:*
-            │    exit 1 on error; print host + event count
-            └─ devframe createCac → dev | build | mcp
-                                     │      │       └─ @devframes/agentic stdio
-                                     │      └─ dump get-trace (redact with os.homedir())
-                                     └─ SPA from dist/client
+One process handles one trace. The trace is loaded and checked before any subcommand starts, so a bad path fails before a port opens.
+
+```mermaid
+flowchart LR
+  user["npx pkg [build | mcp] [path]"] --> bin["dist/bin.mjs<br/>Node.js 22.18+ check"]
+  bin -- "old Node" --> old["one-line message, exit 1"]
+  bin -- "dynamic import" --> cli["dist/cli.mjs<br/>argv to TraceRef<br/>path, #id or AGENT_TRACE_SESSION"]
+  cli --> load["loadTrace(ref, adapters, nodeIO)"]
+  load -- "error" --> fail["stderr message, exit 1"]
+  load -- "ok: host, event count" --> sub{"subcommand"}
+  sub -- "none" --> dev["dev server on localhost<br/>SPA from dist/client + RPC"]
+  sub -- "build" --> build["static dump of get-trace<br/>redact with os.homedir(), forced"]
+  sub -- "mcp" --> mcp["stdio MCP server<br/>agent-trace_reconstruct"]
 ```
 
 ### 2.4 Design decisions
@@ -238,6 +267,23 @@ Rules:
 
 ### 3.3 Failures and recovery
 
+`loadTrace` tries canonical JSON first, then each registered adapter in order. The first `detect` that returns true owns the input. On `main`, dsh and Claude Code sit after Codex and claim their files, then throw a not-implemented error. After D5 they are not in the list, so those inputs reach `UnsupportedTraceError`.
+
+```mermaid
+flowchart TD
+  start["loadTrace(ref, adapters, io)"] --> canon{"canonical<br/>agent-trace/v0 JSON?"}
+  canon -- "yes" --> trace["Trace"]
+  canon -- "no" --> g{"grok.detect"}
+  g -- "no" --> o{"opencode.detect"}
+  o -- "no" --> c{"codex.detect"}
+  c -- "no" --> un["UnsupportedTraceError<br/>dsh, Claude Code, anything else"]
+  g -- "yes" --> load["matched adapter<br/>load(ref, io)"]
+  o -- "yes" --> load
+  c -- "yes" --> load
+  load -- "ok" --> trace
+  load -- "throws" --> err["adapter error, exit 1"]
+```
+
 | Input | Result |
 |---|---|
 | No path, no env | Demo trace |
@@ -268,6 +314,14 @@ Rules:
 ## 4. Rollout and stability
 
 ### 4.1 Gates and rollout stages
+
+```mermaid
+flowchart LR
+  scaf["PR #3<br/>scaffolding: CI, templates"] --> m1
+  m1["M1 workspace<br/>D9 first, then D3 to D8<br/>smoke via rushx"] --> m2["M2 tarball<br/>esbuild bundle<br/>smoke on installed bin"]
+  m2 --> m3["M3 publish 0.1.0"]
+  owner["owner decisions<br/>package name, visibility"] --> m3
+```
 
 | Stage | Precondition | What ships | Stop if |
 |---|---|---|---|
@@ -359,8 +413,8 @@ Inside M1, land D9 first as its own commit with no behavior change: `rush test` 
 | Repository visibility | open question | npm provenance may require a public source repository; unverified | unconfirmed | Decide before M3. If it stays private, publish without `--provenance` |
 | `redact` misses secrets outside the token patterns | risk | A report can contain session text with secrets | unconfirmed | README and post-build message; scanner is follow-up |
 | DevFrame 1.0.0 behavior changes on upgrade | risk | Pinned versions (D8) avoid surprise breakage | unconfirmed | Upgrade in a dedicated PR with the tarball smoke |
-| `node:sqlite` prints `ExperimentalWarning` on 22.x | risk | Noise on stderr for OpenCode users | unconfirmed | Accept for 0.1.0 |
-| Project scaffolding (CONTRIBUTING, CI, templates) | dependency | This plan assumes a CI workflow exists | unconfirmed | Comes from the scaffolding change in PR #1 or a separate PR; not part of this plan |
+| `node:sqlite` prints `ExperimentalWarning` on 22.x | risk | Rush treats that stderr as a warning and exits 1, which failed the first CI run of PR #3. PR #3 disables the warning in the opencode test workers only. In the CLI it is still printed once on stderr | unconfirmed | `smoke.mjs` must not fail on it. Decide in M2 whether `dist/bin.mjs` filters this one warning |
+| Project scaffolding (CONTRIBUTING, CI, templates) | dependency | This plan assumes a CI workflow exists | unconfirmed | Split out of PR #1 as PR #3; merge it before M1. Not part of this plan |
 | Browser entry point: open a dropped session in the static page | follow-up | No install needed for Codex and Grok; enabled by D9 | unconfirmed | Separate Spec and Plan after 0.1.0. Start with Codex (one file) and Grok (directory via `webkitdirectory` or the File System Access API) |
 | OpenCode in the browser | risk for that follow-up | Needs a WASM SQLite (sql.js or wa-sqlite, about 1 MB). `opencode.db` usually runs in WAL mode; if the user picks only the `.db` file, rows still in `opencode.db-wal` are missing, and the page would show an incomplete trace without an error. `node:sqlite` reads the WAL itself | unconfirmed | The browser plan must either require the `-wal` file, detect a non-empty WAL and refuse, or leave OpenCode to the CLI |
 | dsh zstd frames outside Node | risk for the dsh plan | The dsh parser will need a WASM zstd decoder behind `TraceIO` to stay Node-free | unconfirmed | Decide in the dsh plan |
