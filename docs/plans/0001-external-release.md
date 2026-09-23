@@ -317,7 +317,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  scaf["PR #3<br/>scaffolding: CI, templates"] --> m1
+  scaf["PR #3, merged<br/>scaffolding: CI, templates"] --> m1
   m1["M1 workspace<br/>D9 first, then D3 to D8<br/>smoke via rushx"] --> m2["M2 tarball<br/>esbuild bundle<br/>smoke on installed bin"]
   m2 --> m3["M3 publish 0.1.0"]
   owner["owner decisions<br/>package name, visibility"] --> m3
@@ -332,7 +332,7 @@ flowchart LR
 M3 checklist:
 
 1. Package name chosen (7, first row).
-2. If the repository goes public: a secret scanner such as gitleaks run over the full history with no findings. PR #3 deletes `docs/VISION.md` from the tree, but commit 065ae72 still contains it with a local home path and `/tmp` research paths. Decide whether that is acceptable or whether the history is squashed before the visibility change.
+2. If the repository goes public: a secret scanner such as gitleaks run over the full history with no findings. PR #3 (merged as 62be3fd) deleted `docs/VISION.md` from the tree, but commit 065ae72 still contains it with a local home path and `/tmp` research paths. Decide whether that is acceptable or whether the history is squashed before the visibility change.
 3. `LICENSE` present at the root (MIT is already declared in `package.json`).
 4. README quick start is `npx <package>`, and the host table lists canonical JSON, Grok, Codex, OpenCode only.
 
@@ -413,8 +413,8 @@ Inside M1, land D9 first as its own commit with no behavior change: `rush test` 
 | Repository visibility | open question | npm provenance may require a public source repository; unverified | unconfirmed | Decide before M3. If it stays private, publish without `--provenance` |
 | `redact` misses secrets outside the token patterns | risk | A report can contain session text with secrets | unconfirmed | README and post-build message; scanner is follow-up |
 | DevFrame 1.0.0 behavior changes on upgrade | risk | Pinned versions (D8) avoid surprise breakage | unconfirmed | Upgrade in a dedicated PR with the tarball smoke |
-| `node:sqlite` prints `ExperimentalWarning` on 22.x | risk | Rush treats that stderr as a warning and exits 1, which failed the first CI run of PR #3. PR #3 disables the warning in the opencode test workers only. In the CLI it is still printed once on stderr | unconfirmed | `smoke.mjs` must not fail on it. Decide in M2 whether `dist/bin.mjs` filters this one warning |
-| Project scaffolding (CONTRIBUTING, CI, templates) | dependency | This plan assumes a CI workflow exists | unconfirmed | Split out of PR #1 as PR #3; merge it before M1. Not part of this plan |
+| `node:sqlite` prints `ExperimentalWarning` on 22.x | risk | Rush treats that stderr as a warning and exits 1, which failed the first CI run of PR #3. PR #3 (merged) disables the warning in the opencode test workers only. In the CLI it is still printed once on stderr | unconfirmed | `smoke.mjs` must not fail on it. Decide in M2 whether `dist/bin.mjs` filters this one warning |
+| Project scaffolding (CONTRIBUTING, CI, templates) | dependency | Resolved. PR #3 merged as 62be3fd; `main` has CI, the Spec and Plan templates, and `check-repository.sh` | unconfirmed | None |
 | Browser entry point: open a dropped session in the static page | follow-up | No install needed for Codex and Grok; enabled by D9 | unconfirmed | Separate Spec and Plan after 0.1.0. Start with Codex (one file) and Grok (directory via `webkitdirectory` or the File System Access API) |
 | OpenCode in the browser | risk for that follow-up | Needs a WASM SQLite (sql.js or wa-sqlite, about 1 MB). `opencode.db` usually runs in WAL mode; if the user picks only the `.db` file, rows still in `opencode.db-wal` are missing, and the page would show an incomplete trace without an error. `node:sqlite` reads the WAL itself | unconfirmed | The browser plan must either require the `-wal` file, detect a non-empty WAL and refuse, or leave OpenCode to the CLI |
 | dsh zstd frames outside Node | risk for the dsh plan | The dsh parser will need a WASM zstd decoder behind `TraceIO` to stay Node-free | unconfirmed | Decide in the dsh plan |
