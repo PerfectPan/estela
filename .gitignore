@@ -1,13 +1,28 @@
 .DS_Store
+.env
+.env.*
 *.log
-coverage
-dist
-node_modules
-playwright-report
-test-results
-temp
+.omx/
 .ref
 *.tsbuildinfo
+
+# Dependency and tool caches
+node_modules/
+.cache/
+.turbo/
+.next/
+.vite/
+.pytest_cache/
+__pycache__/
+playwright-report
+test-results
+
+# Generated output
+dist/
+build/
+coverage/
+tmp/
+temp/
 
 # Rush
 common/deploy/

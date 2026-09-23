@@ -4,28 +4,28 @@ Local-first DevTool for coding-agent session logs.
 
 - **Session** is the archive (`events[]`).
 - **Trajectory** is a fold of that archive.
-- **Killer:** at any event, reconstruct what the model actually saw after compaction.
+- **Reconstruct** shows what the model still saw at one event after compaction.
 
-Monorepo is **Rush** (pnpm under the hood). UI is **Solid + Tailwind v4 + shadcn-solid**. Lint is **oxlint**.
+## Quick start
 
 ```sh
-rush update
-rush test
-rush typecheck
-rush lint
-cd packages/devframe && rushx dev -- --no-auth
+node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js test
+cd packages/devframe && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 ```
 
-Default demo fixture: `fixtures/demo.trace.json`. Override with `AGENT_TRACE_PATH`.
+Open `http://localhost:7392/__agent-trace/`.
 
-Hosts:
+Default fixture: `fixtures/demo.trace.json`. Point `AGENT_TRACE_PATH` at a host session to inspect a real log.
 
-| Host | Path |
-|---|---|
-| Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` |
-| OpenCode | `~/.local/share/opencode/opencode.db#<session-id>` |
-| Claude Code | stub |
-| dsh | stub |
+| Host | Path | Status |
+|---|---|---|
+| Grok | `~/.grok/sessions/<cwd>/<session-id>/` | loads |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl` | loads |
+| OpenCode | `~/.local/share/opencode/opencode.db#<session-id>` | loads |
+| Claude Code | — | not supported |
+| dsh | — | not supported |
 
-See [docs/VISION.md](docs/VISION.md).
+Rush monorepo. UI is Solid + Tailwind v4 + shadcn-solid. Lint is oxlint.
+
+Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands: [docs/development/setup.md](docs/development/setup.md).
