@@ -76,7 +76,7 @@ A developer cannot open the tool, pick a session, and see what happened. The shi
 - Claude Code, Codex, and Grok adapters implement the host protocol and pass the conformance suite on synthetic fixtures.
 - The session browser shows rows within 2 s on this machine (2,300+ files, 11.6 GB) and within 300 ms on the second launch for the cached numbers.
 - The 355 MB Codex session opens with at most 12 MB sent to the browser before the first event is selected.
-- `schema`, `kernel`, and adapters import no `node:*` module outside tests.
+- `schema`, `kernel`, `rpc`, and every `host-*` package import no `node:*` module outside tests, and every package's dependencies follow the layer table in 2.2.
 - The two screens match `docs/design/` in both themes and both languages, reviewed side by side with the design HTML at 1440 × 900 in the delivery PR.
 - Every UI string exists in English and Simplified Chinese, enforced by the type checker.
 
@@ -102,45 +102,55 @@ A developer cannot open the tool, pick a session, and see what happened. The shi
 
 ### 2.2 Boundaries and responsibilities
 
+The workspace has two kinds of projects. `apps/` holds applications composed from libraries; `packages/` holds the libraries. Every project uses the `@rivus` scope. Only `@rivus/agent-trace` is published; the others are `private` and bundled into it.
+
 ```mermaid
 flowchart TB
-  subgraph hosts["Host logs on disk (read only)"]
-    cc["Claude Code JSONL"]
-    cx["Codex rollout JSONL"]
-    gk["Grok session dir"]
+  subgraph apps["apps: composed applications"]
+    cli["cli<br/>@rivus/agent-trace"]
+    web["web<br/>Solid SPA"]
   end
-  subgraph core["Core: no node:* imports"]
-    ad["Host adapters<br/>host protocol"]
-    kernel["kernel<br/>loadTrace, fold, reconstruct, redact,<br/>view, conformance suite"]
-    schema["schema<br/>canonical trace"]
+  subgraph packages["packages: libraries"]
+    rpc["rpc"]
+    rt["runtime-node"]
+    hosts["host-claude-code<br/>host-codex<br/>host-grok"]
+    kernel["kernel"]
+    schema["schema"]
   end
-  subgraph shell["Shell: @rivus/agent-trace, Node.js 22.18+"]
-    io["NodeIO<br/>fs, homedir"]
-    idx["Session index<br/>discover + SQLite"]
-    rpc["RPC<br/>list-sessions, get-trace-view,<br/>get-event, reconstruct"]
-    cli["CLI<br/>dev, build, mcp"]
-  end
-  spa["SPA<br/>session browser, workspace"]
-
-  hosts --> io
-  io -. "implements TraceIO" .-> ad
-  ad --> kernel --> schema
-  idx --> ad
-  rpc --> idx
-  rpc --> kernel
+  logs["Host logs on disk (read only)"]
   cli --> rpc
-  spa -- "RPC over localhost" --> rpc
+  cli --> rt
+  cli --> hosts
+  cli -. "embeds build output" .-> web
+  web --> rpc
+  web --> kernel
+  rpc --> kernel
+  rt --> kernel
+  hosts --> kernel
+  kernel --> schema
+  rt -. "reads" .-> logs
 ```
 
-| Piece | Owns | Change in this plan |
-|---|---|---|
-| `@agent-trace/schema` | Canonical trace types | New event kinds, request and compaction payloads, agents, capabilities, source pointers |
-| `@agent-trace/kernel` | `TraceIO`, `HostAdapter`, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, conformance suite | New protocol, view projection, conformance suite; no `node:*` |
-| `adapter-claude-code` | Claude Code logs | New implementation |
-| `adapter-codex`, `adapter-grok` | Their logs | Ported to the host protocol, extended to requests, usage, timing, compaction, subagents |
-| `adapter-opencode`, `adapter-dsh` | Their logs | Not registered in this release |
-| `@rivus/agent-trace` (`packages/devframe`) | NodeIO, session index, RPC, CLI, SPA | Most of the work; the package is renamed from `@agent-trace/devframe` |
-| `docs/design/` | Visual contract | Implemented as tokens in `styles.css` |
+| Directory | Package | Owns | May depend on |
+|---|---|---|---|
+| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `get-trace-view`, `get-event`, `reconstruct`) and their server handlers over an injected session service | `kernel`, `schema` |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
+| `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
+| `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | Host protocol types, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, projections, conformance suite | `schema` |
+| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types | nothing |
+
+Rules:
+
+- Apps depend on packages; packages never depend on apps. The two apps share no code; `cli` takes `web`'s build output as a file through a Rush build dependency.
+- `apps/cli` is the only composition root. It alone knows which hosts are registered and that the runtime is Node.
+- Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, `rpc`, and every `host-*` do not (D5).
+- UI components stay inside `apps/web` until a second consumer needs them.
+- `scripts/check-layers.mjs` checks every `package.json` against the "May depend on" column in CI.
+
+In this plan, "the shell" means `apps/cli` together with `packages/runtime-node`.
 
 ### 2.3 Main path
 
@@ -182,7 +192,7 @@ Events remain the canonical unit because `reconstruct` answers per event and the
 Claude Code has the most sessions and the fullest compaction record here. Codex and Grok already have adapters to port. OpenCode needs `SqliteIO` and is the next host on the same protocol; dsh needs zstd and its format catalog.
 
 **D5. Core packages take I/O by injection.**
-`TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in the shell. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5, measured with esbuild; M1 runs the browser-target bundle with rslib `output.target: 'web'`).
+`TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in `packages/runtime-node`. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5, measured with esbuild; M1 runs the browser-target bundle with rslib `output.target: 'web'`).
 
 **D6. The browser receives a view trace; originals and full text load on demand.**
 This changes two current rules in `AGENTS.md`: "canonical storage is `events[]` plus `original`" becomes "every event can return its original", and "`getTrace` is one snapshot blob" becomes "`get-trace-view` is one snapshot blob; `get-event` returns one event in full". Measured on the 355 MB session: 360 MB full, 21.3 MB without originals, 9.5 MB with strings capped at 4 KB (A.6). Alternatives: paging events (rejected: the timeline and the ledger need every event's shape, and `reconstruct` needs the whole sequence), and compressing the full blob (rejected: the server would still hold 3.2 GB). The server keeps each event's source pointer (file, byte offset, length) and reads the line again when `get-event` asks for it. `AGENTS.md` is updated in the same change.
@@ -201,7 +211,7 @@ Solid, Tailwind v4, and shadcn-solid stay. Tokens, palette, type, and encoding r
 `redact(trace, { homeDir })` replaces the home directory with `~` in every string and replaces the known token patterns. The report path always redacts. `AGENT_TRACE_REDACT=0` affects only the local server.
 
 **D11. One bundled package, `@rivus/agent-trace`, built with rslib.**
-rslib 1.0 bundles the shell and all workspace packages into `dist/cli.mjs` (ESM, `output.target: 'node'`, `bundle: true`) with `devframe`, `@devframes/agentic`, and `cac` as externals and runtime dependencies. Rspack resolves `new URL('<literal>', import.meta.url)` as an asset import, and `module.parser.javascript.url: false` did not turn that off in the probe; so no module locates files that way. `src/shared/paths.ts` builds paths with `join(dirname(fileURLToPath(import.meta.url)), …)`, with a build-time constant for the bundle layout. `dist/bin.mjs` checks Node.js `>=22.18` before a dynamic import, because a static import would load `node:sqlite` first. `devframe` and `@devframes/agentic` are pinned to `1.0.0`, since `@devframes/agentic@1.0.0` declares `peerDependencies: { devframe: "1.0.0" }`. Probe (A.9): the rslib bundle is 20.8 KB, builds in 0.12 s, and, installed from its tarball into an empty directory, ran `build` (exit 0) and `mcp` (reconstruct returned `completeness: partial`). Alternative: esbuild, which also worked (A.4); rslib is chosen to stay on the Rspack toolchain.
+rslib 1.0 bundles the shell and all workspace packages into `dist/cli.mjs` (ESM, `output.target: 'node'`, `bundle: true`) with `devframe`, `@devframes/agentic`, and `cac` as externals and runtime dependencies. Rspack resolves `new URL('<literal>', import.meta.url)` as an asset import, and `module.parser.javascript.url: false` did not turn that off in the probe; so no module locates files that way. `apps/cli/src/paths.ts` builds paths with `join(dirname(fileURLToPath(import.meta.url)), …)`, with a build-time constant for the bundle layout. `dist/bin.mjs` checks Node.js `>=22.18` before a dynamic import, because a static import would load `node:sqlite` first. `devframe` and `@devframes/agentic` are pinned to `1.0.0`, since `@devframes/agentic@1.0.0` declares `peerDependencies: { devframe: "1.0.0" }`. Probe (A.9): the rslib bundle is 20.8 KB, builds in 0.12 s, and, installed from its tarball into an empty directory, ran `build` (exit 0) and `mcp` (reconstruct returned `completeness: partial`). Alternative: esbuild, which also worked (A.4); rslib is chosen to stay on the Rspack toolchain.
 
 **D12. Release intent through Rush change files now; publishing later.**
 `@rivus/agent-trace` gets a Rush version policy, and every PR that changes what the package ships carries a change file from `rush change`, checked in CI with `rush change --verify`. `rush version` turns the files into the package's `CHANGELOG.md` when a release happens. The version bump and npm publish workflows are a follow-up plan; `PerfectPan/rivus-agent` (Version Packages on dispatch, publish on GitHub release with `id-token: write`) is the reference. The mechanism lands in its own PR before M1.
@@ -211,6 +221,9 @@ rslib 1.0 bundles the shell and all workspace packages into `dist/cli.mjs` (ESM,
 
 **D14. Terminal output through `@clack/prompts`; command parsing stays on cac.**
 DevFrame builds the commands with cac (`createCac`), so parsing stays there. `@clack/prompts` 1.8 draws the terminal moments (3.1): `intro`, `spinner`, `progress`, `tasks`, `box`, `log`, and `autocomplete` for `--pick`. It is what create-vite, Astro, the Svelte CLI, and Nuxt's CLI use; it installs about 280 KB in 6 packages, colors through `node:util.styleText`, and bundles with rslib (probe: 28 KB). Measured: piped output has no color codes, but the spinner still writes cursor hide/show sequences, so the shell turns spinners and progress into plain lines when `stdout` is not a TTY or `NO_COLOR` is set. In `mcp` mode clack is not called; messages go to stderr. DevFrame's own `[devframe] …` lines print color codes even with `NO_COLOR=1` and piped output (measured); the shell filters escape sequences from them when color is off, and the fix is proposed upstream. Alternatives: Ink (React plus about 24 MB through npx, for a full-screen UI this CLI does not have); OpenTUI (needs Bun or Node.js 26.4 with an experimental flag, and a native binary per platform); ora plus chalk plus listr2 (three overlapping libraries, about 1.5 MB).
+
+**D15. Apps compose; packages provide.**
+The MVP's `packages/devframe` mixes the CLI entry, the server RPC, and the SPA in one package, so nothing but the file layout shows which code may use Node or know the host list. The layout in 2.2 makes those boundaries package boundaries that a script can check. Alternatives: keep one app package with folders inside (rejected: the `node:*` and dependency rules would rest on review alone), and put the SPA inside `apps/cli` (rejected: the static report reuses the same build, and the SPA must not see Node code). Adapters are renamed `host-*` to match the host protocol. Moving the code is the first step of M1.
 
 ## 3. Detailed design
 
@@ -242,7 +255,7 @@ Terminal moments (D14):
 
 ### 3.2 Host protocol
 
-Exported from `@agent-trace/kernel`:
+Exported from `@rivus/agent-trace-kernel`:
 
 ```ts
 export interface TraceIO {
@@ -314,7 +327,7 @@ Rules:
 - An unknown record type becomes an `unknown` event with `payload.type` set to the host's type name. An unknown format generation fails `load` with the line number.
 - Event ids are derived from host ids when the host has them, otherwise from file and line, so a second load gives the same ids.
 
-**Conformance suite.** `@agent-trace/kernel/conformance` exports `describeHostConformance(adapter, fixtures)` for Vitest. Every registered adapter runs it on its synthetic fixtures. It checks:
+**Conformance suite.** `@rivus/agent-trace-kernel/conformance` exports `describeHostConformance(adapter, fixtures)` for Vitest. Every registered adapter runs it on its synthetic fixtures. It checks:
 
 1. `discover` returns every fixture session and reads no more than 128 KB per file.
 2. `load` twice gives identical event ids and order.
@@ -439,7 +452,7 @@ Components map to the design:
 
 Localization details (D13):
 
-- Dictionaries live in `packages/devframe/src/client/i18n/{en,zh-CN}.ts`. Keys are grouped by screen (`browser.*`, `workspace.*`, `inspector.*`, `report.*`, `common.*`).
+- Dictionaries live in `apps/web/src/i18n/{en,zh-CN}.ts`. Keys are grouped by screen (`browser.*`, `workspace.*`, `inspector.*`, `report.*`, `common.*`).
 - Event kind labels are UI strings (`REQUEST` / `请求`, `TOOL` / `工具`). Host names, model names, and field names in "Raw" are not.
 - CJK fallbacks join both font stacks: `"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei"` after the Latin faces. Uppercase section labels and their letter-spacing apply only under `:lang(en)`.
 - Column widths in the ledger and the session list are set for the longer of the two languages; the M4 design review includes a `zh-CN` screenshot of both screens.
@@ -461,7 +474,8 @@ Localization details (D13):
 
 ### 3.8 Compatibility and migration
 
-- `Adapter`, `loadTrace(path, adapters)`, `splitSessionRef`, `readJsonl` change signature. All callers are in this repository.
+- `Adapter`, `loadTrace(path, adapters)`, `splitSessionRef`, `readJsonl` change signature, and every workspace package is renamed to `@rivus/agent-trace-*`. All callers are in this repository.
+- `AGENTS.md` updates its layer table to 2.2 in the layout-move PR.
 - No compatibility layer: nothing is released, so interfaces and file shapes change in place.
 - `AGENTS.md` rules on `original` and `getTrace` change as stated in D6, in the same PR as the code.
 - Node.js 20 and 22.0–22.17 are dropped; they never worked.
@@ -480,7 +494,7 @@ Localization details (D13):
 
 ```mermaid
 flowchart LR
-  m1["M1 Runtime<br/>Node floor, DevFrame fixes,<br/>DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, HostAdapter,<br/>conformance, 3 hosts"]
+  m1["M1 Layout and runtime<br/>apps/packages move, Node floor,<br/>DevFrame fixes, DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, HostAdapter,<br/>conformance, 3 hosts"]
   m2 --> m3["M3 Session browser<br/>SQLite index, list UI"]
   m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes, i18n"]
   m3 --> m5["M5 Package<br/>report, rslib bundle,<br/>tarball e2e"]
@@ -489,7 +503,7 @@ flowchart LR
 
 | Stage | Ships | Gate |
 |---|---|---|
-| M1 | D5, D11 runtime parts (Node floor, pins, `@devframes/agentic`), `snapshot` fix, positional path, D14 terminal output and `--pick` skeleton | `build` and `mcp` exit 0 on the demo; D5 checks pass; S15 green |
+| M1 | D15 layout move (`apps/cli`, `apps/web`, `packages/rpc`, `packages/runtime-node`, `host-*` renames, `check-layers.mjs`), D5, D11 runtime parts (Node floor, pins, `@devframes/agentic`), `snapshot` fix, positional path, D14 terminal output and `--pick` skeleton | `build` and `mcp` exit 0 on the demo; D5 checks pass; S15 green |
 | M2 | Canonical trace, host protocol, conformance suite, Claude Code adapter, Codex and Grok ports, synthetic fixtures | Conformance green for 3 hosts; real-session runs recorded |
 | M3 | Session index (SQLite, FTS5), `list-sessions`, session browser screen | S1, S3, S4 green; 2 s first screen on this machine recorded |
 | M4 | View trace, `get-event`, timeline, ledger, inspector, themes, English and Chinese UI | S5–S8, S11, S12, S14 green; design review against `docs/design/` in both languages |
@@ -511,7 +525,7 @@ Local tool, no telemetry. Signals are CI results and GitHub issues.
 ### 5.1 Unit and conformance
 
 - Kernel: `toView`, `redact`, `fold`, `reconstruct` slot counts, projections.
-- Each host: `describeHostConformance` on synthetic fixtures under `packages/adapter-*/fixtures/`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
+- Each host: `describeHostConformance` on synthetic fixtures under `packages/host-*/fixtures/`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
 - D5: oxlint `node:*` rule and a browser-target rslib bundle of kernel and adapters.
 
 ### 5.2 Browser end-to-end
@@ -548,7 +562,7 @@ One person can deliver this. Owners and dates are unconfirmed. Estimates assume 
 
 | Stage | Main work | Estimate |
 |---|---|---|
-| M1 | Runtime fixes, `TraceIO`, NodeIO, CLI path, D5 checks, terminal output | 2.5 days |
+| M1 | Layout move and layer check, runtime fixes, `TraceIO`, `NodeIO`, CLI path, D5 checks, terminal output | 3.5 days |
 | M2 | Canonical trace, host protocol, conformance suite, Claude Code adapter, Codex and Grok ports, fixtures | 5 days |
 | M3 | SQLite index with FTS5, `list-sessions`, session browser UI | 3.5 days |
 | M4 | View trace, `get-event`, projections, timeline, virtualized ledger, inspector, themes, dictionaries and formatting | 7 days |

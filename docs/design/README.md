@@ -32,7 +32,7 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 
 ## Tokens
 
-Both themes share one layout. Only these values change. The right column maps each token to the semantic name already used in `packages/devframe/src/client/styles.css`.
+Both themes share one layout. Only these values change. The right column maps each token to the semantic name used by the web app's `styles.css` (today `packages/devframe/src/client/styles.css`; after the layout move in Plan 0001, `apps/web/src/styles.css`).
 
 | Token | Dark | Light | Semantic name |
 |---|---|---|---|

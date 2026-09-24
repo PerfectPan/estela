@@ -78,7 +78,7 @@
 - Claude Code、Codex 和 Grok adapter 实现 host 协议，并在合成 fixture 上通过一致性测试。
 - 会话浏览器在本机（2,300+ 个文件，11.6 GB）上 2 s 内显示行，第二次启动时缓存的数字在 300 ms 内显示。
 - 355 MB 的 Codex 会话在选中第一个事件之前发送给浏览器的数据最多 12 MB。
-- `schema`、`kernel` 和 adapter 在测试之外不导入任何 `node:*` 模块。
+- `schema`、`kernel`、`rpc` 和每个 `host-*` 包在测试之外不导入任何 `node:*` 模块，并且每个包的依赖都遵守 2.2 中的分层表。
 - 两个界面在两种主题和两种语言下与 `docs/design/` 一致，在交付 PR 中与设计 HTML 在 1440 × 900 下并排评审。
 - 每个 UI 字符串都有英文和简体中文两个版本，由类型检查强制保证。
 
@@ -104,45 +104,55 @@
 
 ### 2.2 边界与职责
 
+workspace 中有两类项目。`apps/` 存放由库组合而成的应用；`packages/` 存放库。所有项目都使用 `@rivus` scope。只有 `@rivus/agent-trace` 会发布；其他项目都是 `private`，并打包进它。
+
 ```mermaid
 flowchart TB
-  subgraph hosts["Host logs on disk (read only)"]
-    cc["Claude Code JSONL"]
-    cx["Codex rollout JSONL"]
-    gk["Grok session dir"]
+  subgraph apps["apps: composed applications"]
+    cli["cli<br/>@rivus/agent-trace"]
+    web["web<br/>Solid SPA"]
   end
-  subgraph core["Core: no node:* imports"]
-    ad["Host adapters<br/>host protocol"]
-    kernel["kernel<br/>loadTrace, fold, reconstruct, redact,<br/>view, conformance suite"]
-    schema["schema<br/>canonical trace"]
+  subgraph packages["packages: libraries"]
+    rpc["rpc"]
+    rt["runtime-node"]
+    hosts["host-claude-code<br/>host-codex<br/>host-grok"]
+    kernel["kernel"]
+    schema["schema"]
   end
-  subgraph shell["Shell: @rivus/agent-trace, Node.js 22.18+"]
-    io["NodeIO<br/>fs, homedir"]
-    idx["Session index<br/>discover + SQLite"]
-    rpc["RPC<br/>list-sessions, get-trace-view,<br/>get-event, reconstruct"]
-    cli["CLI<br/>dev, build, mcp"]
-  end
-  spa["SPA<br/>session browser, workspace"]
-
-  hosts --> io
-  io -. "implements TraceIO" .-> ad
-  ad --> kernel --> schema
-  idx --> ad
-  rpc --> idx
-  rpc --> kernel
+  logs["Host logs on disk (read only)"]
   cli --> rpc
-  spa -- "RPC over localhost" --> rpc
+  cli --> rt
+  cli --> hosts
+  cli -. "embeds build output" .-> web
+  web --> rpc
+  web --> kernel
+  rpc --> kernel
+  rt --> kernel
+  hosts --> kernel
+  kernel --> schema
+  rt -. "reads" .-> logs
 ```
 
-| 组件 | 负责 | 本计划中的变更 |
-|---|---|---|
-| `@agent-trace/schema` | 规范 trace 类型 | 新的事件类型、请求与压缩 payload、agent、capability、source pointer |
-| `@agent-trace/kernel` | `TraceIO`、`HostAdapter`、`loadTrace`、`fold`、`reconstruct`、`redact`、`toView`、一致性测试 | 新协议、视图投影、一致性测试；无 `node:*` |
-| `adapter-claude-code` | Claude Code 日志 | 新实现 |
-| `adapter-codex`, `adapter-grok` | 各自的日志 | 移植到 host 协议，扩展到请求、用量、耗时、压缩、subagent |
-| `adapter-opencode`, `adapter-dsh` | 各自的日志 | 本次发布中不注册 |
-| `@rivus/agent-trace`（`packages/devframe`） | NodeIO、会话索引、RPC、CLI、SPA | 大部分工作；包名从 `@agent-trace/devframe` 改为此名 |
-| `docs/design/` | 视觉契约 | 实现为 `styles.css` 中的 token |
+| 目录 | 包 | 负责 | 允许依赖 |
+|---|---|---|---|
+| `apps/cli` | `@rivus/agent-trace` | 组合根：注册 host、提供 Node 运行时、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、`get-trace-view`、`get-event`、`reconstruct`）及其基于注入的会话服务的 server handler | `kernel`、`schema` |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO`（基于 `node:fs` 的 `TraceIO`）、home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
+| `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | 每个包对应一个 host：目录布局知识、解析、capability | `kernel`、`schema` |
+| `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | 保留，本次发布中不注册 | `kernel`、`schema` |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | host 协议类型、`loadTrace`、`fold`、`reconstruct`、`redact`、`toView`、投影、一致性测试 | `schema` |
+| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型 | 无 |
+
+规则：
+
+- 应用依赖包；包从不依赖应用。两个应用之间不共享代码；`cli` 通过 Rush 构建依赖，以文件形式获取 `web` 的构建产物。
+- `apps/cli` 是唯一的组合根。只有它知道注册了哪些 host，以及运行时是 Node。
+- 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel`、`rpc` 和每个 `host-*` 都不导入（D5）。
+- UI 组件留在 `apps/web` 内，直到出现第二个使用方。
+- `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
+
+本计划中的“shell”指 `apps/cli` 加上 `packages/runtime-node`。
 
 ### 2.3 主路径
 
@@ -184,7 +194,7 @@ sequenceDiagram
 Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已有可移植的 adapter。OpenCode 需要 `SqliteIO`，是同一协议上的下一个 host；dsh 需要 zstd 及其格式目录。
 
 **D5. 核心包的 I/O 通过注入传入。**
-`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 shell 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。
+`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 `packages/runtime-node` 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。
 
 **D6. 浏览器接收视图版 trace，原始记录和完整文本按需加载。**
 这改变了 `AGENTS.md` 中的两条现行规则：“规范存储是 `events[]` 加 `original`”变为“每个事件都能返回其原始记录”，“`getTrace` 是一个 snapshot blob”变为“`get-trace-view` 是一个 snapshot blob；`get-event` 返回一个完整事件”。在 355 MB 的会话上测得：完整为 360 MB，去掉原始记录为 21.3 MB，字符串截断到 4 KB 为 9.5 MB（A.6）。备选方案：对事件分页（未采用：timeline 和 ledger 需要每个事件的结构，`reconstruct` 需要完整序列），以及压缩完整 blob（未采用：server 仍需占用 3.2 GB）。server 保存每个事件的 source pointer（文件、字节偏移、长度），在 `get-event` 请求时重新读取该行。`AGENTS.md` 在同一变更中更新。
@@ -203,7 +213,7 @@ Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已�
 `redact(trace, { homeDir })` 在每个字符串中把 home 目录替换为 `~`，并替换已知的 token 模式。报告路径始终脱敏。`AGENT_TRACE_REDACT=0` 只影响本地 server。
 
 **D11. 单一打包产物 `@rivus/agent-trace`，用 rslib 构建。**
-rslib 1.0 把 shell 和所有 workspace 包打包进 `dist/cli.mjs`（ESM，`output.target: 'node'`，`bundle: true`），`devframe`、`@devframes/agentic` 和 `cac` 作为 external 和运行时依赖。Rspack 把 `new URL('<literal>', import.meta.url)` 解析为资源导入，而在探针中设置 `module.parser.javascript.url: false` 并未关闭这一行为；因此没有任何模块用这种方式定位文件。`src/shared/paths.ts` 用 `join(dirname(fileURLToPath(import.meta.url)), …)` 构造路径，并用一个构建期常量表示打包后的目录布局。`dist/bin.mjs` 在动态导入之前检查 Node.js `>=22.18`，因为静态导入会先加载 `node:sqlite`。`devframe` 和 `@devframes/agentic` 固定为 `1.0.0`，因为 `@devframes/agentic@1.0.0` 声明了 `peerDependencies: { devframe: "1.0.0" }`。探针（A.9）：rslib 打包产物为 20.8 KB，构建耗时 0.12 s，从其 tarball 安装到空目录后，运行了 `build`（以 0 退出）和 `mcp`（reconstruct 返回 `completeness: partial`）。备选方案：esbuild，它同样可用（A.4）；选择 rslib 是为了留在 Rspack 工具链上。
+rslib 1.0 把 shell 和所有 workspace 包打包进 `dist/cli.mjs`（ESM，`output.target: 'node'`，`bundle: true`），`devframe`、`@devframes/agentic` 和 `cac` 作为 external 和运行时依赖。Rspack 把 `new URL('<literal>', import.meta.url)` 解析为资源导入，而在探针中设置 `module.parser.javascript.url: false` 并未关闭这一行为；因此没有任何模块用这种方式定位文件。`apps/cli/src/paths.ts` 用 `join(dirname(fileURLToPath(import.meta.url)), …)` 构造路径，并用一个构建期常量表示打包后的目录布局。`dist/bin.mjs` 在动态导入之前检查 Node.js `>=22.18`，因为静态导入会先加载 `node:sqlite`。`devframe` 和 `@devframes/agentic` 固定为 `1.0.0`，因为 `@devframes/agentic@1.0.0` 声明了 `peerDependencies: { devframe: "1.0.0" }`。探针（A.9）：rslib 打包产物为 20.8 KB，构建耗时 0.12 s，从其 tarball 安装到空目录后，运行了 `build`（以 0 退出）和 `mcp`（reconstruct 返回 `completeness: partial`）。备选方案：esbuild，它同样可用（A.4）；选择 rslib 是为了留在 Rspack 工具链上。
 
 **D12. 现在通过 Rush change file 记录发布意图，发布放到以后。**
 `@rivus/agent-trace` 获得一个 Rush version policy，每个改变该包所发布内容的 PR 都附带一个由 `rush change` 生成的 change file，在 CI 中用 `rush change --verify` 检查。发布时，`rush version` 把这些文件转成该包的 `CHANGELOG.md`。版本号提升和 npm 发布 workflow 是后续计划；参考 `PerfectPan/rivus-agent`（dispatch 时运行 Version Packages，GitHub release 时以 `id-token: write` 发布）。这套机制在 M1 之前以单独的 PR 落地。
@@ -213,6 +223,9 @@ rslib 1.0 把 shell 和所有 workspace 包打包进 `dist/cli.mjs`（ESM，`out
 
 **D14. 终端输出通过 `@clack/prompts` 实现；命令解析保留在 cac 上。**
 DevFrame 用 cac（`createCac`）构建命令，因此解析保留在那里。`@clack/prompts` 1.8 绘制各个终端时刻（3.1）：`intro`、`spinner`、`progress`、`tasks`、`box`、`log`，以及用于 `--pick` 的 `autocomplete`。create-vite、Astro、Svelte CLI 和 Nuxt 的 CLI 都使用它；它安装约 280 KB，共 6 个包，通过 `node:util.styleText` 着色，并能用 rslib 打包（探针：28 KB）。实测：管道输出中没有颜色代码，但 spinner 仍会写入光标隐藏/显示序列，因此当 `stdout` 不是 TTY 或设置了 `NO_COLOR` 时，shell 把 spinner 和进度改为纯文本行。在 `mcp` 模式下不调用 clack；消息写入 stderr。DevFrame 自己的 `[devframe] …` 行即使在 `NO_COLOR=1` 且输出为管道时也会打印颜色代码（实测）；关闭颜色时 shell 会从这些行中过滤转义序列，并向上游提出修复。备选方案：Ink（React 加上通过 npx 约 24 MB，用于本 CLI 并不具备的全屏 UI）；OpenTUI（需要 Bun 或带实验性参数的 Node.js 26.4，并且每个平台需要一个原生二进制文件）；ora 加 chalk 加 listr2（三个功能重叠的库，约 1.5 MB）。
+
+**D15. 应用负责组合；包负责提供能力。**
+MVP 的 `packages/devframe` 把 CLI 入口、server RPC 和 SPA 混在一个包中，因此只有文件布局能说明哪些代码可以使用 Node 或知道 host 列表。2.2 中的布局把这些边界变成包边界，可以用脚本检查。备选方案：保留一个应用包，在内部用文件夹划分（未采用：`node:*` 和依赖规则将只能靠 review 保证），以及把 SPA 放进 `apps/cli`（未采用：静态报告复用同一份构建产物，而且 SPA 不能看到 Node 代码）。adapter 改名为 `host-*`，与 host 协议一致。移动代码是 M1 的第一步。
 
 ## 3. 详细设计
 
@@ -244,7 +257,7 @@ npx @rivus/agent-trace mcp <path>
 
 ### 3.2 Host 协议
 
-从 `@agent-trace/kernel` 导出：
+从 `@rivus/agent-trace-kernel` 导出：
 
 ```ts
 export interface TraceIO {
@@ -316,7 +329,7 @@ export interface HostAdapter {
 - 未知记录类型成为 `unknown` 事件，`payload.type` 设为 host 的类型名。未知的格式代际使 `load` 失败并给出行号。
 - 事件 id 在 host 有 id 时从 host id 派生，否则从文件和行派生，因此第二次加载得到相同的 id。
 
-**一致性测试。** `@agent-trace/kernel/conformance` 导出供 Vitest 使用的 `describeHostConformance(adapter, fixtures)`。每个已注册的 adapter 都在其合成 fixture 上运行它。检查项：
+**一致性测试。** `@rivus/agent-trace-kernel/conformance` 导出供 Vitest 使用的 `describeHostConformance(adapter, fixtures)`。每个已注册的 adapter 都在其合成 fixture 上运行它。检查项：
 
 1. `discover` 返回每个 fixture 会话，每个文件读取不超过 128 KB。
 2. `load` 两次得到相同的事件 id 和顺序。
@@ -441,7 +454,7 @@ flowchart LR
 
 本地化细节（D13）：
 
-- 词典位于 `packages/devframe/src/client/i18n/{en,zh-CN}.ts`。key 按界面分组（`browser.*`、`workspace.*`、`inspector.*`、`report.*`、`common.*`）。
+- 词典位于 `apps/web/src/i18n/{en,zh-CN}.ts`。key 按界面分组（`browser.*`、`workspace.*`、`inspector.*`、`report.*`、`common.*`）。
 - 事件类型标签属于 UI 字符串（`REQUEST` / `请求`、`TOOL` / `工具`）。host 名称、模型名称以及 "Raw" 中的字段名不属于。
 - 两个字体栈在西文字体之后都加上中文回退：`"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei"`。大写分区标签及其字距只在 `:lang(en)` 下生效。
 - ledger 和会话列表的列宽按两种语言中较长的一种设定；M4 的设计评审包含两个界面的 `zh-CN` 截图。
@@ -463,7 +476,8 @@ flowchart LR
 
 ### 3.8 兼容性与迁移
 
-- `Adapter`、`loadTrace(path, adapters)`、`splitSessionRef`、`readJsonl` 的签名改变。所有调用方都在本仓库中。
+- `Adapter`、`loadTrace(path, adapters)`、`splitSessionRef`、`readJsonl` 的签名改变，并且每个 workspace 包都改名为 `@rivus/agent-trace-*`。所有调用方都在本仓库中。
+- `AGENTS.md` 在布局迁移 PR 中把其分层表更新为 2.2 的内容。
 - 没有兼容层：目前没有任何发布，因此接口和文件形状直接原地修改。
 - `AGENTS.md` 中关于 `original` 和 `getTrace` 的规则按 D6 所述改变，与代码在同一个 PR 中。
 - 放弃 Node.js 20 和 22.0–22.17；它们从未可用。
@@ -482,7 +496,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  m1["M1 Runtime<br/>Node floor, DevFrame fixes,<br/>DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, HostAdapter,<br/>conformance, 3 hosts"]
+  m1["M1 Layout and runtime<br/>apps/packages move, Node floor,<br/>DevFrame fixes, DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, HostAdapter,<br/>conformance, 3 hosts"]
   m2 --> m3["M3 Session browser<br/>SQLite index, list UI"]
   m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes, i18n"]
   m3 --> m5["M5 Package<br/>report, rslib bundle,<br/>tarball e2e"]
@@ -491,7 +505,7 @@ flowchart LR
 
 | 阶段 | 交付内容 | 关卡 |
 |---|---|---|
-| M1 | D5、D11 的运行时部分（Node 最低版本、版本固定、`@devframes/agentic`）、`snapshot` 修复、位置参数路径、D14 终端输出和 `--pick` 骨架 | `build` 和 `mcp` 在 demo 上以 0 退出；D5 检查通过；S15 通过 |
+| M1 | D15 布局迁移（`apps/cli`、`apps/web`、`packages/rpc`、`packages/runtime-node`、`host-*` 改名、`check-layers.mjs`）、D5、D11 的运行时部分（Node 最低版本、版本固定、`@devframes/agentic`）、`snapshot` 修复、位置参数路径、D14 终端输出和 `--pick` 骨架 | `build` 和 `mcp` 在 demo 上以 0 退出；D5 检查通过；S15 通过 |
 | M2 | 规范 trace、host 协议、一致性测试、Claude Code adapter、Codex 和 Grok 移植、合成 fixture | 3 个 host 的一致性测试通过；真实会话运行已记录 |
 | M3 | 会话索引（SQLite、FTS5）、`list-sessions`、会话浏览器界面 | S1、S3、S4 通过；本机 2 s 首屏已记录 |
 | M4 | 视图版 trace、`get-event`、timeline、ledger、inspector、主题、英文和中文 UI | S5–S8、S11、S12、S14 通过；对照 `docs/design/` 的两种语言设计评审 |
@@ -513,7 +527,7 @@ M2 之后 M3 和 M4 可以并行。
 ### 5.1 单元测试与一致性测试
 
 - Kernel：`toView`、`redact`、`fold`、`reconstruct` 的 slot 计数、投影。
-- 每个 host：在 `packages/adapter-*/fixtures/` 下的合成 fixture 上运行 `describeHostConformance`。fixture 依据 1.1 中的记录结构手写，不包含真实会话文本。
+- 每个 host：在 `packages/host-*/fixtures/` 下的合成 fixture 上运行 `describeHostConformance`。fixture 依据 1.1 中的记录结构手写，不包含真实会话文本。
 - D5：oxlint `node:*` 规则，以及对 kernel 和 adapter 的面向浏览器的 rslib 打包。
 
 ### 5.2 浏览器端到端测试
@@ -550,7 +564,7 @@ M2 之后 M3 和 M4 可以并行。
 
 | 阶段 | 主要工作 | 估算 |
 |---|---|---|
-| M1 | 运行时修复、`TraceIO`、NodeIO、CLI 路径、D5 检查、终端输出 | 2.5 天 |
+| M1 | 布局迁移和分层检查、运行时修复、`TraceIO`、`NodeIO`、CLI 路径、D5 检查、终端输出 | 3.5 天 |
 | M2 | 规范 trace、host 协议、一致性测试、Claude Code adapter、Codex 和 Grok 移植、fixture | 5 天 |
 | M3 | 带 FTS5 的 SQLite 索引、`list-sessions`、会话浏览器 UI | 3.5 天 |
 | M4 | 视图版 trace、`get-event`、投影、timeline、虚拟化 ledger、inspector、主题、词典和格式化 | 7 天 |
