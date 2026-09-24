@@ -1,18 +1,12 @@
-/** Posix `/` join. Host paths in this release use `/`. */
-export function joinPath(...parts: string[]): string {
-  let out = ''
-  for (const part of parts) {
-    if (!part)
-      continue
-    if (!out) {
-      out = part
-      continue
-    }
-    const left = out.endsWith('/') ? out.slice(0, -1) : out
-    const right = part.startsWith('/') ? part.slice(1) : part
-    out = `${left}/${right}`
-  }
-  return out
+/** Posix `/` join of one directory and one name. Host paths in this release use `/`. */
+export function joinPath(dir: string, name: string): string {
+  if (!dir)
+    return name
+  if (!name)
+    return dir
+  const left = dir.endsWith('/') ? dir.slice(0, -1) : dir
+  const right = name.startsWith('/') ? name.slice(1) : name
+  return `${left}/${right}`
 }
 
 export function basenamePath(path: string): string {

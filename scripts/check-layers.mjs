@@ -1,62 +1,34 @@
 #!/usr/bin/env node
 // Dependency direction for @rivus/* packages. See docs/plans/0001-external-release.md section 2.2.
+// host-opencode stays in the allow-list; plan section 7, "OpenCode needs SqliteIO".
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 
 const FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+const KERNEL = '@rivus/agent-trace-kernel'
+const SCHEMA = '@rivus/agent-trace-schema'
+const RPC = '@rivus/agent-trace-rpc'
+const CORE = [RPC, KERNEL, SCHEMA]
+const HOSTS = [
+  '@rivus/agent-trace-host-claude-code',
+  '@rivus/agent-trace-host-codex',
+  '@rivus/agent-trace-host-grok',
+  '@rivus/agent-trace-host-opencode',
+  '@rivus/agent-trace-host-dsh',
+]
+const HOST_DEPS = [KERNEL, SCHEMA]
 
 const ALLOW = {
-  '@rivus/agent-trace': [
-    '@rivus/agent-trace-web',
-    '@rivus/agent-trace-rpc',
-    '@rivus/agent-trace-runtime-node',
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-    '@rivus/agent-trace-host-claude-code',
-    '@rivus/agent-trace-host-codex',
-    '@rivus/agent-trace-host-grok',
-    '@rivus/agent-trace-host-opencode',
-    '@rivus/agent-trace-host-dsh',
-  ],
-  '@rivus/agent-trace-web': [
-    '@rivus/agent-trace-rpc',
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-rpc': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-runtime-node': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-kernel': [
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-schema': [],
-  '@rivus/agent-trace-host-claude-code': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-host-codex': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-host-grok': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-host-opencode': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
-  '@rivus/agent-trace-host-dsh': [
-    '@rivus/agent-trace-kernel',
-    '@rivus/agent-trace-schema',
-  ],
+  '@rivus/agent-trace': ['@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE, ...HOSTS],
+  '@rivus/agent-trace-web': CORE,
+  [RPC]: [KERNEL, SCHEMA],
+  '@rivus/agent-trace-runtime-node': HOST_DEPS,
+  [KERNEL]: [SCHEMA],
+  [SCHEMA]: [],
 }
+for (const host of HOSTS)
+  ALLOW[host] = HOST_DEPS
 
 const HELP = `Usage:
   node scripts/check-layers.mjs [--help]
@@ -66,10 +38,6 @@ dependency (dependencies, devDependencies, peerDependencies, optionalDependencie
 against the "May depend on" column in docs/plans/0001-external-release.md section 2.2.
 Exits 1 and prints one line per violation.
 `
-
-function fail(line) {
-  console.error(line)
-}
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   process.stdout.write(HELP)
@@ -101,7 +69,7 @@ for (const project of rush.projects) {
 
 if (violations.length > 0) {
   for (const line of violations)
-    fail(line)
+    console.error(line)
   process.exit(1)
 }
 

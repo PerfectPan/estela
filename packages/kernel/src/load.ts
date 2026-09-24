@@ -8,9 +8,11 @@ export interface Adapter {
 }
 
 export class UnsupportedTraceError extends Error {
-  constructor(path: string) {
-    super(`No adapter accepted ${path}. Use a canonical ${'`'}agent-trace/v0${'`'} JSON file, or an implemented host adapter.`)
+  constructor(path: string, cause?: unknown) {
+    super(`No adapter accepted ${path}`)
     this.name = 'UnsupportedTraceError'
+    if (cause !== undefined)
+      this.cause = cause
   }
 }
 
@@ -24,10 +26,15 @@ export async function loadCanonicalJson(path: string, io: TraceIO): Promise<Trac
 }
 
 export async function loadTrace(path: string, adapters: readonly Adapter[], io: TraceIO): Promise<Trace> {
+  if (await io.stat(path) === null)
+    throw new Error(`${path} does not exist`)
+
+  let canonicalError: unknown
   try {
     return await loadCanonicalJson(path, io)
   }
   catch (error) {
+    canonicalError = error
     if (adapters.length === 0)
       throw error
   }
@@ -36,5 +43,5 @@ export async function loadTrace(path: string, adapters: readonly Adapter[], io: 
     if (await adapter.detect(path, io))
       return adapter.load(path, io)
   }
-  throw new UnsupportedTraceError(path)
+  throw new UnsupportedTraceError(path, canonicalError)
 }

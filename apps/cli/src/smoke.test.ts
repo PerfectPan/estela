@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -26,7 +26,7 @@ function childEnv(): NodeJS.ProcessEnv {
   return env
 }
 
-function run(command: string, args: string[], cwd: string, stdin?: string): Promise<{ code: number, stdout: string, stderr: string }> {
+function run(command: string, args: string[], cwd: string): Promise<{ code: number, stdout: string, stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -45,14 +45,24 @@ function run(command: string, args: string[], cwd: string, stdin?: string): Prom
     })
     child.on('error', reject)
     child.on('close', code => resolve({ code: code ?? 1, stdout, stderr }))
-    if (stdin !== undefined) {
-      child.stdin.write(stdin)
-      child.stdin.end()
-    }
-    else {
-      child.stdin.end()
-    }
+    child.stdin.end()
   })
+}
+
+async function treeContains(dir: string, needle: string): Promise<boolean> {
+  const entries = await readdir(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (await treeContains(path, needle))
+        return true
+      continue
+    }
+    const text = await readFile(path)
+    if (text.includes(needle))
+      return true
+  }
+  return false
 }
 
 function mcpMessage(message: unknown): string {
@@ -69,13 +79,15 @@ describe('cli smoke', () => {
       expect(result.stdout).not.toContain('\u001b')
       expect(result.stdout).toContain('Load:')
       expect(result.stdout).toContain('Write:')
+      expect(await treeContains(outDir, homedir())).toBe(false)
+      expect(await treeContains(outDir, repoRoot)).toBe(false)
     }
     finally {
       await rm(outDir, { recursive: true, force: true })
     }
   })
 
-  it('S10: mcp tools/list returns reconstruct and stdout stays protocol', async () => {
+  it('S10: mcp reconstruct returns completeness and stdout stays protocol', async () => {
     const request = [
       mcpMessage({
         jsonrpc: '2.0',
@@ -88,48 +100,44 @@ describe('cli smoke', () => {
         },
       }),
       mcpMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-      mcpMessage({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+      mcpMessage({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'agent-trace_reconstruct', arguments: { eventId: 'e6' } },
+      }),
     ].join('')
     const child = spawn(process.execPath, ['bin.mjs', 'mcp', demo], {
       cwd: cliDir,
       env: childEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
     })
-    let stdout = ''
-    child.stdout.setEncoding('utf8')
-    child.stdout.on('data', (chunk: string) => {
-      stdout += chunk
-    })
-    child.stdin.write(request)
-    const done = new Promise<number>((resolve, reject) => {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      let buf = ''
       const timer = setTimeout(() => {
         child.kill()
-        resolve(-1)
+        resolve(buf)
       }, 20000)
-      child.on('error', reject)
-      child.on('close', (code) => {
-        clearTimeout(timer)
-        resolve(code ?? 0)
-      })
-    })
-    const sawTools = new Promise<void>((resolve) => {
-      child.stdout.on('data', () => {
-        if (stdout.includes('reconstruct')) {
+      child.stdout.setEncoding('utf8')
+      child.stdout.on('data', (chunk: string) => {
+        buf += chunk
+        if (buf.includes('"id":2') && buf.includes('completeness')) {
+          clearTimeout(timer)
           child.kill()
-          resolve()
+          resolve(buf)
         }
       })
+      child.on('error', reject)
+      child.stdin.write(request)
+      child.stdin.end()
     })
-    await Promise.race([sawTools, done])
-    if (!stdout.includes('reconstruct'))
-      await done
-    expect(stdout).toContain('reconstruct')
+    expect(stdout).toContain('"id":2')
+    expect(stdout).toContain('completeness')
     for (const line of stdout.split('\n')) {
       const trimmed = line.trim()
       if (!trimmed)
         continue
       expect(() => JSON.parse(trimmed)).not.toThrow()
     }
-    child.kill()
   })
 })

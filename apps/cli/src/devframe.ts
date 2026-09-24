@@ -1,10 +1,9 @@
 import { defineDevframe } from 'devframe'
 import { NAMESPACE, serverFunctions } from '@rivus/agent-trace-rpc'
 import pkg from '../package.json' with { type: 'json' }
-import { BASE_PATH } from './base-path.ts'
 import { webDistDir } from './paths.ts'
 
-export { BASE_PATH }
+export const BASE_PATH = '/__agent-trace/'
 
 export default defineDevframe({
   id: 'agent-trace',

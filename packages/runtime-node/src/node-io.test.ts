@@ -78,10 +78,41 @@ describe('NodeIO.lines', () => {
   })
 })
 
+describe('NodeIO.lines chunks', () => {
+  it('reads a line longer than the 64 KB chunk', async () => {
+    const body = 'a'.repeat(70_000)
+    const path = await fixture('long.txt', Buffer.from(`${body}\n`))
+    const rows = await collect(path)
+    expect(rows).toEqual([{ text: body, offset: 0, length: body.length, line: 1 }])
+    const bytes = await nodeIO.readBytes(path, { start: 0, end: body.length })
+    expect(new TextDecoder().decode(bytes)).toBe(body)
+  })
+
+  it('joins a multi-byte character and CRLF that cross a chunk boundary', async () => {
+    const chunk = 64 * 1024
+    const prefix = Buffer.alloc(chunk - 1, 0x61)
+    const file = Buffer.concat([prefix, Buffer.from([0xc3, 0xa9]), Buffer.from('\r\nz')])
+    const path = await fixture('span.txt', file)
+    const rows = await collect(path)
+    expect(rows.map(row => row.text)).toEqual([`${'a'.repeat(chunk - 1)}é`, 'z'])
+    expect(rows[0]?.length).toBe(chunk - 1 + 2)
+    expect(rows[1]?.offset).toBe(chunk - 1 + 2 + 2)
+    for (const row of rows) {
+      const bytes = await nodeIO.readBytes(path, { start: row.offset, end: row.offset + row.length })
+      expect(new TextDecoder().decode(bytes)).toBe(row.text)
+    }
+  })
+})
+
 describe('NodeIO.stat', () => {
   it('returns null when the path does not exist', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'node-io-'))
     dirs.push(dir)
     expect(await nodeIO.stat(join(dir, 'missing.txt'))).toBeNull()
+  })
+
+  it('rethrows errors other than ENOENT', async () => {
+    const path = await fixture('file.txt', Buffer.from('x'))
+    await expect(nodeIO.stat(join(path, 'child'))).rejects.toMatchObject({ code: 'ENOTDIR' })
   })
 })

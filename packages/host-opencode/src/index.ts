@@ -110,7 +110,7 @@ export const opencodeAdapter: Adapter = {
       return false
     }
   },
-  async load(path: string, _io: TraceIO): Promise<Trace> {
+  async load(path: string): Promise<Trace> {
     const { file, sessionId: fromHash } = splitSessionRef(path)
     const sessionId = fromHash ?? process.env.AGENT_TRACE_SESSION
     const db = new DatabaseSync(file, { readOnly: true })

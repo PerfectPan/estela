@@ -140,12 +140,15 @@ export function buildLedger(trace: Trace): LedgerSection[] {
   return sections
 }
 
+function twoDigits(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
 export function formatClock(ts: number): string {
   if (!ts)
     return ''
   const date = new Date(ts)
   if (Number.isNaN(date.getTime()))
     return ''
-  const two = (n: number) => String(n).padStart(2, '0')
-  return `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`
+  return `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}:${twoDigits(date.getSeconds())}`
 }

@@ -11,4 +11,4 @@ export {
 export { loadCanonicalJson, loadTrace, UnsupportedTraceError, type Adapter } from './load.ts'
 export { basenamePath, dirnamePath, joinPath } from './path.ts'
 export { reconstruct } from './reconstruct.ts'
-export { redact } from './redact.ts'
+export { redact, redactText } from './redact.ts'

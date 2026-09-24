@@ -12,8 +12,8 @@ import process from 'node:process'
 const HELP = `Usage:
   node scripts/check-browser-bundle.mjs [--help]
 
-Bundles @rivus/agent-trace-kernel, @rivus/agent-trace-rpc, and the registered
-hosts (claude-code, codex, grok) with rslib output.target "web".
+Bundles @rivus/agent-trace-kernel, @rivus/agent-trace-rpc, host-dsh, and the
+registered hosts (claude-code, codex, grok) with rslib output.target "web".
 Fails when a node:* import is unresolved. host-opencode is excluded
 (plan section 7, "OpenCode needs SqliteIO").
 `
@@ -46,6 +46,7 @@ const rslib = await createRslib({
         'host-claude-code': 'packages/host-claude-code/src/index.ts',
         'host-codex': 'packages/host-codex/src/index.ts',
         'host-grok': 'packages/host-grok/src/index.ts',
+        'host-dsh': 'packages/host-dsh/src/index.ts',
       },
     },
     output: {

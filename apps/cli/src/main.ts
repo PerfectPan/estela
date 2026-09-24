@@ -1,19 +1,28 @@
 import process from 'node:process'
+import { bindSessionService } from '@rivus/agent-trace-rpc'
 import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
-import { parseCommand, programArgv } from './argv.ts'
+import { parseCommand, programArgv, wantsUsage } from './argv.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
 import { demoFixturePath } from './paths.ts'
 import { listSessionChoices, Session } from './session.ts'
-import { installPlainFilter, isPlainOutput, pickSession, sayBuild, sayError, sayReady, sayStart, startLoad } from './terminal.ts'
+import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, startLoad } from './terminal.ts'
 
 const FIX = 'Pass a canonical agent-trace/v0 JSON file, or a session path a registered host accepts.'
 
 export async function main(): Promise<void> {
-  installPlainFilter()
   const parsed = parseCommand(process.argv)
-  if (parsed.pick && (!process.stdin.isTTY || isPlainOutput())) {
+  if (parsed.error) {
+    process.stderr.write(`${parsed.error}\n`)
+    process.exit(1)
+  }
+  if (parsed.command === 'mcp')
+    installPlainFilter({ stderrOnly: true })
+  else
+    installPlainFilter()
+
+  if (parsed.pick && !process.stdin.isTTY) {
     process.stderr.write('--pick needs an interactive terminal\n')
     process.exit(1)
   }
@@ -21,11 +30,11 @@ export async function main(): Promise<void> {
   const handle = createCac(devframe, {
     onReady({ origin }) {
       const url = `${origin.replace(/\/$/, '')}${BASE_PATH}`
-      return sayReady(url)
+      sayReady(url)
     },
   })
 
-  if (parsed.help || parsed.version) {
+  if (wantsUsage(parsed.userArgs)) {
     await handle.parse(programArgv(parsed.userArgs))
     return
   }
@@ -34,12 +43,11 @@ export async function main(): Promise<void> {
   if (parsed.pick)
     sessionPath = await pickSession(listSessionChoices(sessionPath))
 
-  const mode = parsed.command === 'build' ? 'build' : parsed.command === 'mcp' ? 'mcp' : 'server'
-  const session = new Session(sessionPath, mode)
-  session.bind()
+  const session = new Session(sessionPath, parsed.command !== 'dev')
+  bindSessionService(session)
 
   if (parsed.command === 'mcp') {
-    await loadOrExit(session)
+    await loadOrExit(session, { mcp: true })
     await handle.parse(programArgv(parsed.userArgs))
     return
   }
@@ -47,31 +55,31 @@ export async function main(): Promise<void> {
   if (parsed.command === 'build') {
     const outDir = parsed.outDir ?? 'dist-static'
     try {
-      await sayBuild({
+      await sayBuild(pkg.version, {
         load: async () => {
           const trace = await session.load()
           return `${trace.events.length} events`
         },
         redact: async () => {
-          await session.currentTrace()
-          return 'redacted'
+          const view = await session.view()
+          return `redacted ${view.trace.events.length} events`
         },
         write: async () => {
-          await createBuild(devframe, { outDir })
+          await createBuild(devframe, { outDir, pretty: parsed.pretty })
           return outDir
         },
       })
     }
     catch (error) {
-      await sayError(`Could not build ${session.path}: ${messageOf(error)}`, FIX)
+      sayError(`Could not build ${session.path}: ${messageOf(error)}`, FIX)
       process.exit(1)
     }
     return
   }
 
-  await sayStart(pkg.version)
-  const loading = await startLoad()
-  const trace = await loadOrExit(session, () => loading.cancel())
+  sayStart(pkg.version)
+  const loading = startLoad()
+  const trace = await loadOrExit(session, { cancel: () => loading.cancel() })
   loading.stop(trace.events.length)
   const userArgs = [...parsed.userArgs]
   if (parsed.pick && !userArgs.includes('--open') && !userArgs.includes('--no-open'))
@@ -79,17 +87,24 @@ export async function main(): Promise<void> {
   await handle.parse(programArgv(userArgs))
 }
 
-async function loadOrExit(session: Session, cancel?: () => void) {
+async function loadOrExit(session: Session, options?: { mcp?: boolean, cancel?: () => void }) {
   try {
     return await session.load()
   }
   catch (error) {
-    cancel?.()
-    await sayError(`Could not load ${session.path}: ${messageOf(error)}`, FIX)
+    options?.cancel?.()
+    const text = `Could not load ${session.path}: ${messageOf(error)}`
+    if (options?.mcp) {
+      process.stderr.write(`${text}\n${FIX}\n`)
+      process.exit(1)
+    }
+    sayError(text, FIX)
     process.exit(1)
   }
 }
 
 function messageOf(error: unknown): string {
+  if (error instanceof Error && error.cause instanceof Error && error.cause.message)
+    return error.cause.message
   return error instanceof Error ? error.message : String(error)
 }
