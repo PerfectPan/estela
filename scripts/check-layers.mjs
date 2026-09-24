@@ -23,6 +23,8 @@ const RUNTIME = '@rivus/agent-trace-runtime-node'
 const ALLOW = {
   '@rivus/agent-trace': ['@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE, ...HOSTS],
   '@rivus/agent-trace-web': CORE,
+  // Tests the packed tarball from outside; it depends on no workspace package.
+  '@rivus/agent-trace-e2e': [],
   [RPC]: [KERNEL, SCHEMA],
   '@rivus/agent-trace-runtime-node': HOST_DEPS,
   [KERNEL]: [SCHEMA],
@@ -30,6 +32,7 @@ const ALLOW = {
 }
 for (const host of HOSTS)
   ALLOW[host] = HOST_DEPS
+const NO_RUNTIME_DEPS = new Set(['@rivus/agent-trace-e2e'])
 
 const HELP = `Usage:
   node scripts/check-layers.mjs [--help]
@@ -37,6 +40,7 @@ const HELP = `Usage:
 Reads every project from rush.json and checks each package.json @rivus/*
 dependency (dependencies, devDependencies, peerDependencies, optionalDependencies)
 against the "May depend on" column in docs/plans/0001-external-release.md section 2.2.
+@rivus/agent-trace-e2e may have no runtime dependencies at all.
 Exits 1 and prints one line per violation.
 `
 
@@ -52,6 +56,8 @@ for (const project of rush.projects) {
   if (manifest.name !== project.packageName) {
     violations.push(`check-layers: ${project.projectFolder} package.json name ${manifest.name} does not match rush.json ${project.packageName}`)
   }
+  if (NO_RUNTIME_DEPS.has(manifest.name) && Object.keys(manifest.dependencies ?? {}).length > 0)
+    violations.push(`check-layers: ${manifest.name} has runtime dependencies; it may only use devDependencies (test tooling)`)
   if (!Object.hasOwn(ALLOW, manifest.name))
     violations.push(`check-layers: ${manifest.name} has no allow-list entry`)
   for (const field of FIELDS) {

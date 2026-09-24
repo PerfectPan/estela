@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Ship one bundled package: dist/bin.mjs checks Node.js, dist/cli.mjs bundles the shell and workspace packages, and the web build is copied to dist/web; the Ready box shows one clickable URL",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

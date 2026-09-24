@@ -1,0 +1,23 @@
+{
+  "name": "@rivus/agent-trace-e2e",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "license": "GPL-3.0-only",
+  "description": "Smoke and end-to-end tests against the packed @rivus/agent-trace tarball.",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "oxlint -c ../../.oxlintrc.json src vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test:smoke": "vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.1.0",
+    "@types/node": "^24.5.2",
+    "node-pty": "1.2.0-beta.15",
+    "oxlint": "^1.86.0",
+    "oxlint-tsgolint": "^7.0.2003",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

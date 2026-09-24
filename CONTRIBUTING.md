@@ -144,8 +144,9 @@ for diagnosis, without the PR title, description, or release intent checks, and 
 runs until the blocker is resolved.
 
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
-The other ten package build commands currently repeat `tsc --noEmit`; if a package gains a distinct build command,
-add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
+The tarball smoke step then builds `@rivus/agent-trace` with rslib (`rush build --to @rivus/agent-trace`, which also
+runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
+a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
 the committed lockfile; use Rush update locally only when dependency inputs change.
 
 `actions/cache@v6` caches the pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at

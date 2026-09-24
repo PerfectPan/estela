@@ -62,6 +62,10 @@
       "packageName": "@rivus/agent-trace",
       "projectFolder": "apps/cli",
       "versionPolicyName": "agent-trace"
+    },
+    {
+      "packageName": "@rivus/agent-trace-e2e",
+      "projectFolder": "apps/e2e"
     }
   ]
 }
