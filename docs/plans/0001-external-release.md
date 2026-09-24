@@ -7,7 +7,7 @@
 - Paired Spec: [`specs/0001-external-release.md`](../../specs/0001-external-release.md)
 - Visual design: [`docs/design/`](../design/README.md)
 
-This plan turns the MVP on `main` into `@rivus/agent-trace`: a local DevTools that `npx @rivus/agent-trace` opens in the browser. The user picks a session from Claude Code, Codex, or Grok and debugs it in one workspace. The plan defines the host protocol that those three hosts implement first, the canonical trace `agent-trace/v1`, how sessions are discovered and loaded at the sizes found on a real machine, the UI build against the chosen design, and packaging. ATIF export, OpenCode, and dsh are follow-ups on the same protocol.
+This plan turns the MVP on `main` into `@rivus/agent-trace`: a local DevTools that `npx @rivus/agent-trace` opens in the browser. The user picks a session from Claude Code, Codex, or Grok and debugs it in one workspace. The plan defines the host protocol that those three hosts implement first, the canonical trace `agent-trace/v1`, how sessions are discovered and loaded at the sizes found on a real machine, the UI build against the chosen design in English and Simplified Chinese, and packaging. ATIF export, OpenCode, and dsh are follow-ups on the same protocol.
 
 ## Contents
 
@@ -77,7 +77,8 @@ A developer cannot open the tool, pick a session, and see what happened. The shi
 - The session browser shows rows within 2 s on this machine (2,300+ files, 11.6 GB) and within 300 ms on the second launch for the cached numbers.
 - The 355 MB Codex session opens with at most 12 MB sent to the browser before the first event is selected.
 - `schema`, `kernel`, and adapters import no `node:*` module outside tests.
-- The two screens match `docs/design/` in both themes, reviewed side by side with the design HTML at 1440 × 900 in the delivery PR.
+- The two screens match `docs/design/` in both themes and both languages, reviewed side by side with the design HTML at 1440 × 900 in the delivery PR.
+- Every UI string exists in English and Simplified Chinese, enforced by the type checker.
 
 ### 1.4 Non-goals
 
@@ -202,6 +203,9 @@ esbuild bundles the shell and all workspace packages into `dist/cli.mjs` with `d
 
 **D12. Release through GitHub release and npm trusted publishing, like `rivus-agent`.**
 A workflow on `release: published` runs the gates, then publishes with `id-token: write`. The repository can stay private. Whether npm provenance is attached for a private repository is not asserted here.
+
+**D13. UI strings in English and Simplified Chinese through typed dictionaries.**
+`@solid-primitives/i18n` 2.2 resolves keys against one dictionary per locale. `en` is the base dictionary and the type source; `zh-CN` is declared with `satisfies Dictionary` against it, so a missing or extra key fails `typecheck`, and a new string cannot ship in one language only. Dates, times, durations, and numbers go through one `format` module over `Intl.DateTimeFormat`, `Intl.RelativeTimeFormat`, and `Intl.NumberFormat`; the token abbreviation (`118.4k`, `2.41M`) is locale-independent. Session content is rendered as recorded and never passed through the dictionary. Alternatives: i18next (larger runtime, untyped keys), and plain objects without a library (no interpolation or plural rules). CLI and MCP output stay English.
 
 ## 3. Detailed design
 
@@ -412,6 +416,15 @@ Components map to the design:
 | Inspector: Model saw | `reconstruct(trace, eventId)` extended with slot token counts | Slots not recorded show hatched "unavailable" |
 | Inspector: Raw | `get-event` | Pretty-printed original record |
 | Theme | `prefers-color-scheme`, manual switch in `localStorage` | Tokens from `docs/design/README.md` |
+| Language | `navigator.languages`, manual switch in `localStorage` | `zh*` selects `zh-CN`, anything else `en`; `<html lang>` follows the active locale |
+
+Localization details (D13):
+
+- Dictionaries live in `packages/devframe/src/client/i18n/{en,zh-CN}.ts`. Keys are grouped by screen (`browser.*`, `workspace.*`, `inspector.*`, `report.*`, `common.*`).
+- Event kind labels are UI strings (`REQUEST` / `请求`, `TOOL` / `工具`). Host names, model names, and field names in "Raw" are not.
+- CJK fallbacks join both font stacks: `"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei"` after the Latin faces. Uppercase section labels and their letter-spacing apply only under `:lang(en)`.
+- Column widths in the ledger and the session list are set for the longer of the two languages; the M4 design review includes a `zh-CN` screenshot of both screens.
+- The report bundles both dictionaries (a few kilobytes), opens in the export-time locale, and keeps the switch.
 
 `reconstruct` gains per-slot token counts when the host records them: the request's input tokens, and the compaction's `postTokens` when it is the first request after a compaction. It does not estimate slot sizes from text length.
 
@@ -450,7 +463,7 @@ Components map to the design:
 flowchart LR
   m1["M1 Runtime<br/>Node floor, DevFrame fixes,<br/>DI, CLI path"] --> m2["M2 Protocol<br/>schema v1, HostAdapter,<br/>conformance, 3 hosts"]
   m2 --> m3["M3 Session browser<br/>index, cache, list UI"]
-  m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes"]
+  m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes, i18n"]
   m3 --> m5["M5 Ship<br/>report, bundle, tarball e2e,<br/>release 0.1.0"]
   m4 --> m5
 ```
@@ -460,7 +473,7 @@ flowchart LR
 | M1 | D5, D11 runtime parts (Node floor, pins, `@devframes/agentic`), `snapshot` fix, positional path | `build` and `mcp` exit 0 on the demo; D5 checks pass |
 | M2 | `agent-trace/v1`, protocol v1, conformance suite, Claude Code adapter, Codex and Grok ports, synthetic fixtures | Conformance green for 3 hosts; real-session runs recorded |
 | M3 | Session index, cache, `list-sessions`, session browser screen | S1, S3, S4 green; 2 s first screen on this machine recorded |
-| M4 | View trace, `get-event`, timeline, ledger, inspector, themes | S5–S8, S11, S12 green; design review against `docs/design/` |
+| M4 | View trace, `get-event`, timeline, ledger, inspector, themes, English and Chinese UI | S5–S8, S11, S12, S14 green; design review against `docs/design/` in both languages |
 | M5 | Report mode, bundle, tarball e2e, release workflow | All scenarios green on the tarball; `0.1.0` published |
 
 M3 and M4 can run in parallel after M2.
@@ -497,6 +510,7 @@ Playwright against the packed tarball, with a synthetic home directory that hold
 | S8 | Generated 10,000-event trace: rendered rows stay under 100 while scrolling |
 | S9 | Export, open from `file://`, grep output for the home path |
 | S11 | Emulated light scheme, then switch and reload |
+| S14 | Browser locale `zh-CN`: Chinese labels and date format; session text unchanged; switch to English survives reload |
 | S12 | Generated 350 MB Codex-format file (built at test time): payload before selection ≤ 12 MB; selecting a shortened event loads the full text |
 
 ### 5.3 CLI smoke
@@ -518,7 +532,7 @@ One person can deliver this. Owners and dates are unconfirmed. Estimates assume 
 | M1 | Runtime fixes, `TraceIO`, NodeIO, CLI path, D5 checks | 1.5 days |
 | M2 | Schema v1, protocol, conformance suite, Claude Code adapter, Codex and Grok ports, fixtures | 5 days |
 | M3 | Index, cache, `list-sessions`, session browser UI | 3 days |
-| M4 | View trace, `get-event`, projections, timeline, virtualized ledger, inspector, themes | 6 days |
+| M4 | View trace, `get-event`, projections, timeline, virtualized ledger, inspector, themes, dictionaries and formatting | 7 days |
 | M5 | Report mode, bundle, Playwright on tarball, release workflow | 2.5 days |
 
 Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by the Claude Code adapter and fixtures; M4 by the timeline and ledger.
@@ -538,6 +552,8 @@ Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by
 | OpenCode on protocol v1 | follow-up | OpenCode users | unconfirmed | Needs `SqliteIO`; next host after 0.1.0 |
 | dsh on protocol v1 | follow-up | dsh users | unconfirmed | Needs zstd and the format catalog |
 | OTLP export | follow-up | Langfuse, LangSmith, Phoenix | unconfirmed | After ATIF |
+| UI string quality in Chinese | risk | Literal or inconsistent terms | unconfirmed | One glossary in `i18n/zh-CN.ts` header comment, reviewed with the M4 screenshots |
+| More UI languages; localized CLI and MCP output | follow-up | Non-English and non-Chinese users | unconfirmed | Add a dictionary; the type check covers it |
 | Live follow, content search, lane view toggle | follow-up | Viewer features | unconfirmed | Separate plans |
 
 ## 8. Appendix: measurements

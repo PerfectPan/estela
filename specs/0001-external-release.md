@@ -22,6 +22,7 @@ In scope:
 - Supported hosts in this release: Claude Code, Codex, Grok. Each is connected through one host protocol.
 - A redacted static report of one session.
 - Dark and light themes.
+- English and Simplified Chinese UI.
 - An MCP server that exposes `reconstruct` to other agents.
 
 Out of scope:
@@ -75,6 +76,15 @@ Out of scope:
 ### Theme
 
 - The UI must follow the system color scheme and offer a manual dark and light switch that persists in the browser.
+
+### Language
+
+- The UI must be available in English and Simplified Chinese.
+- On first load the UI must use Simplified Chinese when the browser's preferred language is Chinese, and English otherwise. A manual language switch must persist in the browser.
+- Dates, times, durations, and numbers must be formatted for the selected language. Token counts keep the `k` and `M` abbreviations in both languages.
+- Session content must be shown as recorded and never translated: prompts, replies, tool arguments and output, file paths, commands, model names, and the original record.
+- The report must open in the language selected when it was exported and keep the language switch.
+- CLI and MCP output stay in English in this release.
 
 ## Domain Invariants
 
@@ -164,16 +174,22 @@ Out of scope:
 - When the user runs `npx @rivus/agent-trace`
 - Then the user sees a message that names Node.js 22.18, not a module-loader stack trace
 
+### S14: Language
+
+- Given a browser whose preferred language is `zh-CN`
+- When the user opens the DevTools, then switches to English and reloads
+- Then the first load shows Chinese labels and Chinese date formats, session content is unchanged, and after the reload the UI is English
+
 ## Compatibility And Constraints
 
 - Public interface: the CLI commands and flags above, and the canonical trace schema `agent-trace/v1` for files that other tools write or read. Package exports are not public in this release.
-- Persisted data: the theme choice in browser storage, and a session summary cache in the user cache directory (`$XDG_CACHE_HOME/rivus-agent-trace/`, default `~/.cache/rivus-agent-trace/`). Deleting the cache is always safe. `agent-trace/v0` files keep loading.
+- Persisted data: the theme and language choices in browser storage, and a session summary cache in the user cache directory (`$XDG_CACHE_HOME/rivus-agent-trace/`, default `~/.cache/rivus-agent-trace/`). Deleting the cache is always safe. `agent-trace/v0` files keep loading.
 - Configuration: `AGENT_TRACE_PATH` keeps working as the default session path. `AGENT_TRACE_REDACT=0` affects only the local server.
 - Operational bounds: local tool, default bind `localhost`. The session browser reads only what it needs to build each row.
 
 ## Acceptance Evidence
 
-- S1, S3, S4, S5, S6, S7, S9, S11: browser end-to-end tests against synthetic fixture homes, run in CI on the packed tarball.
+- S1, S3, S4, S5, S6, S7, S9, S11, S14: browser end-to-end tests against synthetic fixture homes, run in CI on the packed tarball.
 - S2, S10, S13: CLI smoke tests on the packed tarball.
 - S8: a generated 10,000-event trace, with the rendered row count asserted.
 - S12: a generated 350 MB Codex-format fixture built at test time (not committed), with the payload size sent to the browser asserted.

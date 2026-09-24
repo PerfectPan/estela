@@ -69,7 +69,8 @@ Assistant replies use a neutral outlined square.
 
 - UI: Instrument Sans 400 / 500 / 600, fallback `"Helvetica Neue", Helvetica, Arial, sans-serif`.
 - Data (ids, tokens, durations, paths, commands): JetBrains Mono 400 / 500, fallback `"SF Mono", Menlo, Consolas, monospace`.
-- Sizes: session title 26 px / 600, section labels 12 px / 600 uppercase with 0.04em tracking, body 13 px, data 11.5–12 px.
+- Chinese: both stacks continue with `"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei"`. `<html lang>` follows the UI language.
+- Sizes: session title 26 px / 600, section labels 12 px / 600, body 13 px, data 11.5–12 px. Section labels are uppercase with 0.04em tracking in English only (`:lang(en)`); Chinese labels keep normal case and tracking.
 
 ## Not chosen
 
