@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Sessions from Claude Code, Codex, and Grok load through one host protocol, including request usage, compaction, subagents, and hooks.",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

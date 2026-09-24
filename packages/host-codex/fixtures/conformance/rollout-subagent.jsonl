@@ -1,0 +1,4 @@
+{"timestamp":"2026-01-01T00:00:00.000Z","type":"session_meta","payload":{"session_id":"cx-sub","cwd":"/work/app"}}
+{"timestamp":"2026-01-01T00:00:01.000Z","type":"response_item","payload":{"type":"message","id":"u1","role":"user","content":"Delegate"}}
+{"timestamp":"2026-01-01T00:00:02.000Z","type":"inter_agent_communication_metadata","payload":{"agent_thread_id":"child-1"}}
+{"timestamp":"2026-01-01T00:00:03.000Z","type":"event_msg","payload":{"type":"item_completed","turn_id":"turn-sub","started_at_ms":10,"completed_at_ms":20,"item":{"type":"SubAgentActivity","id":"act-1","agent_thread_id":"child-1","kind":"spawned"}}}

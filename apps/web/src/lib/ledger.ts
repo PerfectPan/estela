@@ -8,6 +8,8 @@ export type LedgerKind =
   | 'thinking'
   | 'tool'
   | 'compacted'
+  | 'request'
+  | 'hook'
   | 'unknown'
 
 export const KIND_LABEL: Record<LedgerKind, string> = {
@@ -17,6 +19,8 @@ export const KIND_LABEL: Record<LedgerKind, string> = {
   thinking: 'THINK',
   tool: 'TOOL',
   compacted: 'COMPACTED',
+  request: 'REQUEST',
+  hook: 'HOOK',
   unknown: 'UNKNOWN',
 }
 
@@ -52,6 +56,8 @@ function displayKind(kind: EventKind): LedgerKind {
     return 'tool'
   if (kind === 'compaction')
     return 'compacted'
+  if (kind === 'request' || kind === 'hook')
+    return kind
   if (kind === 'system' || kind === 'user' || kind === 'assistant' || kind === 'thinking' || kind === 'unknown')
     return kind
   return 'unknown'
@@ -69,8 +75,23 @@ function eventPreview(event: TraceEvent): string {
   }
   if (event.kind === 'tool_result')
     return previewUnknown(event.payload.output ?? event.payload.text)
-  if (event.kind === 'compaction')
+  if (event.kind === 'compaction') {
+    const pre = event.payload.preTokens
+    const post = event.payload.postTokens
+    if (typeof pre === 'number' && typeof post === 'number')
+      return `${pre} → ${post} tokens`
     return previewUnknown(event.payload.summary ?? event.payload)
+  }
+  if (event.kind === 'request') {
+    const usage = event.payload.usage
+    const record = usage != null && typeof usage === 'object' ? usage as Record<string, unknown> : undefined
+    const model = asText(event.payload.model)
+    const input = typeof record?.inputTokens === 'number' ? `in ${record.inputTokens}` : ''
+    const output = typeof record?.outputTokens === 'number' ? `out ${record.outputTokens}` : ''
+    return [model, input, output].filter(Boolean).join(' ') || 'request'
+  }
+  if (event.kind === 'hook')
+    return asText(event.payload.name) || asText(event.payload.type) || 'hook'
   return previewUnknown(event.payload.type ?? event.kind)
 }
 

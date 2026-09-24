@@ -1,0 +1,1 @@
+{"timestamp":"2026-01-01T00:00:00.000Z","method":"session/update","params":{"update":{"sessionUpdate":"user_message_chunk","schema_version":4,"content":{"type":"text","text":"x"}}}}

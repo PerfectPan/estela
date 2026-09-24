@@ -9,6 +9,8 @@ const KIND_CLASS: Record<LedgerKind, string> = {
   thinking: 'bg-muted text-muted-foreground',
   tool: 'bg-[var(--traj-tool-bg)] text-[var(--traj-tool-fg)]',
   compacted: 'bg-muted text-muted-foreground',
+  request: 'bg-muted text-muted-foreground',
+  hook: 'bg-muted text-muted-foreground',
   unknown: 'bg-muted text-muted-foreground',
 }
 

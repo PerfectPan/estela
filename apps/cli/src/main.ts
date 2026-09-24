@@ -11,7 +11,7 @@ import { demoFixturePath } from './paths.ts'
 import { listSessionChoices, Session } from './session.ts'
 import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, startLoad } from './terminal.ts'
 
-const FIX = 'Pass a canonical agent-trace/v0 JSON file, or a session path a registered host accepts.'
+const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered host accepts.'
 
 function normalizeSessionPath(input: string): string {
   const { file, sessionId } = splitSessionRef(input)

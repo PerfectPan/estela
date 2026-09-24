@@ -1,0 +1,2 @@
+{"type":"user","uuid":"m-u1","timestamp":"2026-01-01T00:00:00.000Z","sessionId":"s-sub","cwd":"/work/app","version":"2.0.0","message":{"role":"user","content":"Ask the helper"}}
+{"type":"assistant","uuid":"m-a1","timestamp":"2026-01-01T00:00:01.000Z","sessionId":"s-sub","cwd":"/work/app","version":"2.0.0","requestId":"req-m","message":{"role":"assistant","model":"claude-test","id":"msg-m","stop_reason":"end_turn","usage":{"input_tokens":5,"output_tokens":1},"content":[{"type":"text","text":"Spawning."}]}}

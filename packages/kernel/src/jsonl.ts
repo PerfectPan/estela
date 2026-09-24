@@ -32,6 +32,14 @@ export function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+export function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+export function asBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
 export function parseTime(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value))
     return value < 1e12 ? value * 1000 : value

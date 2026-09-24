@@ -19,7 +19,7 @@ describe('parseOpenCodeSession', () => {
         { id: 'p5', messageId: 'm2', time: 5, data: { type: 'compaction', auto: true, tail_start_id: 'p1' } },
       ],
     })
-    expect(trace.host).toBe('opencode')
+    expect(trace.host.id).toBe('opencode')
     expect(trace.events.map(e => e.kind)).toEqual(['user', 'thinking', 'tool_call', 'tool_result', 'compaction'])
     expect(trace.events[1].parentId).toBe('m1')
     expect(trace.events[1].agentId).toBe('build')

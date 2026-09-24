@@ -1,39 +1,45 @@
+import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vitest'
 import { redact } from './redact.ts'
 
 const users = '/Users'
 const home = `${users}/alice`
+const source = { file: 'fixture.json', offset: 0, length: 1, line: 1 }
+
+function event(partial: Partial<TraceEvent> & Pick<TraceEvent, 'kind' | 'payload'>): TraceEvent {
+  return {
+    id: 'e',
+    seq: 0,
+    ts: 0,
+    source,
+    original: null,
+    ...partial,
+  }
+}
+
+function trace(events: TraceEvent[], session: Trace['session'] = { id: 's' }): Trace {
+  return {
+    schema: 'agent-trace',
+    host: { id: 'demo' },
+    session,
+    capabilities: [],
+    agents: [],
+    events,
+    skipped: [],
+  }
+}
 
 function textOf(body: string, homeDir: string): string {
-  const out = redact({
-    schema: 'agent-trace/v0',
-    host: 'demo',
-    session: { id: 's' },
-    events: [{
-      id: 'e',
-      ts: 0,
-      kind: 'user',
-      payload: { text: body },
-      original: null,
-    }],
-  }, { homeDir })
-  return JSON.stringify(out)
+  return JSON.stringify(redact(trace([event({ kind: 'user', payload: { text: body } })]), { homeDir }))
 }
 
 describe('redact', () => {
   it('strips secret-shaped strings and the injected home directory', () => {
-    const out = redact({
-      schema: 'agent-trace/v0',
-      host: 'demo',
-      session: { id: 's', cwd: '/var/fixture/ada/proj' },
-      events: [{
-        id: 'e',
-        ts: 0,
-        kind: 'tool_result',
-        payload: { text: 'token sk-demoFAKEFAKEFAKE0123456789 in /var/fixture/ada/notes' },
-        original: { raw: 'sk-demoFAKEFAKEFAKE0123456789 /var/fixture/adam stays' },
-      }],
-    }, { homeDir: '/var/fixture/ada' })
+    const out = redact(trace([event({
+      kind: 'tool_result',
+      payload: { text: 'token sk-demoFAKEFAKEFAKE0123456789 in /var/fixture/ada/notes' },
+      original: { raw: 'sk-demoFAKEFAKEFAKE0123456789 /var/fixture/adam stays' },
+    })], { id: 's', cwd: '/var/fixture/ada/proj' }), { homeDir: '/var/fixture/ada' })
     const json = JSON.stringify(out)
     expect(json).not.toContain('sk-demo')
     expect(json).toContain('[redacted]')
@@ -57,18 +63,10 @@ describe('redact', () => {
 
   it('redacts home paths used as object keys', () => {
     const key = `${home}/proj/a.ts`
-    const out = redact({
-      schema: 'agent-trace/v0',
-      host: 'demo',
-      session: { id: 's' },
-      events: [{
-        id: 'e',
-        ts: 0,
-        kind: 'tool_result',
-        payload: { [key]: 1 },
-        original: null,
-      }],
-    }, { homeDir: home })
+    const out = redact(trace([event({
+      kind: 'tool_result',
+      payload: { [key]: 1 },
+    })]), { homeDir: home })
     const json = JSON.stringify(out)
     expect(json).not.toContain(home)
     expect(json).toContain('~/proj/a.ts')

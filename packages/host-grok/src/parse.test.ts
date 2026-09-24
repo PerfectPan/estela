@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseGrokUpdates } from './index.ts'
 
 describe('parseGrokUpdates', () => {
-  it('coalesces chunks and keeps system + tools from extras', () => {
+  it('keeps each chunk and stores the system prompt on the session', () => {
     const trace = parseGrokUpdates([
       { timestamp: '2026-01-01T00:00:00Z', params: { update: { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'Hello ' } } } },
       { timestamp: '2026-01-01T00:00:01Z', params: { update: { sessionUpdate: 'user_message_chunk', content: { type: 'text', text: 'world' } } } },
@@ -14,11 +14,12 @@ describe('parseGrokUpdates', () => {
       systemPrompt: 'You are Grok.',
       tools: [{ name: 'run_terminal_command' }],
     })
-    expect(trace.host).toBe('grok')
-    expect(trace.events[0].kind).toBe('system')
-    expect(trace.events[0].payload.tools).toEqual([{ name: 'run_terminal_command' }])
-    expect(trace.events.map(e => e.kind)).toEqual(['system', 'user', 'tool_call', 'tool_result'])
-    expect(trace.events[1].payload.text).toBe('Hello world')
-    expect(trace.events[3].payload.text).toBe('ok')
+    expect(trace.host.id).toBe('grok')
+    expect(trace.session.systemPrompt).toBe('You are Grok.')
+    expect(trace.session.tools).toEqual([{ name: 'run_terminal_command' }])
+    expect(trace.events.map(event => event.kind)).toEqual(['user', 'user', 'tool_call', 'tool_result'])
+    expect(trace.events[0]?.payload.text).toBe('Hello ')
+    expect(trace.events[1]?.payload.text).toBe('world')
+    expect(trace.events[3]?.payload.output).toBe('ok')
   })
 })

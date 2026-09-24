@@ -5,7 +5,8 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./reconstruct": "./src/reconstruct.ts"
+    "./reconstruct": "./src/reconstruct.ts",
+    "./conformance": "./src/conformance.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -15,6 +16,14 @@
   },
   "dependencies": {
     "@rivus/agent-trace-schema": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": "^3.2.4"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

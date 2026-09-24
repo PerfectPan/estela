@@ -1,0 +1,2 @@
+{"type":"user","uuid":"k-u1","timestamp":"2026-01-01T00:00:00.000Z","sessionId":"s-unknown","cwd":"/work/app","version":"2.0.0","message":{"role":"user","content":"Hello"}}
+{"type":"widget","uuid":"w1","timestamp":"2026-01-01T00:00:01.000Z","sessionId":"s-unknown","version":"2.0.0","widgetKind":"gauge"}

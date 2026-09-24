@@ -23,14 +23,21 @@ describe('reconstruct', () => {
     expect(after.visibleIds).not.toContain('e4')
     expect(after.visibleIds).toContain('e5')
     expect(trace.events.map(e => e.id)).toContain('e3')
+
+    const request = reconstruct(trace, 'e7')
+    expect(request.inputTokens).toBe(30)
+    expect(request.postTokens).toBe(100)
   })
 
   it('does not invent a missing event', () => {
     const result = reconstruct({
-      schema: 'agent-trace/v0',
-      host: 'test',
+      schema: 'agent-trace',
+      host: { id: 'test' },
       session: { id: 's' },
+      capabilities: [],
+      agents: [],
       events: [],
+      skipped: [],
     }, 'missing')
     expect(result.completeness).toBe('unavailable')
     expect(result.unavailable).toContain('event')

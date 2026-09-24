@@ -1,8 +1,10 @@
-import type { Adapter, TraceIO } from '@rivus/agent-trace-kernel'
-import type { EventKind, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { HostAdapter, TraceIO } from '@rivus/agent-trace-kernel'
+import type { AgentInfo, Capability, EventKind, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { DatabaseSync } from 'node:sqlite'
-import { asRecord, asString, basenamePath, parseTime, splitSessionRef } from '@rivus/agent-trace-kernel'
+import { asRecord, asString, basenamePath, joinPath, parseTime, splitSessionRef } from '@rivus/agent-trace-kernel'
 import { TRACE_SCHEMA } from '@rivus/agent-trace-schema'
+
+const CAPABILITIES: Capability[] = ['thinking', 'compaction']
 
 export interface OpenCodeMessage {
   id: string
@@ -24,13 +26,16 @@ export function parseOpenCodeSession(input: {
   sessionId: string
   cwd?: string
   title?: string
+  file?: string
   messages: OpenCodeMessage[]
   parts: OpenCodePart[]
 }): Trace {
   const events: TraceEvent[] = []
   const messages = new Map(input.messages.map(m => [m.id, m]))
+  const file = input.file ?? 'opencode.db'
+  const agentIds = new Set<string>()
 
-  for (const part of input.parts) {
+  for (const [index, part] of input.parts.entries()) {
     const type = asString(part.data.type)
     const msg = messages.get(part.messageId)
     const ts = part.time || msg?.time || 0
@@ -71,22 +76,42 @@ export function parseOpenCodeSession(input: {
       payload.type = type
     }
 
-    events.push({
+    if (msg?.agent)
+      agentIds.add(msg.agent)
+    const event: TraceEvent = {
       id: part.id,
+      seq: index,
       ts,
       kind,
-      parentId: msg?.parentId,
-      agentId: msg?.agent,
       payload,
+      source: { file, offset: 0, length: 0, line: index + 1 },
       original: part.data,
-    })
+    }
+    if (msg?.parentId)
+      event.parentId = msg.parentId
+    if (msg?.agent)
+      event.agentId = msg.agent
+    events.push(event)
+  }
+
+  const agents: AgentInfo[] = [{ id: 'main' }]
+  for (const id of agentIds) {
+    if (id !== 'main')
+      agents.push({ id, parentId: 'main' })
   }
 
   return {
     schema: TRACE_SCHEMA,
-    host: 'opencode',
-    session: { id: input.sessionId, cwd: input.cwd, title: input.title },
+    host: { id: 'opencode' },
+    session: {
+      id: input.sessionId,
+      ...(input.cwd ? { cwd: input.cwd } : {}),
+      ...(input.title ? { title: input.title } : {}),
+    },
+    capabilities: [...CAPABILITIES],
+    agents,
     events,
+    skipped: [],
   }
 }
 
@@ -96,10 +121,16 @@ function parseData(raw: unknown): Record<string, unknown> {
   return asRecord(raw) ?? {}
 }
 
-export const opencodeAdapter: Adapter = {
+export const opencodeAdapter: HostAdapter = {
   id: 'opencode',
-  async detect(path: string, io: TraceIO): Promise<boolean> {
-    const { file } = splitSessionRef(path)
+  displayName: 'OpenCode',
+  capabilities: CAPABILITIES,
+  roots(env) {
+    return [joinPath(env.homeDir, '.local/share/opencode')]
+  },
+  async *discover() {},
+  async detect(ref, io: TraceIO): Promise<boolean> {
+    const { file } = splitSessionRef(ref.path)
     if (basenamePath(file) === 'opencode.db')
       return true
     try {
@@ -110,9 +141,9 @@ export const opencodeAdapter: Adapter = {
       return false
     }
   },
-  async load(path: string): Promise<Trace> {
-    const { file, sessionId: fromHash } = splitSessionRef(path)
-    const sessionId = fromHash ?? process.env.AGENT_TRACE_SESSION
+  async load(ref): Promise<Trace> {
+    const { file, sessionId: fromHash } = splitSessionRef(ref.path)
+    const sessionId = ref.sessionId ?? fromHash ?? process.env.AGENT_TRACE_SESSION
     const db = new DatabaseSync(file, { readOnly: true })
     try {
       const sessions = db.prepare('SELECT id, directory, title FROM session').all() as {
@@ -157,6 +188,7 @@ export const opencodeAdapter: Adapter = {
         sessionId: id,
         cwd: session.directory ?? undefined,
         title: session.title ?? undefined,
+        file,
         messages,
         parts,
       })
