@@ -50,5 +50,27 @@ describe('redact', () => {
     expect(textOf(`home=${home};`, home)).toContain('home=~;')
     expect(textOf(`${home}x`, home)).toContain(`${home}x`)
     expect(textOf(`${home}.bak`, home)).toContain(`${home}.bak`)
+    expect(textOf(`${home}é`, home)).toContain(`${home}é`)
+    expect(textOf(`${home.toUpperCase()}/x`, home)).toContain('~/x')
+    expect(textOf(`${home.toUpperCase()}/x`, home)).not.toContain(home.toUpperCase())
+  })
+
+  it('redacts home paths used as object keys', () => {
+    const key = `${home}/proj/a.ts`
+    const out = redact({
+      schema: 'agent-trace/v0',
+      host: 'demo',
+      session: { id: 's' },
+      events: [{
+        id: 'e',
+        ts: 0,
+        kind: 'tool_result',
+        payload: { [key]: 1 },
+        original: null,
+      }],
+    }, { homeDir: home })
+    const json = JSON.stringify(out)
+    expect(json).not.toContain(home)
+    expect(json).toContain('~/proj/a.ts')
   })
 })

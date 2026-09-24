@@ -9,13 +9,13 @@
   "overrides": [
     {
       "files": [
-        "packages/schema/src/**/*.ts",
-        "packages/kernel/src/**/*.ts",
-        "packages/rpc/src/**/*.ts",
-        "packages/host-claude-code/src/**/*.ts",
-        "packages/host-codex/src/**/*.ts",
-        "packages/host-grok/src/**/*.ts",
-        "packages/host-dsh/src/**/*.ts"
+        "packages/schema/src/**/*.{ts,mts,cts,tsx}",
+        "packages/kernel/src/**/*.{ts,mts,cts,tsx}",
+        "packages/rpc/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-claude-code/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-codex/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-grok/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-dsh/src/**/*.{ts,mts,cts,tsx}"
       ],
       "rules": {
         "no-restricted-imports": ["error", {
@@ -31,13 +31,13 @@
             "stream", "stream/promises",
             "buffer", "buffer/promises"
           ],
-          "patterns": ["node:*"]
+          "patterns": ["node:*", "node:*/**"]
         }],
         "no-restricted-globals": ["error", "process", "Buffer"]
       }
     },
     {
-      "files": ["**/*.test.ts"],
+      "files": ["**/*.test.{ts,mts,cts,tsx}"],
       "rules": {
         "no-restricted-imports": "off",
         "no-restricted-globals": "off"

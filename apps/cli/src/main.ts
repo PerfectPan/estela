@@ -1,4 +1,6 @@
+import { resolve } from 'node:path'
 import process from 'node:process'
+import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { bindSessionService } from '@rivus/agent-trace-rpc'
 import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
@@ -11,10 +13,20 @@ import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart
 
 const FIX = 'Pass a canonical agent-trace/v0 JSON file, or a session path a registered host accepts.'
 
+function normalizeSessionPath(input: string): string {
+  const { file, sessionId } = splitSessionRef(input)
+  const resolved = resolve(file)
+  return sessionId === undefined ? resolved : `${resolved}#${sessionId}`
+}
+
 export async function main(): Promise<void> {
   const parsed = parseCommand(process.argv)
   if (parsed.error) {
     process.stderr.write(`${parsed.error}\n`)
+    process.exit(1)
+  }
+  if (parsed.command === 'mcp' && parsed.pick) {
+    process.stderr.write('--pick cannot be used with mcp\n')
     process.exit(1)
   }
   if (parsed.command === 'mcp')
@@ -39,9 +51,9 @@ export async function main(): Promise<void> {
     return
   }
 
-  let sessionPath = parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath()
+  let sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
   if (parsed.pick)
-    sessionPath = await pickSession(listSessionChoices(sessionPath))
+    sessionPath = normalizeSessionPath(await pickSession(listSessionChoices(sessionPath)))
 
   const session = new Session(sessionPath, parsed.command !== 'dev')
   bindSessionService(session)
@@ -105,6 +117,6 @@ async function loadOrExit(session: Session, options?: { mcp?: boolean, cancel?: 
 
 function messageOf(error: unknown): string {
   if (error instanceof Error && error.cause instanceof Error && error.cause.message)
-    return error.cause.message
+    return `${error.message}: ${error.cause.message}`
   return error instanceof Error ? error.message : String(error)
 }

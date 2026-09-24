@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseCommand } from './argv.ts'
+import { parseCommand, wantsUsage } from './argv.ts'
 
 function parse(...args: string[]) {
   return parseCommand(['node', 'bin.mjs', ...args])
@@ -52,5 +52,33 @@ describe('parseCommand', () => {
   it('records --pick and --pretty', () => {
     expect(parse('--pick').pick).toBe(true)
     expect(parse('build', '--pretty').pretty).toBe(true)
+  })
+
+  it('rejects a flag used as --out-dir', () => {
+    const parsed = parse('build', 'x', '--out-dir', '--pretty')
+    expect(parsed.error).toBe('--out-dir needs a value')
+    expect(parsed.outDir).toBeUndefined()
+    expect(parsed.path).toBe('x')
+  })
+
+  it('rejects -h as an --out-dir value', () => {
+    const parsed = parse('build', '--out-dir', '-h', 'x')
+    expect(parsed.error).toBe('--out-dir needs a value')
+    expect(parsed.outDir).toBeUndefined()
+    expect(parsed.path).toBe('x')
+  })
+
+  it('rejects -- as a --port value and keeps the positional after it', () => {
+    const parsed = parse('--port', '--', 'x.json')
+    expect(parsed.error).toBe('--port needs a value')
+    expect(parsed.path).toBe('x.json')
+    expect(parsed.userArgs).not.toContain('--')
+  })
+
+  it('does not treat a consumed flag value as usage', () => {
+    expect(wantsUsage(['--port', '-h'])).toBe(false)
+    expect(wantsUsage(['--out-dir', '--help'])).toBe(false)
+    expect(wantsUsage(['-h'])).toBe(true)
+    expect(wantsUsage(['build', '--out-dir', 'x', '-v'])).toBe(true)
   })
 })

@@ -1,5 +1,6 @@
 import type { TraceIO } from './io.ts'
 import { isTrace, type Trace } from '@rivus/agent-trace-schema'
+import { splitSessionRef } from './jsonl.ts'
 
 export interface Adapter {
   id: string
@@ -26,7 +27,8 @@ export async function loadCanonicalJson(path: string, io: TraceIO): Promise<Trac
 }
 
 export async function loadTrace(path: string, adapters: readonly Adapter[], io: TraceIO): Promise<Trace> {
-  if (await io.stat(path) === null)
+  const file = splitSessionRef(path).file
+  if (await io.stat(file) === null)
     throw new Error(`${path} does not exist`)
 
   let canonicalError: unknown

@@ -29,6 +29,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   let outDir: string | undefined
   let pretty = false
   let options = true
+  let error: string | undefined
 
   while (index < raw.length) {
     const arg = raw[index]!
@@ -58,21 +59,23 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       const flag = eq === -1 ? arg : arg.slice(0, eq)
       const inline = eq === -1 ? undefined : arg.slice(eq + 1)
       if (VALUE_FLAGS.has(flag)) {
-        const value = inline !== undefined ? inline : raw[index + 1]
-        if (flag === '--out-dir')
-          outDir = value
         if (inline !== undefined) {
+          if (flag === '--out-dir')
+            outDir = inline
           userArgs.push(arg)
           index += 1
+          continue
         }
-        else if (value !== undefined) {
-          userArgs.push(flag, value)
-          index += 2
-        }
-        else {
-          userArgs.push(flag)
+        const next = raw[index + 1]
+        if (next === undefined || next.startsWith('-')) {
+          error ??= `${flag} needs a value`
           index += 1
+          continue
         }
+        if (flag === '--out-dir')
+          outDir = next
+        userArgs.push(flag, next)
+        index += 2
         continue
       }
       userArgs.push(arg)
@@ -90,9 +93,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     outDir,
     pretty,
     userArgs,
-    error: positionals.length > 1
+    error: error ?? (positionals.length > 1
       ? `Two session paths were given: ${positionals[0]} and ${positionals[1]}`
-      : undefined,
+      : undefined),
   }
 }
 
@@ -101,5 +104,14 @@ export function programArgv(userArgs: readonly string[]): string[] {
 }
 
 export function wantsUsage(userArgs: readonly string[]): boolean {
-  return userArgs.some(arg => arg === '--help' || arg === '-h' || arg === '--version' || arg === '-v')
+  for (let i = 0; i < userArgs.length; i++) {
+    const arg = userArgs[i]!
+    if (arg === '--help' || arg === '-h' || arg === '--version' || arg === '-v')
+      return true
+    const eq = arg.indexOf('=')
+    const flag = eq === -1 ? arg : arg.slice(0, eq)
+    if (eq === -1 && VALUE_FLAGS.has(flag))
+      i += 1
+  }
+  return false
 }

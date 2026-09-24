@@ -17,11 +17,25 @@ export function installPlainFilter(options?: { stderrOnly?: boolean }): void {
   wrap(process.stderr)
 }
 
+function callbackArg(rest: readonly unknown[]): [] | [(error?: Error | null) => void] {
+  for (let i = rest.length - 1; i >= 0; i--) {
+    const item = rest[i]
+    if (typeof item === 'function')
+      return [item as (error?: Error | null) => void]
+  }
+  return []
+}
+
 function wrap(stream: Writable): void {
   const write = stream.write.bind(stream) as typeof stream.write
   stream.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
-    const text = typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8')
-    return write(stripVTControlCharacters(text), ...(rest as []))
+    if (typeof chunk !== 'string') {
+      if (!chunk.includes(0x1b))
+        return write(chunk, ...(rest as []))
+      const text = Buffer.from(chunk).toString('utf8')
+      return write(stripVTControlCharacters(text), ...callbackArg(rest))
+    }
+    return write(stripVTControlCharacters(chunk), ...(rest as []))
   }) as typeof stream.write
 }
 
@@ -110,10 +124,13 @@ export function sayReady(url: string): void {
   try {
     if (!boxFits(url)) {
       log.success(`Ready: ${url}`)
+      outro('Ready')
       return
     }
-    const linked = supportsOsc8() ? osc8(url, url) : url
-    box(linked, 'Ready')
+    // clack measures the whole string. OSC 8 bytes inside the box push the right border out.
+    box(url, 'Ready')
+    if (supportsOsc8())
+      process.stdout.write(`${osc8(url, url)}\n`)
     outro('Ready')
   }
   catch {

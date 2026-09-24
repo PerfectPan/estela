@@ -7,8 +7,10 @@ function homePattern(homeDir: string): RegExp | undefined {
   if (!root || root === '/')
     return undefined
   const escaped = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  // Continue a segment on [A-Za-z0-9_-], or "." plus a name character (.bak). Anything else ends the path.
-  return new RegExp(`(?<![A-Za-z0-9_])${escaped}(?![A-Za-z0-9_-]|\\.[A-Za-z0-9_])`, 'g')
+  // Continue a segment on a letter, number, "_", "-", or "." plus a name character (.bak).
+  // `i` over-redacts mixed case. `u` so non-ASCII letters continue a segment.
+  const name = String.raw`\p{L}\p{N}_`
+  return new RegExp(`(?<![${name}])${escaped}(?![${name}-]|\\.[${name}])`, 'giu')
 }
 
 /** Home-directory and token replacement for one string. `pattern` is built once per `redact` call. */
@@ -26,7 +28,7 @@ function redactValue(value: unknown, homeDir: string, pattern: RegExp | undefine
   if (value != null && typeof value === 'object') {
     const out: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value as Record<string, unknown>))
-      out[key] = redactValue(item, homeDir, pattern)
+      out[redactText(key, homeDir, pattern)] = redactValue(item, homeDir, pattern)
     return out
   }
   return value
