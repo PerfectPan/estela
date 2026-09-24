@@ -136,6 +136,8 @@ class SqliteIndex implements SessionIndex {
     this.file = file
     this.db = db
     this.version = version
+    // One case fold for the query and the stored text; SQLite's lower() folds ASCII only.
+    db.function('casefold', { deterministic: true }, value => typeof value === 'string' ? casefold(value) : value)
   }
 
   rows(): IndexRow[] {
@@ -187,15 +189,15 @@ class SqliteIndex implements SessionIndex {
       return undefined
     try {
       if ([...text].length < 3) {
-        const pattern = `%${text.toLowerCase().replace(/[\\%_]/g, match => `\\${match}`)}%`
+        const pattern = `%${casefold(text).replace(/[\\%_]/g, match => `\\${match}`)}%`
         const rows = this.sql(
-          `SELECT ref FROM sessions WHERE lower(title) LIKE ?1 ESCAPE '\\'
-             OR ref IN (SELECT ref FROM prompts WHERE lower(text) LIKE ?1 ESCAPE '\\')
+          `SELECT ref FROM sessions WHERE casefold(title) LIKE ?1 ESCAPE '\\'
+             OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ?1 ESCAPE '\\')
            ORDER BY last_active_at DESC`,
         ).all(pattern) as { ref: string }[]
         return rows.map(row => String(row.ref))
       }
-      // One quoted phrase: FTS5 operators in the query are plain text.
+      // One quoted phrase: FTS5 operators in the query are plain text. `trigram` folds case itself.
       const phrase = `"${text.replaceAll('"', '""')}"`
       const rows = this.sql(
         `SELECT sessions.ref AS ref FROM search JOIN sessions ON sessions.id = search.rowid
@@ -203,8 +205,9 @@ class SqliteIndex implements SessionIndex {
       ).all(phrase) as { ref: string }[]
       return rows.map(row => String(row.ref))
     }
-    catch {
-      return []
+    catch (error) {
+      // Busy or locked: let the caller search in memory. Anything else is a query that matches nothing.
+      return isBusy(error) ? undefined : []
     }
   }
 
@@ -354,6 +357,16 @@ function headOf(row: Record<string, unknown>): IndexHead {
       head[key] = value
   }
   return head
+}
+
+/** SQLITE_BUSY and SQLITE_LOCKED, including their extended codes. */
+function isBusy(error: unknown): boolean {
+  const code = (error as { errcode?: unknown } | null)?.errcode
+  return typeof code === 'number' && ((code & 0xff) === 5 || (code & 0xff) === 6)
+}
+
+function casefold(text: string): string {
+  return text.toLowerCase()
 }
 
 function clip(text: string): string {

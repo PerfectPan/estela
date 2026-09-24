@@ -243,4 +243,84 @@ describe('session index', () => {
     expect(index.rows().map(row => row.ref).toSorted()).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
     index.close()
   })
+
+  it('folds non-ASCII case the same way on both sides', async () => {
+    const index = openSessionIndex({ file: join(await tempDir(), 'index.sqlite') })
+    index.putSummaries([
+      summary({ ref: 'de', path: '/logs/de.jsonl', title: 'Über die Tests', prompts: [] }),
+      summary({ ref: 'ru', path: '/logs/ru.jsonl', title: 'Добро пожаловать', prompts: [] }),
+    ])
+    expect(index.search('über')).toEqual(['de'])
+    expect(index.search('ÜB')).toEqual(['de'])
+    expect(index.search('добро')).toEqual(['ru'])
+    expect(index.search('ДО')).toEqual(['ru'])
+    index.close()
+  })
+
+  it('uses WAL, and gives the -wal and -shm files and an existing directory the private modes', async () => {
+    const dir = join(await tempDir(), 'rivus-agent-trace')
+    mkdirSync(dir, { mode: 0o755 })
+    chmodSync(dir, 0o755)
+    const file = join(dir, 'index.sqlite')
+    const index = openSessionIndex({ file })
+    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    expect(statSync(dir).mode & 0o777).toBe(0o700)
+    for (const suffix of ['', '-wal', '-shm'])
+      expect({ suffix, mode: statSync(`${file}${suffix}`).mode & 0o777 }).toEqual({ suffix, mode: 0o600 })
+    const raw = new DatabaseSync(file)
+    expect(raw.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
+    raw.close()
+    index.close()
+  })
+
+  it('answers searches at once while another process holds BEGIN EXCLUSIVE', async () => {
+    const dir = await tempDir()
+    const file = join(dir, 'index.sqlite')
+    const seed = openSessionIndex({ file })
+    seed.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    seed.close()
+    const holder = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '-e', `
+      const { DatabaseSync } = require('node:sqlite')
+      const db = new DatabaseSync(${JSON.stringify(file)})
+      db.exec('BEGIN EXCLUSIVE')
+      db.exec("UPDATE sessions SET title = 'held' WHERE ref = 'a'")
+      process.stdout.write('locked\\n')
+      setTimeout(() => { db.exec('ROLLBACK'); db.close() }, 3000)
+    `], { stdio: ['ignore', 'pipe', 'inherit'] })
+    await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
+    const started = performance.now()
+    const index = openSessionIndex({ file })
+    expect(index.enabled).toBe(true)
+    expect(index.search('auth')).toEqual(['a'])
+    expect(index.rows()).toHaveLength(1)
+    expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
+    expect(() => index.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl' })])).toThrow()
+    expect(performance.now() - started).toBeLessThan(1_000)
+    index.close()
+    holder.kill()
+  })
+
+  it('rebuilds a broken file once when several processes open it at the same time', async () => {
+    const dir = await tempDir()
+    const file = join(dir, 'index.sqlite')
+    writeFileSync(file, 'not a database, not at all')
+    const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
+    const child = join(dir, 'child.mjs')
+    writeFileSync(child, `
+      const { openSessionIndex } = await import(${JSON.stringify(module)})
+      const n = process.argv[2]
+      const index = openSessionIndex({ file: ${JSON.stringify(file)} })
+      if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
+      index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+      index.close()
+    `)
+    const results = await Promise.all(Array.from({ length: 4 }, (_, n) => new Promise<number | null>((resolve) => {
+      const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], { stdio: 'ignore' })
+      proc.on('close', resolve)
+    })))
+    expect(results).toEqual([0, 0, 0, 0])
+    const index = openSessionIndex({ file })
+    expect(index.rows().map(row => row.ref).toSorted()).toEqual(['r0', 'r1', 'r2', 'r3'])
+    index.close()
+  })
 })

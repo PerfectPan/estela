@@ -96,7 +96,8 @@ export class SessionCatalog implements SessionService {
 
   /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
   get indexUnavailable(): string | undefined {
-    return this.index.unavailable
+    // The reason names the cache path: always `~`, whatever AGENT_TRACE_REDACT says.
+    return this.index.unavailable ? redactText(this.index.unavailable, this.env.homeDir) : undefined
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */
@@ -121,6 +122,7 @@ export class SessionCatalog implements SessionService {
   async openPath(input: string): Promise<string> {
     const trace = await loadTrace(input, this.hosts, this.io)
     const { file, sessionId } = splitSessionRef(input)
+    // Same ref as the file's list row: the session id counts only in the `path#id` form.
     const ref = sessionRefId({ host: trace.host.id || 'agent-trace', path: file, ...(sessionId ? { sessionId } : {}) })
     this.targets.set(ref, input)
     this.hold(ref, file, trace)
@@ -131,7 +133,7 @@ export class SessionCatalog implements SessionService {
     const names = new Map(this.hosts.map(host => [host.id, host.displayName]))
     return this.sortedRows().filter(row => !row.error).map(row => ({
       value: row.ref,
-      label: [row.title ? this.redact(row.title) : 'Untitled', names.get(row.target.host) ?? row.target.host, row.project ?? '', activityLabel(row.lastActiveAt)]
+      label: [row.title ? this.redact(row.title) : 'Untitled', names.get(row.target.host) ?? row.target.host, row.project ? this.redact(row.project) : '', activityLabel(row.lastActiveAt)]
         .map(oneLine)
         .filter(part => part.length > 0)
         .join(' · '),
@@ -188,7 +190,7 @@ export class SessionCatalog implements SessionService {
   }
 
   private async begin(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
-    const stored = this.index.rows()
+    const stored = this.readIndex(() => this.index.rows(), [])
     const run = () => this.discover(onProgress)
     if (stored.length === 0) {
       this.discovery = run()
@@ -224,7 +226,7 @@ export class SessionCatalog implements SessionService {
         // Same file (size and raw mtime): keep the summary; otherwise ask the index for this key.
         const summary = old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs
           ? old.summary
-          : this.index.get(row.target.path, row.size, row.mtimeMs)
+          : this.readIndex(() => this.index.get(row.target.path, row.size, row.mtimeMs), undefined)
         if (summary) {
           row.summary = summary
           row.pending = false
@@ -289,18 +291,27 @@ export class SessionCatalog implements SessionService {
   }
 
   private search(query: string): string[] {
-    const hits = this.index.search(query)
+    const hits = this.readIndex(() => this.index.search(query), undefined)
     if (hits)
       return hits.filter(ref => this.rows.has(ref))
-    // --no-index: titles and first prompts in memory, with the same < 3 character rule.
-    const text = query.toLowerCase()
-    const short = [...query].length < 3
-    return this.sortedRows().filter((row) => {
-      const title = (row.title ?? '').toLowerCase()
-      if (short)
-        return title.startsWith(text)
-      return title.includes(text) || (row.firstPrompt ?? '').toLowerCase().includes(text)
-    }).map(row => row.ref)
+    // --no-index, index unavailable or busy: the index's rule over titles and first prompts in memory.
+    // Under 3 characters the index also matches substrings, so both lengths are a substring match here.
+    const text = query.replace(/\p{Cc}/gu, ' ').trim().toLowerCase()
+    if (!text)
+      return []
+    return this.sortedRows()
+      .filter(row => (row.title ?? '').toLowerCase().includes(text) || (row.firstPrompt ?? '').toLowerCase().includes(text))
+      .map(row => row.ref)
+  }
+
+  /** An index error (busy, I/O) never stops the list: the row stays unsummarized or the search runs in memory. */
+  private readIndex<T>(read: () => T, fallback: T): T {
+    try {
+      return read()
+    }
+    catch {
+      return fallback
+    }
   }
 
   private hostEntries(): HostListEntry[] {

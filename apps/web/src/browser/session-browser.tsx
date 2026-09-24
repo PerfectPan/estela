@@ -46,6 +46,13 @@ export function SessionBrowser() {
       setSelected(rows[0]?.ref)
   })
 
+  /** Open a row, unless it could not be read (the same rule as the disabled Open button). */
+  function openRow(ref: string | undefined): void {
+    const row = ref ? store.rows().find(item => item.ref === ref) : undefined
+    if (row && !row.error)
+      openSession(row.ref)
+  }
+
   /** Pending rows at the top of the current view: summarized before the rest. */
   const pendingOnScreen = () => visible().slice(0, VISIBLE_FIRST).filter(row => row.pending).map(row => row.ref)
 
@@ -77,7 +84,7 @@ export function SessionBrowser() {
     }
     else if (event.key === 'Enter' && selected()) {
       event.preventDefault()
-      openSession(selected()!)
+      openRow(selected())
     }
   }
 
@@ -94,8 +101,7 @@ export function SessionBrowser() {
     // Run the typed query now, so Enter opens the first match, not the row from before.
     clearTimeout(searchTimer)
     await store.search(input())
-    if (selected())
-      openSession(selected()!)
+    openRow(selected())
   }
 
   onMount(() => {
@@ -182,7 +188,7 @@ export function SessionBrowser() {
             selected={selected()}
             empty={store.loaded() ? empty() : t('common.loading')}
             onSelect={setSelected}
-            onOpen={openSession}
+            onOpen={openRow}
             onKeyDown={onListKey}
           />
           <footer class="flex h-10 shrink-0 items-center gap-2.5 border-t border-border px-[18px] text-[12px] text-subtle">
@@ -194,7 +200,7 @@ export function SessionBrowser() {
             <span>· {t('common.nothingLeaves')}</span>
           </footer>
         </main>
-        <PreviewPane row={selectedRow()} hosts={store.hosts()} now={now()} onOpen={openSession} />
+        <PreviewPane row={selectedRow()} hosts={store.hosts()} now={now()} onOpen={openRow} />
       </div>
     </div>
   )

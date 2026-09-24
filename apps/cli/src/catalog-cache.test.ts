@@ -1,11 +1,17 @@
 import type { HostAdapter } from '@rivus/agent-trace-kernel'
+import { spawn } from 'node:child_process'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionCatalog } from './catalog.ts'
+import { registeredHosts } from './session.ts'
+import { oneLine } from './session-ref.ts'
+
+const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 
 const dirs: string[] = []
 
@@ -152,6 +158,8 @@ describe('session catalog cache', () => {
     try {
       const catalog = new SessionCatalog({ env: { homeDir: home, env: { XDG_CACHE_HOME: cache } }, hosts: [fakeHost(home, [])] })
       expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
+      expect(catalog.indexUnavailable).not.toContain(home)
+      expect(catalog.indexUnavailable).toContain('~/cache')
       await catalog.whenIdle()
       const listed = await catalog.listSessions({ query: 'Alp' })
       expect(listed.rows[0]?.requests).toBe(1)
@@ -160,5 +168,72 @@ describe('session catalog cache', () => {
     finally {
       await chmod(cache, 0o700)
     }
+  })
+
+  it('gives a file opened by path the same ref as its list row', async () => {
+    const home = await tempHome()
+    const dir = join(home, '.claude/projects/app')
+    await mkdir(dir, { recursive: true })
+    const path = join(dir, 'session.jsonl')
+    await writeFile(path, await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')))
+    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: registeredHosts, noIndex: true, deferSummaries: true })
+    const opened = await catalog.openPath(path)
+    const listed = await catalog.listSessions()
+    expect(listed.rows.map(row => row.ref)).toEqual([opened])
+    expect((await catalog.sessionTrace(opened)).trace.events.length).toBeGreaterThan(0)
+  })
+
+  it('searches in memory with the index rule when there is no index', async () => {
+    const home = await tempHome()
+    await session(home, 'a.jsonl', 'Über die Tests')
+    await session(home, 'b.jsonl', 'Plain session')
+    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: [fakeHost(home, [])], noIndex: true, deferSummaries: true })
+    const titles = async (query: string) => {
+      const listed = await catalog.listSessions({ query })
+      return listed.matches?.map(ref => listed.rows.find(row => row.ref === ref)?.title)
+    }
+    expect(await titles('ai')).toEqual(['Plain session'])
+    expect(await titles('üb')).toEqual(['Über die Tests'])
+    expect(await titles('ÜBER')).toEqual(['Über die Tests'])
+    expect(await titles('nope')).toEqual([])
+  })
+
+  it('answers list-sessions at once while another process holds BEGIN EXCLUSIVE on the index', async () => {
+    const home = await tempHome()
+    await session(home, 'a.jsonl', 'Alpha')
+    const file = join(home, 'index.sqlite')
+    const env = { homeDir: home, env: {} }
+    const first = new SessionCatalog({ env, hosts: [fakeHost(home, [])], index: openSessionIndex({ file }) })
+    await first.whenIdle()
+    first.close()
+    await session(home, 'b.jsonl', 'Beta')
+    const holder = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '-e', `
+      const { DatabaseSync } = require('node:sqlite')
+      const db = new DatabaseSync(${JSON.stringify(file)})
+      db.exec('BEGIN EXCLUSIVE')
+      db.exec("UPDATE sessions SET title = 'held'")
+      process.stdout.write('locked\\n')
+      setTimeout(() => { db.exec('ROLLBACK'); db.close() }, 5000)
+    `], { stdio: ['ignore', 'pipe', 'inherit'] })
+    await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
+    try {
+      const started = performance.now()
+      const second = new SessionCatalog({ env, hosts: [fakeHost(home, [])], index: openSessionIndex({ file }) })
+      const listed = await second.listSessions({ query: 'Alp' })
+      expect(listed.rows.map(row => row.title)).toEqual(['Alpha'])
+      expect(listed.matches).toHaveLength(1)
+      await second.whenIdle()
+      const after = await second.listSessions()
+      expect(after.rows.map(row => [row.title, row.pending])).toEqual([['Beta', false], ['Alpha', false]])
+      expect(performance.now() - started).toBeLessThan(2_000)
+      second.close()
+    }
+    finally {
+      holder.kill()
+    }
+  })
+
+  it('keeps picker labels on one line without format characters', () => {
+    expect(oneLine('Fix\u202E txt.exe\u200B the\nbug\t now')).toBe('Fix txt.exe the bug now')
   })
 })

@@ -109,11 +109,18 @@ function headFields(head: Head, homeDir: string): Partial<LiveRow> {
 }
 
 /** A row from one `discover` head and the file's size and mtime (the cache key). */
-export function rowFromHead(host: string, head: SessionHead, info: { size: number, mtimeMs: number }, homeDir: string): LiveRow {
+export function rowFromHead(
+  host: string,
+  head: SessionHead,
+  info: { size: number, mtimeMs: number },
+  homeDir: string,
+  sharedFile = false,
+): LiveRow {
   const target: SessionRef = { ...head.ref, host }
   return {
     ...headFields(head, homeDir),
-    ref: sessionRefId(target),
+    // The session id is part of the ref only when several sessions share one file.
+    ref: sessionRefId(sharedFile ? target : { host, path: target.path }),
     target,
     size: info.size,
     mtimeMs: info.mtimeMs,
@@ -144,7 +151,7 @@ export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
 /** A "could not read" row (S4), placed at the file's mtime (or now when the file is gone). */
 export function errorRow(target: SessionRef, message: string, homeDir: string, mtimeMs: number): LiveRow {
   return {
-    ref: sessionRefId(target),
+    ref: sessionRefId({ host: target.host, path: target.path }),
     target,
     size: 0,
     mtimeMs,

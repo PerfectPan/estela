@@ -93,6 +93,9 @@ export async function discoverRows(
         failed.push({ target: { host: state.adapter.id, path: root }, message: errorMessage(error) })
       }
     }
+    const perFile = new Map<string, number>()
+    for (const head of heads)
+      perFile.set(head.ref.path, (perFile.get(head.ref.path) ?? 0) + 1)
     // `discover` reports no mtime, and the cache key needs one.
     for (let start = 0; start < heads.length; start += STAT_BATCH) {
       const batch = heads.slice(start, start + STAT_BATCH)
@@ -101,7 +104,7 @@ export async function discoverRows(
         const info = infos[index]
         const target = { ...head.ref, host: state.adapter.id }
         if (info?.kind === 'file')
-          add(rowFromHead(state.adapter.id, head, info, env.homeDir))
+          add(rowFromHead(state.adapter.id, head, info, env.homeDir, (perFile.get(head.ref.path) ?? 0) > 1))
         else
           add(errorRow(target, `${state.adapter.id}: ${target.path} does not exist`, env.homeDir, Date.now()))
       })
