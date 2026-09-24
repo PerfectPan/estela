@@ -11,10 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: ./scripts/check-repository.sh
+      - name: Release intent
+        if: github.event_name == 'pull_request'
+        run: |
+          base="$(git merge-base "origin/${{ github.base_ref }}" HEAD)"
+          node common/scripts/install-run-rush.js change --verify --no-fetch --target-branch "$base"
+          node scripts/release-intent.mjs check --base "$base"
       - run: node common/scripts/install-run-rush.js update
       - run: node common/scripts/install-run-rush.js lint
       - run: node common/scripts/install-run-rush.js test

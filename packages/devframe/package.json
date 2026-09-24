@@ -1,5 +1,5 @@
 {
-  "name": "@agent-trace/devframe",
+  "name": "@rivus/agent-trace",
   "type": "module",
   "version": "0.0.0",
   "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
