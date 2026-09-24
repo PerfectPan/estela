@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CLI imports `.ts` directly and `adapter-opencode` uses `node:sqlite`; both fail on 20.x and on 22 before 22.18. Rush installs its own pnpm. Do not run a root `pnpm install`.
+Use Node.js 22.18 or later. `rush.json` requires `>=22.18.0 <25`, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. Rush installs its own pnpm. Do not run a root `pnpm install`.
 
 ```bash
 ./scripts/install-git-hooks.sh
@@ -10,13 +10,15 @@ Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CL
 node scripts/check-doc-translations.mjs
 node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
 node scripts/check-conventions.mjs
+node scripts/check-layers.mjs
+node scripts/check-browser-bundle.mjs
 ./scripts/check-pr-title.sh "docs: add external release plan"
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck
 node common/scripts/install-run-rush.js build
-cd packages/devframe && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 ```
 
 There is no formatter and no package publish command.
@@ -86,7 +88,7 @@ Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change that should not trigger a release by itself; its message may be empty.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI runs `rush change --verify` and `node scripts/release-intent.mjs check` against the merge base. The checkout needs full history (`fetch-depth: 0`).
-- `rush version --bump --version-policy agent-trace` consumes the change files, sets the version, and writes `packages/devframe/CHANGELOG.md` and `CHANGELOG.json`. It runs only in the release workflow, which is not set up yet.
+- `rush version --bump --version-policy agent-trace` consumes the change files, sets the version, and writes `apps/cli/CHANGELOG.md` and `CHANGELOG.json`. It runs only in the release workflow, which is not set up yet.
 
 Documentation-only and workflow-only PRs need no change file.
 
@@ -102,10 +104,18 @@ Why a script: Rush requires change files only for projects in a version policy a
 
 ## Repository Architecture
 
-- `@agent-trace/schema` and `@agent-trace/kernel` are domain rules. They must not import DevFrame or UI.
-- Host packages under `packages/adapter-*` are infrastructure adapters.
-- `@rivus/agent-trace` (`packages/devframe`) is the CLI and SPA entrypoint and the only package that will be published. It bundles the other workspace packages.
-- Fixtures live in `fixtures/` and next to adapter tests.
+- `packages/schema` and `packages/kernel` are domain rules. They must not import DevFrame or UI.
+- Host packages under `packages/host-*` parse one host each. `host-opencode` and `host-dsh` are kept and not registered.
+- `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
+- Fixtures live in `fixtures/` and next to host tests.
+- `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. The review workflow and the pre-commit hook run it.
+
+## Runtime checks
+
+`schema`, `kernel`, `rpc`, and every `host-*` package except `host-opencode` must not import `node:*` outside tests. `host-opencode` is excluded because plan section 7 says OpenCode needs SqliteIO; it is not registered. Two checks enforce the rule, and the CI test job runs both:
+
+1. oxlint `no-restricted-imports` on `node:*` in `.oxlintrc.json` (test files are excluded).
+2. `node scripts/check-browser-bundle.mjs` bundles kernel, rpc, and the registered hosts with rslib `output.target: 'web'` and fails on an unresolved `node:*` import.
 
 See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 

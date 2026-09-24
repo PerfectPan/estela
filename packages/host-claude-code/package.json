@@ -1,0 +1,24 @@
+{
+  "name": "@rivus/agent-trace-host-claude-code",
+  "type": "module",
+  "version": "0.0.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "oxlint -c ../../.oxlintrc.json src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rivus/agent-trace-kernel": "workspace:*",
+    "@rivus/agent-trace-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "oxlint": "^1.83.0",
+    "typescript": "^5.9.2"
+  },
+  "private": true
+}

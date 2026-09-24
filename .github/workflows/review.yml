@@ -15,6 +15,7 @@ jobs:
       - run: ./scripts/check-repository.sh
       - run: node scripts/check-doc-translations.mjs
       - run: node scripts/check-conventions.mjs
+      - run: node scripts/check-layers.mjs
 
   pr-title:
     name: conventional PR title

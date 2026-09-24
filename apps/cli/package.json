@@ -1,0 +1,45 @@
+{
+  "name": "@rivus/agent-trace",
+  "type": "module",
+  "version": "0.0.0",
+  "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
+  "homepage": "https://devfra.me/",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "agent-trace": "./bin.mjs"
+  },
+  "exports": {
+    ".": "./src/devframe.ts"
+  },
+  "scripts": {
+    "dev": "node bin.mjs",
+    "build": "tsc --noEmit",
+    "lint": "oxlint -c ../../.oxlintrc.json src bin.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "1.8.1",
+    "@devframes/agentic": "1.0.0",
+    "@rivus/agent-trace-host-claude-code": "workspace:*",
+    "@rivus/agent-trace-host-codex": "workspace:*",
+    "@rivus/agent-trace-host-grok": "workspace:*",
+    "@rivus/agent-trace-kernel": "workspace:*",
+    "@rivus/agent-trace-rpc": "workspace:*",
+    "@rivus/agent-trace-runtime-node": "workspace:*",
+    "@rivus/agent-trace-schema": "workspace:*",
+    "cac": "7.0.0",
+    "devframe": "1.0.0"
+  },
+  "devDependencies": {
+    "@rivus/agent-trace-web": "workspace:*",
+    "@rslib/core": "1.0.2",
+    "@types/node": "^24.5.2",
+    "oxlint": "^1.83.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isTrace } from '@agent-trace/schema'
+import { isTrace } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vitest'
 import { reconstruct } from './reconstruct.ts'
 
-const fixturePath = fileURLToPath(new URL('../../../fixtures/demo.trace.json', import.meta.url))
+const fixturePath = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/demo.trace.json')
 
 describe('reconstruct', () => {
   it('drops shadowed events after compaction, keeps them in the archive', async () => {

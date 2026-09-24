@@ -1,4 +1,4 @@
-import type { ReconstructResult, Trace } from '@agent-trace/schema'
+import type { ReconstructResult, Trace } from '@rivus/agent-trace-schema'
 
 /**
  * Model-visible surface at `eventId`: prefix of the log, minus events whose

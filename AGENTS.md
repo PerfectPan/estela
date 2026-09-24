@@ -4,16 +4,16 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 ## Layers
 
-| Package | Owns | Must not |
-|---|---|---|
-| `@agent-trace/schema` | `Trace` / event kinds / `shadowedBy` | DevFrame, UI |
-| `@agent-trace/kernel` | load, fold, reconstruct, redact | DevFrame, UI |
-| `@agent-trace/adapter-dsh` | dsh disk formats | UI, inventing turn boundaries |
-| `@agent-trace/adapter-claude-code` | Claude Code JSONL | flattening sidechains into fake turns |
-| `@agent-trace/adapter-codex` | Codex `rollout-*.jsonl` | treating `token_count` as conversation |
-| `@agent-trace/adapter-opencode` | OpenCode `opencode.db#sessionId` | inventing turns |
-| `@agent-trace/adapter-grok` | Grok session directory | flattening subagents |
-| `@rivus/agent-trace` (`packages/devframe`) | RPC, CLI, SPA; the only published package | parsing a host log |
+| Directory | Package | Owns | May depend on |
+|---|---|---|---|
+| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output, embeds the web build | every package; web's build output |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA | `rpc` (types), `kernel`, `schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts and server handlers over an injected session service | `kernel`, `schema` |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory | `kernel`, `schema` |
+| `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
+| `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | `TraceIO`, `loadTrace`, `fold`, `reconstruct`, `redact` | `schema` |
+| `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy` | nothing |
 
 ## Rules
 
@@ -45,5 +45,7 @@ node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck
 node common/scripts/install-run-rush.js build
-cd packages/devframe && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+node scripts/check-layers.mjs
+node scripts/check-browser-bundle.mjs
+cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 ```

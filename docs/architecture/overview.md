@@ -6,7 +6,7 @@ Audience: someone changing the viewer or adding a host adapter.
 
 ```text
 host log
-  -> adapter
+  -> host package (TraceIO)
   -> Trace { events[] }
   -> kernel fold / reconstruct / redact
   -> DevFrame getTrace
@@ -21,14 +21,17 @@ host log
 
 | Package | Role |
 |---|---|
-| `packages/schema` | `Trace`, kinds, `shadowedBy` |
-| `packages/kernel` | load, fold, reconstruct, redact |
-| `packages/adapter-grok` | Grok `updates.jsonl` plus optional system prompt and tool definitions |
-| `packages/adapter-codex` | Codex `rollout-*.jsonl` |
-| `packages/adapter-opencode` | OpenCode SQLite, addressed as `opencode.db#sessionId` |
-| `packages/adapter-claude-code` | detect stub |
-| `packages/adapter-dsh` | detect stub |
-| `packages/devframe` | DevFrame RPC, CLI, Solid SPA |
+| `packages/schema` (`@rivus/agent-trace-schema`) | `Trace`, kinds, `shadowedBy` |
+| `packages/kernel` (`@rivus/agent-trace-kernel`) | `TraceIO`, load, fold, reconstruct, redact |
+| `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | `NodeIO` and `homeDir` |
+| `packages/rpc` (`@rivus/agent-trace-rpc`) | `get-trace` and `reconstruct` over an injected session service |
+| `packages/host-grok` | Grok `updates.jsonl` plus optional system prompt and tool definitions |
+| `packages/host-codex` | Codex `rollout-*.jsonl` |
+| `packages/host-claude-code` | detect stub, registered |
+| `packages/host-opencode` | OpenCode SQLite, kept, not registered |
+| `packages/host-dsh` | detect stub, kept, not registered |
+| `apps/web` (`@rivus/agent-trace-web`) | Solid SPA |
+| `apps/cli` (`@rivus/agent-trace`) | DevFrame CLI, the only published package |
 
 ## Trust
 

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import type { TraceIO } from './io.ts'
 
 export function parseJsonl(text: string): unknown[] {
   const rows: unknown[] = []
@@ -11,8 +11,8 @@ export function parseJsonl(text: string): unknown[] {
   return rows
 }
 
-export async function readJsonl(path: string): Promise<unknown[]> {
-  return parseJsonl(await readFile(path, 'utf8'))
+export async function readJsonl(path: string, io: TraceIO): Promise<unknown[]> {
+  return parseJsonl(await io.readText(path))
 }
 
 export function splitSessionRef(path: string): { file: string, sessionId?: string } {

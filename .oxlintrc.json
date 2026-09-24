@@ -1,13 +1,25 @@
 {
-  "ignorePatterns": [
-    "**/dist/**",
-    "**/node_modules/**",
-    "common/temp/**",
-    "common/deploy/**"
-  ],
-  "plugins": ["typescript", "unicorn"],
-  "categories": {
-    "correctness": "error",
-    "suspicious": "warn"
-  }
+  // host-opencode is excluded: plan section 7, "OpenCode needs SqliteIO".
+  "overrides": [
+    {
+      "files": [
+        "packages/schema/src/**/*.ts",
+        "packages/kernel/src/**/*.ts",
+        "packages/rpc/src/**/*.ts",
+        "packages/host-claude-code/src/**/*.ts",
+        "packages/host-codex/src/**/*.ts",
+        "packages/host-grok/src/**/*.ts",
+        "packages/host-dsh/src/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": ["node:*"] }]
+      }
+    },
+    {
+      "files": ["**/*.test.ts"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ]
 }

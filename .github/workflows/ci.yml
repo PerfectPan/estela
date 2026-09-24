@@ -25,6 +25,7 @@ jobs:
           node scripts/release-intent.mjs check --base "$base"
       - run: node common/scripts/install-run-rush.js update
       - run: node common/scripts/install-run-rush.js lint
+      - run: node scripts/check-browser-bundle.mjs
       - run: node common/scripts/install-run-rush.js test
       - run: node common/scripts/install-run-rush.js typecheck
       - run: node common/scripts/install-run-rush.js build
