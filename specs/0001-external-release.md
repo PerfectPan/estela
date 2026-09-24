@@ -23,6 +23,7 @@ In scope:
 - A redacted static report of one session.
 - Dark and light themes.
 - English and Simplified Chinese UI.
+- A styled terminal experience: startup, progress, the local URL, errors, and a terminal session picker.
 - An MCP server that exposes `reconstruct` to other agents.
 
 Out of scope:
@@ -33,6 +34,7 @@ Out of scope:
 - Editing, replaying, or re-running a session.
 - Accounts, upload, or a hosted service.
 - A stable library API for the internal packages.
+- Publishing to the npm registry. This release is verified from the packed tarball.
 
 ## Behavioral Requirements
 
@@ -43,6 +45,13 @@ Out of scope:
 - A path that does not exist or that no supported host accepts must exit 1 before the server listens, with a message that names the path.
 - On Node.js older than 22.18, the command must exit with a message that names the required version.
 
+### Terminal output
+
+- In a terminal, the CLI must show a startup header with name and version, progress while it indexes sessions and while it loads a session, the local URL in a highlighted block as a clickable link where the terminal supports it, and errors with the cause and one line on how to fix it.
+- When output is not a terminal, or `NO_COLOR` is set, the CLI must print plain lines: no color codes, no cursor control, no animation.
+- `npx @rivus/agent-trace --pick` must open a searchable session list in the terminal and open the chosen session in the browser. Without an interactive terminal it must exit 1 with a message saying `--pick` needs one.
+- `mcp` must write nothing but protocol messages to stdout. Its own messages go to stderr.
+
 ### Session browser
 
 - The browser must list sessions from each supported host's default location on this machine, newest activity first, grouped by day.
@@ -50,7 +59,7 @@ Out of scope:
 - Each row must show the host, title, project directory, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. A value the host log does not record must show as "—", not as zero.
 - A host whose default location does not exist must appear with a count of 0 and the path that was checked. It is not an error.
 - A session file that the adapter cannot parse must still be listed, marked "could not read", with the reason available on hover. It must not be silently hidden.
-- The list must be filterable by host, project, and the three flags, and searchable by title and first prompt.
+- The list must be filterable by host, project, and the three flags, and searchable by title and by the text of every user prompt, in English and Chinese.
 - Selecting a row must show a preview: the context-over-time shape, the headline numbers, and the first prompt.
 
 ### Session workspace
@@ -180,17 +189,30 @@ Out of scope:
 - When the user opens the DevTools, then switches to English and reloads
 - Then the first load shows Chinese labels and Chinese date formats, session content is unchanged, and after the reload the UI is English
 
+### S15: Plain output when piped
+
+- Given `NO_COLOR` unset and output piped to a file
+- When the user runs `npx @rivus/agent-trace build <path> --out-dir report > log.txt`
+- Then `log.txt` contains readable progress and result lines and no escape sequences
+
+### S16: Terminal picker
+
+- Given an interactive terminal and sessions from three hosts
+- When the user runs `npx @rivus/agent-trace --pick`, types part of a title, and presses Enter
+- Then the browser opens the workspace for the chosen session
+
 ## Compatibility And Constraints
 
-- Public interface: the CLI commands and flags above, and the canonical trace schema `agent-trace/v1` for files that other tools write or read. Package exports are not public in this release.
-- Persisted data: the theme and language choices in browser storage, and a session summary cache in the user cache directory (`$XDG_CACHE_HOME/rivus-agent-trace/`, default `~/.cache/rivus-agent-trace/`). Deleting the cache is always safe. `agent-trace/v0` files keep loading.
+- Public interface: the CLI commands and flags above. The canonical trace file format and package exports are not stable yet and change without a compatibility layer.
+- Persisted data: the theme and language choices in browser storage, and a session index in the user cache directory (`$XDG_CACHE_HOME/rivus-agent-trace/`, default `~/.cache/rivus-agent-trace/`). Deleting the index is always safe; it is rebuilt from the logs.
 - Configuration: `AGENT_TRACE_PATH` keeps working as the default session path. `AGENT_TRACE_REDACT=0` affects only the local server.
 - Operational bounds: local tool, default bind `localhost`. The session browser reads only what it needs to build each row.
 
 ## Acceptance Evidence
 
 - S1, S3, S4, S5, S6, S7, S9, S11, S14: browser end-to-end tests against synthetic fixture homes, run in CI on the packed tarball.
-- S2, S10, S13: CLI smoke tests on the packed tarball.
+- S2, S10, S13, S15: CLI smoke tests on the packed tarball.
+- S16: a pseudo-terminal test (`node-pty` in the test harness only) on the packed tarball.
 - S8: a generated 10,000-event trace, with the rendered row count asserted.
 - S12: a generated 350 MB Codex-format fixture built at test time (not committed), with the payload size sent to the browser asserted.
 - Real sessions: one local run per host, recorded in the delivery PR as host, command, event count, and load time. Session files are not committed.

@@ -9,7 +9,7 @@
 - 配套 Spec：[`specs/0001-external-release.md`](../../specs/0001-external-release.md)
 - 视觉设计：[`docs/design/`](../design/README.md)
 
-本计划把 `main` 上的 MVP 做成 `@rivus/agent-trace`：一个本地 DevTools，由 `npx @rivus/agent-trace` 在浏览器中打开。用户从 Claude Code、Codex 或 Grok 中选择一个会话，在一个工作区中调试它。本计划定义这三个 host 首先实现的 host 协议、规范 trace `agent-trace/v1`、在真实机器上的会话规模下会话的发现与加载方式、按选定设计实现的英文和简体中文 UI，以及打包。ATIF 导出、OpenCode 和 dsh 是基于同一协议的后续工作。
+本计划把 `main` 上的 MVP 做成 `@rivus/agent-trace`：一个本地 DevTools，由 `npx @rivus/agent-trace` 在浏览器中打开。用户从 Claude Code、Codex 或 Grok 中选择一个会话，在一个工作区中调试它。本计划定义这三个 host 首先实现的 host 协议、规范 trace、在真实机器上的会话规模下会话的发现与加载方式、按选定设计实现的英文和简体中文 UI，以及打包成一个可在任何地方安装和运行的 tarball。发布到 npm、ATIF 导出、OpenCode 和 dsh 是后续工作。目前没有任何发布，因此接口和格式直接原地修改，不设版本号，也不设兼容层。
 
 ## 目录
 
@@ -66,7 +66,7 @@
 - ACP 是实时客户端协议。在这里它是 Grok 的日志格式，不是 trace 模型。
 - Cursor 的 "Agent Trace"（agent-trace.dev）是代码归属格式，名称几乎相同，功能上没有重叠。
 
-**发布。** `@rivus/agent-trace` 尚未发布。`PerfectPan/rivus-agent` 是一个私有仓库，在 GitHub release 时通过 `.github/workflows/publish-npm.yml` 发布 `@rivus/*` 包，使用 `id-token: write`，没有 npm token。
+**发布。** `@rivus/agent-trace` 尚未发布，在本计划中也保持未发布。`PerfectPan/rivus-agent` 是一个私有仓库，在 GitHub release 时通过 `.github/workflows/publish-npm.yml` 发布 `@rivus/*` 包，使用 `id-token: write`，没有 npm token。
 
 ### 1.2 问题
 
@@ -75,7 +75,7 @@
 ### 1.3 目标与成功标准
 
 - Spec 中每个场景按其 Acceptance Evidence 所列方式通过：在 CI 中针对打包后的 tarball，真实会话则通过一次记录下来的本地运行。
-- Claude Code、Codex 和 Grok adapter 实现 host 协议 v1，并在合成 fixture 上通过一致性测试。
+- Claude Code、Codex 和 Grok adapter 实现 host 协议，并在合成 fixture 上通过一致性测试。
 - 会话浏览器在本机（2,300+ 个文件，11.6 GB）上 2 s 内显示行，第二次启动时缓存的数字在 300 ms 内显示。
 - 355 MB 的 Codex 会话在选中第一个事件之前发送给浏览器的数据最多 12 MB。
 - `schema`、`kernel` 和 adapter 在测试之外不导入任何 `node:*` 模块。
@@ -85,7 +85,8 @@
 ### 1.4 非目标
 
 - ATIF 导出、OTLP 导出（后续工作，第 7 节）。
-- 会话浏览器中的 OpenCode 和 dsh（基于协议 v1 的后续工作）。
+- 会话浏览器中的 OpenCode 和 dsh（基于同一协议的后续工作）。
+- 发布到 npm。从现在起用 Rush change file 记录发布意图（D12）；版本号提升和发布 workflow 是后续计划。
 - 实时跟随正在运行的会话。
 - 标题和首条 prompt 之外的会话内容搜索。
 - 内部包的稳定库 API。
@@ -111,13 +112,13 @@ flowchart TB
     gk["Grok session dir"]
   end
   subgraph core["Core: no node:* imports"]
-    ad["Host adapters<br/>protocol v1"]
+    ad["Host adapters<br/>host protocol"]
     kernel["kernel<br/>loadTrace, fold, reconstruct, redact,<br/>view, conformance suite"]
-    schema["schema<br/>agent-trace/v1"]
+    schema["schema<br/>canonical trace"]
   end
   subgraph shell["Shell: @rivus/agent-trace, Node.js 22.18+"]
     io["NodeIO<br/>fs, homedir"]
-    idx["Session index<br/>discover + summary cache"]
+    idx["Session index<br/>discover + SQLite"]
     rpc["RPC<br/>list-sessions, get-trace-view,<br/>get-event, reconstruct"]
     cli["CLI<br/>dev, build, mcp"]
   end
@@ -135,12 +136,12 @@ flowchart TB
 
 | 组件 | 负责 | 本计划中的变更 |
 |---|---|---|
-| `@agent-trace/schema` | `agent-trace/v1` 类型、v0 reader | 新的事件类型、请求与压缩 payload、agent、capability、source pointer |
+| `@agent-trace/schema` | 规范 trace 类型 | 新的事件类型、请求与压缩 payload、agent、capability、source pointer |
 | `@agent-trace/kernel` | `TraceIO`、`HostAdapter`、`loadTrace`、`fold`、`reconstruct`、`redact`、`toView`、一致性测试 | 新协议、视图投影、一致性测试；无 `node:*` |
 | `adapter-claude-code` | Claude Code 日志 | 新实现 |
-| `adapter-codex`, `adapter-grok` | 各自的日志 | 移植到协议 v1，扩展到请求、用量、耗时、压缩、subagent |
+| `adapter-codex`, `adapter-grok` | 各自的日志 | 移植到 host 协议，扩展到请求、用量、耗时、压缩、subagent |
 | `adapter-opencode`, `adapter-dsh` | 各自的日志 | 本次发布中不注册 |
-| `@agent-trace/devframe`（以 `@rivus/agent-trace` 发布） | NodeIO、会话索引、RPC、CLI、SPA | 大部分工作 |
+| `@rivus/agent-trace`（`packages/devframe`） | NodeIO、会话索引、RPC、CLI、SPA | 大部分工作；包名从 `@agent-trace/devframe` 改为此名 |
 | `docs/design/` | 视觉契约 | 实现为 `styles.css` 中的 token |
 
 ### 2.3 主路径
@@ -173,23 +174,24 @@ sequenceDiagram
 **D1. 产品是浏览器 DevTools，CLI 是它的启动器。**
 备选方案：以 CLI 为主的工具（本计划的上一版草稿），以及桌面应用。CLI 无法展示 timeline 或 inspector。桌面应用增加了安装程序和签名，却没有提供浏览器所缺的任何能力。DevFrame 已经提供本地 server、SPA 外壳、静态构建和 MCP。
 
-**D2. host 协议 v1 取代 `Adapter`。**
-当前接口不能列出会话，也不能声明 host 记录了哪些字段，因此 UI 无法区分“零”和“未记录”。协议 v1 增加 `discover`、`summarize`、capability 列表和一致性测试（3.2）。备选方案：保留 `Adapter`，在 shell 中为每个 host 单独添加发现逻辑。未采用，因为那样每个 host 的目录布局知识会分散在两处。
+**D2. 一个 host 协议取代 `Adapter`。**
+当前接口不能列出会话，也不能声明 host 记录了哪些字段，因此 UI 无法区分“零”和“未记录”。host 协议增加 `discover`、`summarize`、capability 列表和一致性测试（3.2）。备选方案：保留 `Adapter`，在 shell 中为每个 host 单独添加发现逻辑。未采用，因为那样每个 host 的目录布局知识会分散在两处。
 
-**D3. `agent-trace/v1` 保持事件级粒度，字段含义遵循 OTel GenAI，结构保持可映射到 ATIF。**
-事件仍是规范单位，因为 `reconstruct` 按事件作答，inspector 按事件展示原始记录。备选方案：以 ATIF 作为存储（未采用：step 粒度，没有原始记录，没有逐事件可见性），以 OTel span 作为存储（未采用：Development 稳定级别，且 span 树中没有逐事件可见性的位置）。用量、模型、请求和工具字段的含义、单位和名称取自 OTel GenAI，在 TypeScript 中以 camelCase 书写，并附一一对应表（3.3）。v1 中 ATIF 也有的每个字段都必须能无损映射到 ATIF，因此 ATIF 导出这项后续工作是一次投影，而不是重新设计。
+**D3. 规范 trace 保持事件级粒度，字段含义遵循 OTel GenAI，结构保持可映射到 ATIF。**
+事件仍是规范单位，因为 `reconstruct` 按事件作答，inspector 按事件展示原始记录。备选方案：以 ATIF 作为存储（未采用：step 粒度，没有原始记录，没有逐事件可见性），以 OTel span 作为存储（未采用：Development 稳定级别，且 span 树中没有逐事件可见性的位置）。用量、模型、请求和工具字段的含义、单位和名称取自 OTel GenAI，在 TypeScript 中以 camelCase 书写，并附一一对应表（3.3）。ATIF 也有的每个规范字段都必须能无损映射到 ATIF，因此 ATIF 导出这项后续工作是一次投影，而不是重新设计。
 
 **D4. 本次发布包含 Claude Code、Codex 和 Grok。**
 Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已有可移植的 adapter。OpenCode 需要 `SqliteIO`，是同一协议上的下一个 host；dsh 需要 zstd 及其格式目录。
 
 **D5. 核心包的 I/O 通过注入传入。**
-`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 shell 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5）。
+`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 shell 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。
 
 **D6. 浏览器接收视图版 trace，原始记录和完整文本按需加载。**
 这改变了 `AGENTS.md` 中的两条现行规则：“规范存储是 `events[]` 加 `original`”变为“每个事件都能返回其原始记录”，“`getTrace` 是一个 snapshot blob”变为“`get-trace-view` 是一个 snapshot blob；`get-event` 返回一个完整事件”。在 355 MB 的会话上测得：完整为 360 MB，去掉原始记录为 21.3 MB，字符串截断到 4 KB 为 9.5 MB（A.6）。备选方案：对事件分页（未采用：timeline 和 ledger 需要每个事件的结构，`reconstruct` 需要完整序列），以及压缩完整 blob（未采用：server 仍需占用 3.2 GB）。server 保存每个事件的 source pointer（文件、字节偏移、长度），在 `get-event` 请求时重新读取该行。`AGENTS.md` 在同一变更中更新。
 
-**D7. 会话发现读取文件头尾，完整摘要延迟计算并缓存到磁盘。**
-启动时完整解析 11.6 GB 不可行。`discover` 列出文件，并读取每个文件首尾各 64 KB，以填充标题、项目、开始时间和最后活动时间以及大小。`summarize` 完整解析一个文件，得到 turn、请求、token、时长和标记。shell 优先对可见行运行 `summarize`，并发上限为 4，结果存入 `~/.cache/rivus-agent-trace/summaries-v1.json`，以路径、大小和 mtime 为键。备选方案：SQLite 索引。目前未采用；如果 JSON 缓存超过 5 MB 或首屏超过 2 s，再重新考虑。
+**D7. 会话发现读取文件头尾，完整摘要延迟计算并存入 SQLite 索引。**
+启动时完整解析 11.6 GB 不可行。`discover` 列出文件，并读取每个文件首尾各 64 KB，以填充标题、项目、开始时间和最后活动时间以及大小。`summarize` 完整解析一个文件，得到 turn、请求、token、时长、标记和用户 prompt。shell 优先对可见行运行 `summarize`，并发上限为 4，结果通过内置的 `node:sqlite` 存入 `~/.cache/rivus-agent-trace/index.sqlite`，以路径、大小和 mtime 为键。一张使用 `trigram` tokenizer 的 FTS5 表为标题和用户 prompt 建立索引，因此搜索覆盖每一条 prompt，支持英文和中文，而不只是首条 prompt。实测（A.10）：带 `trigram` 的 FTS5 在 Node.js 22.18（SQLite 3.50.2）和 24.18（SQLite 3.53.1）上可用；插入 2,300 行耗时 13 ms，一次搜索耗时 0.1 ms。
+备选方案：JSON 缓存文件（不能搜索，每次整文件重写）；DuckDB（`@duckdb/node-api` 在 macOS arm64 上安装后占 115 MB，扫描全部 550 MB 的 Claude Code 日志耗时 252 ms，而 Node 逐行扫描耗时 1,176 ms，但它会在 adapter 之外用 SQL 重复表述每个 host 的解析规则）；`better-sqlite3`（每个平台一个原生 addon，而 `node:sqlite` 不需要）。Node.js 22 对 `node:sqlite` 打印一条 `ExperimentalWarning`；`dist/bin.mjs` 屏蔽这一条警告，在 M1 中验证。
 
 **D8. RPC 形态与静态报告。**
 查询：`list-sessions`（不是 snapshot）、`get-trace-view(ref)`、`get-event(ref, id)`、`reconstruct(ref, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数查询 `report-trace`，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
@@ -200,14 +202,17 @@ Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已�
 **D10. 脱敏。**
 `redact(trace, { homeDir })` 在每个字符串中把 home 目录替换为 `~`，并替换已知的 token 模式。报告路径始终脱敏。`AGENT_TRACE_REDACT=0` 只影响本地 server。
 
-**D11. 单一打包产物 `@rivus/agent-trace`。**
-esbuild 把 shell 和所有 workspace 包打包进 `dist/cli.mjs`，`devframe`、`@devframes/agentic` 和 `cac` 作为运行时依赖。`dist/bin.mjs` 在动态导入之前检查 Node.js `>=22.18`，因为静态导入会先加载 `node:sqlite`。`devframe` 和 `@devframes/agentic` 固定为 `1.0.0`，因为 `@devframes/agentic@1.0.0` 声明了 `peerDependencies: { devframe: "1.0.0" }`。对这一方案的打包探针安装到空目录后，成功运行了 `build` 和 `mcp`（A.4）。
+**D11. 单一打包产物 `@rivus/agent-trace`，用 rslib 构建。**
+rslib 1.0 把 shell 和所有 workspace 包打包进 `dist/cli.mjs`（ESM，`output.target: 'node'`，`bundle: true`），`devframe`、`@devframes/agentic` 和 `cac` 作为 external 和运行时依赖。Rspack 把 `new URL('<literal>', import.meta.url)` 解析为资源导入，而在探针中设置 `module.parser.javascript.url: false` 并未关闭这一行为；因此没有任何模块用这种方式定位文件。`src/shared/paths.ts` 用 `join(dirname(fileURLToPath(import.meta.url)), …)` 构造路径，并用一个构建期常量表示打包后的目录布局。`dist/bin.mjs` 在动态导入之前检查 Node.js `>=22.18`，因为静态导入会先加载 `node:sqlite`。`devframe` 和 `@devframes/agentic` 固定为 `1.0.0`，因为 `@devframes/agentic@1.0.0` 声明了 `peerDependencies: { devframe: "1.0.0" }`。探针（A.9）：rslib 打包产物为 20.8 KB，构建耗时 0.12 s，从其 tarball 安装到空目录后，运行了 `build`（以 0 退出）和 `mcp`（reconstruct 返回 `completeness: partial`）。备选方案：esbuild，它同样可用（A.4）；选择 rslib 是为了留在 Rspack 工具链上。
 
-**D12. 发布方式为 GitHub release 加 npm trusted publishing，与 `rivus-agent` 相同。**
-一个在 `release: published` 时触发的 workflow 先运行各项检查，再以 `id-token: write` 发布。仓库可以保持私有。本文不断言私有仓库是否会附带 npm provenance。
+**D12. 现在通过 Rush change file 记录发布意图，发布放到以后。**
+`@rivus/agent-trace` 获得一个 Rush version policy，每个改变该包所发布内容的 PR 都附带一个由 `rush change` 生成的 change file，在 CI 中用 `rush change --verify` 检查。发布时，`rush version` 把这些文件转成该包的 `CHANGELOG.md`。版本号提升和 npm 发布 workflow 是后续计划；参考 `PerfectPan/rivus-agent`（dispatch 时运行 Version Packages，GitHub release 时以 `id-token: write` 发布）。这套机制在 M1 之前以单独的 PR 落地。
 
 **D13. UI 字符串通过类型化词典提供英文和简体中文。**
 `@solid-primitives/i18n` 2.2 按 locale 各用一份词典解析 key。`en` 是基础词典和类型来源；`zh-CN` 以 `satisfies Dictionary` 对照它声明，因此缺少或多出一个 key 都会让 `typecheck` 失败，新字符串无法只以一种语言发布。日期、时间、时长和数字统一经过一个基于 `Intl.DateTimeFormat`、`Intl.RelativeTimeFormat` 和 `Intl.NumberFormat` 的 `format` 模块；token 缩写（`118.4k`、`2.41M`）与 locale 无关。会话内容按原样渲染，从不经过词典。备选方案：i18next（运行时更大，key 无类型），以及不用库的普通对象（没有插值和复数规则）。CLI 和 MCP 输出保持英文。
+
+**D14. 终端输出通过 `@clack/prompts` 实现；命令解析保留在 cac 上。**
+DevFrame 用 cac（`createCac`）构建命令，因此解析保留在那里。`@clack/prompts` 1.8 绘制各个终端时刻（3.1）：`intro`、`spinner`、`progress`、`tasks`、`box`、`log`，以及用于 `--pick` 的 `autocomplete`。create-vite、Astro、Svelte CLI 和 Nuxt 的 CLI 都使用它；它安装约 280 KB，共 6 个包，通过 `node:util.styleText` 着色，并能用 rslib 打包（探针：28 KB）。实测：管道输出中没有颜色代码，但 spinner 仍会写入光标隐藏/显示序列，因此当 `stdout` 不是 TTY 或设置了 `NO_COLOR` 时，shell 把 spinner 和进度改为纯文本行。在 `mcp` 模式下不调用 clack；消息写入 stderr。DevFrame 自己的 `[devframe] …` 行即使在 `NO_COLOR=1` 且输出为管道时也会打印颜色代码（实测）；关闭颜色时 shell 会从这些行中过滤转义序列，并向上游提出修复。备选方案：Ink（React 加上通过 npx 约 24 MB，用于本 CLI 并不具备的全屏 UI）；OpenTUI（需要 Bun 或带实验性参数的 Node.js 26.4，并且每个平台需要一个原生二进制文件）；ora 加 chalk 加 listr2（三个功能重叠的库，约 1.5 MB）。
 
 ## 3. 详细设计
 
@@ -223,8 +228,21 @@ npx @rivus/agent-trace mcp <path>
 - 有路径：通过 `loadTrace` 加载一次；失败时在监听之前输出消息并以 1 退出；成功时打开 `/__agent-trace/#/s/<ref>`。
 - `ref` 是索引分配的不透明 id（host 和路径的哈希）。绝对路径从不出现在 URL 中。
 - 未提供路径参数时使用 `AGENT_TRACE_PATH`。
+- `--pick` 在索引行（标题、host、项目、最后活动）上打开一个 clack `autocomplete`，然后打开所选项的工作区 URL。stdin 不是 TTY 时以 1 退出。
 
-### 3.2 Host 协议 v1
+终端时刻（D14）：
+
+| 时刻 | TTY | 不是 TTY 或设置了 `NO_COLOR` |
+|---|---|---|
+| 启动 | 带名称和版本的 `intro` | `agent-trace <version>` |
+| 会话索引 | 按 host 显示已读 / 总文件数的 `progress` | 完成时每个 host 一行 |
+| 加载会话 | 显示已读字节数和事件数的 `spinner` | 完成时一行 |
+| `build` | `tasks`：加载、脱敏、写入 | 每个步骤一行 |
+| 就绪 | 用 `box` 显示 URL，终端支持时为 OSC 8 链接，然后 `outro` | `Ready: <url>` |
+| 错误 | 带原因和修复方法的 `log.error`，然后以退出码 1 退出 | 相同文本，无颜色 |
+| `mcp` | 只用 stderr；stdout 承载协议 | 相同 |
+
+### 3.2 Host 协议
 
 从 `@agent-trace/kernel` 导出：
 
@@ -278,7 +296,6 @@ export interface SessionSummary {
 export interface HostAdapter {
   id: string
   displayName: string
-  protocol: 1
   capabilities: readonly Capability[]
   /** Default locations for this host, for example `<home>/.claude/projects`. */
   roots: (env: HostEnv) => string[]
@@ -311,7 +328,7 @@ export interface HostAdapter {
 8. `summarize` 对该 fixture 等于 `fold(load())`。
 9. 从 adapter 入口不可达任何 `node:*` 导入。
 
-### 3.3 规范 trace `agent-trace/v1`
+### 3.3 规范 trace
 
 ```ts
 export type EventKind =
@@ -365,7 +382,7 @@ export interface ToolResultPayload { callId: string, output?: unknown, isError?:
 export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string }
 
 export interface Trace {
-  schema: 'agent-trace/v1'
+  schema: 'agent-trace'
   host: { id: string, version?: string }
   session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
   capabilities: Capability[]
@@ -375,27 +392,29 @@ export interface Trace {
 }
 ```
 
-- `agent-trace/v0` 文件通过一个 reader 加载，该 reader 把它们转换为 v1，`capabilities: []`，source pointer 为第 0 行。
+- `schema: 'agent-trace'` 标记一个规范 JSON 文件。demo fixture 改写为这一形状；不保留 MVP 形状的 reader。
 - payload 的键名按事件类型固定；每个字段旁的注释是其 OTel GenAI 属性。OTLP exporter 一对一映射它们。
-- v1 覆盖的每个 ATIF 字段列于第 8 节 A.8，因此 ATIF 导出这项后续工作是一次映射。
+- ATIF 也覆盖的每个规范字段列于第 8 节 A.8，因此 ATIF 导出这项后续工作是一次映射。
 
 **视图版 trace。** `toView(trace, { maxString: 4096 })` 去掉 `original`，把每个字符串截断到 4,096 个字符，并在被截短的事件上记录 `payload.$truncated = [paths]`。ledger 对这些事件显示“已截短”标记；inspector 调用 `get-event`。
 
-### 3.4 会话索引与缓存
+### 3.4 会话索引
 
 ```mermaid
 flowchart LR
   roots["HostAdapter.roots(env)"] --> disc["discover<br/>list + head/tail 64 KB"]
   disc --> rows["rows sent to the browser"]
-  disc --> q{"cached summary<br/>for path+size+mtime?"}
+  disc --> q{"summary in index.sqlite<br/>for path+size+mtime?"}
   q -- "yes" --> rows
   q -- "no" --> sum["summarize<br/>visible rows first, 4 at a time"]
-  sum --> cache["~/.cache/rivus-agent-trace/<br/>summaries-v1.json"]
+  sum --> db["~/.cache/rivus-agent-trace/<br/>index.sqlite"]
   sum --> rows
 ```
 
-- 索引位于 shell 进程中，每次 `list-sessions` 时重建。浏览器先收到行，摘要完成后收到摘要更新。
-- 缓存文件以原子方式写入（先写临时文件再 rename）。损坏或版本未知的缓存被丢弃。
+- 表：`sessions`（ref、host、路径、大小、mtime、头部字段、摘要数字、标记、错误），`prompts`（会话 ref、序号、每条用户 prompt 的前 500 个字符，每个会话最多 200 条），以及 `search`，一张覆盖标题和 prompt 的 FTS5 `trigram` 表。
+- `list-sessions` 从索引和最近一次 `discover` 读取行。浏览器先收到行，摘要完成后收到摘要更新。
+- 搜索在索引中运行，不在浏览器中运行。短于 3 个字符的查询回退为对标题的前缀匹配。
+- 索引是一份缓存。`PRAGMA user_version` 记录其布局；布局不同或无法打开的文件会被删除并重建。每批摘要的写入在一个事务中执行。
 - Claude Code 的 subagent 文件计入其父会话，不单独成行。
 - 缺失的根目录产生一个 `count: 0` 且 `checked: <path>` 的 host 条目。
 
@@ -445,7 +464,7 @@ flowchart LR
 ### 3.8 兼容性与迁移
 
 - `Adapter`、`loadTrace(path, adapters)`、`splitSessionRef`、`readJsonl` 的签名改变。所有调用方都在本仓库中。
-- `agent-trace/v0` 文件继续可加载（3.3）。
+- 没有兼容层：目前没有任何发布，因此接口和文件形状直接原地修改。
 - `AGENTS.md` 中关于 `original` 和 `getTrace` 的规则按 D6 所述改变，与代码在同一个 PR 中。
 - 放弃 Node.js 20 和 22.0–22.17；它们从未可用。
 
@@ -453,7 +472,7 @@ flowchart LR
 
 - server 绑定 `localhost`。DevFrame 的认证关卡默认保持开启；`--no-auth` 仍需显式开启。该关卡在 `--open` 下的行为是一个待定问题（第 7 节）。
 - URL 携带不透明的会话 ref，从不携带路径。
-- 摘要缓存保存标题、首条 prompt（前 200 个字符）、路径和数字。它位于用户的缓存目录中，权限为 0600。
+- 索引保存标题、用户 prompt（每条前 500 个字符）、路径和数字。它位于用户的缓存目录中，权限为 0600。`--no-index` 在不读写索引的情况下运行。
 - 报告始终脱敏（D10）。会话文本和文件内容保留；导出对话框和报告头部会说明这一点。
 - 不向本机之外发送任何内容。
 
@@ -463,20 +482,20 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  m1["M1 Runtime<br/>Node floor, DevFrame fixes,<br/>DI, CLI path"] --> m2["M2 Protocol<br/>schema v1, HostAdapter,<br/>conformance, 3 hosts"]
-  m2 --> m3["M3 Session browser<br/>index, cache, list UI"]
+  m1["M1 Runtime<br/>Node floor, DevFrame fixes,<br/>DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, HostAdapter,<br/>conformance, 3 hosts"]
+  m2 --> m3["M3 Session browser<br/>SQLite index, list UI"]
   m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes, i18n"]
-  m3 --> m5["M5 Ship<br/>report, bundle, tarball e2e,<br/>release 0.1.0"]
+  m3 --> m5["M5 Package<br/>report, rslib bundle,<br/>tarball e2e"]
   m4 --> m5
 ```
 
 | 阶段 | 交付内容 | 关卡 |
 |---|---|---|
-| M1 | D5、D11 的运行时部分（Node 最低版本、版本固定、`@devframes/agentic`）、`snapshot` 修复、位置参数路径 | `build` 和 `mcp` 在 demo 上以 0 退出；D5 检查通过 |
-| M2 | `agent-trace/v1`、协议 v1、一致性测试、Claude Code adapter、Codex 和 Grok 移植、合成 fixture | 3 个 host 的一致性测试通过；真实会话运行已记录 |
-| M3 | 会话索引、缓存、`list-sessions`、会话浏览器界面 | S1、S3、S4 通过；本机 2 s 首屏已记录 |
+| M1 | D5、D11 的运行时部分（Node 最低版本、版本固定、`@devframes/agentic`）、`snapshot` 修复、位置参数路径、D14 终端输出和 `--pick` 骨架 | `build` 和 `mcp` 在 demo 上以 0 退出；D5 检查通过；S15 通过 |
+| M2 | 规范 trace、host 协议、一致性测试、Claude Code adapter、Codex 和 Grok 移植、合成 fixture | 3 个 host 的一致性测试通过；真实会话运行已记录 |
+| M3 | 会话索引（SQLite、FTS5）、`list-sessions`、会话浏览器界面 | S1、S3、S4 通过；本机 2 s 首屏已记录 |
 | M4 | 视图版 trace、`get-event`、timeline、ledger、inspector、主题、英文和中文 UI | S5–S8、S11、S12、S14 通过；对照 `docs/design/` 的两种语言设计评审 |
-| M5 | 报告模式、打包、tarball e2e、release workflow | 所有场景在 tarball 上通过；`0.1.0` 已发布 |
+| M5 | 报告模式、rslib 打包、tarball e2e | 所有场景在 tarball 上通过 |
 
 M2 之后 M3 和 M4 可以并行。
 
@@ -487,15 +506,15 @@ M2 之后 M3 和 M4 可以并行。
 ### 4.3 回滚
 
 - M1–M4：revert 该 PR。
-- M5：`npm deprecate @rivus/agent-trace@<version> "<reason>"` 并发布一个补丁版本。不 unpublish。
+- M5：revert 该 PR。没有任何发布。
 
 ## 5. 验证
 
 ### 5.1 单元测试与一致性测试
 
-- Kernel：`toView`、`redact`、`fold`、`reconstruct` 的 slot 计数、投影、v0 reader。
+- Kernel：`toView`、`redact`、`fold`、`reconstruct` 的 slot 计数、投影。
 - 每个 host：在 `packages/adapter-*/fixtures/` 下的合成 fixture 上运行 `describeHostConformance`。fixture 依据 1.1 中的记录结构手写，不包含真实会话文本。
-- D5：oxlint `node:*` 规则，以及对 kernel 和 adapter 的 `esbuild --platform=browser` 打包。
+- D5：oxlint `node:*` 规则，以及对 kernel 和 adapter 的面向浏览器的 rslib 打包。
 
 ### 5.2 浏览器端到端测试
 
@@ -517,7 +536,7 @@ M2 之后 M3 和 M4 可以并行。
 
 ### 5.3 CLI 冒烟测试
 
-在已安装的 tarball 上运行 S2、S10、S13，Node.js 22.18 和 24；S13 还在 Node.js 20 上运行。
+在已安装的 tarball 上运行 S2、S10、S13、S15，Node.js 22.18 和 24；S13 还在 Node.js 20 上运行。S16 在伪终端中运行（`node-pty`，仅用于测试 harness）。
 
 ### 5.4 真实会话与设计评审
 
@@ -531,11 +550,11 @@ M2 之后 M3 和 M4 可以并行。
 
 | 阶段 | 主要工作 | 估算 |
 |---|---|---|
-| M1 | 运行时修复、`TraceIO`、NodeIO、CLI 路径、D5 检查 | 1.5 天 |
-| M2 | Schema v1、协议、一致性测试、Claude Code adapter、Codex 和 Grok 移植、fixture | 5 天 |
-| M3 | 索引、缓存、`list-sessions`、会话浏览器 UI | 3 天 |
+| M1 | 运行时修复、`TraceIO`、NodeIO、CLI 路径、D5 检查、终端输出 | 2.5 天 |
+| M2 | 规范 trace、host 协议、一致性测试、Claude Code adapter、Codex 和 Grok 移植、fixture | 5 天 |
+| M3 | 带 FTS5 的 SQLite 索引、`list-sessions`、会话浏览器 UI | 3.5 天 |
 | M4 | 视图版 trace、`get-event`、投影、timeline、虚拟化 ledger、inspector、主题、词典和格式化 | 7 天 |
-| M5 | 报告模式、打包、在 tarball 上运行 Playwright、release workflow | 2.5 天 |
+| M5 | 报告模式、rslib 打包、在 tarball 上运行 Playwright | 2 天 |
 
 依据：M1 的每项改动都已在探针中试过（第 8 节）；M2 的主要工作量是 Claude Code adapter 和 fixture；M4 的主要工作量是 timeline 和 ledger。
 
@@ -545,17 +564,20 @@ M2 之后 M3 和 M4 可以并行。
 |---|---|---|---|---|
 | Host 日志格式在无通知的情况下变化 | 风险 | Adapter 在新格式代际上失败 | 未确认 | 带行号明确失败（3.2）；为每个已知格式代际准备一致性测试 fixture |
 | DevFrame 认证关卡与 `--open` | 待定问题 | 首次启动时多出的手动步骤会破坏 S1 | 未确认 | 在 M1 中验证；如果它增加了步骤，在做选择之前检查 DevFrame 是否接受打开的 URL 中的一次性 token |
-| 摘要缓存保存 prompt 文本 | 风险 | 缓存目录中有敏感文本 | 未确认 | 200 字符上限、权限 0600、写入文档；`--no-cache` 参数 |
-| 较慢磁盘上的 2 s 首屏 | 风险 | 未达到 S1 预算 | 未确认 | 在 M3 中测量；SQLite 索引是后备方案（D7） |
+| 索引保存 prompt 文本 | 风险 | 缓存目录中有敏感文本 | 未确认 | 每条 prompt 500 字符上限、权限 0600、写入文档；`--no-index` 参数 |
+| 较慢磁盘上的 2 s 首屏 | 风险 | 未达到 S1 预算 | 未确认 | 在 M3 中测量；首屏只需要 `discover` 和索引读取 |
 | OTel GenAI 重命名 | 风险 | 映射表过时 | 未确认 | 在映射表中固定所用的 schema 版本（撰写时为 `gen-ai-dev/1.42.0-dev`） |
 | 与 Cursor Agent Trace 名称重叠 | 风险 | 搜索混淆 | 未确认 | 在文档和 README 标题中保留 `@rivus` scope |
 | Node 22 上的 `node:sqlite` ExperimentalWarning | 风险 | Rush 因 stderr 以 1 退出；CLI 打印一条警告 | 未确认 | `main` 上的 opencode 测试中已屏蔽；本次发布不注册 OpenCode |
+| 用 DuckDB 做跨会话分析 | 后续工作 | 对原始日志更快的批量查询 | 未确认 | 如果某个功能需要，作为可选依赖（A.10） |
 | ATIF 导出 | 后续工作 | 与 Harbor 评测和数据集互通 | 未确认 | 下一份计划；映射见 A.8；用 Harbor 的 validator 验证 |
-| 基于协议 v1 的 OpenCode | 后续工作 | OpenCode 用户 | 未确认 | 需要 `SqliteIO`；0.1.0 之后的下一个 host |
-| 基于协议 v1 的 dsh | 后续工作 | dsh 用户 | 未确认 | 需要 zstd 和格式目录 |
+| npm 发布 | 后续工作 | 用户从 registry 安装 | 未确认 | Version Packages 和发布 workflow，在 M5 之后；参考 `rivus-agent` |
+| 基于 host 协议的 OpenCode | 后续工作 | OpenCode 用户 | 未确认 | 需要 `SqliteIO`；M5 之后的下一个 host |
+| 基于 host 协议的 dsh | 后续工作 | dsh 用户 | 未确认 | 需要 zstd 和格式目录 |
 | OTLP 导出 | 后续工作 | Langfuse、LangSmith、Phoenix | 未确认 | 在 ATIF 之后 |
 | 中文 UI 字符串质量 | 风险 | 直译或术语不一致 | 未确认 | 在 `i18n/zh-CN.ts` 头部注释中维护一份术语表，随 M4 截图一起评审 |
 | 更多 UI 语言；本地化的 CLI 和 MCP 输出 | 后续工作 | 非英文、非中文用户 | 未确认 | 增加一个词典；类型检查会覆盖它 |
+| DevFrame 日志行忽略 `NO_COLOR` | 风险 | CI 日志中出现转义码 | 未确认 | 在 shell 中过滤（D14）；向 DevFrame 提出修复 |
 | 实时跟随、内容搜索、lane 视图切换 | 后续工作 | 查看器功能 | 未确认 | 单独的计划 |
 
 ## 8. 附录：测量数据
@@ -643,9 +665,9 @@ A.7 社区格式，一手来源（读于 2026-09-23）：
 - Codex OTel：https://github.com/openai/codex/tree/main/codex-rs/otel
 - Cursor Agent Trace：https://agent-trace.dev/
 
-A.8 `agent-trace/v1` 到 ATIF v1.8 的映射（ATIF 导出后续工作的约束）：
+A.8 规范 trace 到 ATIF v1.8 的映射（ATIF 导出后续工作的约束）：
 
-| v1 | ATIF |
+| 规范 trace | ATIF |
 |---|---|
 | `session.id` | `session_id`；文档使用 `trajectory_id` |
 | `host.id`, `host.version` | `agent.name`, `agent.version` |
@@ -662,3 +684,36 @@ A.8 `agent-trace/v1` 到 ATIF v1.8 的映射（ATIF 导出后续工作的约束�
 | `session.systemPrompt`, `session.tools` | `source: "system"` 的 step；`agent.tool_definitions` |
 | `ts` | `timestamp`（ISO 8601） |
 | `durationMs`、`hook` 事件、`skipped`、`source`、`original` | 仅 `extra`；ATIF 没有对应字段 |
+
+A.9 rslib 探针（2026-09-24，临时目录，未提交）。`@rslib/core` 1.0.2，ESM，`target: 'node'`，`bundle: true`，external 为 `devframe`、`@devframes/agentic`、`cac`。保留那两处 `new URL('<literal>', import.meta.url)` 查找时，构建失败并报 `Module not found: Can't resolve '../dist/client'`，设置 `module.parser.javascript.url: false` 后同样失败。把这些查找改写为 `join(dirname(fileURLToPath(import.meta.url)), …)` 之后：
+
+```
+ready   built in 0.12s
+File (esm)     Size
+dist/cli.mjs   20.8 kB
+
+installed tarball: npx agent-trace build --out-dir out → build exit 0
+installed tarball: npx agent-trace mcp, tools/call agent-trace_reconstruct e6 → "completeness": "partial"
+```
+
+A.10 索引存储测量（2026-09-24）：
+
+```
+node:sqlite, 2,300 rows + FTS5 trigram, one search:
+{"node":"v22.18.0","sqlite":"3.50.2","fts":"fts5+trigram","insert2300ms":13,"query":2300,"queryMs":0.11}   (prints ExperimentalWarning)
+{"node":"v24.18.0","sqlite":"3.53.1","fts":"fts5+trigram","insert2300ms":14,"query":2300,"queryMs":0.12}
+
+@duckdb/node-api 1.5.5-r.5 install: node_modules 115M (node-bindings-darwin-arm64 113M)
+Scan of all Claude Code main logs (550 MB, 221 files), assistant records and input tokens:
+duckdb {"requests":"53136","input_tokens":"91828506","files":"221"} 252ms
+node   {"requests":53135,"input_tokens":91828474,"files":221} 1176ms
+```
+
+A.11 终端输出探针（2026-09-24，临时目录）。`@clack/prompts` 1.8.1（依赖 `@clack/core` 1.5.1 和 `sisteransi`）用 rslib 打包为 `clk.mjs`，28.0 kB。输出中的转义序列：
+
+```
+piped:              2   (cursor hide/show from the spinner, no color)
+FORCE_COLOR=1:      10
+DevFrame build line, piped:            ^[[36m[devframe] copying SPA from …
+DevFrame build line, NO_COLOR=1 piped: ^[[36m[devframe] copying SPA from …
+```
