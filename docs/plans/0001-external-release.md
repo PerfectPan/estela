@@ -77,7 +77,7 @@ A developer cannot open the tool, pick a session, and see what happened. The shi
 - The session browser shows rows within 2 s on this machine (2,300+ files, 11.6 GB) and within 300 ms on the second launch for the cached numbers.
 - The 355 MB Codex session opens with at most 12 MB sent to the browser before the first event is selected.
 - `schema`, `kernel`, and adapters import no `node:*` module outside tests.
-- The two screens match `docs/design/` in both themes, reviewed side by side with the PNGs in the delivery PR.
+- The two screens match `docs/design/` in both themes, reviewed side by side with the design HTML at 1440 × 900 in the delivery PR.
 
 ### 1.4 Non-goals
 
@@ -460,7 +460,7 @@ flowchart LR
 | M1 | D5, D11 runtime parts (Node floor, pins, `@devframes/agentic`), `snapshot` fix, positional path | `build` and `mcp` exit 0 on the demo; D5 checks pass |
 | M2 | `agent-trace/v1`, protocol v1, conformance suite, Claude Code adapter, Codex and Grok ports, synthetic fixtures | Conformance green for 3 hosts; real-session runs recorded |
 | M3 | Session index, cache, `list-sessions`, session browser screen | S1, S3, S4 green; 2 s first screen on this machine recorded |
-| M4 | View trace, `get-event`, timeline, ledger, inspector, themes | S5–S8, S11, S12 green; design review against PNGs |
+| M4 | View trace, `get-event`, timeline, ledger, inspector, themes | S5–S8, S11, S12 green; design review against `docs/design/` |
 | M5 | Report mode, bundle, tarball e2e, release workflow | All scenarios green on the tarball; `0.1.0` published |
 
 M3 and M4 can run in parallel after M2.
@@ -506,7 +506,7 @@ S2, S10, S13 on the installed tarball, on Node.js 22.18 and 24; S13 also on Node
 ### 5.4 Real sessions and design review
 
 - One local run per host through the installed tarball. Record host, event count, load time, and view size in the delivery PR. No session text.
-- Screenshots of both screens in both themes beside `docs/design/*.png`.
+- Screenshots of both screens in both themes beside screenshots of `docs/design/*.html` at the same viewport, attached to the PR, not committed.
 - Session browser first-screen time and second-launch time on this machine.
 
 ## 6. Delivery plan and effort

@@ -6,10 +6,10 @@ This directory holds the chosen high-fidelity design (direction A, "Instrument")
 
 | Screen | Dark | Light |
 |---|---|---|
-| Session browser (home) | [HTML](session-browser-dark.html) · [PNG](session-browser-dark.png) | [HTML](session-browser-light.html) · [PNG](session-browser-light.png) |
-| Session workspace | [HTML](session-workspace-dark.html) · [PNG](session-workspace-dark.png) | [HTML](session-workspace-light.html) · [PNG](session-workspace-light.png) |
+| Session browser (home) | [session-browser-dark.html](session-browser-dark.html) | [session-browser-light.html](session-browser-light.html) |
+| Session workspace | [session-workspace-dark.html](session-workspace-dark.html) | [session-workspace-light.html](session-workspace-light.html) |
 
-![Session workspace, dark](session-workspace-dark.png)
+Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport when a PR needs it.
 
 ## Screens
 
