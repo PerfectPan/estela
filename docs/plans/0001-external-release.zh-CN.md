@@ -227,6 +227,12 @@ DevFrame 用 cac（`createCac`）构建命令，因此解析保留在那里。`@
 **D15. 应用负责组合；包负责提供能力。**
 MVP 的 `packages/devframe` 把 CLI 入口、server RPC 和 SPA 混在一个包中，因此只有文件布局能说明哪些代码可以使用 Node 或知道 host 列表。2.2 中的布局把这些边界变成包边界，可以用脚本检查。备选方案：保留一个应用包，在内部用文件夹划分（未采用：`node:*` 和依赖规则将只能靠 review 保证），以及把 SPA 放进 `apps/cli`（未采用：静态报告复用同一份构建产物，而且 SPA 不能看到 Node 代码）。adapter 改名为 `host-*`，与 host 协议一致。移动代码是 M1 的第一步。
 
+**D16. 端到端测试基于 Playwright；本地验证通过 chrome-devtools-mcp 或 browser-harness 在真实浏览器中进行。**
+CI 用 `@playwright/test` 针对打包后的 tarball 运行浏览器场景（5.2）。本地验证是单独的一步：在一项 UI 改动被称为完成之前，其作者（人或 agent）在真实浏览器中检查它，并把证据附到 PR 中（改动过的界面在两种主题和两种语言下的截图，与 `docs/design/` 并排；console；对于重型视图还有一份性能 trace）。有两个工具用于这一步：
+- `chrome-devtools-mcp` 1.10（Chrome DevTools 团队，Node.js）在隔离的 profile 中启动自己的无头 Chrome。文档中给出的命令始终传入 `--no-usage-statistics --no-performance-crux`，因为该 server 默认向 Google 发送使用统计，并可能把 trace URL 发送到 CrUX API；`--allowedUrlPattern` 把浏览器限制在 `http://localhost:*`（Chrome 149+）。探针（A.12）：页面加载、文本等待、无障碍快照、页面内脚本、console、`colorScheme` 模拟和 `--chromeArg=--lang=zh-CN` 在 MVP demo 上都可用，并且探针在 console 中发现了一个真实的 `404`。
+- `browser-harness` 通过 CDP 驱动用户自己的 Chrome，用于需要真实浏览器会话的检查。它需要 Python 3.11+，版本为 0.1（alpha），因此只作为本地工具。
+具体命令在 M4 中写入 `docs/development/setup.md`。
+
 ## 3. 详细设计
 
 ### 3.1 入口
@@ -532,21 +538,23 @@ M2 之后 M3 和 M4 可以并行。
 
 ### 5.2 浏览器端到端测试
 
-使用 Playwright 针对打包后的 tarball 运行，配合一个合成的 home 目录，其中存放三个 host 的 fixture 会话：
+使用 Playwright 针对打包后的 tarball 运行，配合一个合成的 home 目录，其中存放三个 host 的 fixture 会话。每个场景在出现 console 错误时也会失败：
 
-| Spec | 检查 |
-|---|---|
-| S1 | 三个 host 的行以及每个 host 的计数 |
-| S3 | 没有 `.codex` 的 home：Codex 显示 0 和所检查的路径 |
-| S4 | 格式代际未知的 fixture：“无法读取”行，带行号的错误 |
-| S5 | 压缩 fixture：带压缩前/后 token 的虚线分隔线 |
-| S6 | 拖动 brush 筛选 ledger；显示事件数 |
-| S7 | Model saw：slot、带斜线填充的 system prompt、被移除的事件 |
-| S8 | 生成的 10,000 事件 trace：滚动时渲染的行保持在 100 以下 |
-| S9 | 导出，从 `file://` 打开，在输出中 grep home 路径 |
-| S11 | 模拟浅色配色方案，然后切换并重新加载 |
-| S14 | 浏览器 locale 为 `zh-CN`：中文标签和日期格式；会话文本不变；切换到英文后重新加载仍保持 |
-| S12 | 生成的 350 MB Codex 格式文件（测试时构建）：选中之前的 payload ≤ 12 MB；选中一个已截短的事件会加载完整文本 |
+| Spec | 检查 | 方法 |
+|---|---|---|
+| S1 | 三个 host 的行以及每个 host 的计数 | 按 host 定位行 |
+| S3 | 没有 `.codex` 的 home：Codex 显示 0 和所检查的路径 | 单独的合成 home |
+| S4 | 格式代际未知的 fixture：“无法读取”行，带行号的错误 | 点击该行，读取错误面板 |
+| S5 | 压缩 fixture：带压缩前/后 token 的虚线分隔线 | timeline SVG 的 locator 及其标签 |
+| S6 | brush 筛选 ledger；显示事件数。brush 手柄可以获得焦点，并能用方向键移动 | 在获得焦点的手柄上使用 `page.keyboard`，以及鼠标拖动 |
+| S7 | Model saw：slot、带斜线填充的 system prompt、被移除的事件 | 选中该请求，读取 inspector |
+| S8 | 生成的 10,000 事件 trace：滚动时渲染的行保持在 100 以下，且滚动期间没有超过 200 ms 的长任务 | DOM 中的行数；页面内针对 `longtask` 的 `PerformanceObserver` |
+| S9 | 导出，从 `file://` 打开，在输出中 grep home 路径 | `page.goto('file://…')`；在 Node 中扫描文件 |
+| S11 | 模拟浅色配色方案，然后切换并重新加载 | `page.emulateMedia({ colorScheme })`，重新加载 |
+| S12 | 生成的 350 MB Codex 格式文件（测试时构建）：选中之前的 payload ≤ 12 MB；选中一个已截短的事件会加载完整文本 | 对 `page.on('response')` 得到的响应大小求和 |
+| S14 | 浏览器 locale 为 `zh-CN`：中文标签和日期格式；会话文本不变；切换到英文后重新加载仍保持 | `locale: 'zh-CN'` 的浏览器 context |
+
+M4 的设计评审属于本地验证（D16），不属于这套测试。
 
 ### 5.3 CLI 冒烟测试
 
@@ -555,7 +563,7 @@ M2 之后 M3 和 M4 可以并行。
 ### 5.4 真实会话与设计评审
 
 - 每个 host 通过已安装的 tarball 进行一次本地运行。在交付 PR 中记录 host、事件数、加载时间和视图大小。不含会话文本。
-- 两个界面在两种主题下的截图，与相同视口下 `docs/design/*.html` 的截图并排，附在 PR 中，不提交到仓库。
+- 两个界面在两种主题和两种语言下的截图，与相同视口下 `docs/design/*.html` 的截图并排，在本地验证（D16）中截取，附在 PR 中，不提交到仓库。
 - 本机上会话浏览器的首屏时间和第二次启动时间。
 
 ## 6. 交付计划与工作量
@@ -568,7 +576,7 @@ M2 之后 M3 和 M4 可以并行。
 | M2 | 规范 trace、host 协议、一致性测试、Claude Code adapter、Codex 和 Grok 移植、fixture | 5 天 |
 | M3 | 带 FTS5 的 SQLite 索引、`list-sessions`、会话浏览器 UI | 3.5 天 |
 | M4 | 视图版 trace、`get-event`、投影、timeline、虚拟化 ledger、inspector、主题、词典和格式化 | 7 天 |
-| M5 | 报告模式、rslib 打包、在 tarball 上运行 Playwright | 2 天 |
+| M5 | 报告模式、rslib 打包、在 tarball 上运行的 Playwright 测试套件 | 2 天 |
 
 依据：M1 的每项改动都已在探针中试过（第 8 节）；M2 的主要工作量是 Claude Code adapter 和 fixture；M4 的主要工作量是 timeline 和 ledger。
 
@@ -591,6 +599,7 @@ M2 之后 M3 和 M4 可以并行。
 | OTLP 导出 | 后续工作 | Langfuse、LangSmith、Phoenix | 未确认 | 在 ATIF 之后 |
 | 中文 UI 字符串质量 | 风险 | 直译或术语不一致 | 未确认 | 在 `i18n/zh-CN.ts` 头部注释中维护一份术语表，随 M4 截图一起评审 |
 | 更多 UI 语言；本地化的 CLI 和 MCP 输出 | 后续工作 | 非英文、非中文用户 | 未确认 | 增加一个词典；类型检查会覆盖它 |
+| chrome-devtools-mcp 默认发送使用数据 | 风险 | 一次本地检查向 Google 发送统计数据 | 未确认 | 文档中给出的命令传入两个关闭上报的参数（D16） |
 | DevFrame 日志行忽略 `NO_COLOR` | 风险 | CI 日志中出现转义码 | 未确认 | 在 shell 中过滤（D14）；向 DevFrame 提出修复 |
 | 实时跟随、内容搜索、lane 视图切换 | 后续工作 | 查看器功能 | 未确认 | 单独的计划 |
 
@@ -731,3 +740,19 @@ FORCE_COLOR=1:      10
 DevFrame build line, piped:            ^[[36m[devframe] copying SPA from …
 DevFrame build line, NO_COLOR=1 piped: ^[[36m[devframe] copying SPA from …
 ```
+
+A.12 浏览器自动化探针（2026-09-24）。`chrome-devtools-mcp` 1.10.1 通过 stdio 运行，参数为 `--headless --isolated --no-usage-statistics --no-performance-crux`，针对 demo trace 上的 MVP dev server：
+
+```
+tools: 30 (includes new_page, wait_for, take_snapshot, evaluate_script, click, press_key, emulate,
+       list_console_messages, list_network_requests, performance_start_trace, take_screenshot)
+new_page 1749ms ok
+wait_for 20ms ok                     (text "Turn 1")
+snapshot 30 lines; "Turn 1": true; USER tag: true
+evaluate {"rows":9,"title":"Agent Trace"}
+console  [error] Failed to load resource: the server responded with a status of 404
+--chromeArg=--lang=zh-CN  → navigator.languages ["zh-CN","zh"]
+emulate colorScheme light → matchMedia("(prefers-color-scheme: dark)").matches false
+```
+
+不带这两个关闭上报的参数时，server 会打印它收集使用统计，以及性能工具可能把 trace URL 发送到 Google CrUX API。

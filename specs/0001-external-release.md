@@ -66,7 +66,7 @@ Out of scope:
 
 - The header must show host, working directory, start time, title, duration, turns, requests, tokens in and out, compactions, subagents, and failed tool calls.
 - The timeline must draw one bar per model request whose height is that request's input tokens, one lane per subagent, a marker at each user prompt, a marker at each failed tool call, and a dashed rule at each compaction labeled with the token count before and after when the host records it.
-- Dragging a range on the timeline must filter the ledger to that range.
+- Dragging a range on the timeline must filter the ledger to that range. The range handles must also be focusable and movable with the arrow keys.
 - The ledger must group events by turn. A turn must collapse and expand. Hook events must fold into one row per run of hooks. A toggle must dim the events that the model no longer sees after a compaction.
 - The ledger must stay responsive for sessions of at least 10,000 events.
 - A session file of at least 350 MB must open. The workspace must show loading progress, and the browser must not receive the whole file: long text is shortened in the ledger with a visible marker, and the full text and the original record load when the event is selected.

@@ -225,6 +225,12 @@ DevFrame builds the commands with cac (`createCac`), so parsing stays there. `@c
 **D15. Apps compose; packages provide.**
 The MVP's `packages/devframe` mixes the CLI entry, the server RPC, and the SPA in one package, so nothing but the file layout shows which code may use Node or know the host list. The layout in 2.2 makes those boundaries package boundaries that a script can check. Alternatives: keep one app package with folders inside (rejected: the `node:*` and dependency rules would rest on review alone), and put the SPA inside `apps/cli` (rejected: the static report reuses the same build, and the SPA must not see Node code). Adapters are renamed `host-*` to match the host protocol. Moving the code is the first step of M1.
 
+**D16. End-to-end tests on Playwright; local verification in a real browser through chrome-devtools-mcp or browser-harness.**
+CI runs the browser scenarios (5.2) with `@playwright/test` against the packed tarball. Local verification is a separate step: before a UI change is called done, its author, human or agent, checks it in a real browser and attaches the evidence to the PR (screenshots of the changed screens in both themes and both languages beside `docs/design/`, the console, and for heavy views a performance trace). Two tools serve this:
+- `chrome-devtools-mcp` 1.10 (Chrome DevTools team, Node.js) starts its own headless Chrome in an isolated profile. The documented command always passes `--no-usage-statistics --no-performance-crux`, because by default the server sends usage statistics to Google and may send trace URLs to the CrUX API, and `--allowedUrlPattern` limits the browser to `http://localhost:*` (Chrome 149+). Probe (A.12): page load, text waits, accessibility snapshots, scripts in the page, console, `colorScheme` emulation, and `--chromeArg=--lang=zh-CN` all work against the MVP demo, and the probe found a real `404` in the console.
+- `browser-harness` drives the user's own Chrome over CDP, for checks that need the real browser session. It needs Python 3.11+ and is at 0.1 (alpha), so it stays a local tool.
+The exact commands go into `docs/development/setup.md` in M4.
+
 ## 3. Detailed design
 
 ### 3.1 Entry points
@@ -530,21 +536,23 @@ Local tool, no telemetry. Signals are CI results and GitHub issues.
 
 ### 5.2 Browser end-to-end
 
-Playwright against the packed tarball, with a synthetic home directory that holds fixture sessions for the three hosts:
+Playwright against the packed tarball, with a synthetic home directory that holds fixture sessions for the three hosts. Every scenario also fails on a console error:
 
-| Spec | Check |
-|---|---|
-| S1 | Rows for all three hosts and per-host counts |
-| S3 | Home without `.codex`: Codex shows 0 and the checked path |
-| S4 | Fixture with an unknown generation: "could not read" row, error with line |
-| S5 | Compaction fixture: dashed rule with pre/post tokens |
-| S6 | Brush drag filters the ledger; event count shown |
-| S7 | Model saw: slots, hatched system prompt, removed events |
-| S8 | Generated 10,000-event trace: rendered rows stay under 100 while scrolling |
-| S9 | Export, open from `file://`, grep output for the home path |
-| S11 | Emulated light scheme, then switch and reload |
-| S14 | Browser locale `zh-CN`: Chinese labels and date format; session text unchanged; switch to English survives reload |
-| S12 | Generated 350 MB Codex-format file (built at test time): payload before selection ≤ 12 MB; selecting a shortened event loads the full text |
+| Spec | Check | How |
+|---|---|---|
+| S1 | Rows for all three hosts and per-host counts | Row locators by host |
+| S3 | Home without `.codex`: Codex shows 0 and the checked path | Separate synthetic home |
+| S4 | Fixture with an unknown generation: "could not read" row, error with line | Click the row, read the error panel |
+| S5 | Compaction fixture: dashed rule with pre/post tokens | Timeline SVG locator and its label |
+| S6 | Brush filters the ledger; event count shown. The brush handles are focusable and move with arrow keys | `page.keyboard` on a focused handle, and a mouse drag |
+| S7 | Model saw: slots, hatched system prompt, removed events | Select the request, read the inspector |
+| S8 | Generated 10,000-event trace: rendered rows stay under 100 while scrolling, and no long task over 200 ms during the scroll | Row count in the DOM; a `PerformanceObserver` for `longtask` in the page |
+| S9 | Export, open from `file://`, grep output for the home path | `page.goto('file://…')`; file scan in Node |
+| S11 | Emulated light scheme, then switch and reload | `page.emulateMedia({ colorScheme })`, reload |
+| S12 | Generated 350 MB Codex-format file (built at test time): payload before selection ≤ 12 MB; selecting a shortened event loads the full text | Sum of response sizes from `page.on('response')` |
+| S14 | Browser locale `zh-CN`: Chinese labels and date format; session text unchanged; switch to English survives reload | Browser context with `locale: 'zh-CN'` |
+
+The M4 design review is local verification (D16), not part of this suite.
 
 ### 5.3 CLI smoke
 
@@ -553,7 +561,7 @@ S2, S10, S13, S15 on the installed tarball, on Node.js 22.18 and 24; S13 also on
 ### 5.4 Real sessions and design review
 
 - One local run per host through the installed tarball. Record host, event count, load time, and view size in the delivery PR. No session text.
-- Screenshots of both screens in both themes beside screenshots of `docs/design/*.html` at the same viewport, attached to the PR, not committed.
+- Screenshots of both screens in both themes and both languages beside screenshots of `docs/design/*.html` at the same viewport, taken during local verification (D16), attached to the PR, not committed.
 - Session browser first-screen time and second-launch time on this machine.
 
 ## 6. Delivery plan and effort
@@ -566,7 +574,7 @@ One person can deliver this. Owners and dates are unconfirmed. Estimates assume 
 | M2 | Canonical trace, host protocol, conformance suite, Claude Code adapter, Codex and Grok ports, fixtures | 5 days |
 | M3 | SQLite index with FTS5, `list-sessions`, session browser UI | 3.5 days |
 | M4 | View trace, `get-event`, projections, timeline, virtualized ledger, inspector, themes, dictionaries and formatting | 7 days |
-| M5 | Report mode, rslib bundle, Playwright on tarball | 2 days |
+| M5 | Report mode, rslib bundle, Playwright suite on the tarball | 2 days |
 
 Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by the Claude Code adapter and fixtures; M4 by the timeline and ledger.
 
@@ -589,6 +597,7 @@ Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by
 | OTLP export | follow-up | Langfuse, LangSmith, Phoenix | unconfirmed | After ATIF |
 | UI string quality in Chinese | risk | Literal or inconsistent terms | unconfirmed | One glossary in `i18n/zh-CN.ts` header comment, reviewed with the M4 screenshots |
 | More UI languages; localized CLI and MCP output | follow-up | Non-English and non-Chinese users | unconfirmed | Add a dictionary; the type check covers it |
+| chrome-devtools-mcp sends usage data by default | risk | A local check sends statistics to Google | unconfirmed | The documented command passes both opt-out flags (D16) |
 | DevFrame log lines ignore `NO_COLOR` | risk | Escape codes in CI logs | unconfirmed | Filter in the shell (D14); propose the fix to DevFrame |
 | Live follow, content search, lane view toggle | follow-up | Viewer features | unconfirmed | Separate plans |
 
@@ -729,3 +738,19 @@ FORCE_COLOR=1:      10
 DevFrame build line, piped:            ^[[36m[devframe] copying SPA from …
 DevFrame build line, NO_COLOR=1 piped: ^[[36m[devframe] copying SPA from …
 ```
+
+A.12 Browser automation probe (2026-09-24). `chrome-devtools-mcp` 1.10.1 over stdio with `--headless --isolated --no-usage-statistics --no-performance-crux`, against the MVP dev server on the demo trace:
+
+```
+tools: 30 (includes new_page, wait_for, take_snapshot, evaluate_script, click, press_key, emulate,
+       list_console_messages, list_network_requests, performance_start_trace, take_screenshot)
+new_page 1749ms ok
+wait_for 20ms ok                     (text "Turn 1")
+snapshot 30 lines; "Turn 1": true; USER tag: true
+evaluate {"rows":9,"title":"Agent Trace"}
+console  [error] Failed to load resource: the server responded with a status of 404
+--chromeArg=--lang=zh-CN  → navigator.languages ["zh-CN","zh"]
+emulate colorScheme light → matchMedia("(prefers-color-scheme: dark)").matches false
+```
+
+Without the two opt-out flags the server prints that it collects usage statistics and that performance tools may send trace URLs to the Google CrUX API.
