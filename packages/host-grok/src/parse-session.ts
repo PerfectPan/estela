@@ -47,6 +47,13 @@ export interface GrokSessionMeta {
   version?: string
 }
 
+const REMINDER_ONLY = /^\s*<system-reminder>[\s\S]*<\/system-reminder>\s*$/
+
+/** A user chunk the host adds: hidden from scrollback, or only a `<system-reminder>` block. Not a prompt. */
+export function isInjectedChunk(meta: Record<string, unknown> | undefined, text: string): boolean {
+  return meta?.hideFromScrollback === true || REMINDER_ONLY.test(text)
+}
+
 export function chunkText(content: unknown): string {
   const rec = asRecord(content)
   if (asString(rec?.text))
@@ -135,9 +142,11 @@ function completedLater(records: SourcedRecord[]): boolean[] {
 }
 
 /**
- * Grok writes usage once per turn: `turn_completed.usage` sums the turn's model
- * calls (`modelCalls`, `numTurns` are counts; `modelUsage` is per model), and no
- * per-call record exists. So a `request` here is one turn, not one model call.
+ * Grok records usage only per turn: `turn_completed.usage` sums the turn's model
+ * calls (`modelCalls`, `numTurns` are counts; `modelUsage` is per model). Per-call
+ * records exist (`events.jsonl` `loop_started` / `first_token`, `chat_history.jsonl`
+ * assistant entries) but carry no usage, so a `request` here is one turn, not one
+ * model call. Per-call requests are a follow-up (plan section 7).
  * `elapsed_ms` is the turn duration and goes on a `turn_duration` marker.
  */
 export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta = {}): ParsedSession {
@@ -197,11 +206,13 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
         continue
       }
       const flags: Record<string, unknown> = {}
-      if (updateMeta?.hideFromScrollback === true)
+      if (isInjectedChunk(updateMeta, text))
         flags.injected = true
-      if (prompt !== undefined && prompt === lastUserPrompt)
+      // A later chunk of a prompt that already started a turn does not start another.
+      if (!flags.injected && prompt !== undefined && prompt === lastUserPrompt)
         flags.continued = true
-      lastUserPrompt = prompt
+      if (!flags.injected)
+        lastUserPrompt = prompt
       emit('user', { ...flags, ...(text ? { text } : {}) })
       continue
     }

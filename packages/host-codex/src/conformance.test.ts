@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,7 +6,7 @@ import { fold } from '@rivus/agent-trace-kernel'
 import { describeHostConformance } from '@rivus/agent-trace-kernel/conformance'
 import { repoEvidence, writeOversized } from '@rivus/agent-trace-kernel/testing'
 import { nodeIO } from '@rivus/agent-trace-runtime-node'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { codexAdapter } from './index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -17,6 +17,8 @@ const overFile = writeOversized(
   'rollout-over.jsonl',
   '{"timestamp":"2026-01-01T00:00:00.000Z","type":"session_meta","payload":{"session_id":"big","cwd":"/work/app"}}',
 )
+
+afterAll(() => rmSync(overRoot, { recursive: true, force: true }))
 
 describeHostConformance(codexAdapter, {
   root,
@@ -35,17 +37,17 @@ describeHostConformance(codexAdapter, {
     },
     {
       path: join(root, 'rollout-compaction.jsonl'),
-      records: 10,
+      records: 11,
       capabilities: ['compaction', 'subagents'],
     },
     {
       path: join(root, 'rollout-subagent.jsonl'),
-      records: 8,
+      records: 9,
       capabilities: ['subagents'],
     },
     {
       path: join(root, 'rollout-unknown.jsonl'),
-      records: 4,
+      records: 6,
       capabilities: [],
     },
   ],
@@ -90,6 +92,8 @@ describe('codex behavior', () => {
     const trace = await load('rollout-compaction.jsonl')
     const shadowed = trace.events.filter(event => event.shadowedBy).map(event => event.payload.text ?? event.kind)
     expect(shadowed).toEqual(['Forget this', 'tool_call'])
+    // 'msg-8' is kept by role and text although the history item carries another id.
+    expect(trace.events.find(event => event.id === 'msg-8')?.shadowedBy).toBeUndefined()
     expect(trace.events.find(event => event.agentId === 'child-1')?.shadowedBy).toBeUndefined()
   })
 
@@ -101,10 +105,26 @@ describe('codex behavior', () => {
     expect(trace.skipped.map(skip => skip.reason)).toEqual(['session-meta', 'inter-agent'])
   })
 
+  it('skips injected user text in turns and discover titles', async () => {
+    const trace = await load('rollout-subagent.jsonl')
+    expect(fold(trace).turns).toBe(1)
+    expect(trace.session.title).toBe('Delegate')
+    const titles: (string | undefined)[] = []
+    for await (const head of codexAdapter.discover(root, nodeIO, {})) {
+      if ('firstPrompt' in head && head.ref.path.endsWith('rollout-plain.jsonl'))
+        titles.push(head.firstPrompt)
+    }
+    expect(titles).toEqual(['Run the tests'])
+  })
+
   it('maps web search to a tool call, keeps unknown types, and rejects an unknown generation', async () => {
     const trace = await load('rollout-unknown.jsonl')
     expect(trace.events.filter(event => event.kind === 'unknown').map(event => event.payload.type)).toEqual(['mystery_box', 'mystery_event'])
     expect(trace.events.find(event => event.kind === 'tool_call')?.payload).toEqual({ callId: '', name: 'web_search', args: { type: 'search', query: 'vitest', queries: ['vitest'] } })
+    expect(trace.events.filter(event => event.kind === 'tool_call').map(event => event.payload.name)).toEqual(['web_search', 'tool_search'])
+    const result = trace.events.find(event => event.kind === 'tool_result')
+    expect(result?.payload.callId).toBe('call-ts')
+    expect(result?.payload.orphan).toBeUndefined()
     const bad = join(here, '../fixtures/unknown-generation/rollout-bad.jsonl')
     await expect(codexAdapter.load({ host: 'codex', path: bad }, nodeIO, {}))
       .rejects.toThrow(`codex: ${bad}:1: unknown format generation`)

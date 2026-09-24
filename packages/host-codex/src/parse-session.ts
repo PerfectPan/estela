@@ -41,11 +41,15 @@ function hostIds(event: TraceEvent): string[] {
 
 const HISTORY_KIND: Record<string, TraceEvent['kind']> = { user: 'user', assistant: 'assistant', developer: 'system' }
 
-/** A `replacement_history` item keeps an event by host id, or by role and text when the item has no id. */
+/**
+ * A `replacement_history` item keeps an event with the same host id, or else one
+ * with the same role and text. The fallback also applies when the item has an id
+ * that no event carries (the host re-ids some kept messages).
+ */
 function keptBy(event: TraceEvent, item: Record<string, unknown>): boolean {
   const id = asString(item.id) ?? asString(item.call_id)
-  if (id)
-    return hostIds(event).includes(id)
+  if (id && hostIds(event).includes(id))
+    return true
   const role = asString(item.role)
   const text = textFrom(item.content)
   return role !== undefined && text !== undefined && event.kind === HISTORY_KIND[role] && event.payload.text === text

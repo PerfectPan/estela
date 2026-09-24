@@ -21,6 +21,7 @@ const ALL_CAPABILITIES: readonly Capability[] = [
 ]
 
 const DISCOVER_BUDGET = 128 * 1024
+const EDGE_BUDGET = 64 * 1024
 
 export interface ConformanceSession {
   /** Session file `discover` must return. */
@@ -227,6 +228,22 @@ export function describeHostConformance(
       }
     })
 
+    it('keeps file order for the events of each source file', async () => {
+      // A request event is exempt: hosts that log usage after the call place it
+      // before the call's first output (plan 3.3), ahead of its own record.
+      for (const session of fixtures.sessions) {
+        const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
+        const last = new Map<string, number>()
+        for (const event of trace.events) {
+          if (event.kind === 'request')
+            continue
+          const previous = last.get(event.source.file) ?? -1
+          expect(event.source.offset, `${event.id} after offset ${previous}`).toBeGreaterThanOrEqual(previous)
+          last.set(event.source.file, event.source.offset)
+        }
+      }
+    })
+
     it('shadowedBy stays on the same agent', async () => {
       for (const session of fixtures.sessions) {
         const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
@@ -256,6 +273,11 @@ export function describeHostConformance(
       const bytes = counted.snapshot().get(oversized.file) ?? 0
       expect(bytes).toBeGreaterThan(64 * 1024)
       expect(bytes).toBeLessThanOrEqual(DISCOVER_BUDGET)
+      const size = (await fixtures.io.stat(oversized.file))?.size ?? 0
+      const ranges = counted.ranges().get(oversized.file) ?? []
+      for (const range of ranges)
+        expect(range.end - range.start, `range ${range.start}-${range.end}`).toBeLessThanOrEqual(EDGE_BUDGET)
+      expect(ranges.some(range => range.end === size), 'one read ends at end of file').toBe(true)
     })
 
     it('reads each source pointer back to original', async () => {

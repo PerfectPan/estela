@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import process from 'node:process'
 import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { bindSessionService } from '@rivus/agent-trace-rpc'
+import { homeDir } from '@rivus/agent-trace-runtime-node'
 import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
@@ -30,9 +31,9 @@ export async function main(): Promise<void> {
     process.exit(1)
   }
   if (parsed.command === 'mcp')
-    installPlainFilter({ stderrOnly: true })
+    installPlainFilter({ stderrOnly: true, homeDir: homeDir() })
   else
-    installPlainFilter()
+    installPlainFilter({ homeDir: homeDir() })
 
   if (parsed.pick && !process.stdin.isTTY) {
     process.stderr.write('--pick needs an interactive terminal\n')

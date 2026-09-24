@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,7 +6,7 @@ import { fold } from '@rivus/agent-trace-kernel'
 import { describeHostConformance } from '@rivus/agent-trace-kernel/conformance'
 import { repoEvidence, writeOversized } from '@rivus/agent-trace-kernel/testing'
 import { nodeIO } from '@rivus/agent-trace-runtime-node'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { grokAdapter } from './index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -17,6 +17,8 @@ const overFile = writeOversized(
   'updates.jsonl',
   '{"timestamp":"2026-01-01T00:00:00.000Z","params":{"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"x"}}}}',
 )
+
+afterAll(() => rmSync(overRoot, { recursive: true, force: true }))
 
 describeHostConformance(grokAdapter, {
   root,
@@ -35,7 +37,7 @@ describeHostConformance(grokAdapter, {
     },
     {
       path: join(root, 'subagent/updates.jsonl'),
-      records: 5,
+      records: 6,
       capabilities: ['subagents'],
     },
     {
@@ -95,10 +97,20 @@ describe('grok behavior', () => {
 
   it('records a subagent lane from the spawn event and maps status updates', async () => {
     const trace = await load('subagent/updates.jsonl')
-    expect(trace.agents).toContainEqual({ id: 'child-1', parentId: 'main', title: 'Look around', spawnEventId: 'updates.jsonl:2' })
+    expect(trace.agents).toContainEqual({ id: 'child-1', parentId: 'main', title: 'Look around', spawnEventId: 'updates.jsonl:3' })
     expect(trace.events.filter(event => event.kind === 'system').map(event => event.payload.type))
       .toEqual(['subagent_spawned', 'subagent_finished', 'goal_updated', 'memory_dream_started'])
     expect(trace.events.every(event => event.kind !== 'unknown')).toBe(true)
+  })
+
+  it('skips a reminder-only chunk in turns and the discover title', async () => {
+    const trace = await load('subagent/updates.jsonl')
+    expect(trace.events[0]?.payload.injected).toBe(true)
+    expect(fold(trace).turns).toBe(1)
+    const heads = []
+    for await (const head of grokAdapter.discover(join(root, 'subagent'), nodeIO, {}))
+      heads.push(head)
+    expect(heads).toMatchObject([{ firstPrompt: 'Delegate' }])
   })
 
   it('keeps an unknown record type and rejects an unknown generation', async () => {

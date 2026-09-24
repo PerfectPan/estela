@@ -31,6 +31,16 @@ export function readProgress(onProgress?: (total: number) => void): ReadProgress
   return { total: 0, onProgress }
 }
 
+/** `io.readText` that adds the bytes read to `progress`. */
+export async function readTextCounted(io: TraceIO, path: string, progress?: ReadProgress): Promise<string> {
+  const text = await io.readText(path)
+  if (progress) {
+    progress.total += new TextEncoder().encode(text).byteLength
+    progress.onProgress?.(progress.total)
+  }
+  return text
+}
+
 export async function readJsonlRecords(
   file: string,
   io: TraceIO,

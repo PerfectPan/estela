@@ -126,16 +126,29 @@ export function inheritTimes(records: readonly SourcedRecord[]): number[] {
   return times.map(value => value ?? known ?? 1)
 }
 
-/** Stable merge: timestamp order, ties keep the order records were read. */
+/**
+ * Merge files (main transcript, then subagents) without reordering any file.
+ * Each step takes the head record with the smallest timestamp; a tie goes to
+ * the earlier file. Timestamps inside one file may go backwards (Claude writes a
+ * compact summary with an earlier time than the boundary it follows), and file
+ * order wins over them.
+ */
 export function mergeByTime(groups: SourcedRecord[][]): { record: SourcedRecord, ts: number }[] {
-  const stamped: { record: SourcedRecord, ts: number, order: number }[] = []
-  let order = 0
-  for (const group of groups) {
-    const times = inheritTimes(group)
-    group.forEach((record, index) => {
-      stamped.push({ record, ts: times[index] ?? 1, order: order++ })
-    })
+  const times = groups.map(group => inheritTimes(group))
+  const cursor = groups.map(() => 0)
+  const out: { record: SourcedRecord, ts: number }[] = []
+  for (;;) {
+    let pick = -1
+    for (let index = 0; index < groups.length; index++) {
+      if (cursor[index]! >= groups[index]!.length)
+        continue
+      if (pick < 0 || times[index]![cursor[index]!]! < times[pick]![cursor[pick]!]!)
+        pick = index
+    }
+    if (pick < 0)
+      return out
+    const at = cursor[pick]!
+    out.push({ record: groups[pick]![at]!, ts: times[pick]![at]! })
+    cursor[pick] = at + 1
   }
-  stamped.sort((left, right) => left.ts - right.ts || left.order - right.order)
-  return stamped.map(item => ({ record: item.record, ts: item.ts }))
 }

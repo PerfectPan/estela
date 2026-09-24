@@ -8,11 +8,12 @@ import {
   joinPath,
   readJsonlRecords,
   readProgress,
+  readTextCounted,
   timeOf,
   toTrace,
   walkFiles,
 } from '@rivus/agent-trace-kernel'
-import { chunkText, META_KEY, parseGrokRecords, summaryFields, type GrokSessionMeta } from './parse-session.ts'
+import { chunkText, isInjectedChunk, META_KEY, parseGrokRecords, summaryFields, type GrokSessionMeta } from './parse-session.ts'
 
 const CAPABILITIES: Capability[] = [
   'requests',
@@ -38,10 +39,7 @@ function updatesPath(path: string): string {
 async function readOptional(io: TraceIO, path: string, progress: ReadProgress): Promise<string | undefined> {
   if ((await io.stat(path))?.kind !== 'file')
     return undefined
-  const text = await io.readText(path)
-  progress.total += new TextEncoder().encode(text).byteLength
-  progress.onProgress?.(progress.total)
-  return text
+  return readTextCounted(io, path, progress)
 }
 
 async function loadMeta(io: TraceIO, dir: string, progress: ReadProgress): Promise<GrokSessionMeta> {
@@ -103,27 +101,19 @@ async function enrichAgents(io: TraceIO, dir: string, agents: Trace['agents'], p
   }
 }
 
-function previewLines(lines: string[]): DiscoverPreview {
+/** The first prompt skips injected chunks, the same rule as turns. */
+function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
   const preview: DiscoverPreview = {}
-  for (const line of lines) {
-    let value: unknown
-    try {
-      value = JSON.parse(line) as unknown
-    }
-    catch {
-      continue
-    }
-    const rec = asRecord(value)
-    const update = asRecord(asRecord(rec?.params)?.update)
-    const ts = timeOf(rec?.timestamp)
+  for (const rec of records) {
+    const update = asRecord(asRecord(rec.params)?.update)
+    const ts = timeOf(rec.timestamp)
     if (ts !== undefined) {
-      if (preview.startedAt === undefined)
-        preview.startedAt = ts
+      preview.startedAt ??= ts
       preview.lastAt = ts
     }
-    if (!preview.firstPrompt && update?.sessionUpdate === 'user_message_chunk' && asRecord(update[META_KEY])?.hideFromScrollback !== true) {
+    if (!preview.firstPrompt && update?.sessionUpdate === 'user_message_chunk') {
       const text = chunkText(update.content)
-      if (text)
+      if (text && !isInjectedChunk(asRecord(update[META_KEY]), text))
         preview.firstPrompt = text.slice(0, 500)
     }
   }
@@ -146,7 +136,7 @@ export const grokAdapter: HostAdapter = {
         maxDepth: 8,
         signal,
       }),
-      preview: previewLines,
+      preview: previewRecords,
       decorate: async (path, head, fileIo) => {
         const summaryPath = joinPath(dirnamePath(path), 'summary.json')
         const summaryStat = await fileIo.stat(summaryPath)

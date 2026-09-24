@@ -1,16 +1,20 @@
 export const TRACE_SCHEMA = 'agent-trace' as const
 
-export type EventKind =
-  | 'user'
-  | 'assistant'
-  | 'thinking'
-  | 'tool_call'
-  | 'tool_result'
-  | 'request'
-  | 'system'
-  | 'compaction'
-  | 'hook'
-  | 'unknown'
+/** Every event kind, in one place; `EventKind` and `isTrace` both read it. */
+export const EVENT_KINDS = [
+  'user',
+  'assistant',
+  'thinking',
+  'tool_call',
+  'tool_result',
+  'request',
+  'system',
+  'compaction',
+  'hook',
+  'unknown',
+] as const
+
+export type EventKind = typeof EVENT_KINDS[number]
 
 /** Fields a host records. A number whose capability is absent is `undefined`, never 0. */
 export type Capability =

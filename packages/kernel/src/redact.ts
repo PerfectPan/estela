@@ -21,13 +21,17 @@ function homePattern(homeDir: string): RegExp | undefined {
   return new RegExp(`(?<![${name}])${escaped}(?![${name}-]|\\.[${name}])`, 'giu')
 }
 
-/** Claude cwd slugs replace `/` with `-`. Grok directory names use `%2F`. */
+/**
+ * Encoded forms of the home directory in host directory names: Claude's project
+ * slug replaces every character other than an ASCII letter or digit with `-`;
+ * Grok percent-encodes each path segment and joins them with `%2F`.
+ */
 function encodedHomePattern(homeDir: string): RegExp | undefined {
   const root = homeRoot(homeDir)
   if (!root || root === '/')
     return undefined
-  const dash = escapeRegExp(root.replaceAll('/', '-'))
-  const encoded = escapeRegExp(root.replaceAll('/', '%2F'))
+  const dash = escapeRegExp(root.replace(/[^A-Za-z0-9]/g, '-'))
+  const encoded = escapeRegExp(root.split('/').map(segment => encodeURIComponent(segment)).join('%2F'))
   const name = String.raw`\p{L}\p{N}_`
   return new RegExp(`(?<![${name}%])(?:${encoded}|${dash})(?![${name}])`, 'giu')
 }

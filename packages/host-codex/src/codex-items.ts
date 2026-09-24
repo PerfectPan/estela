@@ -5,7 +5,7 @@ import { asNumber, asRecord, asString } from '@rivus/agent-trace-kernel'
  * User-role text that Codex injects: environment, instructions, notifications.
  * These are not user prompts.
  */
-export const INJECTED_USER = /^\s*(?:<(?:environment_context|user_instructions|turn_aborted|subagent_notification|skill|recommended_plugins|heartbeat|goal_context|codex_delegation)>|# AGENTS\.md instructions)/
+export const INJECTED_USER = /^\s*(?:<(?:environment_context|user_instructions|turn_aborted|subagent_notification|skill|recommended_plugins|heartbeat|goal_context|codex_delegation|hook_prompt|codex_internal_context)>|# AGENTS\.md instructions)/
 
 export function textFrom(content: unknown): string | undefined {
   if (typeof content === 'string')
@@ -97,6 +97,20 @@ export function emitInner(
     if (payload.action !== undefined)
       body.args = payload.action
     return emit('tool_call', body)
+  }
+  if (inner === 'tool_search_call') {
+    const body: Record<string, unknown> = { callId: asString(payload.call_id) ?? '', name: 'tool_search' }
+    if (payload.arguments !== undefined)
+      body.args = payload.arguments
+    return emit('tool_call', body)
+  }
+  if (inner === 'tool_search_output') {
+    const status = asString(payload.status)
+    return emit('tool_result', {
+      callId: asString(payload.call_id) ?? '',
+      ...(payload.tools !== undefined ? { output: payload.tools } : {}),
+      ...(status === 'failed' || status === 'error' ? { isError: true } : {}),
+    })
   }
   if (inner === 'reasoning') {
     const text = textFrom(payload.summary)

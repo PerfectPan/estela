@@ -25,24 +25,14 @@ const CAPABILITIES: Capability[] = [
   'subagents',
 ]
 
-function previewLines(lines: string[]): DiscoverPreview {
+/** The first prompt skips injected user text, the same rule as turns. */
+function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
   const preview: DiscoverPreview = {}
-  for (const line of lines) {
-    let value: unknown
-    try {
-      value = JSON.parse(line) as unknown
-    }
-    catch {
-      continue
-    }
-    const rec = asRecord(value)
-    if (!rec)
-      continue
+  for (const rec of records) {
     const payload = asRecord(rec.payload)
     const ts = timeOf(rec.timestamp) ?? timeOf(payload?.timestamp)
     if (ts !== undefined) {
-      if (preview.startedAt === undefined)
-        preview.startedAt = ts
+      preview.startedAt ??= ts
       preview.lastAt = ts
     }
     if (rec.type === 'session_meta') {
@@ -73,7 +63,7 @@ export const codexAdapter: HostAdapter = {
         maxDepth: 6,
         signal,
       }),
-      preview: previewLines,
+      preview: previewRecords,
     })
   },
   async detect(ref, io) {

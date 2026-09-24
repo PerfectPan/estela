@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { redact } from './redact.ts'
 
 const users = '/Users'
+const linuxHomes = '/home'
 const home = `${users}/alice`
 const source = { file: 'fixture.json', offset: 0, length: 1, line: 1 }
 
@@ -77,6 +78,27 @@ describe('redact', () => {
     expect(json).not.toContain('alice')
     expect(json).toContain('~-proj')
     expect(json).toContain('~/updates.jsonl')
+  })
+
+  it('replaces the Claude slug and percent forms of any home name', () => {
+    const cases = [
+      { home: `${users}/john.doe`, dash: '-Users-john-doe', encoded: '%2FUsers%2Fjohn.doe', name: 'john' },
+      { home: `${linuxHomes}/j_smith`, dash: '-home-j-smith', encoded: '%2Fhome%2Fj_smith', name: 'smith' },
+      { home: `${users}/zoë`, dash: '-Users-zo-', encoded: '%2FUsers%2Fzo%C3%AB', name: 'zo' },
+    ]
+    for (const item of cases) {
+      const out = JSON.stringify(redact(trace([event({
+        kind: 'tool_result',
+        payload: {
+          [`${item.dash}-proj`]: `${item.dash}-proj/x.jsonl`,
+          dir: `${item.encoded}%2Fproj`,
+          lower: `${item.encoded.toLowerCase()}%2Fproj`,
+        },
+      })]), { homeDir: item.home }))
+      expect(out, item.home).not.toContain(item.name)
+      expect(out).toContain('~-proj/x.jsonl')
+      expect(out).toContain('~%2Fproj')
+    }
   })
 
   it('redacts home paths used as object keys', () => {

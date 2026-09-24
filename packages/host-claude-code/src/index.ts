@@ -11,11 +11,12 @@ import {
   readEdges,
   readJsonlRecords,
   readProgress,
+  readTextCounted,
   timeOf,
   toTrace,
   walkFiles,
 } from '@rivus/agent-trace-kernel'
-import { parseClaudeRecords, type AgentMeta } from './parse-session.ts'
+import { isPrompt, parseClaudeRecords, recordText, userFlags, type AgentMeta } from './parse-session.ts'
 
 const CAPABILITIES: Capability[] = [
   'requests',
@@ -28,49 +29,22 @@ const CAPABILITIES: Capability[] = [
   'hooks',
 ]
 
-function textOf(content: unknown): string | undefined {
-  if (typeof content === 'string')
-    return content
-  if (!Array.isArray(content))
-    return undefined
-  const parts: string[] = []
-  for (const block of content) {
-    const text = asString(asRecord(block)?.text)
-    if (text)
-      parts.push(text)
-  }
-  return parts.length > 0 ? parts.join('') : undefined
-}
-
-function previewLines(lines: string[]): DiscoverPreview {
+/** Title and first prompt use the same rule as turns: the first real user prompt. */
+function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
   const preview: DiscoverPreview = {}
-  for (const line of lines) {
-    let value: unknown
-    try {
-      value = JSON.parse(line) as unknown
-    }
-    catch {
-      continue
-    }
-    const rec = asRecord(value)
-    if (!rec)
-      continue
+  for (const rec of records) {
     const ts = timeOf(rec.timestamp)
     if (ts !== undefined) {
-      if (preview.startedAt === undefined)
-        preview.startedAt = ts
+      preview.startedAt ??= ts
       preview.lastAt = ts
     }
-    if (!preview.sessionId)
-      preview.sessionId = asString(rec.sessionId)
-    if (!preview.cwd)
-      preview.cwd = asString(rec.cwd)
-    const aiTitle = asString(rec.aiTitle)
-    if (aiTitle && !preview.title)
-      preview.title = aiTitle
-    if (!preview.firstPrompt && rec.type === 'user') {
-      const text = textOf(asRecord(rec.message)?.content)
-      if (text)
+    preview.sessionId ??= asString(rec.sessionId)
+    preview.cwd ??= asString(rec.cwd)
+    preview.title ??= asString(rec.customTitle) ?? asString(rec.aiTitle)
+    if (!preview.firstPrompt && rec.type === 'user' && rec.isSidechain !== true) {
+      const content = asRecord(rec.message)?.content
+      const text = recordText(content)
+      if (text && isPrompt(userFlags(rec, content)))
         preview.firstPrompt = text.slice(0, 500)
     }
   }
@@ -103,7 +77,7 @@ export const claudeCodeAdapter: HostAdapter = {
         maxDepth: 6,
         signal,
       }),
-      preview: previewLines,
+      preview: previewRecords,
     })
   },
   async detect(ref, io) {
@@ -182,9 +156,7 @@ async function nestedSubagents(
 }
 
 async function agentMeta(io: TraceIO, path: string, progress: ReadProgress): Promise<AgentMeta> {
-  const text = await io.readText(path)
-  progress.total += new TextEncoder().encode(text).byteLength
-  progress.onProgress?.(progress.total)
+  const text = await readTextCounted(io, path, progress)
   let value: unknown
   try {
     value = JSON.parse(text) as unknown

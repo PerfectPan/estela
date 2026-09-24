@@ -79,7 +79,8 @@ const COMMAND_WRAPPER = /^\s*<(?:command-name|command-message|command-args|local
 /** Text the host injects into the user role. Not prompts. */
 const INJECTED = /^\s*(?:<task-notification>|<system-reminder>|\[Request interrupted)/
 
-function recordText(content: unknown): string | undefined {
+/** Text of a user record: its string content, or its first text block. The one rule for titles and turn flags. */
+export function recordText(content: unknown): string | undefined {
   if (typeof content === 'string')
     return content
   if (!Array.isArray(content))
@@ -93,7 +94,7 @@ function recordText(content: unknown): string | undefined {
 }
 
 /** Flags that `fold` reads to tell a real prompt from other user-role records. */
-function userFlags(rec: Record<string, unknown>, content: unknown): Record<string, unknown> {
+export function userFlags(rec: Record<string, unknown>, content: unknown): Record<string, unknown> {
   const flags: Record<string, unknown> = {}
   const text = recordText(content) ?? ''
   if (rec.isMeta === true)
@@ -108,7 +109,7 @@ function userFlags(rec: Record<string, unknown>, content: unknown): Record<strin
   return flags
 }
 
-function isPrompt(flags: Record<string, unknown>): boolean {
+export function isPrompt(flags: Record<string, unknown>): boolean {
   return !flags.meta && !flags.compactSummary && !flags.command && !flags.injected
 }
 
@@ -244,10 +245,10 @@ export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: 
       const role = type === 'user' ? 'user' : 'assistant'
       const flags = role === 'user' ? userFlags(rec, message.content) : {}
       const content = message.content
+      if (role === 'user' && !agentId && isPrompt(flags))
+        rememberTitle(recordText(content))
       if (typeof content === 'string') {
         emit(role, { ...flags, ...(content ? { text: content } : {}) }, 0, requestId)
-        if (role === 'user' && isPrompt(flags))
-          rememberTitle(content)
       }
       else if (!Array.isArray(content) || content.length === 0) {
         emit(role, flags, 0, requestId)
@@ -263,13 +264,18 @@ export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: 
           if (blockType === 'text') {
             const text = asString(item.text) ?? ''
             emit(role, { ...flags, ...(text ? { text } : {}) }, part, requestId)
-            if (role === 'user' && text && isPrompt(flags))
-              rememberTitle(text)
             return
           }
           if (blockType === 'image') {
             const mediaType = asString(asRecord(item.source)?.media_type)
             emit(role, { ...flags, image: true, ...(mediaType ? { mediaType } : {}) }, part, requestId)
+            return
+          }
+          if (blockType === 'fallback') {
+            // The response switched models mid-stream (`from.model` → `to.model`).
+            const from = asString(asRecord(item.from)?.model)
+            const to = asString(asRecord(item.to)?.model)
+            emit('system', { type: 'fallback', ...(from ? { fromModel: from } : {}), ...(to ? { toModel: to } : {}) }, part, requestId)
             return
           }
           if (blockType === 'thinking' || blockType === 'redacted_thinking') {
@@ -332,7 +338,14 @@ export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: 
         continue
       }
       const text = asString(rec.content)
-      emit('system', { type: subtype, ...(text ? { text } : {}) }, 0)
+      const payload: Record<string, unknown> = { type: subtype, ...(text ? { text } : {}) }
+      // `model_refusal_fallback` / `model_refusal_no_fallback`: the API refused and the CLI retried on another model, or did not.
+      for (const key of ['originalModel', 'fallbackModel', 'apiRefusalCategory'] as const) {
+        const value = asString(rec[key])
+        if (value)
+          payload[key] = value
+      }
+      emit('system', payload, 0)
       continue
     }
 
@@ -359,7 +372,7 @@ export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: 
     }
 
     if (type === 'custom-title') {
-      rememberTitle(asString(rec.title) ?? asString(rec.customTitle) ?? asString(rec.titleText) ?? asString(rec.text), true)
+      rememberTitle(asString(rec.customTitle), true)
       skipRecord(skipped, record, 'custom-title')
       continue
     }

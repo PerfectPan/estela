@@ -1,4 +1,5 @@
 export {
+  EVENT_KINDS,
   TRACE_SCHEMA,
   type AgentInfo,
   type Capability,
@@ -13,23 +14,13 @@ export {
   type TraceEvent,
   type TraceSession,
 } from './types.ts'
+import { EVENT_KINDS } from './types.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
-const EVENT_KINDS = new Set([
-  'user',
-  'assistant',
-  'thinking',
-  'tool_call',
-  'tool_result',
-  'request',
-  'system',
-  'compaction',
-  'hook',
-  'unknown',
-])
+const KINDS: ReadonlySet<string> = new Set(EVENT_KINDS)
 
 function isEvent(value: unknown): boolean {
   if (!isRecord(value))
@@ -39,7 +30,7 @@ function isEvent(value: unknown): boolean {
     && typeof value.seq === 'number'
     && typeof value.ts === 'number'
     && typeof value.kind === 'string'
-    && EVENT_KINDS.has(value.kind)
+    && KINDS.has(value.kind)
     && isRecord(value.payload)
     && isRecord(source)
     && typeof source.file === 'string'

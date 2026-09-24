@@ -1,12 +1,12 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fold } from '@rivus/agent-trace-kernel'
+import { fold, reconstruct } from '@rivus/agent-trace-kernel'
 import { describeHostConformance } from '@rivus/agent-trace-kernel/conformance'
 import { repoEvidence, writeOversized } from '@rivus/agent-trace-kernel/testing'
 import { nodeIO } from '@rivus/agent-trace-runtime-node'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { claudeCodeAdapter } from './index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -17,6 +17,8 @@ const overFile = writeOversized(
   'session.jsonl',
   '{"type":"user","timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"x"}}',
 )
+
+afterAll(() => rmSync(overRoot, { recursive: true, force: true }))
 
 describeHostConformance(claudeCodeAdapter, {
   root,
@@ -30,7 +32,7 @@ describeHostConformance(claudeCodeAdapter, {
     },
     {
       path: join(root, 'compaction/session.jsonl'),
-      records: 6,
+      records: 7,
       capabilities: ['compaction', 'compactionTokens'],
     },
     {
@@ -44,7 +46,7 @@ describeHostConformance(claudeCodeAdapter, {
     },
     {
       path: join(root, 'unknown-type/session.jsonl'),
-      records: 2,
+      records: 5,
       capabilities: [],
     },
     {
@@ -108,6 +110,11 @@ describe('claude-code behavior', () => {
     expect(shadowed.has('c-u2')).toBe(false)
     expect(shadowed.has('c-a2')).toBe(false)
     expect(shadowed.has('c-side')).toBe(false)
+    // The summary's timestamp is earlier than the boundary; file order keeps it after.
+    const ids = trace.events.map(event => event.id)
+    expect(ids.indexOf('c-sum')).toBeGreaterThan(ids.indexOf('c-b1'))
+    expect(shadowed.has('c-sum')).toBe(false)
+    expect(reconstruct(trace, 'request:req-c2').visibleIds).toContain('c-sum')
   })
 
   it('keeps a subagent on the parent session', async () => {
@@ -116,9 +123,28 @@ describe('claude-code behavior', () => {
     expect(trace.events.filter(event => event.agentId === 'helper').map(event => event.kind)).toEqual(['user', 'request', 'assistant'])
   })
 
+  it('titles a discovered session with its first real prompt', async () => {
+    const heads = []
+    for await (const head of claudeCodeAdapter.discover(join(root, 'unknown-type'), nodeIO, {}))
+      heads.push(head)
+    expect(heads).toMatchObject([{ firstPrompt: 'Hello', title: 'Hello' }])
+    const trace = await claudeCodeAdapter.load({ host: 'claude-code', path: join(root, 'unknown-type/session.jsonl') }, nodeIO, {})
+    expect(trace.session.title).toBe('Hello')
+    expect(fold(trace).turns).toBe(1)
+  })
+
   it('keeps an unknown record type and rejects an unknown generation', async () => {
     const trace = await claudeCodeAdapter.load({ host: 'claude-code', path: join(root, 'unknown-type/session.jsonl') }, nodeIO, {})
     expect(trace.events.find(event => event.kind === 'unknown')?.payload.type).toBe('widget')
+    expect(trace.events.find(event => event.id === 'k-f1')?.payload).toEqual({
+      type: 'model_refusal_fallback',
+      text: 'Retried on another model.',
+      originalModel: 'claude-a',
+      fallbackModel: 'claude-b',
+      apiRefusalCategory: 'policy',
+    })
+    expect(trace.events.find(event => event.id === 'k-a1')?.payload).toEqual({ type: 'fallback', fromModel: 'claude-a', toModel: 'claude-b' })
+    expect(trace.events.filter(event => event.kind === 'unknown').map(event => event.payload.type)).toEqual(['widget'])
     const bad = join(here, '../fixtures/unknown-generation/session.jsonl')
     await expect(claudeCodeAdapter.load({ host: 'claude-code', path: bad }, nodeIO, {}))
       .rejects.toThrow(`claude-code: ${bad}:1: unknown format generation`)

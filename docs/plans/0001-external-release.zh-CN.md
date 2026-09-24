@@ -42,11 +42,11 @@
 |---|---|---|---|
 | 位置 | `~/.claude/projects/<cwd>/<id>.jsonl`，subagent 位于 `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` 以及 `summary.json`、`system_prompt.txt`、`tool_definitions.json`、`subagents/` |
 | 请求边界、模型 | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
-| 请求单位 | 一次模型调用（`requestId`） | 一次模型调用（`token_usage_record`；在第一条之前用 `token_count.info.last_token_usage`） | 每轮一个 request：`turn_completed.usage` 是该轮所有调用的合计（`modelCalls`、`numTurns` 是计数，`modelUsage` 按模型分），没有逐次调用的记录 |
+| 请求单位 | 一次模型调用（`requestId`） | 一次模型调用（`token_usage_record`；在第一条之前用 `token_count.info.last_token_usage`） | 每轮一个 request：usage 只记录在 `turn_completed.usage` 中，是该轮所有调用的合计（`modelCalls`、`numTurns` 是计数，`modelUsage` 按模型分）。逐次调用的记录存在（`events.jsonl` 的 `loop_started` / `first_token`，`chat_history.jsonl` 的 assistant 条目），但不带 usage |
 | Token | `message.usage` | `token_usage_record` | `turn_completed.usage` |
 | 耗时 | 记录的 `timestamp`、`system/turn_duration` | 记录的 `timestamp`、每轮的 `task_complete.duration_ms`；`started_at_ms` / `completed_at_ms` 只出现在 `item_completed` 上 | 每轮的 `turn_completed.elapsed_ms` |
 | 压缩 | `system/compact_boundary`，带 `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
-| Subagent | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
+| Subagent | `isSidechain`, `subagents/*.jsonl` | `event_msg/item_completed`，其 `item.type` 为 `SubAgentActivity`（`agent_thread_id`）；`inter_agent_communication_metadata` 只带 `trigger_turn` | `subagent_spawned/finished`, `subagents/` |
 | System prompt、tool schema | 未记录 | 未记录（未对所有格式代际验证） | `system_prompt.txt`, `tool_definitions.json` |
 
 **本机日志量。**
@@ -608,6 +608,7 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 | 更多 UI 语言；本地化的 CLI 和 MCP 输出 | 后续工作 | 非英文、非中文用户 | 未确认 | 增加一个词典；类型检查会覆盖它 |
 | chrome-devtools-mcp 默认发送使用数据 | 风险 | 一次本地检查向 Google 发送统计数据 | 未确认 | 文档中给出的命令传入两个关闭上报的参数（D16） |
 | DevFrame 日志行忽略 `NO_COLOR` | 风险 | CI 日志中出现转义码 | 未确认 | 在 shell 中过滤（D14）；向 DevFrame 提出修复 |
+| Grok 逐次调用的 request | 后续工作 | Grok 的 request 按轮次，看不到逐次调用的上下文增长 | 未确认 | 把 `events.jsonl` 的 `loop_started` / `first_token` 与 `chat_history.jsonl` 的 assistant 条目对应到调用；除非 Grok 逐次记录 usage，usage 仍按轮次 |
 | 实时跟随、内容搜索、lane 视图切换 | 后续工作 | 查看器功能 | 未确认 | 单独的计划 |
 
 ## 8. 附录：测量数据

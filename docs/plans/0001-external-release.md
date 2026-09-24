@@ -40,11 +40,11 @@ Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands an
 |---|---|---|---|
 | Location | `~/.claude/projects/<cwd>/<id>.jsonl`, subagents in `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` plus `summary.json`, `system_prompt.txt`, `tool_definitions.json`, `subagents/` |
 | Request boundary, model | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
-| Request unit | one model call (`requestId`) | one model call (`token_usage_record`; before the first one, `token_count.info.last_token_usage`) | one request per turn: `turn_completed.usage` sums the turn's calls (`modelCalls`, `numTurns` are counts, `modelUsage` is per model), and no per-call record exists |
+| Request unit | one model call (`requestId`) | one model call (`token_usage_record`; before the first one, `token_count.info.last_token_usage`) | one request per turn: usage is recorded only in `turn_completed.usage`, summed over the turn's calls (`modelCalls`, `numTurns` are counts, `modelUsage` is per model). Per-call records exist (`events.jsonl` `loop_started` / `first_token`, `chat_history.jsonl` assistant entries) but carry no usage |
 | Tokens | `message.usage` | `token_usage_record` | `turn_completed.usage` |
 | Timing | record `timestamp`, `system/turn_duration` | record `timestamp`, `task_complete.duration_ms` per turn; `started_at_ms` / `completed_at_ms` only on `item_completed` | `turn_completed.elapsed_ms` per turn |
 | Compaction | `system/compact_boundary` with `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
-| Subagents | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
+| Subagents | `isSidechain`, `subagents/*.jsonl` | `event_msg/item_completed` with `item.type: SubAgentActivity` (`agent_thread_id`); `inter_agent_communication_metadata` carries only `trigger_turn` | `subagent_spawned/finished`, `subagents/` |
 | System prompt, tool schemas | not recorded | not recorded (unverified for all generations) | `system_prompt.txt`, `tool_definitions.json` |
 
 **Log volume on this machine.**
@@ -606,6 +606,7 @@ Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by
 | More UI languages; localized CLI and MCP output | follow-up | Non-English and non-Chinese users | unconfirmed | Add a dictionary; the type check covers it |
 | chrome-devtools-mcp sends usage data by default | risk | A local check sends statistics to Google | unconfirmed | The documented command passes both opt-out flags (D16) |
 | DevFrame log lines ignore `NO_COLOR` | risk | Escape codes in CI logs | unconfirmed | Filter in the shell (D14); propose the fix to DevFrame |
+| Grok per-call requests | follow-up | Grok requests are per turn, so per-call context growth is not shown | unconfirmed | Join `events.jsonl` `loop_started` / `first_token` and `chat_history.jsonl` assistant entries to calls; usage stays per turn unless Grok logs it per call |
 | Live follow, content search, lane view toggle | follow-up | Viewer features | unconfirmed | Separate plans |
 
 ## 8. Appendix: measurements

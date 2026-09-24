@@ -1,20 +1,35 @@
 import type { Writable } from 'node:stream'
 import { stripVTControlCharacters } from 'node:util'
+import { redactText } from '@rivus/agent-trace-kernel'
 import { autocomplete, box, cancel, intro, isCancel, log, outro, spinner, tasks } from '@clack/prompts'
 
 export function isPlainOutput(): boolean {
   return !process.stdout.isTTY || process.env.NO_COLOR !== undefined
 }
 
-export function installPlainFilter(options?: { stderrOnly?: boolean }): void {
+/**
+ * Output filter. In plain mode (not a TTY, or `NO_COLOR`) it strips escape
+ * sequences. With `homeDir`, it also replaces the home directory with `~` in
+ * DevFrame's `[devframe]` log lines, in plain and TTY mode alike.
+ */
+export function installPlainFilter(options?: { stderrOnly?: boolean, homeDir?: string }): void {
+  const tilde = options?.homeDir ? devframeTilde(options.homeDir) : undefined
   if (options?.stderrOnly) {
-    wrap(process.stderr)
+    wrap(process.stderr, true, tilde)
     return
   }
-  if (!isPlainOutput())
+  const strip = isPlainOutput()
+  if (!strip && !tilde)
     return
-  wrap(process.stdout)
-  wrap(process.stderr)
+  wrap(process.stdout, strip, tilde)
+  wrap(process.stderr, strip, tilde)
+}
+
+/** `~` for the home directory, only on lines that DevFrame logs. */
+export function devframeTilde(homeDir: string): (text: string) => string {
+  return text => text.includes('[devframe]')
+    ? text.split('\n').map(line => line.includes('[devframe]') ? redactText(line, homeDir) : line).join('\n')
+    : text
 }
 
 function callbackArg(rest: readonly unknown[]): [] | [(error?: Error | null) => void] {
@@ -26,16 +41,20 @@ function callbackArg(rest: readonly unknown[]): [] | [(error?: Error | null) => 
   return []
 }
 
-function wrap(stream: Writable): void {
+function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string): void {
   const write = stream.write.bind(stream) as typeof stream.write
+  const clean = (text: string): string => {
+    const plain = strip ? stripVTControlCharacters(text) : text
+    return tilde ? tilde(plain) : plain
+  }
   stream.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     if (typeof chunk !== 'string') {
-      if (!chunk.includes(0x1b))
+      const touched = (strip && chunk.includes(0x1B)) || (tilde !== undefined && Buffer.from(chunk).includes('[devframe]'))
+      if (!touched)
         return write(chunk, ...(rest as []))
-      const text = Buffer.from(chunk).toString('utf8')
-      return write(stripVTControlCharacters(text), ...callbackArg(rest))
+      return write(clean(Buffer.from(chunk).toString('utf8')), ...callbackArg(rest))
     }
-    return write(stripVTControlCharacters(chunk), ...(rest as []))
+    return write(clean(chunk), ...(rest as []))
   }) as typeof stream.write
 }
 
