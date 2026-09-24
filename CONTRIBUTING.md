@@ -7,6 +7,7 @@ Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CL
 ```bash
 ./scripts/install-git-hooks.sh
 ./scripts/check-repository.sh
+node scripts/check-doc-translations.mjs
 ./scripts/check-pr-title.sh "docs: add external release plan"
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
@@ -39,7 +40,7 @@ Small typo corrections, narrow documentation fixes, and repository metadata upda
 2. Choose artifacts with the [Change Design Gate](#change-design-gate). Product work defaults to one behavioral Spec and one detailed Plan for the same deliverable. The Spec states interactions and acceptance scenarios. The Plan owns technical design, component and interface changes, data flow, implementation order, and verification.
 3. Review the behavior and technical design before implementing the affected scope. The Plan must resolve implementation decisions rather than leave them to the implementer. New behavior revises the Spec. New implementation decisions revise the Plan.
 4. Implement inside that boundary. Add evidence for each acceptance condition, or say why existing evidence is enough. Update current-state docs in the same change.
-5. Before retiring a completed Spec or Plan, move still-valid behavior, invariants, and operational limits into current-state docs and tests. The final delivery PR may delete the completed files. Keep an unfinished Spec or Plan active.
+5. Before retiring a completed Spec or Plan, move still-valid behavior, invariants, and operational limits into current-state docs and tests. The final delivery PR may delete the completed files, together with their Chinese reading copies. Keep an unfinished Spec or Plan active.
 6. Git history and the delivery PR keep the retired decision. Do not copy completed Specs or Plans into a second archive.
 
 ## Change Design Gate
@@ -61,6 +62,19 @@ Shared architecture, compatibility, security, and recovery decisions belong in a
 [`docs/plans/`](docs/plans/) contains active technical design documents. Copy [`0000-template.md`](docs/plans/0000-template.md) and keep only the sections that apply. A product plan links its paired Spec. Explain the current constraints, the decisions, the boundaries, the failure and rollback behavior, and how the change will be verified. A file list alone is not a design.
 
 Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make feature-specific technical decisions, but it cannot silently override current architecture. At completion, migrate lasting constraints into current-state docs and tests, then delete the completed Spec and plan in the final delivery PR. Keep unfinished scope visible.
+
+## Bilingual Specs And Plans
+
+Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo.md` pairs with `specs/0001-foo.zh-CN.md`, and `docs/plans/0001-foo.md` with `docs/plans/0001-foo.zh-CN.md`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking reviewers read the whole design.
+
+- The English file changes first; the Chinese copy follows in the same PR.
+- The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`
+- It keeps the English structure: the same headings at every level, the same scenario and decision IDs, the same table rows, and every code block and diagram copied unchanged.
+- It states the same content. It does not summarize, add, or settle an ambiguity the English leaves open.
+- Chinese prose uses plain statements and noun-phrase headings. Identifiers, paths, commands, and field names stay as written in English.
+- Templates and README files have no Chinese copy.
+
+`node scripts/check-doc-translations.mjs` checks the pairing, the first line, heading counts per level, and code blocks. CI and the pre-commit hook run it. It cannot tell whether the prose says the same thing; reviewers check that.
 
 ## Repository Architecture
 

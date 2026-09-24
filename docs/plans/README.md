@@ -2,6 +2,8 @@
 
 A plan is one technical design document, not a task checklist. Product work pairs it with one behavioral Spec. A technical refactor may use a plan alone.
 
+Each plan has a Chinese reading copy; see [Bilingual Specs And Plans](../../CONTRIBUTING.md#bilingual-specs-and-plans).
+
 Start from [`0000-template.md`](0000-template.md). Keep only the sections the change needs: background, outline, detailed design, rollout, verification, and delivery. Delete the rest. Unknown owners and dates stay "unconfirmed".
 
 The document shape matches the `technical-design-docs` skill. Install that skill for writing and review rules. This repository does not copy those rules.

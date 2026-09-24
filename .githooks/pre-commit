@@ -6,3 +6,4 @@ cd "$repo_root"
 
 git diff --cached --check
 ./scripts/check-repository.sh --staged
+node scripts/check-doc-translations.mjs
