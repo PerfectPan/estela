@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./reconstruct": "./src/reconstruct.ts",
-    "./conformance": "./src/conformance.ts"
+    "./conformance": "./src/conformance.ts",
+    "./testing": "./testing/repo-evidence.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

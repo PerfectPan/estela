@@ -18,13 +18,13 @@ export async function readEdges(io: TraceIO, path: string, signal?: AbortSignal)
   if (info?.kind !== 'file')
     return null
   const decoder = new TextDecoder()
-  // One read stays within the 128 KB discover budget and keeps every line.
-  if (info.size <= EDGE_BYTES * 2) {
+  if (info.size <= EDGE_BYTES) {
     const head = decoder.decode(await io.readBytes(path, { start: 0, end: info.size }))
     return { head, tail: '', size: info.size, mtimeMs: info.mtimeMs, whole: true }
   }
+  // Always 64 KB from each end. A file between 64 KB and 128 KB overlaps; callers merge.
   const head = decoder.decode(await io.readBytes(path, { start: 0, end: EDGE_BYTES }))
-  const tailStart = info.size - EDGE_BYTES
+  const tailStart = Math.max(0, info.size - EDGE_BYTES)
   const tail = decoder.decode(await io.readBytes(path, { start: tailStart, end: info.size }))
   return { head, tail, size: info.size, mtimeMs: info.mtimeMs, whole: false }
 }

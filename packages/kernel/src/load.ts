@@ -13,7 +13,7 @@ export class UnsupportedTraceError extends Error {
   }
 }
 
-export function sessionRef(ref: SessionRef | string): SessionRef {
+function sessionRef(ref: SessionRef | string): SessionRef {
   if (typeof ref === 'string') {
     const split = splitSessionRef(ref)
     return { host: '', path: split.file, sessionId: split.sessionId }
@@ -30,15 +30,6 @@ function refLabel(ref: SessionRef | string): string {
   if (typeof ref === 'string')
     return ref
   return ref.sessionId ? `${ref.path}#${ref.sessionId}` : ref.path
-}
-
-/** Load a canonical JSON trace. Host adapters wrap this after they normalize. */
-export async function loadCanonicalJson(path: string, io: TraceIO): Promise<Trace> {
-  const text = await io.readText(path)
-  const value: unknown = JSON.parse(text)
-  if (!isTrace(value))
-    throw new Error(`${path} is not an agent-trace document`)
-  return value
 }
 
 async function canonicalTrace(file: string, size: number, io: TraceIO, opts: LoadOptions): Promise<Trace | undefined> {

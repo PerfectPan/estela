@@ -42,8 +42,9 @@
 |---|---|---|---|
 | 位置 | `~/.claude/projects/<cwd>/<id>.jsonl`，subagent 位于 `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` 以及 `summary.json`、`system_prompt.txt`、`tool_definitions.json`、`subagents/` |
 | 请求边界、模型 | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
+| 请求单位 | 一次模型调用（`requestId`） | 一次模型调用（`token_usage_record`；在第一条之前用 `token_count.info.last_token_usage`） | 每轮一个 request：`turn_completed.usage` 是该轮所有调用的合计（`modelCalls`、`numTurns` 是计数，`modelUsage` 按模型分），没有逐次调用的记录 |
 | Token | `message.usage` | `token_usage_record` | `turn_completed.usage` |
-| 耗时 | 记录的 `timestamp`、`system/turn_duration` | `started_at_ms`, `completed_at_ms` | `turn_completed.elapsed_ms` |
+| 耗时 | 记录的 `timestamp`、`system/turn_duration` | 记录的 `timestamp`、每轮的 `task_complete.duration_ms`；`started_at_ms` / `completed_at_ms` 只出现在 `item_completed` 上 | 每轮的 `turn_completed.elapsed_ms` |
 | 压缩 | `system/compact_boundary`，带 `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
 | Subagent | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
 | System prompt、tool schema | 未记录 | 未记录（未对所有格式代际验证） | `system_prompt.txt`, `tool_definitions.json` |
@@ -339,13 +340,17 @@ export interface HostAdapter {
 
 1. `discover` 返回每个 fixture 会话，每个文件读取不超过 128 KB。
 2. `load` 两次得到相同的事件 id 和顺序。
-3. 输入记录数 = 事件数 + skipped 数，以 fixture 的记录数为准。
+3. 每条输入记录都被计入：它是一个或多个事件的来源，或者对应一条 `skipped`。
 4. 每个 `tool_result.callId` 都匹配同一 agent 中更早的 `tool_call.callId`，否则该 result 标记为 `orphan`。
-5. 每个 `shadowedBy` 都指向更早的 `compaction` 事件。
+5. 每个 `shadowedBy` 都指向同一 agent 更晚的 `compaction` 事件。
 6. 每个事件都有 source pointer，且能读回同一条记录。
 7. 每个已声明的 capability 在声明它的 fixture 中至少出现一次；未声明的从不出现。
 8. `summarize` 对该 fixture 等于 `fold(load())`。
 9. 从 adapter 入口不可达任何 `node:*` 导入。
+10. 事件 id 唯一。
+11. `seq` 等于事件下标，并且严格递增。
+12. 每个 `shadowedBy` 都留在同一个 agent 内。
+13. 对测试中生成的大于 128 KB 的会话，`discover` 从两端各读取不超过 64 KB，不读整个文件。
 
 ### 3.3 规范 trace
 
@@ -377,7 +382,7 @@ export interface RequestPayload {
   model?: string          // gen_ai.request.model
   responseId?: string     // gen_ai.response.id
   usage?: {
-    inputTokens?: number        // gen_ai.usage.input_tokens
+    inputTokens?: number        // total input, including cached tokens (OTel gen_ai.usage.input_tokens); cache_read/cache_write are breakdowns
     outputTokens?: number       // gen_ai.usage.output_tokens
     cacheReadTokens?: number    // gen_ai.usage.cache_read.input_tokens
     cacheWriteTokens?: number   // gen_ai.usage.cache_write.input_tokens
@@ -410,6 +415,8 @@ export interface Trace {
   skipped: { line: number, file: string, reason: string }[]
 }
 ```
+
+一个 `request` 事件是一次模型调用。只记录每轮合计的 host 每轮发出一个 request，并在 adapter 里说明。轮次耗时放在 `type: 'turn_duration'` 的 `system` 事件上，从不写进 request 的 `durationMs`。
 
 - `schema: 'agent-trace'` 标记一个规范 JSON 文件。demo fixture 改写为这一形状；不保留 MVP 形状的 reader。
 - payload 的键名按事件类型固定；每个字段旁的注释是其 OTel GenAI 属性。OTLP exporter 一对一映射它们。

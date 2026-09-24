@@ -129,6 +129,9 @@ importers:
         specifier: workspace:*
         version: link:../schema
     devDependencies:
+      '@rivus/agent-trace-runtime-node':
+        specifier: workspace:*
+        version: link:../runtime-node
       '@types/node':
         specifier: ^24.5.2
         version: 24.13.6
@@ -151,6 +154,9 @@ importers:
         specifier: workspace:*
         version: link:../schema
     devDependencies:
+      '@rivus/agent-trace-runtime-node':
+        specifier: workspace:*
+        version: link:../runtime-node
       '@types/node':
         specifier: ^24.5.2
         version: 24.13.6
@@ -192,6 +198,9 @@ importers:
         specifier: workspace:*
         version: link:../schema
     devDependencies:
+      '@rivus/agent-trace-runtime-node':
+        specifier: workspace:*
+        version: link:../runtime-node
       '@types/node':
         specifier: ^24.5.2
         version: 24.13.6

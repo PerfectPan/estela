@@ -1,1 +1,1 @@
-[{"name":"shell"}]
+[{"type": "function", "function": {"name": "shell", "description": "Run a command"}}]

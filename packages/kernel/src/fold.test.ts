@@ -44,6 +44,32 @@ describe('fold', () => {
     expect(summary.contextShape).toBeUndefined()
   })
 
+  it('counts a turn only for a real main-lane user prompt', () => {
+    const summary = fold(trace({
+      capabilities: [],
+      agents: [{ id: 'main' }, { id: 'child', parentId: 'main' }],
+      events: [
+        event({ id: 'u', kind: 'user' }),
+        event({ id: 'm', kind: 'user', payload: { meta: true } }),
+        event({ id: 'c', kind: 'user', payload: { compactSummary: true } }),
+        event({ id: 'k', kind: 'user', payload: { command: true } }),
+        event({ id: 'i', kind: 'user', payload: { injected: true } }),
+        event({ id: 's', kind: 'user', agentId: 'child' }),
+        event({ id: 'u-block', kind: 'user' }),
+        event({ id: 'n', kind: 'user', payload: { continued: true }, source: { ...source, line: 3 } }),
+        event({ id: 'v', kind: 'user', source: { ...source, line: 2 } }),
+      ],
+    }))
+    expect(summary.turns).toBe(2)
+  })
+
+  it('sums turn durations, and request durations only when no turn has one', () => {
+    const request = event({ id: 'r', kind: 'request', payload: { durationMs: 7 } })
+    const turn = event({ id: 't', kind: 'system', payload: { type: 'turn_duration', durationMs: 40 } })
+    expect(fold(trace({ capabilities: ['durations'], events: [request, turn] })).durationMs).toBe(40)
+    expect(fold(trace({ capabilities: ['durations'], events: [request] })).durationMs).toBe(7)
+  })
+
   it('sums declared usage and downsamples the context shape', () => {
     const events = Array.from({ length: 121 }, (_, index) => event({
       id: `r${index}`,

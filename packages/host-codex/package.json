@@ -17,6 +17,7 @@
     "@rivus/agent-trace-schema": "workspace:*"
   },
   "devDependencies": {
+    "@rivus/agent-trace-runtime-node": "workspace:*",
     "@types/node": "^24.5.2",
     "oxlint": "^1.83.0",
     "typescript": "^5.9.2",

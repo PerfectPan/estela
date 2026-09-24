@@ -61,6 +61,24 @@ describe('redact', () => {
     expect(textOf(`${home.toUpperCase()}/x`, home)).not.toContain(home.toUpperCase())
   })
 
+  it('replaces dash-encoded and percent-encoded home directories', () => {
+    const dash = home.replaceAll('/', '-')
+    const encoded = home.replaceAll('/', '%2F')
+    expect(textOf(`proj ${dash}-code file`, home)).toContain('proj ~-code file')
+    expect(textOf(`proj ${dash}-code file`, home)).not.toContain('alice')
+    expect(textOf(`dir ${encoded}%2Fsessions`, home)).toContain('dir ~%2Fsessions')
+    expect(textOf(`dir ${encoded.toLowerCase()}%2Fsessions`, home)).not.toContain('alice')
+    const key = `${dash}-proj`
+    const out = redact(trace([event({
+      kind: 'tool_result',
+      payload: { [key]: `${encoded}/updates.jsonl` },
+    })]), { homeDir: home })
+    const json = JSON.stringify(out)
+    expect(json).not.toContain('alice')
+    expect(json).toContain('~-proj')
+    expect(json).toContain('~/updates.jsonl')
+  })
+
   it('redacts home paths used as object keys', () => {
     const key = `${home}/proj/a.ts`
     const out = redact(trace([event({

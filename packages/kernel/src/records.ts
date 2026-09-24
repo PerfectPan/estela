@@ -22,16 +22,28 @@ export function generationError(host: string, file: string, line: number): Error
   return new Error(`${host}: ${file}:${line}: unknown format generation`)
 }
 
+export interface ReadProgress {
+  total: number
+  onProgress?: (total: number) => void
+}
+
+export function readProgress(onProgress?: (total: number) => void): ReadProgress {
+  return { total: 0, onProgress }
+}
+
 export async function readJsonlRecords(
   file: string,
   io: TraceIO,
   host: string,
-  opts?: { signal?: AbortSignal, onBytes?: (bytes: number) => void },
+  opts?: { signal?: AbortSignal, progress?: ReadProgress },
 ): Promise<SourcedRecord[]> {
   const records: SourcedRecord[] = []
   for await (const line of io.lines(file, { signal: opts?.signal })) {
     opts?.signal?.throwIfAborted()
-    opts?.onBytes?.(line.length)
+    if (opts?.progress) {
+      opts.progress.total += line.length
+      opts.progress.onProgress?.(opts.progress.total)
+    }
     if (!line.text.trim())
       continue
     let value: unknown

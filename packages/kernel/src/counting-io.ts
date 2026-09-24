@@ -1,7 +1,6 @@
 import type { TraceIO } from './io.ts'
 
 export interface CountingIO extends TraceIO {
-  bytesFor: (path: string) => number
   snapshot: () => ReadonlyMap<string, number>
 }
 
@@ -14,9 +13,6 @@ export function countingIO(inner: TraceIO): CountingIO {
     counts.set(path, (counts.get(path) ?? 0) + bytes)
   }
   return {
-    bytesFor(path) {
-      return counts.get(path) ?? 0
-    },
     snapshot() {
       return new Map(counts)
     },

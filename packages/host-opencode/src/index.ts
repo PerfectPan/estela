@@ -1,7 +1,7 @@
 import type { HostAdapter, TraceIO } from '@rivus/agent-trace-kernel'
 import type { AgentInfo, Capability, EventKind, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { DatabaseSync } from 'node:sqlite'
-import { asRecord, asString, basenamePath, joinPath, parseTime, splitSessionRef } from '@rivus/agent-trace-kernel'
+import { asRecord, asString, basenamePath, joinPath, splitSessionRef, timeOf } from '@rivus/agent-trace-kernel'
 import { TRACE_SCHEMA } from '@rivus/agent-trace-schema'
 
 const CAPABILITIES: Capability[] = ['thinking', 'compaction']
@@ -170,7 +170,7 @@ export const opencodeAdapter: HostAdapter = {
         const data = parseData(row.data)
         return {
           id: row.id,
-          time: parseTime(row.time_created),
+          time: timeOf(row.time_created) ?? 0,
           role: asString(data.role),
           parentId: asString(data.parentID),
           agent: asString(data.agent),
@@ -180,7 +180,7 @@ export const opencodeAdapter: HostAdapter = {
       const parts: OpenCodePart[] = partRows.map(row => ({
         id: row.id,
         messageId: row.message_id,
-        time: parseTime(row.time_created),
+        time: timeOf(row.time_created) ?? 0,
         data: parseData(row.data),
       }))
 

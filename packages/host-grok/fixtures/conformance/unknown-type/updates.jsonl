@@ -1,1 +1,1 @@
-{"timestamp":"2026-01-01T00:00:00.000Z","method":"session/update","params":{"update":{"sessionUpdate":"widget"}}}
+{"method":"session/update","params":{"sessionId":"g","update":{"sessionUpdate":"widget"}},"timestamp":1767225600}

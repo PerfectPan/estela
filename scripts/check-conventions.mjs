@@ -26,9 +26,11 @@ const LOCALE_SUFFIX = /^[a-z]{2}-[A-Z]{2}$/
 const CODE = /\.(?:[cm]?[jt]sx?|css)$/
 const CODE_ROOTS = /^(?:apps|packages|scripts)\//
 const NOT_CODE = /(?:^|\/)fixtures\//
+/** Host fixtures mirror on-disk log names, which are not all kebab-case. */
+const FIXTURE_MIRROR = /^packages\/[^/]+\/fixtures\//
 
 function nameProblems(path) {
-  if (FIXED_PATHS.some(re => re.test(path)))
+  if (FIXED_PATHS.some(re => re.test(path)) || FIXTURE_MIRROR.test(path))
     return []
   const problems = []
   const parts = path.split('/')

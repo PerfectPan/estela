@@ -33,10 +33,19 @@ export interface ConformanceSession {
   capabilities: readonly Capability[]
 }
 
+export interface OversizedSession {
+  /** Directory whose discover listing includes `file`. */
+  root: string
+  /** A session file larger than 128 KB. */
+  file: string
+}
+
 export interface ConformanceFixtures {
   root: string
   io: TraceIO
   sessions: readonly ConformanceSession[]
+  /** Generated in the test. Discover must read 64 KB from each end and not the whole file. */
+  oversized?: OversizedSession
 }
 
 export interface ConformanceEvidence {
@@ -70,7 +79,9 @@ function capabilitySeen(trace: Trace, capability: Capability): boolean {
     case 'usage':
       return trace.events.some(event => event.kind === 'request' && asRecord(event.payload.usage) != null)
     case 'durations':
-      return trace.events.some(event => event.kind === 'request' && asNumber(event.payload.durationMs) !== undefined)
+      return trace.events.some(event =>
+        (event.kind === 'request' && asNumber(event.payload.durationMs) !== undefined)
+        || (event.kind === 'system' && event.payload.type === 'turn_duration' && asNumber(event.payload.durationMs) !== undefined))
     case 'thinking':
       return trace.events.some(event => event.kind === 'thinking')
     case 'compaction':
@@ -93,15 +104,14 @@ function capabilitySeen(trace: Trace, capability: Capability): boolean {
 }
 
 /**
- * Nine host checks from plan section 3.2.
+ * Host checks from plan section 3.2.
  *
  * Check 3 counts input records, not emitted events: one record may become
  * several events that share its source line (content blocks, the request
  * event). A record is accounted when that line is an event source or a
  * `skipped` entry.
  *
- * Check 5 requires `shadowedBy` to name a later compaction event. A compaction
- * record follows the messages it removes.
+ * Check 5 requires `shadowedBy` to name a later compaction of the same agent.
  *
  * Check 9 does not import `node:*`. It reads the browser-bundle entry list and
  * the oxlint override that the caller passes in, which is how M1 keeps
@@ -121,7 +131,7 @@ export function describeHostConformance(
         if (isHead(item))
           found.push(item.ref.path)
       }
-      expect(found.slice().sort()).toEqual(fixtures.sessions.map(session => session.path).slice().sort())
+      expect(found.toSorted()).toEqual(fixtures.sessions.map(session => session.path).toSorted())
       for (const [path, bytes] of counted.snapshot())
         expect(bytes, path).toBeLessThanOrEqual(DISCOVER_BUDGET)
     })
@@ -193,8 +203,59 @@ export function describeHostConformance(
           const compaction = byId.get(event.shadowedBy)
           expect(compaction?.kind, event.id).toBe('compaction')
           expect(compaction!.seq).toBeGreaterThan(event.seq)
+          expect(compaction?.agentId ?? '', event.id).toBe(event.agentId ?? '')
         }
       }
+    })
+
+    it('event ids are unique', async () => {
+      for (const session of fixtures.sessions) {
+        const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
+        const ids = trace.events.map(event => event.id)
+        expect(new Set(ids).size, session.path).toBe(ids.length)
+      }
+    })
+
+    it('seq matches the event index', async () => {
+      for (const session of fixtures.sessions) {
+        const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
+        trace.events.forEach((event, index) => {
+          expect(event.seq, event.id).toBe(index)
+        })
+        for (let index = 1; index < trace.events.length; index++)
+          expect(trace.events[index]!.seq).toBeGreaterThan(trace.events[index - 1]!.seq)
+      }
+    })
+
+    it('shadowedBy stays on the same agent', async () => {
+      for (const session of fixtures.sessions) {
+        const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
+        const byId = new Map(trace.events.map(event => [event.id, event]))
+        for (const event of trace.events) {
+          if (!event.shadowedBy)
+            continue
+          const compaction = byId.get(event.shadowedBy)
+          expect(compaction?.agentId ?? '', event.id).toBe(event.agentId ?? '')
+        }
+      }
+    })
+
+    it('reads at most 64 KB from each end of a large session', async () => {
+      const oversized = fixtures.oversized
+      expect(oversized, 'generated oversized session').toBeTruthy()
+      if (!oversized)
+        return
+      const counted = countingIO(fixtures.io)
+      const found: string[] = []
+      for await (const item of adapter.discover(oversized.root, counted, {})) {
+        expect(isHead(item), 'error' in item ? item.error : '').toBe(true)
+        if (isHead(item))
+          found.push(item.ref.path)
+      }
+      expect(found).toContain(oversized.file)
+      const bytes = counted.snapshot().get(oversized.file) ?? 0
+      expect(bytes).toBeGreaterThan(64 * 1024)
+      expect(bytes).toBeLessThanOrEqual(DISCOVER_BUDGET)
     })
 
     it('reads each source pointer back to original', async () => {

@@ -55,7 +55,7 @@ export interface RequestPayload {
   /** gen_ai.response.id */
   responseId?: string
   usage?: {
-    /** gen_ai.usage.input_tokens */
+    /** gen_ai.usage.input_tokens — total input, including cached tokens. cacheReadTokens and cacheWriteTokens are breakdowns. */
     inputTokens?: number
     /** gen_ai.usage.output_tokens */
     outputTokens?: number

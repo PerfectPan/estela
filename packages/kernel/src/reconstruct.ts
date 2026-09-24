@@ -40,7 +40,7 @@ export function reconstruct(trace: Trace, eventId: string): ReconstructResult {
     .map(event => event.id)
 
   const unavailable: string[] = []
-  const hasSystem = Boolean(trace.session.systemPrompt) || prefix.some(event => event.kind === 'system')
+  const hasSystem = trace.capabilities.includes('systemPrompt') && Boolean(trace.session.systemPrompt)
   const hasTools = trace.session.tools != null || prefix.some(event => event.payload.tools != null)
   if (!hasSystem)
     unavailable.push('system')

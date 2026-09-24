@@ -1,14 +1,17 @@
-import type { AgentInfo, RequestPayload, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { SourcedRecord } from '@rivus/agent-trace-kernel'
+import type { AgentInfo, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { ParsedSession, SourcedRecord } from '@rivus/agent-trace-kernel'
 import {
   asNumber,
   asRecord,
   asString,
   assignSeq,
-  basenamePath,
+  baseEvent,
   generationError,
+  lineId,
   markOrphanToolResults,
-  sourceOf,
+  shadowBefore,
+  skipRecord,
+  usageFrom,
 } from '@rivus/agent-trace-kernel'
 
 const HOST = 'claude-code'
@@ -22,69 +25,43 @@ const BOOKKEEPING = new Set([
   'mode',
   'permission-mode',
   'queue-operation',
+  'relocated',
+  'worktree-state',
+  'fork-context-ref',
+  'pr-link',
+  'frame-link',
 ])
 
-interface OpenRequest {
-  requestId: string
-  agentId?: string
-  model?: string
-  responseId?: string
-  usage?: RequestPayload['usage']
-  stopReason?: string
-  startedAt?: number
-  durationMs?: number
+/** Fields from `subagents/agent-<id>.meta.json`. */
+export interface AgentMeta {
+  title?: string
+  toolUseId?: string
+  parentAgentId?: string
+}
+
+export interface StampedRecord {
+  record: SourcedRecord
   ts: number
-  source: TraceEvent['source']
-  original: unknown
-}
-
-export interface ParsedClaude {
-  events: TraceEvent[]
-  skipped: Trace['skipped']
-  session: Trace['session']
-  version?: string
-  agents: AgentInfo[]
-}
-
-function timeOf(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value))
-    return value < 1e12 ? value * 1000 : value
-  if (typeof value === 'string' && value) {
-    const ms = Date.parse(value)
-    if (!Number.isNaN(ms))
-      return ms
-  }
-  return undefined
 }
 
 function eventId(uuid: string | undefined, record: SourcedRecord, part: number): string {
-  if (uuid)
-    return part === 0 ? uuid : `${uuid}:${part}`
-  const base = basenamePath(record.file)
-  return part === 0 ? `${base}:${record.line}` : `${base}:${record.line}:${part}`
+  if (!uuid)
+    return lineId(record, part)
+  return part === 0 ? uuid : `${uuid}:${part}`
 }
 
-function claudeUsage(message: Record<string, unknown>): RequestPayload['usage'] | undefined {
+function claudeUsage(message: Record<string, unknown>) {
   const usage = asRecord(message.usage)
   if (!usage)
     return undefined
-  const out: NonNullable<RequestPayload['usage']> = {}
-  const input = asNumber(usage.input_tokens)
-  const output = asNumber(usage.output_tokens)
-  const cacheRead = asNumber(usage.cache_read_input_tokens)
-  const cacheWrite = asNumber(usage.cache_creation_input_tokens)
-  const reasoning = asNumber(asRecord(usage.output_tokens_details)?.thinking_tokens)
-  if (input !== undefined)
-    out.inputTokens = input
-  if (output !== undefined)
-    out.outputTokens = output
-  if (cacheRead !== undefined)
-    out.cacheReadTokens = cacheRead
-  if (cacheWrite !== undefined)
-    out.cacheWriteTokens = cacheWrite
-  if (reasoning !== undefined)
-    out.reasoningTokens = reasoning
-  return Object.keys(out).length > 0 ? out : undefined
+  return usageFrom({
+    input: asNumber(usage.input_tokens),
+    output: asNumber(usage.output_tokens),
+    cacheRead: asNumber(usage.cache_read_input_tokens),
+    cacheWrite: asNumber(usage.cache_creation_input_tokens),
+    reasoning: asNumber(asRecord(usage.output_tokens_details)?.thinking_tokens),
+    includeCacheInInput: true,
+  })
 }
 
 function assertGeneration(rec: Record<string, unknown>, record: SourcedRecord): void {
@@ -95,6 +72,44 @@ function assertGeneration(rec: Record<string, unknown>, record: SourcedRecord): 
     throw generationError(HOST, record.file, record.line)
   if (typeof rec.type !== 'string')
     throw generationError(HOST, record.file, record.line)
+}
+
+/** Wrappers the CLI writes for slash commands and `!` shell input. Not prompts. */
+const COMMAND_WRAPPER = /^\s*<(?:command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat|bash-input|bash-stdout|bash-stderr)>/
+/** Text the host injects into the user role. Not prompts. */
+const INJECTED = /^\s*(?:<task-notification>|<system-reminder>|\[Request interrupted)/
+
+function recordText(content: unknown): string | undefined {
+  if (typeof content === 'string')
+    return content
+  if (!Array.isArray(content))
+    return undefined
+  for (const block of content) {
+    const item = asRecord(block)
+    if (item?.type === 'text' && typeof item.text === 'string')
+      return item.text
+  }
+  return undefined
+}
+
+/** Flags that `fold` reads to tell a real prompt from other user-role records. */
+function userFlags(rec: Record<string, unknown>, content: unknown): Record<string, unknown> {
+  const flags: Record<string, unknown> = {}
+  const text = recordText(content) ?? ''
+  if (rec.isMeta === true)
+    flags.meta = true
+  if (rec.isCompactSummary === true)
+    flags.compactSummary = true
+  if (COMMAND_WRAPPER.test(text))
+    flags.command = true
+  const origin = asString(asRecord(rec.origin)?.kind)
+  if (INJECTED.test(text) || (origin !== undefined && origin !== 'human'))
+    flags.injected = true
+  return flags
+}
+
+function isPrompt(flags: Record<string, unknown>): boolean {
+  return !flags.meta && !flags.compactSummary && !flags.command && !flags.injected
 }
 
 function preservedUuids(events: TraceEvent[], compaction: TraceEvent): Set<string> | null {
@@ -126,165 +141,116 @@ function shadowRemoved(events: TraceEvent[]): void {
     if (compaction.kind !== 'compaction')
       continue
     const keep = preservedUuids(events, compaction)
-    const agent = compaction.agentId ?? ''
-    for (const event of events) {
-      if (event === compaction)
-        break
-      if ((event.agentId ?? '') !== agent || event.kind === 'compaction' || event.shadowedBy)
-        continue
-      const uuid = asString(asRecord(event.original)?.uuid)
-      if (keep && uuid && keep.has(uuid))
-        continue
-      event.shadowedBy = compaction.id
-    }
+    shadowBefore(events, compaction, keep
+      ? (event) => {
+          const uuid = asString(asRecord(event.original)?.uuid)
+          return Boolean(uuid && keep.has(uuid))
+        }
+      : undefined)
   }
 }
 
-export function parseClaudeRecords(records: SourcedRecord[], options?: {
+export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: {
   sessionId?: string
   agentForFile?: (file: string) => string | undefined
-}): ParsedClaude {
+  agentMeta?: ReadonlyMap<string, AgentMeta>
+}): ParsedSession {
   const events: TraceEvent[] = []
   const skipped: Trace['skipped'] = []
-  let open: OpenRequest | undefined
+  const requests = new Map<string, TraceEvent>()
   let sessionId = options?.sessionId
   let title: string | undefined
+  let titleExplicit = false
   let cwd: string | undefined
   let version: string | undefined
   let startedAt: number | undefined
   let endedAt: number | undefined
 
-  const flush = (): void => {
-    if (!open)
+  const rememberTitle = (text: string | undefined, explicit = false): void => {
+    if (!text)
       return
-    const payload: Record<string, unknown> = {}
-    if (open.model)
-      payload.model = open.model
-    if (open.responseId)
-      payload.responseId = open.responseId
-    if (open.usage)
-      payload.usage = open.usage
-    if (open.startedAt !== undefined)
-      payload.startedAt = open.startedAt
-    if (open.durationMs !== undefined)
-      payload.durationMs = open.durationMs
-    if (open.stopReason)
-      payload.stopReason = open.stopReason
-    const event: TraceEvent = {
-      id: `request:${open.requestId}`,
-      seq: 0,
-      ts: open.ts,
-      kind: 'request',
-      requestId: open.requestId,
-      payload,
-      source: open.source,
-      original: open.original,
-    }
-    if (open.agentId)
-      event.agentId = open.agentId
-    events.push(event)
-    open = undefined
-  }
-
-  const applyDuration = (agentId: string | undefined, durationMs: number): void => {
-    if (open && (open.agentId ?? '') === (agentId ?? '')) {
-      open.durationMs = durationMs
+    if (explicit) {
+      title = text
+      titleExplicit = true
       return
     }
-    for (let index = events.length - 1; index >= 0; index--) {
-      const event = events[index]!
-      if (event.kind === 'request' && (event.agentId ?? '') === (agentId ?? '')) {
-        event.payload.durationMs = durationMs
-        return
-      }
-    }
+    if (!titleExplicit && !title)
+      title = text.slice(0, 80)
   }
 
-  for (const record of records) {
+  for (const { record, ts } of stamped) {
     const rec = asRecord(record.value)
     if (!rec)
       throw generationError(HOST, record.file, record.line)
     assertGeneration(rec, record)
     const type = asString(rec.type) ?? 'unknown'
     const uuid = asString(rec.uuid)
-    const ts = timeOf(rec.timestamp) ?? 0
-    const seenAt = timeOf(rec.timestamp)
-    if (seenAt !== undefined) {
-      if (startedAt === undefined || seenAt < startedAt)
-        startedAt = seenAt
-      if (endedAt === undefined || seenAt > endedAt)
-        endedAt = seenAt
-    }
+    if (startedAt === undefined || ts < startedAt)
+      startedAt = ts
+    if (endedAt === undefined || ts > endedAt)
+      endedAt = ts
     if (!sessionId)
       sessionId = asString(rec.sessionId)
     if (!cwd)
       cwd = asString(rec.cwd)
     if (!version && typeof rec.version === 'string')
       version = rec.version
-    const agentId = asString(rec.agentId) ?? options?.agentForFile?.(record.file)
+    let agentId = asString(rec.agentId) ?? options?.agentForFile?.(record.file)
+    if (rec.isSidechain === true)
+      agentId = asString(rec.agentId) ?? agentId ?? 'sidechain'
     const parentId = asString(rec.parentUuid)
-    const source = sourceOf(record)
 
     const emit = (kind: TraceEvent['kind'], payload: Record<string, unknown>, part: number, requestId?: string): void => {
-      const event: TraceEvent = {
+      events.push(baseEvent(record, kind, payload, {
         id: eventId(uuid, record, part),
-        seq: 0,
         ts,
-        kind,
-        payload,
-        source,
-        original: record.value,
-      }
-      if (agentId)
-        event.agentId = agentId
-      if (parentId)
-        event.parentId = parentId
-      if (requestId)
-        event.requestId = requestId
-      events.push(event)
+        agentId,
+        parentId,
+        requestId,
+      }))
     }
 
-    const skip = (reason: string): void => {
-      skipped.push({ file: record.file, line: record.line, reason })
-    }
-
-    const noteRequest = (requestId: string, message: Record<string, unknown>): void => {
-      if (open && open.requestId !== requestId)
-        flush()
-      if (!open) {
-        open = { requestId, agentId, ts, source, original: record.value, startedAt: seenAt }
+    const ensureRequest = (requestId: string, message: Record<string, unknown>): void => {
+      let event = requests.get(requestId)
+      if (!event) {
+        event = baseEvent(record, 'request', {}, {
+          id: `request:${requestId}`,
+          ts,
+          agentId,
+          requestId,
+        })
+        requests.set(requestId, event)
+        events.push(event)
       }
       const usage = claudeUsage(message)
-      if (usage) {
-        open.usage = usage
-        open.source = source
-        open.original = record.value
-      }
+      if (usage)
+        event.payload.usage = usage
       const model = asString(message.model)
       if (model)
-        open.model = model
+        event.payload.model = model
       const responseId = asString(message.id)
       if (responseId)
-        open.responseId = responseId
+        event.payload.responseId = responseId
       const stopReason = asString(message.stop_reason)
       if (stopReason)
-        open.stopReason = stopReason
+        event.payload.stopReason = stopReason
     }
 
     if (type === 'user' || type === 'assistant') {
       const message = asRecord(rec.message) ?? {}
       const requestId = asString(rec.requestId)
       if (requestId)
-        noteRequest(requestId, message)
+        ensureRequest(requestId, message)
       const role = type === 'user' ? 'user' : 'assistant'
+      const flags = role === 'user' ? userFlags(rec, message.content) : {}
       const content = message.content
       if (typeof content === 'string') {
-        emit(role, content ? { text: content } : {}, 0, requestId)
-        if (!title && role === 'user' && content)
-          title = content.slice(0, 80)
+        emit(role, { ...flags, ...(content ? { text: content } : {}) }, 0, requestId)
+        if (role === 'user' && isPrompt(flags))
+          rememberTitle(content)
       }
       else if (!Array.isArray(content) || content.length === 0) {
-        emit(role, {}, 0, requestId)
+        emit(role, flags, 0, requestId)
       }
       else {
         content.forEach((block, part) => {
@@ -296,9 +262,14 @@ export function parseClaudeRecords(records: SourcedRecord[], options?: {
           }
           if (blockType === 'text') {
             const text = asString(item.text) ?? ''
-            emit(role, text ? { text } : {}, part, requestId)
-            if (!title && role === 'user' && text)
-              title = text.slice(0, 80)
+            emit(role, { ...flags, ...(text ? { text } : {}) }, part, requestId)
+            if (role === 'user' && text && isPrompt(flags))
+              rememberTitle(text)
+            return
+          }
+          if (blockType === 'image') {
+            const mediaType = asString(asRecord(item.source)?.media_type)
+            emit(role, { ...flags, image: true, ...(mediaType ? { mediaType } : {}) }, part, requestId)
             return
           }
           if (blockType === 'thinking' || blockType === 'redacted_thinking') {
@@ -334,7 +305,6 @@ export function parseClaudeRecords(records: SourcedRecord[], options?: {
     if (type === 'system') {
       const subtype = asString(rec.subtype) ?? 'system'
       if (subtype === 'compact_boundary') {
-        flush()
         const meta = asRecord(rec.compactMetadata)
         const trigger = asString(meta?.trigger)
         const pre = asNumber(meta?.preTokens)
@@ -351,8 +321,6 @@ export function parseClaudeRecords(records: SourcedRecord[], options?: {
       }
       if (subtype === 'turn_duration') {
         const durationMs = asNumber(rec.durationMs)
-        if (durationMs !== undefined)
-          applyDuration(agentId, durationMs)
         emit('system', {
           type: 'turn_duration',
           ...(durationMs !== undefined ? { durationMs } : {}),
@@ -385,46 +353,40 @@ export function parseClaudeRecords(records: SourcedRecord[], options?: {
         emit('hook', payload, 0)
       }
       else {
-        skip(`attachment:${attachmentType || 'record'}`)
+        skipRecord(skipped, record, `attachment:${attachmentType || 'record'}`)
       }
       continue
     }
 
+    if (type === 'custom-title') {
+      rememberTitle(asString(rec.title) ?? asString(rec.customTitle) ?? asString(rec.titleText) ?? asString(rec.text), true)
+      skipRecord(skipped, record, 'custom-title')
+      continue
+    }
+
     if (type === 'ai-title' || type === 'summary') {
-      const next = asString(rec.aiTitle) ?? asString(rec.summary) ?? asString(rec.title)
-      if (next && !title)
-        title = next
-      skip(type)
+      rememberTitle(asString(rec.aiTitle) ?? asString(rec.summary) ?? asString(rec.title))
+      skipRecord(skipped, record, type)
       continue
     }
 
     if (BOOKKEEPING.has(type)) {
-      skip(type)
+      skipRecord(skipped, record, type)
       continue
     }
 
     emit('unknown', { type }, 0)
   }
 
-  flush()
   shadowRemoved(events)
   markOrphanToolResults(events)
   assignSeq(events)
-
-  const agents: AgentInfo[] = [{ id: 'main' }]
-  const seenAgents = new Set<string>()
-  for (const event of events) {
-    if (!event.agentId || event.agentId === 'main' || seenAgents.has(event.agentId))
-      continue
-    seenAgents.add(event.agentId)
-    agents.push({ id: event.agentId, parentId: 'main' })
-  }
 
   return {
     events,
     skipped,
     version,
-    agents,
+    agents: agentLanes(events, options?.agentMeta),
     session: {
       id: sessionId ?? 'unknown',
       ...(title ? { title } : {}),
@@ -433,4 +395,39 @@ export function parseClaudeRecords(records: SourcedRecord[], options?: {
       ...(endedAt !== undefined ? { endedAt } : {}),
     },
   }
+}
+
+/**
+ * One lane per agent id. The spawning tool call comes from `meta.json`
+ * `toolUseId`, else from the tool result whose `toolUseResult.agentId` names
+ * the agent. A lane with neither has no `spawnEventId`.
+ */
+function agentLanes(events: TraceEvent[], metas?: ReadonlyMap<string, AgentMeta>): AgentInfo[] {
+  const calls = new Map<string, TraceEvent>()
+  const spawnCall = new Map<string, string>()
+  for (const event of events) {
+    const callId = asString(event.payload.callId)
+    if (event.kind === 'tool_call' && callId)
+      calls.set(callId, event)
+    const spawned = asString(asRecord(asRecord(event.original)?.toolUseResult)?.agentId)
+    if (event.kind === 'tool_result' && callId && spawned && !spawnCall.has(spawned))
+      spawnCall.set(spawned, callId)
+  }
+  const agents: AgentInfo[] = [{ id: 'main' }]
+  const seen = new Set<string>(['main'])
+  for (const event of events) {
+    const id = event.agentId
+    if (!id || seen.has(id))
+      continue
+    seen.add(id)
+    const meta = metas?.get(id)
+    const spawn = calls.get(meta?.toolUseId ?? spawnCall.get(id) ?? '')
+    const agent: AgentInfo = { id, parentId: meta?.parentAgentId ?? spawn?.agentId ?? 'main' }
+    if (spawn)
+      agent.spawnEventId = spawn.id
+    if (meta?.title)
+      agent.title = meta.title
+    agents.push(agent)
+  }
+  return agents
 }

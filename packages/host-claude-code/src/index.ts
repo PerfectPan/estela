@@ -1,17 +1,21 @@
 import type { Capability, Trace } from '@rivus/agent-trace-schema'
-import type { HostAdapter, SessionHead, TraceIO } from '@rivus/agent-trace-kernel'
-import { TRACE_SCHEMA } from '@rivus/agent-trace-schema'
+import type { DiscoverPreview, HostAdapter, ReadProgress, SourcedRecord, TraceIO } from '@rivus/agent-trace-kernel'
 import {
   asRecord,
   asString,
   basenamePath,
   dirnamePath,
-  edgeLines,
+  discoverSessions,
   joinPath,
+  mergeByTime,
   readEdges,
   readJsonlRecords,
+  readProgress,
+  timeOf,
+  toTrace,
+  walkFiles,
 } from '@rivus/agent-trace-kernel'
-import { parseClaudeRecords } from './parse-session.ts'
+import { parseClaudeRecords, type AgentMeta } from './parse-session.ts'
 
 const CAPABILITIES: Capability[] = [
   'requests',
@@ -23,17 +27,6 @@ const CAPABILITIES: Capability[] = [
   'subagents',
   'hooks',
 ]
-
-function timeOf(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value))
-    return value < 1e12 ? value * 1000 : value
-  if (typeof value === 'string' && value) {
-    const ms = Date.parse(value)
-    if (!Number.isNaN(ms))
-      return ms
-  }
-  return undefined
-}
 
 function textOf(content: unknown): string | undefined {
   if (typeof content === 'string')
@@ -49,22 +42,8 @@ function textOf(content: unknown): string | undefined {
   return parts.length > 0 ? parts.join('') : undefined
 }
 
-function previewLines(lines: string[]): {
-  title?: string
-  cwd?: string
-  startedAt?: number
-  lastAt?: number
-  firstPrompt?: string
-  sessionId?: string
-} {
-  const preview: {
-    title?: string
-    cwd?: string
-    startedAt?: number
-    lastAt?: number
-    firstPrompt?: string
-    sessionId?: string
-  } = {}
+function previewLines(lines: string[]): DiscoverPreview {
+  const preview: DiscoverPreview = {}
   for (const line of lines) {
     let value: unknown
     try {
@@ -98,20 +77,6 @@ function previewLines(lines: string[]): {
   return preview
 }
 
-async function* walkSessions(io: TraceIO, dir: string, depth: number, signal?: AbortSignal): AsyncGenerator<string> {
-  signal?.throwIfAborted()
-  const entries = await io.list(dir)
-  for (const entry of entries) {
-    if (entry.name === 'subagents')
-      continue
-    const path = joinPath(dir, entry.name)
-    if (entry.kind === 'file' && entry.name.endsWith('.jsonl'))
-      yield path
-    else if (entry.kind === 'dir' && depth < 6)
-      yield* walkSessions(io, path, depth + 1, signal)
-  }
-}
-
 function agentFromFile(name: string, records: { value: unknown }[]): string {
   for (const record of records) {
     const id = asString(asRecord(record.value)?.agentId)
@@ -129,55 +94,17 @@ export const claudeCodeAdapter: HostAdapter = {
   roots(env) {
     return [joinPath(env.homeDir, '.claude/projects')]
   },
-  async *discover(root, io, opts) {
-    const rootStat = await io.stat(root)
-    if (rootStat == null) {
-      yield { ref: { host: 'claude-code', path: root }, error: `claude-code: ${root} does not exist` }
-      return
-    }
-    let paths: string[]
-    try {
-      paths = []
-      for await (const path of walkSessions(io, root, 0, opts.signal))
-        paths.push(path)
-    }
-    catch (error) {
-      yield {
-        ref: { host: 'claude-code', path: root },
-        error: error instanceof Error ? error.message : String(error),
-      }
-      return
-    }
-    for (const path of paths) {
-      opts.signal?.throwIfAborted()
-      const edges = await readEdges(io, path, opts.signal)
-      if (!edges)
-        continue
-      const lines = edgeLines(edges.head, 'head', edges.whole)
-      if (!edges.whole)
-        lines.push(...edgeLines(edges.tail, 'tail', false))
-      const preview = previewLines(lines)
-      const head: SessionHead = {
-        ref: {
-          host: 'claude-code',
-          path,
-          ...(preview.sessionId ? { sessionId: preview.sessionId } : {}),
-        },
-        lastActiveAt: preview.lastAt ?? edges.mtimeMs,
-        sizeBytes: edges.size,
-      }
-      if (preview.title)
-        head.title = preview.title
-      else if (preview.firstPrompt)
-        head.title = preview.firstPrompt.slice(0, 80)
-      if (preview.cwd)
-        head.cwd = preview.cwd
-      if (preview.startedAt !== undefined)
-        head.startedAt = preview.startedAt
-      if (preview.firstPrompt)
-        head.firstPrompt = preview.firstPrompt
-      yield head
-    }
+  discover(root, io, opts) {
+    return discoverSessions('claude-code', root, io, {
+      signal: opts.signal,
+      files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
+        match: name => name.endsWith('.jsonl'),
+        skipDir: name => name === 'subagents',
+        maxDepth: 6,
+        signal,
+      }),
+      preview: previewLines,
+    })
   },
   async detect(ref, io) {
     if (ref.path.includes('/.claude/projects/'))
@@ -196,39 +123,85 @@ export const claudeCodeAdapter: HostAdapter = {
     }
   },
   async load(ref, io, opts): Promise<Trace> {
-    let read = 0
-    const onBytes = (bytes: number): void => {
-      read += bytes
-      opts.onProgress?.(read)
-    }
-    const records = await readJsonlRecords(ref.path, io, 'claude-code', { signal: opts.signal, onBytes })
+    const progress = readProgress(opts.onProgress)
+    const main = await readJsonlRecords(ref.path, io, 'claude-code', { signal: opts.signal, progress })
     const stem = basenamePath(ref.path).replace(/\.jsonl$/, '')
-    const subDir = joinPath(joinPath(dirnamePath(ref.path), stem), 'subagents')
-    const agentForFile = new Map<string, string>()
-    if ((await io.stat(subDir))?.kind === 'dir') {
-      for (const entry of await io.list(subDir)) {
-        if (entry.kind !== 'file' || !entry.name.startsWith('agent') || !entry.name.endsWith('.jsonl'))
-          continue
-        const path = joinPath(subDir, entry.name)
-        const extra = await readJsonlRecords(path, io, 'claude-code', { signal: opts.signal, onBytes })
-        agentForFile.set(path, agentFromFile(entry.name, extra))
-        records.push(...extra)
-      }
-    }
-    const parsed = parseClaudeRecords(records, {
+    const nested = await nestedSubagents(io, ref.path, stem, opts.signal, progress)
+    const parsed = parseClaudeRecords(mergeByTime([main, ...nested.groups]), {
       sessionId: ref.sessionId,
-      agentForFile: file => agentForFile.get(file),
+      agentForFile: file => nested.agentForFile.get(file),
+      agentMeta: nested.metas,
     })
+    parsed.skipped.push(...nested.skipped)
     if (parsed.session.id === 'unknown')
       parsed.session.id = stem || 'unknown'
-    return {
-      schema: TRACE_SCHEMA,
-      host: { id: 'claude-code', ...(parsed.version ? { version: parsed.version } : {}) },
-      session: parsed.session,
-      capabilities: [...CAPABILITIES],
-      agents: parsed.agents,
-      events: parsed.events,
-      skipped: parsed.skipped,
-    }
+    return toTrace('claude-code', CAPABILITIES, parsed)
   },
+}
+
+/**
+ * Walk `<id>/subagents/` recursively (workflows nest one level deeper).
+ * `agent-*.jsonl` are transcripts; `agent-*.meta.json` gives a lane its title
+ * and spawning tool call; any other file is one `skipped` entry.
+ */
+async function nestedSubagents(
+  io: TraceIO,
+  sessionPath: string,
+  stem: string,
+  signal: AbortSignal | undefined,
+  progress: ReadProgress,
+): Promise<{ groups: SourcedRecord[][], agentForFile: Map<string, string>, metas: Map<string, AgentMeta>, skipped: Trace['skipped'] }> {
+  const out = { groups: [] as SourcedRecord[][], agentForFile: new Map<string, string>(), metas: new Map<string, AgentMeta>(), skipped: [] as Trace['skipped'] }
+  const subDir = joinPath(joinPath(dirnamePath(sessionPath), stem), 'subagents')
+  if ((await io.stat(subDir))?.kind !== 'dir')
+    return out
+  const files = await walkFiles(io, subDir, { match: () => true, maxDepth: 8, signal })
+  const metaFiles = new Map<string, string>()
+  for (const path of files) {
+    const name = basenamePath(path)
+    if (name.startsWith('agent') && name.endsWith('.meta.json')) {
+      metaFiles.set(path.slice(0, -'.meta.json'.length), path)
+      out.skipped.push({ file: path, line: 1, reason: 'agent-meta' })
+      continue
+    }
+    if (!(name.startsWith('agent') && name.endsWith('.jsonl'))) {
+      out.skipped.push({ file: path, line: 1, reason: 'journal' })
+      continue
+    }
+    const records = await readJsonlRecords(path, io, 'claude-code', { signal, progress })
+    const agentId = agentFromFile(name, records)
+    out.agentForFile.set(path, agentId)
+    out.groups.push(records)
+  }
+  for (const [path, agentId] of out.agentForFile) {
+    const metaPath = metaFiles.get(path.slice(0, -'.jsonl'.length))
+    if (metaPath)
+      out.metas.set(agentId, await agentMeta(io, metaPath, progress))
+  }
+  return out
+}
+
+async function agentMeta(io: TraceIO, path: string, progress: ReadProgress): Promise<AgentMeta> {
+  const text = await io.readText(path)
+  progress.total += new TextEncoder().encode(text).byteLength
+  progress.onProgress?.(progress.total)
+  let value: unknown
+  try {
+    value = JSON.parse(text) as unknown
+  }
+  catch {
+    throw new Error(`claude-code: ${path}:1: invalid JSON`)
+  }
+  const meta = asRecord(value)
+  const out: AgentMeta = {}
+  const title = asString(meta?.description)
+  const toolUseId = asString(meta?.toolUseId)
+  const parentAgentId = asString(meta?.parentAgentId)
+  if (title)
+    out.title = title
+  if (toolUseId)
+    out.toolUseId = toolUseId
+  if (parentAgentId)
+    out.parentAgentId = parentAgentId
+  return out
 }

@@ -40,8 +40,9 @@ Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands an
 |---|---|---|---|
 | Location | `~/.claude/projects/<cwd>/<id>.jsonl`, subagents in `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` plus `summary.json`, `system_prompt.txt`, `tool_definitions.json`, `subagents/` |
 | Request boundary, model | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
+| Request unit | one model call (`requestId`) | one model call (`token_usage_record`; before the first one, `token_count.info.last_token_usage`) | one request per turn: `turn_completed.usage` sums the turn's calls (`modelCalls`, `numTurns` are counts, `modelUsage` is per model), and no per-call record exists |
 | Tokens | `message.usage` | `token_usage_record` | `turn_completed.usage` |
-| Timing | record `timestamp`, `system/turn_duration` | `started_at_ms`, `completed_at_ms` | `turn_completed.elapsed_ms` |
+| Timing | record `timestamp`, `system/turn_duration` | record `timestamp`, `task_complete.duration_ms` per turn; `started_at_ms` / `completed_at_ms` only on `item_completed` | `turn_completed.elapsed_ms` per turn |
 | Compaction | `system/compact_boundary` with `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
 | Subagents | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
 | System prompt, tool schemas | not recorded | not recorded (unverified for all generations) | `system_prompt.txt`, `tool_definitions.json` |
@@ -337,13 +338,17 @@ Rules:
 
 1. `discover` returns every fixture session and reads no more than 128 KB per file.
 2. `load` twice gives identical event ids and order.
-3. Records in = events + skipped, per the fixture's record count.
+3. Every input record is accounted for: it is the source of one or more events, or one `skipped` entry.
 4. Every `tool_result.callId` matches an earlier `tool_call.callId` in the same agent, or the result is flagged `orphan`.
-5. Every `shadowedBy` points to an earlier `compaction` event.
+5. Every `shadowedBy` points to a later `compaction` event of the same agent.
 6. Every event has a source pointer that reads back the same record.
 7. Each declared capability appears at least once in the fixture that claims it; an undeclared one never appears.
 8. `summarize` equals `fold(load())` for the fixture.
 9. No `node:*` import is reachable from the adapter entry.
+10. Event ids are unique.
+11. `seq` equals the event index and is strictly increasing.
+12. Every `shadowedBy` stays on the same agent.
+13. For a session larger than 128 KB, generated in the test, `discover` reads at most 64 KB from each end, not the whole file.
 
 ### 3.3 Canonical trace
 
@@ -375,7 +380,7 @@ export interface RequestPayload {
   model?: string          // gen_ai.request.model
   responseId?: string     // gen_ai.response.id
   usage?: {
-    inputTokens?: number        // gen_ai.usage.input_tokens
+    inputTokens?: number        // total input, including cached tokens (OTel gen_ai.usage.input_tokens); cache_read/cache_write are breakdowns
     outputTokens?: number       // gen_ai.usage.output_tokens
     cacheReadTokens?: number    // gen_ai.usage.cache_read.input_tokens
     cacheWriteTokens?: number   // gen_ai.usage.cache_write.input_tokens
@@ -408,6 +413,8 @@ export interface Trace {
   skipped: { line: number, file: string, reason: string }[]
 }
 ```
+
+A `request` event is one model call. A host that records only per-turn totals emits one request per turn and says so in its adapter. A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
 
 - `schema: 'agent-trace'` marks a canonical JSON file. The demo fixture is rewritten to this shape; no reader for the MVP shape is kept.
 - Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.
