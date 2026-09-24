@@ -23,8 +23,9 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 - `reconstruct(trace, eventId)` is the product. A ledger without it is a transcript browser.
 - `getTrace` is one snapshot blob. No paging RPC. Do not use DevFrame streaming as session follow.
 - Adapters fail loud on unknown generations. Do not silently drop events.
-- The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, and mtime; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
-- URLs carry opaque session refs (a hash of host and path), never paths.
+- The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, mtime, and `SUMMARY_VERSION`; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
+- Bump SUMMARY_VERSION in the kernel when summary numbers change meaning.
+- URLs carry opaque session refs (a hash of host, path, and session id), never paths.
 - UI strings go through `apps/web/src/i18n/` (`dictionary.en.ts` is the type source, `dictionary.zh-CN.ts` satisfies it). Session content never does.
 
 ## Tooling

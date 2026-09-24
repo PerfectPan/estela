@@ -1,37 +1,32 @@
+import type { HostProgress } from './catalog-discover.ts'
 import { log, progress } from '@clack/prompts'
 import { isPlainOutput } from './terminal.ts'
 
-export interface IndexHostProgress {
-  name: string
-  /** Files whose head and tail were read. The total is known when the host is done. */
-  read: number
-  done: boolean
-  /** Set when the host has no root: the checked path. */
-  checked?: string
+/** Files read / total; the total shows `…` until the host has listed its files. */
+function count(host: HostProgress): string {
+  return `${host.read}/${host.total ?? (host.done ? host.read : '…')}`
 }
 
 /** Plain mode, one line per host when done: `Claude Code: 4/4 files read`. */
-export function formatIndexLine(host: IndexHostProgress): string {
+function formatIndexLine(host: HostProgress): string {
   if (host.checked)
     return `${host.name}: 0 files, checked ${host.checked}`
-  return `${host.name}: ${host.read}/${host.read} files read`
+  return `${host.name}: ${count(host)} files read`
 }
 
-function formatTick(host: IndexHostProgress): string {
-  if (host.checked)
-    return `${host.name} 0`
-  return host.done ? `${host.name} ${host.read}/${host.read}` : `${host.name} ${host.read}/…`
+function formatTick(host: HostProgress): string {
+  return host.checked ? `${host.name} 0` : `${host.name} ${count(host)}`
 }
 
 const TICK_MS = 80
 
 /** The "Session index" terminal moment (plan 3.1): clack `progress` in a TTY, plain lines otherwise. */
 export function startSessionIndex(): {
-  tick: (hosts: readonly IndexHostProgress[]) => void
+  tick: (hosts: readonly HostProgress[]) => void
   finish: () => void
   cancel: () => void
 } {
-  let latest: readonly IndexHostProgress[] = []
+  let latest: readonly HostProgress[] = []
   if (isPlainOutput()) {
     const printed = new Set<string>()
     const printDone = () => {

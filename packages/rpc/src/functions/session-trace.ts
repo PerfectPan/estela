@@ -1,6 +1,6 @@
 import type { TraceView } from './get-trace.ts'
-import { fold } from '@rivus/agent-trace-kernel'
 import { defineRpcFunction } from 'devframe'
+import { traceView } from './get-trace.ts'
 import { requireSessionService } from './service.ts'
 
 /**
@@ -12,12 +12,14 @@ export const sessionTrace = defineRpcFunction({
   type: 'query',
   jsonSerializable: true,
   setup: () => ({
-    handler: async ({ ref }: { ref: string }): Promise<TraceView> => {
+    handler: async (input: { ref: string }): Promise<TraceView> => {
+      const ref = (input as { ref?: unknown } | undefined)?.ref
+      if (typeof ref !== 'string' || !/^[0-9a-f]{24}$/.test(ref))
+        throw new TypeError('session-trace: ref must be a session ref')
       const service = requireSessionService()
       if (!service.sessionTrace)
         throw new Error('session-trace is not available')
-      const view = await service.sessionTrace(ref)
-      return { path: view.path, trace: view.trace, fold: fold(view.trace) }
+      return traceView(await service.sessionTrace(ref))
     },
   }),
 })

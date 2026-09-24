@@ -35,18 +35,21 @@ export function isDiscoverError(item: DiscoverItem): item is { ref: SessionRef, 
   return 'error' in item
 }
 
-export function publicRow(row: LiveRow): SessionListRow {
+/** Session text shown in the browser and the terminal: redacted like the workspace (D10) unless `AGENT_TRACE_REDACT=0`. */
+export type Redactor = (text: string) => string
+
+export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
   return {
     ref: row.ref,
     host: row.target.host,
     lastActiveAt: row.lastActiveAt,
     sizeBytes: row.sizeBytes,
     pending: row.pending,
-    ...(row.title ? { title: row.title } : {}),
-    ...(row.project ? { project: row.project } : {}),
+    ...(row.title ? { title: redact(row.title) } : {}),
+    ...(row.project ? { project: redact(row.project) } : {}),
     ...(row.cwd ? { cwd: row.cwd } : {}),
     ...(row.startedAt !== undefined ? { startedAt: row.startedAt } : {}),
-    ...(row.firstPrompt ? { firstPrompt: clipPrompt(row.firstPrompt) } : {}),
+    ...(row.firstPrompt ? { firstPrompt: clipPrompt(redact(row.firstPrompt)) } : {}),
     ...summaryFields(row.summary),
     ...(row.error ? { error: row.error } : {}),
   }
@@ -69,22 +72,14 @@ function summaryFields(summary: SessionSummary | undefined): Omit<SessionListRow
   return { ...numbers, shape: contextShape.map(value => max > 0 ? Math.round((value / max) * 100) : 0) }
 }
 
-/**
- * One full read: the summary numbers and the user prompts for search.
- * The summary is `adapter.summarize` when the host has one, otherwise `fold(load())`
- * (conformance check 8 says the two are equal). Prompts need the loaded trace either way.
- */
+/** One full read: `fold` of the loaded trace for the numbers, and the main agent's user prompts for search. */
 export async function summarizeRow(
   adapter: HostAdapter,
   ref: SessionRef,
   io: TraceIO,
-  signal?: AbortSignal,
 ): Promise<{ summary: SessionSummary, prompts: string[] }> {
-  const trace = await adapter.load(ref, io, signal ? { signal } : {})
-  const summary = adapter.summarize
-    ? summaryOf(await adapter.summarize(ref, io, signal ? { signal } : {}))
-    : summaryOf(fold(trace))
-  return { summary, prompts: userPrompts(trace) }
+  const trace = await adapter.load(ref, io, {})
+  return { summary: summaryOf(fold(trace)), prompts: userPrompts(trace) }
 }
 
 function pad(value: number): string {
@@ -99,22 +94,32 @@ export function activityLabel(ts: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-/** A row from one `discover` head and the file's size and mtime (the cache key). */
-export function rowFromHead(host: string, head: SessionHead, info: { size: number, mtimeMs: number }, homeDir: string): LiveRow {
-  const target: SessionRef = { ...head.ref, host }
+type Head = Pick<SessionHead, 'title' | 'cwd' | 'startedAt' | 'firstPrompt'>
+
+/** Fields shared by rows built from a `discover` head and from the index. */
+function headFields(head: Head, homeDir: string): Partial<LiveRow> {
   const project = projectName(head.cwd)
   return {
-    ref: sessionRefId(host, target.path),
-    target,
-    size: info.size,
-    mtimeMs: info.mtimeMs,
     ...(head.title ? { title: head.title } : {}),
     ...(project ? { project } : {}),
     ...(head.cwd ? { cwd: redactText(head.cwd, homeDir), rawCwd: head.cwd } : {}),
     ...(head.startedAt !== undefined ? { startedAt: head.startedAt } : {}),
-    lastActiveAt: head.lastActiveAt,
-    sizeBytes: head.sizeBytes,
     ...(head.firstPrompt ? { firstPrompt: head.firstPrompt } : {}),
+  }
+}
+
+/** A row from one `discover` head and the file's size and mtime (the cache key). */
+export function rowFromHead(host: string, head: SessionHead, info: { size: number, mtimeMs: number }, homeDir: string): LiveRow {
+  const target: SessionRef = { ...head.ref, host }
+  return {
+    ...headFields(head, homeDir),
+    ref: sessionRefId(target),
+    target,
+    size: info.size,
+    mtimeMs: info.mtimeMs,
+    lastActiveAt: head.lastActiveAt,
+    // The stat size, like a row from the index, so an unchanged file compares equal.
+    sizeBytes: info.size,
     pending: true,
     revision: 0,
   }
@@ -122,33 +127,28 @@ export function rowFromHead(host: string, head: SessionHead, info: { size: numbe
 
 /** A row stored by an earlier launch, shown until this launch's `discover` pass replaces it. */
 export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
-  const project = projectName(stored.cwd)
   return {
+    ...headFields(stored, homeDir),
     ref: stored.ref,
     target: { host: stored.host, path: stored.path, ...(stored.sessionId ? { sessionId: stored.sessionId } : {}) },
     size: stored.size,
     mtimeMs: stored.mtimeMs,
-    ...(stored.title ? { title: stored.title } : {}),
-    ...(project ? { project } : {}),
-    ...(stored.cwd ? { cwd: redactText(stored.cwd, homeDir), rawCwd: stored.cwd } : {}),
-    ...(stored.startedAt !== undefined ? { startedAt: stored.startedAt } : {}),
     lastActiveAt: stored.lastActiveAt ?? stored.mtimeMs,
     sizeBytes: stored.size,
-    ...(stored.firstPrompt ? { firstPrompt: stored.firstPrompt } : {}),
     ...(stored.summary ? { summary: stored.summary } : {}),
     pending: stored.summary === undefined,
     revision: 0,
   }
 }
 
-/** A "could not read" row (S4). */
-export function errorRow(target: SessionRef, message: string, homeDir: string): LiveRow {
+/** A "could not read" row (S4), placed at the file's mtime (or now when the file is gone). */
+export function errorRow(target: SessionRef, message: string, homeDir: string, mtimeMs: number): LiveRow {
   return {
-    ref: sessionRefId(target.host, target.path),
+    ref: sessionRefId(target),
     target,
     size: 0,
-    mtimeMs: 0,
-    lastActiveAt: 0,
+    mtimeMs,
+    lastActiveAt: mtimeMs,
     sizeBytes: 0,
     pending: false,
     error: parseReadFailure(message, homeDir, target.path),
@@ -174,5 +174,6 @@ export function indexHeadOf(row: LiveRow): IndexHead {
 
 /** Same content for the browser; used to keep a row's revision when a re-read changed nothing. */
 export function sameRow(a: LiveRow, b: LiveRow): boolean {
-  return JSON.stringify(publicRow(a)) === JSON.stringify(publicRow(b))
+  const same = (text: string) => text
+  return JSON.stringify(publicRow(a, same)) === JSON.stringify(publicRow(b, same))
 }

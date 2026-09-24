@@ -1,16 +1,11 @@
+import type { SessionError } from '@rivus/agent-trace-rpc'
 import { redactText } from '@rivus/agent-trace-kernel'
-
-export interface ReadFailure {
-  reason: string
-  line?: number
-  file?: string
-}
 
 /**
  * Split `host: <file>:<line>: <reason>` (the kernel's `generationError` shape) into its parts.
  * Any other message becomes the reason. The home directory is shown as `~`.
  */
-export function parseReadFailure(message: string, homeDir: string, fallbackFile?: string): ReadFailure {
+export function parseReadFailure(message: string, homeDir: string, fallbackFile?: string): SessionError {
   const match = message.match(/:(\d+): (.*)$/)
   if (!match || match.index == null) {
     return {

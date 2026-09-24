@@ -7,8 +7,6 @@
 @import "@fontsource/jetbrains-mono/latin-400.css";
 @import "@fontsource/jetbrains-mono/latin-500.css";
 
-@custom-variant dark (&:is([data-theme="dark"] *));
-
 @theme inline {
   --font-sans: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", monospace;
@@ -37,6 +35,7 @@
   --color-kind-thinking: var(--kind-thinking);
   --color-kind-tool: var(--kind-tool);
   --color-kind-subagent: var(--kind-subagent);
+  --color-link: var(--link);
 }
 
 :root {
@@ -71,7 +70,6 @@ html[data-theme="dark"] {
   --selection-ring: color-mix(in srgb, var(--kind-request) 55%, transparent);
   --ring: var(--selection-ring);
   --link: var(--kind-request);
-  --link-hover: #7db4ea;
   /* Host marks. The Claude Code orange is the host's brand color from the design; it has no token. */
   --host-claude-code: #d97757;
   --host-codex: var(--foreground);
@@ -99,7 +97,6 @@ html[data-theme="light"] {
   /* 8% fill with a 50% ring. */
   --selection: color-mix(in srgb, var(--kind-request) 8%, transparent);
   --selection-ring: color-mix(in srgb, var(--kind-request) 50%, transparent);
-  --link-hover: #2a6aa6;
   /* Brand color, as in the light design. */
   --host-claude-code: #c15f3c;
   color-scheme: light;
@@ -141,10 +138,6 @@ body {
 :lang(en) .rail-label {
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-.data {
-  font-family: var(--font-mono);
 }
 
 /* Off-screen rows skip layout and paint; 2,000+ rows stay cheap without a virtualizer. */

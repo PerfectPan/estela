@@ -17,6 +17,7 @@ export async function* discoverSessions(
   io: TraceIO,
   opts: {
     signal?: AbortSignal
+    onTotal?: (files: number) => void
     files: (io: TraceIO, root: string, signal?: AbortSignal) => Promise<string[]>
     preview: (records: Record<string, unknown>[]) => DiscoverPreview
     decorate?: (path: string, head: SessionHead, io: TraceIO) => Promise<void>
@@ -34,6 +35,7 @@ export async function* discoverSessions(
     yield { ref: { host, path: root }, error: error instanceof Error ? error.message : String(error) }
     return
   }
+  opts.onTotal?.(paths.length)
   for (const path of paths) {
     opts.signal?.throwIfAborted()
     const edges = await readEdges(io, path, opts.signal)

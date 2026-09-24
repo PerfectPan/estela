@@ -32,6 +32,12 @@ export interface SessionSummary {
   contextShape?: number[]
 }
 
+export interface DiscoverOptions {
+  signal?: AbortSignal
+  /** Called once with the number of files under the root, before their heads are read (progress). */
+  onTotal?: (files: number) => void
+}
+
 export interface LoadOptions {
   signal?: AbortSignal
   onProgress?: (bytes: number) => void
@@ -44,7 +50,7 @@ export interface HostAdapter {
   /** Default locations for this host, for example `<home>/.claude/projects`. */
   roots: (env: HostEnv) => string[]
   /** Cheap: list files and read at most 64 KB from each end. */
-  discover: (root: string, io: TraceIO, opts: { signal?: AbortSignal }) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
+  discover: (root: string, io: TraceIO, opts: DiscoverOptions) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
   detect: (ref: SessionRef, io: TraceIO) => Promise<boolean>
   load: (ref: SessionRef, io: TraceIO, opts: { signal?: AbortSignal, onProgress?: (bytes: number) => void }) => Promise<Trace>
   /** Defaults to `fold(await load(...))`; a host may override it with a faster pass. */

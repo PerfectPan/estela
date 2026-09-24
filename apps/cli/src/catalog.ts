@@ -6,10 +6,10 @@ import { loadTrace, redactText, splitSessionRef } from '@rivus/agent-trace-kerne
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
-import { activityLabel, indexHeadOf, publicRow, rowFromIndex, sameRow, summarizeRow, type LiveRow } from './catalog-rows.ts'
+import { activityLabel, indexHeadOf, publicRow, rowFromIndex, sameRow, summarizeRow, type LiveRow, type Redactor } from './catalog-rows.ts'
 import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { registeredHosts, Session } from './session.ts'
-import { sessionRefId } from './session-ref.ts'
+import { oneLine, sessionRefId } from './session-ref.ts'
 import { SummaryQueue } from './summary-queue.ts'
 
 export type { HostProgress } from './catalog-discover.ts'
@@ -28,8 +28,6 @@ export interface CatalogOptions {
   env?: HostEnv
   index?: SessionIndex
   noIndex?: boolean
-  alwaysRedact?: boolean
-  concurrency?: number
   /** Queue summaries without running them until `resumeSummaries()`: the server starts first. */
   deferSummaries?: boolean
 }
@@ -43,7 +41,7 @@ export class SessionCatalog implements SessionService {
   private readonly io: TraceIO
   private readonly env: HostEnv
   private readonly index: SessionIndex
-  private readonly alwaysRedact: boolean
+  private readonly redact: Redactor
   private readonly hostStates: HostState[]
   private rows = new Map<string, LiveRow>()
   /** Refs the server resolves: discovered rows and paths opened from the command line. */
@@ -64,7 +62,9 @@ export class SessionCatalog implements SessionService {
     this.hosts = options.hosts ?? registeredHosts
     this.io = options.io ?? nodeIO
     this.env = options.env ?? { homeDir: homeDir(), env: process.env }
-    this.alwaysRedact = options.alwaysRedact ?? false
+    const home = this.env.homeDir
+    // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
+    this.redact = this.env.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, home)
     this.index = options.index ?? openSessionIndex({
       enabled: options.noIndex !== true,
       homeDir: this.env.homeDir,
@@ -72,7 +72,7 @@ export class SessionCatalog implements SessionService {
     })
     this.hostStates = this.hosts.map(hostState)
     this.queue = new SummaryQueue<LiveRow>({
-      concurrency: options.concurrency ?? CONCURRENCY,
+      concurrency: CONCURRENCY,
       key: row => row.ref,
       rank: row => row.lastActiveAt,
       heavy: row => row.size >= HEAVY_BYTES,
@@ -92,6 +92,11 @@ export class SessionCatalog implements SessionService {
   start(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
     this.started ??= this.begin(onProgress)
     return this.started
+  }
+
+  /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
+  get indexUnavailable(): string | undefined {
+    return this.index.unavailable
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */
@@ -115,17 +120,19 @@ export class SessionCatalog implements SessionService {
   /** Load a path given on the command line. Throws, before the server listens, when it cannot be read. */
   async openPath(input: string): Promise<string> {
     const trace = await loadTrace(input, this.hosts, this.io)
-    const { file } = splitSessionRef(input)
-    const ref = sessionRefId(trace.host.id || 'agent-trace', file)
+    const { file, sessionId } = splitSessionRef(input)
+    const ref = sessionRefId({ host: trace.host.id || 'agent-trace', path: file, ...(sessionId ? { sessionId } : {}) })
     this.targets.set(ref, input)
     this.hold(ref, file, trace)
     return ref
   }
 
   pickChoices(): { value: string, label: string }[] {
+    const names = new Map(this.hosts.map(host => [host.id, host.displayName]))
     return this.sortedRows().filter(row => !row.error).map(row => ({
       value: row.ref,
-      label: [row.title ?? 'Untitled', this.hostName(row.target.host), row.project ?? '', activityLabel(row.lastActiveAt)]
+      label: [row.title ? this.redact(row.title) : 'Untitled', names.get(row.target.host) ?? row.target.host, row.project ?? '', activityLabel(row.lastActiveAt)]
+        .map(oneLine)
         .filter(part => part.length > 0)
         .join(' · '),
     }))
@@ -159,7 +166,7 @@ export class SessionCatalog implements SessionService {
     const since = input.since
     const rows = this.sortedRows()
       .filter(row => since === undefined || row.revision > since)
-      .map(publicRow)
+      .map(row => publicRow(row, this.redact))
     const removed = since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([ref]) => ref)
     const query = input.query?.trim() ?? ''
     return {
@@ -210,12 +217,23 @@ export class SessionCatalog implements SessionService {
         gone.push(old.target.path)
       }
     }
+    const pending: LiveRow[] = []
     for (const row of fresh.values()) {
       const old = this.rows.get(row.ref)
-      if (old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs) {
-        row.summary = old.summary
-        row.pending = false
+      if (!row.error) {
+        // Same file (size and raw mtime): keep the summary; otherwise ask the index for this key.
+        const summary = old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs
+          ? old.summary
+          : this.index.get(row.target.path, row.size, row.mtimeMs)
+        if (summary) {
+          row.summary = summary
+          row.pending = false
+        }
+        else {
+          pending.push(row)
+        }
       }
+      // Unchanged content keeps its revision, so a second launch's delta is empty.
       row.revision = old && sameRow(old, row) ? old.revision : this.bump()
       this.targets.set(row.ref, row.target)
     }
@@ -226,21 +244,6 @@ export class SessionCatalog implements SessionService {
     }
     catch {
       // The index is a cache: a failed write costs a re-read next launch.
-    }
-    const pending: LiveRow[] = []
-    for (const row of fresh.values()) {
-      if (!row.pending)
-        continue
-      const cached = this.index.get(row.target.path, row.size, row.mtimeMs)
-      if (cached) {
-        const { prompts: _prompts, ...summary } = cached
-        row.summary = summary
-        row.pending = false
-        row.revision = this.bump()
-      }
-      else {
-        pending.push(row)
-      }
     }
     this.announce()
     this.queue.add(pending)
@@ -337,7 +340,7 @@ export class SessionCatalog implements SessionService {
   }
 
   private hold(ref: string, path: string, trace: Trace): Session {
-    const session = new Session(path, this.alwaysRedact, trace)
+    const session = new Session(path, false, trace)
     this.touch(ref, session)
     while (this.held.size > HELD_TRACES) {
       const oldest = this.held.keys().next().value
@@ -353,12 +356,4 @@ export class SessionCatalog implements SessionService {
     this.held.set(ref, session)
     this.current = ref
   }
-
-  private hostName(id: string): string {
-    return this.hosts.find(host => host.id === id)?.displayName ?? id
-  }
-}
-
-export function createCatalog(options: CatalogOptions = {}): SessionCatalog {
-  return new SessionCatalog(options)
 }

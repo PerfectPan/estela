@@ -1,5 +1,6 @@
 import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
-import { For, Show } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { createMemo, For, Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import {
   bucketKey,
@@ -29,28 +30,35 @@ const COLUMNS = {
   active: 'w-[70px]',
 } as const
 
-interface Group {
-  key: string
-  bucket: DayBucket
-  rows: SessionListRow[]
+/** DOM id of a row, for `aria-activedescendant`. */
+export function optionId(ref: string): string {
+  return `session-${ref}`
 }
 
-export function groupRows(rows: readonly SessionListRow[], now: number): Group[] {
-  const groups: Group[] = []
-  const byKey = new Map<string, Group>()
+interface Groups {
+  keys: string[]
+  buckets: Map<string, DayBucket>
+  rows: Map<string, SessionListRow[]>
+}
+
+function groupRows(rows: readonly SessionListRow[], now: number): Groups {
+  const groups: Groups = { keys: [], buckets: new Map(), rows: new Map() }
   for (const row of rows) {
     const bucket = dayBucket(row.lastActiveAt, now)
     const key = bucketKey(bucket)
-    let group = byKey.get(key)
-    if (!group) {
-      group = { key, bucket, rows: [] }
-      byKey.set(key, group)
-      groups.push(group)
+    let list = groups.rows.get(key)
+    if (!list) {
+      list = []
+      groups.rows.set(key, list)
+      groups.buckets.set(key, bucket)
+      groups.keys.push(key)
     }
-    group.rows.push(row)
+    list.push(row)
   }
   return groups
 }
+
+const dash = () => t('common.dash')
 
 export function SessionList(props: {
   hosts: HostListEntry[]
@@ -60,10 +68,13 @@ export function SessionList(props: {
   empty: string
   onSelect: (ref: string) => void
   onOpen: (ref: string) => void
+  onKeyDown: JSX.EventHandler<HTMLDivElement, KeyboardEvent>
   ref?: (element: HTMLDivElement) => void
 }) {
-  const nameOf = (id: string) => props.hosts.find(host => host.id === id)?.displayName ?? id
-  const groups = () => groupRows(props.rows, props.now)
+  const names = createMemo(() => new Map(props.hosts.map(host => [host.id, host.displayName])))
+  // Groups are keyed by day (strings), and rows keep their objects, so a push that changes a
+  // few rows re-renders only those rows.
+  const groups = createMemo(() => groupRows(props.rows, props.now))
   const heading = (bucket: DayBucket) => {
     if (bucket.kind === 'day')
       return formatDayHeading(bucket.day, locale(), props.now)
@@ -76,7 +87,7 @@ export function SessionList(props: {
 
   return (
     <div class="flex min-h-0 flex-1 flex-col">
-      <div class="flex h-[34px] shrink-0 items-center gap-3.5 border-b border-border px-[18px] text-[11.5px] text-subtle" role="row">
+      <div class="flex h-[34px] shrink-0 items-center gap-3.5 border-b border-border px-[18px] text-[11.5px] text-subtle" aria-hidden="true">
         <span class="w-[22px] shrink-0" />
         <span class="min-w-0 flex-1">{t('browser.session')}</span>
         <span class={`${COLUMNS.flags} shrink-0`} />
@@ -86,20 +97,28 @@ export function SessionList(props: {
         <span class={`${COLUMNS.duration} shrink-0 text-right`}>{t('browser.duration')}</span>
         <span class={`${COLUMNS.active} shrink-0 text-right`}>{t('browser.active')}</span>
       </div>
-      <div ref={props.ref} class="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label={t('browser.title')}>
+      <div
+        ref={props.ref}
+        class="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--ring)]"
+        role="listbox"
+        tabIndex={0}
+        aria-label={t('browser.title')}
+        aria-activedescendant={props.selected ? optionId(props.selected) : undefined}
+        onKeyDown={props.onKeyDown}
+      >
         <Show when={props.rows.length > 0} fallback={<p class="px-[18px] py-8 text-[13px] text-muted-foreground">{props.empty}</p>}>
-          <For each={groups()}>
-            {group => (
-              <>
-                <div class="flex h-[34px] items-center gap-2.5 px-[18px]">
-                  <span class="section-label text-muted-foreground">{heading(group.bucket)}</span>
-                  <span class="data text-[11.5px] text-subtle">{formatNumber(group.rows.length, locale())}</span>
+          <For each={groups().keys}>
+            {key => (
+              <div role="group" aria-label={heading(groups().buckets.get(key)!)}>
+                <div class="flex h-[34px] items-center gap-2.5 px-[18px]" aria-hidden="true">
+                  <span class="section-label text-muted-foreground">{heading(groups().buckets.get(key)!)}</span>
+                  <span class="font-mono text-[11.5px] text-subtle">{formatNumber(groups().rows.get(key)?.length ?? 0, locale())}</span>
                 </div>
-                <For each={group.rows}>
+                <For each={groups().rows.get(key) ?? []}>
                   {row => (
                     <Row
                       row={row}
-                      hostName={nameOf(row.host)}
+                      hostName={names().get(row.host) ?? row.host}
                       now={props.now}
                       selected={props.selected === row.ref}
                       onSelect={props.onSelect}
@@ -107,7 +126,7 @@ export function SessionList(props: {
                     />
                   )}
                 </For>
-              </>
+              </div>
             )}
           </For>
         </Show>
@@ -115,8 +134,6 @@ export function SessionList(props: {
     </div>
   )
 }
-
-const dash = () => t('common.dash')
 
 function Row(props: {
   row: SessionListRow
@@ -128,19 +145,19 @@ function Row(props: {
 }) {
   const count = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
   const title = () => props.row.title || (props.row.error ? t('common.couldNotRead') : dash())
-  // A "could not read" row names the file when it has no title, so two such rows can be told apart.
+  // A "could not read" row says why in the row itself, not only on hover (S4).
   const subtitle = () => {
     const error = props.row.error
     if (!error)
       return props.row.cwd
-    return props.row.title ? t('common.couldNotRead') : (error.file ?? t('common.couldNotRead'))
+    return props.row.title ? `${t('common.couldNotRead')}: ${error.reason}` : error.reason
   }
   return (
     <div
+      id={optionId(props.row.ref)}
       role="option"
       aria-selected={props.selected}
       data-ref={props.row.ref}
-      tabIndex={-1}
       title={props.row.error ? errorTitle(props.row) : undefined}
       class={`session-row flex h-[52px] cursor-default items-center gap-3.5 border-b border-border px-[18px] ${props.selected ? 'bg-selection shadow-[inset_0_0_0_1px_var(--selection-ring)]' : 'hover:bg-accent'}`}
       onClick={() => props.onSelect(props.row.ref)}
@@ -155,7 +172,7 @@ function Row(props: {
             {text => (
               <>
                 {' · '}
-                <span class={props.row.error && props.row.title ? '' : 'data'}>{text()}</span>
+                <span class={props.row.error ? '' : 'font-mono'}>{text()}</span>
               </>
             )}
           </Show>
@@ -174,11 +191,11 @@ function Row(props: {
 }
 
 function Cell(props: { class: string, text: string }) {
-  return <span class={`data ${props.class} shrink-0 text-right text-[12px] text-muted-foreground`}>{props.text}</span>
+  return <span class={`font-mono ${props.class} shrink-0 text-right text-[12px] text-muted-foreground`}>{props.text}</span>
 }
 
-/** Hover text for a "could not read" row: file, line, reason (S4). */
-export function errorTitle(row: SessionListRow): string {
+/** Hover text for a "could not read" row: file, line, reason. */
+function errorTitle(row: SessionListRow): string {
   const error = row.error
   if (!error)
     return ''

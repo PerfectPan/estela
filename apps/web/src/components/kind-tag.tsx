@@ -17,15 +17,15 @@ const KIND_KEY: Record<LedgerKind, MessageKey> = {
 
 /** Kind is a mark, not text color (docs/design/README.md). Assistant replies use an outlined square. */
 const KIND_MARK: Record<LedgerKind, string> = {
-  system: 'bg-[var(--subtle-foreground)]',
-  user: 'bg-[var(--kind-user)]',
-  assistant: 'border border-[var(--muted-foreground)]',
-  thinking: 'bg-[var(--kind-thinking)]',
-  tool: 'bg-[var(--kind-tool)]',
-  compacted: 'bg-[var(--subtle-foreground)]',
-  request: 'bg-[var(--kind-request)]',
-  hook: 'bg-[var(--subtle-foreground)]',
-  unknown: 'border border-[var(--subtle-foreground)]',
+  system: 'bg-subtle',
+  user: 'bg-kind-user',
+  assistant: 'border border-muted-foreground',
+  thinking: 'bg-kind-thinking',
+  tool: 'bg-kind-tool',
+  compacted: 'bg-subtle',
+  request: 'bg-kind-request',
+  hook: 'bg-subtle',
+  unknown: 'border border-subtle',
 }
 
 export function KindTag(props: { kind: LedgerKind, class?: string }) {

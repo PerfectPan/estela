@@ -1,9 +1,7 @@
 import type { Trace } from '@rivus/agent-trace-schema'
+import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 
-const PROMPT_LIMIT = 200
-const PROMPT_CHARS = 500
-
-/** Main-agent user text from the canonical trace, for search: at most 200 prompts, 500 characters each. */
+/** Main-agent user text from the canonical trace, for search: the index's `PROMPT_LIMIT` prompts, `PROMPT_CHARS` characters each. */
 export function userPrompts(trace: Trace): string[] {
   const main = trace.agents.find(agent => agent.parentId == null)?.id
   const prompts: string[] = []

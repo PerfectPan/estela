@@ -4,10 +4,8 @@ import { en, type Dictionary } from './dictionary.en.ts'
 import { zhCN } from './dictionary.zh-CN.ts'
 
 export type Locale = 'en' | 'zh-CN'
-export type FlatDictionary = Flatten<Dictionary>
+type FlatDictionary = Flatten<Dictionary>
 export type MessageKey = { [K in keyof FlatDictionary]: FlatDictionary[K] extends string ? K : never }[keyof FlatDictionary]
-
-export const LOCALES: readonly Locale[] = ['en', 'zh-CN']
 
 const STORAGE_KEY = 'agent-trace-locale'
 

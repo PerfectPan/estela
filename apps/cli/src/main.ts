@@ -7,12 +7,12 @@ import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
-import { createCatalog } from './catalog.ts'
+import { SessionCatalog } from './catalog.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
 import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
 import { Session } from './session.ts'
-import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, startLoad } from './terminal.ts'
+import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, sayWarning, startLoad } from './terminal.ts'
 import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
 
 const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered host accepts.'
@@ -95,9 +95,11 @@ export async function main(): Promise<void> {
   }
 
   sayStart(pkg.version)
-  const catalog = createCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
+  const catalog = new SessionCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
   bindSessionService(catalog)
   readyHook = () => catalog.resumeSummaries()
+  if (catalog.indexUnavailable)
+    sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
 
   const direct = parsed.pick ? undefined : (parsed.path ?? process.env.AGENT_TRACE_PATH)
   if (direct) {

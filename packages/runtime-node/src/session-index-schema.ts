@@ -1,68 +1,74 @@
-import { chmodSync, mkdirSync, rmSync } from 'node:fs'
+import { chmodSync, closeSync, mkdirSync, openSync, rmSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Bump when the table layout changes. A different `user_version` is deleted and rebuilt. */
-export const INDEX_LAYOUT_VERSION = 1
+const INDEX_LAYOUT_VERSION = 1
+/** Another process may be creating or writing the index. */
+const BUSY_TIMEOUT_MS = 3000
+/** SQLITE_CORRUPT and SQLITE_NOTADB. */
+const BROKEN_CODES = new Set([11, 26])
 
 /**
- * Open the index at `file`, creating the directory (0700) and the file (0600).
- * A file that fails to open, has another layout version, or lacks the tables
- * is deleted and rebuilt: the index is a cache (plan 3.4).
+ * Open the index at `file`: the directory is created 0700 and the file 0600 before SQLite
+ * touches it. The schema is created inside `BEGIN IMMEDIATE`, so two processes opening a
+ * fresh cache at once end with one schema. The file is deleted and rebuilt only when it is
+ * not a database, is corrupt, or has another layout version (plan 3.4).
+ * Throws for anything else (for example EACCES); the caller runs without the index.
  */
 export function openDatabase(file: string): DatabaseSync {
-  const dir = dirname(file)
-  mkdirSync(dir, { recursive: true, mode: 0o700 })
-  const first = tryOpen(file)
-  if (first && schemaReady(first)) {
-    chmodSync(file, 0o600)
-    return first
-  }
-  first?.close()
-  removeDatabase(file)
-  const second = new DatabaseSync(file)
-  createSchema(second)
+  mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
+  closeSync(openSync(file, 'a', 0o600))
   chmodSync(file, 0o600)
-  return second
+  try {
+    return prepare(file)
+  }
+  catch (error) {
+    if (!isBroken(error) && !(error instanceof LayoutMismatch))
+      throw error
+  }
+  removeDatabase(file)
+  closeSync(openSync(file, 'a', 0o600))
+  return prepare(file)
 }
 
-function tryOpen(file: string): DatabaseSync | undefined {
-  try {
-    return new DatabaseSync(file)
-  }
-  catch {
-    return undefined
-  }
+class LayoutMismatch extends Error {}
+
+function isBroken(error: unknown): boolean {
+  const code = (error as { errcode?: unknown } | null)?.errcode
+  return typeof code === 'number' && BROKEN_CODES.has(code)
 }
 
-function schemaReady(db: DatabaseSync): boolean {
+function prepare(file: string): DatabaseSync {
+  const db = new DatabaseSync(file, { timeout: BUSY_TIMEOUT_MS })
   try {
-    const version = readVersion(db)
-    const tables = hasTables(db)
-    if (version === INDEX_LAYOUT_VERSION && tables)
-      return true
-    if (version === 0 && !tables && isEmpty(db)) {
-      createSchema(db)
-      return true
+    if (readVersion(db) === INDEX_LAYOUT_VERSION)
+      return db
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      // Read again under the write lock: another process may have created the schema.
+      const version = readVersion(db)
+      if (version === 0 && isEmpty(db))
+        createSchema(db)
+      else if (version !== INDEX_LAYOUT_VERSION)
+        throw new LayoutMismatch(`index layout ${version}, expected ${INDEX_LAYOUT_VERSION}`)
+      db.exec('COMMIT')
     }
-    return false
+    catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+    return db
   }
-  catch {
-    // SQLITE_NOTADB and friends: rebuild.
-    return false
+  catch (error) {
+    db.close()
+    throw error
   }
 }
 
 function readVersion(db: DatabaseSync): number {
   const row = db.prepare('PRAGMA user_version').get() as { user_version?: number | bigint } | undefined
   return Number(row?.user_version ?? 0)
-}
-
-function hasTables(db: DatabaseSync): boolean {
-  const rows = db.prepare(
-    `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('sessions', 'prompts', 'search')`,
-  ).all() as { name: string }[]
-  return rows.length === 3
 }
 
 function isEmpty(db: DatabaseSync): boolean {
@@ -72,21 +78,20 @@ function isEmpty(db: DatabaseSync): boolean {
 
 function createSchema(db: DatabaseSync): void {
   db.exec(`
-    PRAGMA journal_mode = DELETE;
     CREATE TABLE sessions (
       id INTEGER PRIMARY KEY,
       path TEXT NOT NULL UNIQUE,
       ref TEXT NOT NULL,
       host TEXT NOT NULL,
       size INTEGER NOT NULL,
-      mtime INTEGER NOT NULL,
+      mtime REAL NOT NULL,
       session_id TEXT,
       title TEXT,
       cwd TEXT,
       first_prompt TEXT,
       started_at INTEGER,
       last_active_at INTEGER,
-      summary_ready INTEGER NOT NULL DEFAULT 0,
+      summary_version INTEGER,
       turns INTEGER,
       requests INTEGER,
       tokens_in INTEGER,

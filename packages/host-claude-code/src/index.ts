@@ -71,6 +71,7 @@ export const claudeCodeAdapter: HostAdapter = {
   discover(root, io, opts) {
     return discoverSessions('claude-code', root, io, {
       signal: opts.signal,
+      ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
       files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
         match: name => name.endsWith('.jsonl'),
         skipDir: name => name === 'subagents',

@@ -12,7 +12,6 @@ import { SearchIcon, TopBar } from '@/shell/top-bar.tsx'
 const SEARCH_DEBOUNCE_MS = 160
 /** Rows asked for first when the view changes: about two screens. */
 const VISIBLE_FIRST = 40
-/** Fallback when a push is missed: re-ask while summaries are pending. */
 const PENDING_POLL_MS = 3_000
 
 export function SessionBrowser() {
@@ -47,10 +46,11 @@ export function SessionBrowser() {
       setSelected(rows[0]?.ref)
   })
 
-  // Visible rows are summarized first: on each view change, send the pending ones at the top.
+  /** Pending rows at the top of the current view: summarized before the rest. */
+  const pendingOnScreen = () => visible().slice(0, VISIBLE_FIRST).filter(row => row.pending).map(row => row.ref)
+
   createEffect(on(() => [host(), project(), flags(), store.matches(), store.loaded()], () => {
-    const refs = visible().slice(0, VISIBLE_FIRST).filter(row => row.pending).map(row => row.ref)
-    store.prioritize(refs)
+    store.prioritize(pendingOnScreen())
   }, { defer: true }))
 
   function onSearch(value: string): void {
@@ -69,33 +69,49 @@ export function SessionBrowser() {
     listElement?.querySelector(`[data-ref="${CSS.escape(next.ref)}"]`)?.scrollIntoView({ block: 'nearest' })
   }
 
+  /** Arrow keys and Enter, in the list and in the search box only. */
+  function onListKey(event: KeyboardEvent): void {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      move(event.key === 'ArrowDown' ? 1 : -1)
+    }
+    else if (event.key === 'Enter' && selected()) {
+      event.preventDefault()
+      openSession(selected()!)
+    }
+  }
+
+  async function onSearchKey(event: KeyboardEvent): Promise<void> {
+    if (event.key === 'Escape') {
+      searchBox?.blur()
+      return
+    }
+    if (event.key !== 'Enter') {
+      onListKey(event)
+      return
+    }
+    event.preventDefault()
+    // Run the typed query now, so Enter opens the first match, not the row from before.
+    clearTimeout(searchTimer)
+    await store.search(input())
+    if (selected())
+      openSession(selected()!)
+  }
+
   onMount(() => {
+    // ⌘K / Ctrl+K is the one global shortcut.
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         searchBox?.focus()
-        return
-      }
-      const typing = event.target instanceof HTMLInputElement && event.target.type !== 'checkbox'
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault()
-        move(event.key === 'ArrowDown' ? 1 : -1)
-        if (typing)
-          searchBox?.blur()
-      }
-      else if (event.key === 'Enter' && selected() && !(event.target instanceof HTMLButtonElement)) {
-        event.preventDefault()
-        openSession(selected()!)
-      }
-      else if (event.key === 'Escape' && typing) {
-        searchBox?.blur()
       }
     }
     window.addEventListener('keydown', onKey)
     const clock = setInterval(() => setNow(Date.now()), 60_000)
+    // Fallback when a push is missed: re-ask while summaries are pending.
     const poll = setInterval(() => {
       if (store.pending() > 0)
-        store.prioritize(visible().slice(0, VISIBLE_FIRST).filter(row => row.pending).map(row => row.ref))
+        store.prioritize(pendingOnScreen())
     }, PENDING_POLL_MS)
     onCleanup(() => {
       window.removeEventListener('keydown', onKey)
@@ -135,8 +151,8 @@ export function SessionBrowser() {
               </Show>
             </div>
             <div class="flex items-center gap-2.5">
-              <label class="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[9px] border border-input bg-muted px-3.5 focus-within:border-[var(--selection-ring)]">
-                <SearchIcon size={16} stroke="var(--muted-foreground)" />
+              <label class="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[9px] border border-input bg-muted px-3.5 focus-within:border-ring">
+                <SearchIcon size={16} class="shrink-0 text-muted-foreground" />
                 <input
                   ref={(element) => { searchBox = element }}
                   type="search"
@@ -147,6 +163,7 @@ export function SessionBrowser() {
                   aria-label={t('browser.search')}
                   value={input()}
                   onInput={event => onSearch(event.currentTarget.value)}
+                  onKeyDown={event => void onSearchKey(event)}
                 />
               </label>
               <div class="flex h-10 shrink-0 items-center rounded-[9px] border border-input px-3.5 text-[13px] text-foreground">
@@ -166,13 +183,14 @@ export function SessionBrowser() {
             empty={store.loaded() ? empty() : t('common.loading')}
             onSelect={setSelected}
             onOpen={openSession}
+            onKeyDown={onListKey}
           />
           <footer class="flex h-10 shrink-0 items-center gap-2.5 border-t border-border px-[18px] text-[12px] text-subtle">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M5 8 L9 12 L5 16" />
               <path d="M11 16 H19" />
             </svg>
-            <span class="data">npx @rivus/agent-trace</span>
+            <span class="font-mono">npx @rivus/agent-trace</span>
             <span>· {t('common.nothingLeaves')}</span>
           </footer>
         </main>

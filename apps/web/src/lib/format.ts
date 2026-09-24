@@ -62,7 +62,8 @@ export function formatTokens(value: number): string {
   const abs = Math.abs(value)
   if (abs >= 999_950)
     return `${sign}${(abs / 1_000_000).toFixed(2)}M`
-  if (abs >= 1_000)
+  // 999.5 rounds to 1000: show it as 1k, not 1000.
+  if (abs >= 999.5)
     return `${sign}${(abs / 1_000).toFixed(1).replace(/\.0$/, '')}k`
   return `${sign}${Math.round(abs)}`
 }
@@ -71,7 +72,7 @@ export function formatClock(ts: number, locale: string): string {
   return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ts)
 }
 
-export function formatWeekday(ts: number, locale: string): string {
+function formatWeekday(ts: number, locale: string): string {
   return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(ts)
 }
 

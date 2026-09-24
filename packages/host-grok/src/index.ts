@@ -130,6 +130,7 @@ export const grokAdapter: HostAdapter = {
   discover(root, io, opts) {
     return discoverSessions('grok', root, io, {
       signal: opts.signal,
+      ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
       files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
         match: name => name === 'updates.jsonl',
         skipDir: name => name === 'subagents',

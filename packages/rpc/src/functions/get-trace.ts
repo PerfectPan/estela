@@ -1,12 +1,17 @@
 import type { ReconstructResult, Trace } from '@rivus/agent-trace-schema'
 import { fold, reconstruct } from '@rivus/agent-trace-kernel'
 import { defineRpcFunction } from 'devframe'
+import type { SessionView } from './service.ts'
 import { requireSessionService } from './service.ts'
 
 export interface TraceView {
   path: string
   trace: Trace
   fold: ReturnType<typeof fold>
+}
+
+export function traceView(view: SessionView): TraceView {
+  return { path: view.path, trace: view.trace, fold: fold(view.trace) }
 }
 
 export const getTrace = defineRpcFunction({
@@ -19,8 +24,7 @@ export const getTrace = defineRpcFunction({
   },
   setup: () => ({
     handler: async (): Promise<TraceView> => {
-      const view = await requireSessionService().view()
-      return { path: view.path, trace: view.trace, fold: fold(view.trace) }
+      return traceView(await requireSessionService().view())
     },
   }),
 })
@@ -33,11 +37,8 @@ export const reconstructAt = defineRpcFunction({
     description: 'Reconstruct the model-visible surface at one event id. Missing slots are unavailable, never invented.',
   },
   setup: () => ({
-    handler: async ({ eventId, ref }: { eventId: string, ref?: string }): Promise<ReconstructResult> => {
-      const service = requireSessionService()
-      const view = ref && service.sessionTrace
-        ? await service.sessionTrace(ref)
-        : await service.view()
+    handler: async ({ eventId }: { eventId: string }): Promise<ReconstructResult> => {
+      const view = await requireSessionService().view()
       return reconstruct(view.trace, eventId)
     },
   }),

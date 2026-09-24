@@ -1,13 +1,24 @@
-import type { JSX } from 'solid-js'
-import { For, Show } from 'solid-js'
+import type { MessageKey } from '@/i18n/locale.ts'
+import type { ThemeMode } from '@/shell/theme.ts'
+import { For, Match, Switch } from 'solid-js'
 import { chooseLocale, locale, translate as t } from '@/i18n/locale.ts'
-import { chooseTheme, theme } from '@/shell/theme.ts'
+import { chooseTheme, nextThemeMode, themeMode } from '@/shell/theme.ts'
+
+const THEME_LABEL: Record<ThemeMode, MessageKey> = {
+  system: 'common.themeSystem',
+  light: 'common.themeLight',
+  dark: 'common.themeDark',
+}
 
 /**
  * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, and the
- * theme and language switches. `actions` holds screen buttons (the workspace's export).
+ * theme and language switches.
  */
-export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?: JSX.Element }) {
+export function TopBar(props: { crumbs?: string[], onJump?: () => void }) {
+  const themeLabel = () => t('common.themeSwitch', {
+    mode: t(THEME_LABEL[themeMode()]),
+    next: t(THEME_LABEL[nextThemeMode(themeMode())]),
+  })
   const crumbs = () => props.crumbs ?? []
   return (
     <header class="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">
@@ -39,24 +50,26 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
         >
           <SearchIcon />
           <span class="min-w-0 flex-1 truncate">{t('common.jumpTo')}</span>
-          <span class="data rounded border border-input px-[5px] py-px text-[11px] text-subtle">⌘K</span>
+          <span class="rounded border font-mono border-input px-[5px] py-px text-[11px] text-subtle">⌘K</span>
         </button>
-        {props.actions}
         <button
           type="button"
           class="grid size-8 place-items-center rounded-lg border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={theme() === 'dark' ? t('common.themeToLight') : t('common.themeToDark')}
-          title={theme() === 'dark' ? t('common.themeToLight') : t('common.themeToDark')}
+          aria-label={themeLabel()}
+          title={themeLabel()}
           data-testid="theme-switch"
-          onClick={() => chooseTheme(theme() === 'dark' ? 'light' : 'dark')}
+          data-mode={themeMode()}
+          onClick={() => chooseTheme(nextThemeMode(themeMode()))}
         >
-          <Show when={theme() === 'dark'} fallback={<MoonIcon />}>
-            <SunIcon />
-          </Show>
+          <Switch>
+            <Match when={themeMode() === 'system'}><SystemIcon /></Match>
+            <Match when={themeMode() === 'light'}><SunIcon /></Match>
+            <Match when={themeMode() === 'dark'}><MoonIcon /></Match>
+          </Switch>
         </button>
         <button
           type="button"
-          class="data grid h-8 min-w-8 place-items-center rounded-lg border border-input px-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          class="grid h-8 font-mono min-w-8 place-items-center rounded-lg border border-input px-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
           aria-label={t('common.languageSwitch')}
           title={t('common.languageSwitch')}
           data-testid="language-switch"
@@ -81,11 +94,20 @@ function Logo() {
   )
 }
 
-export function SearchIcon(props: { size?: number, stroke?: string }) {
+export function SearchIcon(props: { size?: number, class?: string }) {
   return (
-    <svg width={props.size ?? 14} height={props.size ?? 14} viewBox="0 0 24 24" fill="none" stroke={props.stroke ?? 'currentColor'} stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg width={props.size ?? 14} height={props.size ?? 14} class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16 L20.5 20.5" />
+    </svg>
+  )
+}
+
+function SystemIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="17" height="12" rx="2" />
+      <path d="M9 20 H15 M12 16.5 V20" />
     </svg>
   )
 }

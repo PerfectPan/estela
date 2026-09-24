@@ -29,7 +29,7 @@ export function FlagIcons(props: { compactions?: number, subagents?: number, fai
             <path d="M12 10 V13.5" />
             <path d="M12 16.3 V16.4" />
           </svg>
-          <span class="data text-[11px]">{props.failedTools}</span>
+          <span class="font-mono text-[11px]">{props.failedTools}</span>
         </span>
       </Show>
     </div>

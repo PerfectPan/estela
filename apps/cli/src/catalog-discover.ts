@@ -1,4 +1,4 @@
-import type { HostAdapter, HostEnv, SessionHead, TraceIO } from '@rivus/agent-trace-kernel'
+import type { HostAdapter, HostEnv, SessionHead, SessionRef, TraceIO } from '@rivus/agent-trace-kernel'
 import { redactText } from '@rivus/agent-trace-kernel'
 import { errorRow, isDiscoverError, rowFromHead, type LiveRow } from './catalog-rows.ts'
 import { errorMessage } from './read-failure.ts'
@@ -10,15 +10,18 @@ export interface HostState {
   adapter: HostAdapter
   /** Files whose head and tail were read. */
   read: number
+  /** Files under the roots, once `discover` has listed them. */
+  total?: number
   done: boolean
   found: string[]
   missing: string[]
 }
 
 export interface HostProgress {
-  id: string
   name: string
   read: number
+  /** Known once the host has listed its files. */
+  total?: number
   done: boolean
   /** Set when no root exists: the paths that were checked, with `~`. */
   checked?: string
@@ -34,9 +37,9 @@ export function progressOf(states: readonly HostState[], homeDir: string): HostP
       ? state.missing.map(path => redactText(path, homeDir)).join(', ')
       : undefined
     return {
-      id: state.adapter.id,
       name: state.adapter.displayName,
       read: state.read,
+      ...(state.total !== undefined ? { total: state.total } : {}),
       done: state.done,
       ...(checked ? { checked } : {}),
     }
@@ -61,6 +64,7 @@ export async function discoverRows(
   }
   await Promise.all(states.map(async (state) => {
     const heads: SessionHead[] = []
+    const failed: { target: SessionRef, message: string }[] = []
     for (const root of state.adapter.roots(env)) {
       const info = await io.stat(root)
       if (info?.kind !== 'dir') {
@@ -69,10 +73,14 @@ export async function discoverRows(
       }
       state.found.push(root)
       try {
-        for await (const item of state.adapter.discover(root, io, {})) {
+        const onTotal = (files: number) => {
+          state.total = (state.total ?? 0) + files
+          report()
+        }
+        for await (const item of state.adapter.discover(root, io, { onTotal })) {
           if (isDiscoverError(item)) {
             if (item.ref.path !== root)
-              add(errorRow({ ...item.ref, host: state.adapter.id }, item.error, env.homeDir))
+              failed.push({ target: { ...item.ref, host: state.adapter.id }, message: item.error })
           }
           else {
             heads.push(item)
@@ -82,7 +90,7 @@ export async function discoverRows(
         }
       }
       catch (error) {
-        add(errorRow({ host: state.adapter.id, path: root }, errorMessage(error), env.homeDir))
+        failed.push({ target: { host: state.adapter.id, path: root }, message: errorMessage(error) })
       }
     }
     // `discover` reports no mtime, and the cache key needs one.
@@ -95,9 +103,12 @@ export async function discoverRows(
         if (info?.kind === 'file')
           add(rowFromHead(state.adapter.id, head, info, env.homeDir))
         else
-          add(errorRow(target, `${state.adapter.id}: ${target.path} does not exist`, env.homeDir))
+          add(errorRow(target, `${state.adapter.id}: ${target.path} does not exist`, env.homeDir, Date.now()))
       })
     }
+    // An unreadable file sorts by its own mtime, not 1970.
+    const infos = await Promise.all(failed.map(item => io.stat(item.target.path)))
+    failed.forEach((item, index) => add(errorRow(item.target, item.message, env.homeDir, infos[index]?.mtimeMs ?? Date.now())))
     state.done = true
     report()
   }))

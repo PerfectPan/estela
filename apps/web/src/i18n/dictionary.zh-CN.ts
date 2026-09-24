@@ -6,20 +6,23 @@ import type { Dictionary } from './dictionary.en.ts'
  * | English | 中文 | Note |
  * |---|---|---|
  * | session | 会话 | |
- * | host | 宿主 | Host names (Claude Code, Codex, Grok) stay in English. |
+ * | host | 来源 | Host names (Claude Code, Codex, Grok) stay in English. |
  * | project | 项目 | The last folder of the working directory. |
- * | turn | 回合 | One user prompt and what follows it. |
+ * | turn | 轮次 | One user prompt and what follows it. |
  * | request | 请求 | One model call. |
  * | token | Token | The k / M abbreviation is not translated. |
  * | duration | 时长 | |
- * | compaction | 压缩 | Context compaction. |
+ * | last active (column) | 最近活动 | |
+ * | compaction | 上下文压缩 | "has compaction" is 含上下文压缩; short form 压缩 in paired labels. |
+ * | context over time (shape) | 上下文变化 | |
  * | subagent | 子代理 | |
  * | failed tool call | 失败的工具调用 | |
  * | could not read | 无法读取 | |
  * | context | 上下文 | |
- * | prompt | 提示 | The user's recorded text is never translated. |
+ * | prompt | 提示词 | The user's recorded text is never translated. |
  * | event | 事件 | |
  * | model saw | 模型所见 | |
+ * | theme: follow system / light / dark | 跟随系统 / 浅色 / 深色 | |
  *
  * Section labels keep normal case and tracking in Chinese (`:lang(en)` only uppercases English).
  */
@@ -28,8 +31,10 @@ export const zhCN = {
     appName: 'agent-trace',
     sessions: '会话',
     jumpTo: '跳转到事件、工具、文件…',
-    themeToDark: '切换到深色主题',
-    themeToLight: '切换到浅色主题',
+    themeSystem: '跟随系统',
+    themeLight: '浅色',
+    themeDark: '深色',
+    themeSwitch: '主题：{{ mode }}。切换到{{ next }}。',
     languageSwitch: '切换语言',
     languageShort: '中',
     dash: '—',
@@ -54,30 +59,30 @@ export const zhCN = {
   browser: {
     title: '会话',
     onThisMachine: '本机共 {{ count }} 个',
-    hosts: '宿主',
-    allHosts: '全部宿主',
+    hosts: '来源',
+    allHosts: '全部来源',
     checked: '已检查 {{ path }}',
     projects: '项目',
     showOnly: '只显示',
-    hasCompaction: '有压缩',
+    hasCompaction: '含上下文压缩',
     hasSubagents: '有子代理',
     hasFailedTools: '有失败的工具调用',
-    search: '搜索标题和提示',
+    search: '搜索标题和提示词',
     sortLastActive: '最近活动',
     session: '会话',
-    turns: '回合',
+    turns: '轮次',
     requests: '请求',
     tokens: 'Token',
     duration: '时长',
-    active: '活动',
+    active: '最近活动',
     earlierThisWeek: '本周早些时候',
-    noSessions: '没有找到会话。左侧列出了已检查的宿主目录。',
+    noSessions: '没有找到会话。左侧列出了已检查的来源目录。',
     noMatches: '没有匹配的会话。',
     summarizing: '正在读取 {{ count }} 个会话…',
-    shape: '形状 · 上下文随时间变化',
+    shape: '上下文变化',
     shapePending: '正在读取会话…',
-    shapeMissing: '这个宿主没有记录每个请求的输入 Token。',
-    firstPrompt: '第一条提示',
+    shapeMissing: '这个来源没有记录每个请求的输入 Token。',
+    firstPrompt: '首条提示词',
     durationLabel: '时长',
     requestsLabel: '请求',
     tokensInOut: '输入 / 输出 Token',

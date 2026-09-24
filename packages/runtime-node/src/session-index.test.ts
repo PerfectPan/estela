@@ -1,7 +1,9 @@
-import { statSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
+import { chmodSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openSessionIndex, sessionIndexFile, type IndexSummary } from './session-index.ts'
@@ -89,7 +91,7 @@ describe('session index', () => {
     index.close()
   })
 
-  it('searches English and Chinese prompts, and prefixes short title queries', async () => {
+  it('searches English and Chinese prompts, and matches short queries as substrings', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ file })
     index.putSummaries([
@@ -143,6 +145,102 @@ describe('session index', () => {
     expect(index.search('auth')).toBeUndefined()
     expect(index.enabled).toBe(false)
     expect(() => statSync(file)).toThrow()
+    index.close()
+  })
+
+  it('matches a short query as a substring of titles and prompts', async () => {
+    const index = openSessionIndex({ file: join(await tempDir(), 'index.sqlite') })
+    index.putSummaries([
+      summary({ ref: 'zh', path: '/logs/zh.jsonl', title: '修复登录', prompts: ['请帮我看看这个测试为什么失败'] }),
+      summary({ ref: 'en', path: '/logs/en.jsonl', title: 'Fix the auth refresh', prompts: ['Run the tests please'] }),
+    ])
+    expect(index.search('登录')).toEqual(['zh'])
+    expect(index.search('测试')).toEqual(['zh'])
+    expect(index.search('au')).toEqual(['en'])
+    expect(index.search('%')).toEqual([])
+    index.close()
+  })
+
+  it('treats control characters and FTS operators as plain text', async () => {
+    const index = openSessionIndex({ file: join(await tempDir(), 'index.sqlite') })
+    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Fix the auth refresh' })])
+    expect(index.search('auth\u0000 refresh')).toEqual([])
+    expect(index.search('\u0000\u0007')).toBeUndefined()
+    expect(index.search('auth" OR "x')).toEqual([])
+    expect(index.search('NEAR(auth')).toEqual([])
+    expect(index.search('auth refresh')).toEqual(['a'])
+    index.close()
+  })
+
+  it('does not return a summary written under another summary version', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const old = openSessionIndex({ file, summaryVersion: 0 })
+    old.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    expect(old.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
+    old.close()
+    const current = openSessionIndex({ file })
+    expect(current.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
+    expect(current.rows()[0]?.summary).toBeUndefined()
+    expect(current.rows()[0]?.title).toBe('Fix the auth refresh')
+    current.close()
+  })
+
+  it('keeps a fractional mtime exact', async () => {
+    const index = openSessionIndex({ file: join(await tempDir(), 'index.sqlite') })
+    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl', mtimeMs: 1_758_000_000_123.456 })])
+    expect(index.get('/logs/a.jsonl', 10, 1_758_000_000_123.456)?.turns).toBe(2)
+    expect(index.rows()[0]?.mtimeMs).toBe(1_758_000_000_123.456)
+    index.close()
+  })
+
+  it('creates the directory 0700 and the file 0600', async () => {
+    const file = join(await tempDir(), 'cache', 'rivus-agent-trace', 'index.sqlite')
+    openSessionIndex({ file }).close()
+    expect(statSync(dirname(file)).mode & 0o777).toBe(0o700)
+    expect(statSync(file).mode & 0o777).toBe(0o600)
+  })
+
+  it('returns a disabled index with the reason when the cache directory is not writable', async () => {
+    const cache = join(await tempDir(), 'cache')
+    mkdirSync(cache)
+    chmodSync(cache, 0o500)
+    try {
+      const index = openSessionIndex({ env: { XDG_CACHE_HOME: cache }, homeDir: '/h/u' })
+      expect(index.enabled).toBe(false)
+      expect(index.unavailable).toMatch(/EACCES|permission/i)
+      expect(index.search('x')).toBeUndefined()
+      index.close()
+    }
+    finally {
+      chmodSync(cache, 0o700)
+    }
+  })
+
+  it('lets several processes open a fresh cache at once', async () => {
+    const dir = await tempDir()
+    const file = join(dir, 'index.sqlite')
+    const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
+    const child = join(dir, 'child.mjs')
+    writeFileSync(child, `
+      const { openSessionIndex } = await import(${JSON.stringify(module)})
+      const n = process.argv[2]
+      const index = openSessionIndex({ file: ${JSON.stringify(file)} })
+      if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
+      index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+      index.close()
+    `)
+    const runs = Array.from({ length: 6 }, (_, n) => new Promise<{ code: number | null, stderr: string }>((resolve) => {
+      const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], { stdio: ['ignore', 'ignore', 'pipe'] })
+      let stderr = ''
+      proc.stderr.on('data', (chunk: Buffer) => {
+        stderr += String(chunk)
+      })
+      proc.on('close', code => resolve({ code, stderr }))
+    }))
+    const results = await Promise.all(runs)
+    expect(results).toEqual(Array.from({ length: 6 }, () => ({ code: 0, stderr: '' })))
+    const index = openSessionIndex({ file })
+    expect(index.rows().map(row => row.ref).toSorted()).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
     index.close()
   })
 })

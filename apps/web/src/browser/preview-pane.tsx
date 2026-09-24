@@ -42,7 +42,7 @@ function Preview(props: { row: SessionListRow, hosts: HostListEntry[], now: numb
           {props.row.title || (props.row.error ? t('common.couldNotRead') : dash())}
         </h2>
         <Show when={props.row.cwd}>
-          {cwd => <span class="data text-[12px] text-subtle [overflow-wrap:anywhere]">{cwd()}</span>}
+          {cwd => <span class="font-mono text-[12px] text-subtle [overflow-wrap:anywhere]">{cwd()}</span>}
         </Show>
       </div>
       <Show when={props.row.error}>
@@ -51,7 +51,7 @@ function Preview(props: { row: SessionListRow, hosts: HostListEntry[], now: numb
             <span class="font-semibold text-foreground">{t('common.couldNotRead')}</span>
             <Show when={error().file}>
               {file => (
-                <span class="data text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">
+                <span class="font-mono text-[11.5px] text-muted-foreground [overflow-wrap:anywhere]">
                   {file()}
                   {error().line !== undefined ? ` · ${t('common.line', { line: error().line! })}` : ''}
                 </span>
@@ -86,7 +86,8 @@ function Preview(props: { row: SessionListRow, hosts: HostListEntry[], now: numb
       </Show>
       <button
         type="button"
-        class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-[9px] bg-foreground text-[14px] font-semibold text-background hover:opacity-90"
+        disabled={props.row.error !== undefined}
+        class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-[9px] bg-foreground text-[14px] font-semibold text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         onClick={() => props.onOpen(props.row.ref)}
       >
         {t('common.openSession')}
@@ -101,7 +102,7 @@ function Preview(props: { row: SessionListRow, hosts: HostListEntry[], now: numb
 function Metric(props: { value: string, label: string }) {
   return (
     <div class="flex flex-col gap-[3px]">
-      <span class="data text-[15px] font-medium text-foreground">{props.value}</span>
+      <span class="font-mono text-[15px] font-medium text-foreground">{props.value}</span>
       <span class="text-[11.5px] text-subtle">{props.label}</span>
     </div>
   )

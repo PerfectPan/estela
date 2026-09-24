@@ -2,12 +2,12 @@ import type { SessionSummary } from '@rivus/agent-trace-kernel'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { SUMMARY_VERSION } from '@rivus/agent-trace-kernel'
 import { openDatabase } from './session-index-schema.ts'
 
-export { INDEX_LAYOUT_VERSION } from './session-index-schema.ts'
-
-const PROMPT_LIMIT = 200
-const PROMPT_CHARS = 500
+/** User prompts kept per session (plan 3.4): the first 200, 500 characters each. */
+export const PROMPT_LIMIT = 200
+export const PROMPT_CHARS = 500
 
 /** Head fields from `discover`, keyed by path. `size` and `mtimeMs` are the cache key. */
 export interface IndexHead {
@@ -24,37 +24,36 @@ export interface IndexHead {
   firstPrompt?: string
 }
 
-/** A stored row: the head from the last discover pass, and the summary when one is cached. */
+/** A stored row: the head from the last discover pass, and the summary when a current one is cached. */
 export interface IndexRow extends IndexHead {
   summary?: SessionSummary
 }
 
 export interface IndexSummary extends IndexHead {
   summary: SessionSummary
-  /** User prompts in order. The index keeps the first 200, 500 characters each. */
-  prompts: string[]
-}
-
-export interface CachedSummary extends SessionSummary {
+  /** User prompts in order. The index keeps the first `PROMPT_LIMIT`, `PROMPT_CHARS` each. */
   prompts: string[]
 }
 
 export interface SessionIndex {
   readonly file: string
   readonly enabled: boolean
-  /** Every stored row, newest activity first. Lets a second launch show rows before `discover` finishes. */
+  /** Set when the index could not be opened; the session list then runs without it. */
+  readonly unavailable?: string
+  /** Every stored row, newest activity first. A second launch shows these before `discover` finishes. */
   rows: () => IndexRow[]
   /** Drop rows whose files are gone. */
   remove: (paths: readonly string[]) => void
-  /** The cached summary for this path, only when size and mtime match. */
-  get: (path: string, size: number, mtimeMs: number) => CachedSummary | undefined
+  /** The cached summary, only when size, mtime, and the summary version all match. */
+  get: (path: string, size: number, mtimeMs: number) => SessionSummary | undefined
   /** One transaction for the whole discover batch. A changed key drops the cached summary. */
   putHeads: (rows: readonly IndexHead[]) => void
   /** One transaction per batch. A failed summary is never passed in, so it is never cached. */
   putSummaries: (rows: readonly IndexSummary[]) => void
   /**
-   * Refs whose title or prompts match. `undefined` when the index is off or the query is blank.
-   * Queries of 3 or more characters use FTS5 `trigram`; shorter ones are a title prefix match.
+   * Refs whose title or prompts match, newest first. `undefined` when the index is off or the
+   * query is blank. 3 or more characters use FTS5 `trigram`; shorter queries are a substring
+   * match over titles and prompts, so a 2-character Chinese word works.
    */
   search: (query: string) => string[] | undefined
   close: () => void
@@ -67,6 +66,8 @@ export interface OpenIndexOptions {
   file?: string
   homeDir?: string
   env?: Readonly<Record<string, string | undefined>>
+  /** Tests only: pretend the summary numbers have another version. */
+  summaryVersion?: number
 }
 
 /** `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`, else `~/.cache/rivus-agent-trace/index.sqlite`. */
@@ -79,17 +80,24 @@ export function sessionIndexFile(
   return join(base, 'rivus-agent-trace', 'index.sqlite')
 }
 
+/** Never throws: an index that cannot be opened (EACCES, read-only home) is returned disabled, with the reason. */
 export function openSessionIndex(options: OpenIndexOptions = {}): SessionIndex {
   const file = options.file ?? sessionIndexFile(options.env ?? process.env, options.homeDir ?? homedir())
   if (options.enabled === false)
     return disabledIndex(file)
-  return new SqliteIndex(file, openDatabase(file))
+  try {
+    return new SqliteIndex(file, openDatabase(file), options.summaryVersion ?? SUMMARY_VERSION)
+  }
+  catch (error) {
+    return disabledIndex(file, error instanceof Error ? error.message : String(error))
+  }
 }
 
-function disabledIndex(file: string): SessionIndex {
+function disabledIndex(file: string, unavailable?: string): SessionIndex {
   return {
     file,
     enabled: false,
+    ...(unavailable ? { unavailable } : {}),
     rows: () => [],
     remove: () => {},
     get: () => undefined,
@@ -111,87 +119,40 @@ const SUMMARY_COLUMNS = [
   ['failed_tools', 'failedTools'],
 ] as const
 
-interface StoredHead {
-  ref: string
-  size: number
-  mtime: number
-  summary_ready: number
-  session_id: string | null
-  title: string | null
-  cwd: string | null
-  first_prompt: string | null
-  started_at: number | null
-  last_active_at: number | null
-}
+const HEAD_TEXT = [['session_id', 'sessionId'], ['title', 'title'], ['cwd', 'cwd'], ['first_prompt', 'firstPrompt']] as const
+const HEAD_NUMBERS = [['started_at', 'startedAt'], ['last_active_at', 'lastActiveAt']] as const
+
+const SUMMARY_SELECT = `summary_version, ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape`
+const HEAD_SELECT = `ref, host, path, size, mtime, ${[...HEAD_TEXT, ...HEAD_NUMBERS].map(([column]) => column).join(', ')}`
 
 class SqliteIndex implements SessionIndex {
   readonly enabled = true
   readonly file: string
   private readonly db: DatabaseSync
+  private readonly version: number
   private readonly statements = new Map<string, StatementSync>()
 
-  constructor(file: string, db: DatabaseSync) {
+  constructor(file: string, db: DatabaseSync, version: number) {
     this.file = file
     this.db = db
-  }
-
-  /** Prepared once per SQL text: 2,000+ rows per launch go through the same few statements. */
-  private sql(text: string): StatementSync {
-    let statement = this.statements.get(text)
-    if (!statement) {
-      statement = this.db.prepare(text)
-      this.statements.set(text, statement)
-    }
-    return statement
-  }
-
-  get(path: string, size: number, mtimeMs: number): CachedSummary | undefined {
-    const row = this.sql(
-      `SELECT ref, ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape
-       FROM sessions WHERE path = ? AND size = ? AND mtime = ? AND summary_ready = 1`,
-    ).get(path, size, Math.round(mtimeMs)) as Record<string, unknown> | undefined
-    if (!row)
-      return undefined
-    return { ...numbersOf(row), prompts: this.promptsOf(String(row.ref)) }
+    this.version = version
   }
 
   rows(): IndexRow[] {
-    const rows = this.sql(
-      `SELECT ref, host, path, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at, summary_ready,
-       ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape
-       FROM sessions ORDER BY last_active_at DESC`,
-    ).all() as Record<string, unknown>[]
+    const rows = this.sql(`SELECT ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`).all() as Record<string, unknown>[]
     return rows.map((row) => {
-      const out: IndexRow = {
-        ref: String(row.ref),
-        host: String(row.host),
-        path: String(row.path),
-        size: Number(row.size),
-        mtimeMs: Number(row.mtime),
-      }
-      const text = (key: string) => typeof row[key] === 'string' && row[key] !== '' ? row[key] as string : undefined
-      const sessionId = text('session_id')
-      const title = text('title')
-      const cwd = text('cwd')
-      const firstPrompt = text('first_prompt')
-      const startedAt = readNumber(row.started_at)
-      const lastActiveAt = readNumber(row.last_active_at)
-      if (sessionId)
-        out.sessionId = sessionId
-      if (title)
-        out.title = title
-      if (cwd)
-        out.cwd = cwd
-      if (firstPrompt)
-        out.firstPrompt = firstPrompt
-      if (startedAt !== undefined)
-        out.startedAt = startedAt
-      if (lastActiveAt !== undefined)
-        out.lastActiveAt = lastActiveAt
-      if (Number(row.summary_ready) === 1)
-        out.summary = numbersOf(row)
+      const out: IndexRow = { ...headOf(row) }
+      const summary = this.summaryOf(row)
+      if (summary)
+        out.summary = summary
       return out
     })
+  }
+
+  get(path: string, size: number, mtimeMs: number): SessionSummary | undefined {
+    const row = this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE path = ? AND size = ? AND mtime = ?`)
+      .get(path, size, mtimeMs) as Record<string, unknown> | undefined
+    return row ? this.summaryOf(row) : undefined
   }
 
   remove(paths: readonly string[]): void {
@@ -220,50 +181,81 @@ class SqliteIndex implements SessionIndex {
   }
 
   search(query: string): string[] | undefined {
-    const text = query.trim()
+    // NUL and other control characters are not search text.
+    const text = query.replace(/\p{Cc}/gu, ' ').trim()
     if (!text)
       return undefined
-    if ([...text].length < 3) {
-      const pattern = `${text.toLowerCase().replace(/[\\%_]/g, match => `\\${match}`)}%`
+    try {
+      if ([...text].length < 3) {
+        const pattern = `%${text.toLowerCase().replace(/[\\%_]/g, match => `\\${match}`)}%`
+        const rows = this.sql(
+          `SELECT ref FROM sessions WHERE lower(title) LIKE ?1 ESCAPE '\\'
+             OR ref IN (SELECT ref FROM prompts WHERE lower(text) LIKE ?1 ESCAPE '\\')
+           ORDER BY last_active_at DESC`,
+        ).all(pattern) as { ref: string }[]
+        return rows.map(row => String(row.ref))
+      }
+      // One quoted phrase: FTS5 operators in the query are plain text.
+      const phrase = `"${text.replaceAll('"', '""')}"`
       const rows = this.sql(
-        `SELECT ref FROM sessions WHERE lower(title) LIKE ? ESCAPE '\\' ORDER BY last_active_at DESC`,
-      ).all(pattern) as { ref: string }[]
+        `SELECT sessions.ref AS ref FROM search JOIN sessions ON sessions.id = search.rowid
+         WHERE search MATCH ? ORDER BY sessions.last_active_at DESC`,
+      ).all(phrase) as { ref: string }[]
       return rows.map(row => String(row.ref))
     }
-    // One quoted phrase: FTS5 operators in the query are plain text.
-    const phrase = `"${text.replaceAll('"', '""')}"`
-    const rows = this.sql(
-      `SELECT sessions.ref AS ref FROM search JOIN sessions ON sessions.id = search.rowid
-       WHERE search MATCH ? ORDER BY sessions.last_active_at DESC`,
-    ).all(phrase) as { ref: string }[]
-    return rows.map(row => String(row.ref))
+    catch {
+      return []
+    }
   }
 
   close(): void {
     this.db.close()
   }
 
+  /** Prepared once per SQL text: 2,000+ rows per launch go through the same few statements. */
+  private sql(text: string): StatementSync {
+    let statement = this.statements.get(text)
+    if (!statement) {
+      statement = this.db.prepare(text)
+      this.statements.set(text, statement)
+    }
+    return statement
+  }
+
+  /** A NULL column is a capability the host does not record: it stays `undefined`, never 0. */
+  private summaryOf(row: Record<string, unknown>): SessionSummary | undefined {
+    if (readNumber(row.summary_version) !== this.version)
+      return undefined
+    const summary: SessionSummary = {}
+    for (const [column, key] of SUMMARY_COLUMNS) {
+      const value = readNumber(row[column])
+      if (value !== undefined)
+        summary[key] = value
+    }
+    if (typeof row.context_shape === 'string') {
+      try {
+        const parsed: unknown = JSON.parse(row.context_shape)
+        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'number'))
+          summary.contextShape = parsed
+      }
+      catch {
+        // A damaged shape is missing data.
+      }
+    }
+    return summary
+  }
+
   private writeHead(row: IndexHead): void {
-    const mtime = Math.round(row.mtimeMs)
-    const existing = this.sql(
-      'SELECT ref, size, mtime, summary_ready, session_id, title, cwd, first_prompt, started_at, last_active_at FROM sessions WHERE path = ?',
-    ).get(row.path) as StoredHead | undefined
-    const sameKey = existing != null
-      && Number(existing.size) === row.size
-      && Number(existing.mtime) === mtime
-      && existing.ref === row.ref
+    const stored = this.sql(`SELECT ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path) as Record<string, unknown> | undefined
+    const next = { ...row, ...(row.firstPrompt ? { firstPrompt: clip(row.firstPrompt) } : {}) }
+    const existing = stored ? headOf(stored) : undefined
+    const sameKey = existing !== undefined && existing.size === row.size && existing.mtimeMs === row.mtimeMs && existing.ref === row.ref
     // Unchanged file and head: nothing to write. This is every row on a second launch.
-    if (sameKey
-      && (existing.session_id ?? undefined) === row.sessionId
-      && (existing.title ?? undefined) === row.title
-      && (existing.cwd ?? undefined) === row.cwd
-      && (existing.first_prompt ?? undefined) === (row.firstPrompt ? clip(row.firstPrompt) : undefined)
-      && readNumber(existing.started_at) === row.startedAt
-      && readNumber(existing.last_active_at) === row.lastActiveAt)
+    if (sameKey && [...HEAD_TEXT, ...HEAD_NUMBERS].every(([, key]) => existing[key] === next[key]))
       return
     this.sql(
-      `INSERT INTO sessions (path, ref, host, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at, summary_ready)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+      `INSERT INTO sessions (path, ref, host, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(path) DO UPDATE SET
          ref = excluded.ref, host = excluded.host, size = excluded.size, mtime = excluded.mtime,
          session_id = excluded.session_id, title = excluded.title, cwd = excluded.cwd,
@@ -273,27 +265,23 @@ class SqliteIndex implements SessionIndex {
       row.ref,
       row.host,
       row.size,
-      mtime,
-      row.sessionId ?? null,
-      row.title ?? null,
-      row.cwd ?? null,
-      row.firstPrompt ? clip(row.firstPrompt) : null,
-      row.startedAt ?? null,
-      row.lastActiveAt ?? null,
+      row.mtimeMs,
+      ...HEAD_TEXT.map(([, key]) => next[key] ?? null),
+      ...HEAD_NUMBERS.map(([, key]) => next[key] ?? null),
     )
-    if (sameKey && Number(existing.summary_ready) === 1) {
-      this.rewriteSearch(row.path, row.title, this.promptsOf(row.ref))
+    if (sameKey) {
+      this.rewriteSearch(row.path, next.title, this.promptsOf(row.ref))
       return
     }
     this.sql(
-      `UPDATE sessions SET summary_ready = 0, ${SUMMARY_COLUMNS.map(([column]) => `${column} = NULL`).join(', ')},
+      `UPDATE sessions SET summary_version = NULL, ${SUMMARY_COLUMNS.map(([column]) => `${column} = NULL`).join(', ')},
        context_shape = NULL WHERE path = ?`,
     ).run(row.path)
     if (existing && existing.ref !== row.ref)
       this.sql('DELETE FROM prompts WHERE ref = ?').run(existing.ref)
-    const prompts = row.firstPrompt ? [clip(row.firstPrompt)] : []
+    const prompts = next.firstPrompt ? [next.firstPrompt] : []
     this.replacePrompts(row.ref, prompts)
-    this.rewriteSearch(row.path, row.title, prompts)
+    this.rewriteSearch(row.path, next.title, prompts)
   }
 
   private writeSummary(row: IndexSummary): void {
@@ -301,9 +289,10 @@ class SqliteIndex implements SessionIndex {
     const prompts = row.prompts.slice(0, PROMPT_LIMIT).map(clip).filter(text => text.length > 0)
     const shape = row.summary.contextShape
     this.sql(
-      `UPDATE sessions SET summary_ready = 1, ${SUMMARY_COLUMNS.map(([column]) => `${column} = ?`).join(', ')},
+      `UPDATE sessions SET summary_version = ?, ${SUMMARY_COLUMNS.map(([column]) => `${column} = ?`).join(', ')},
        context_shape = ? WHERE path = ?`,
     ).run(
+      this.version,
       ...SUMMARY_COLUMNS.map(([, key]) => row.summary[key] ?? null),
       shape ? JSON.stringify(shape) : null,
       row.path,
@@ -346,6 +335,27 @@ class SqliteIndex implements SessionIndex {
   }
 }
 
+function headOf(row: Record<string, unknown>): IndexHead {
+  const head: IndexHead = {
+    ref: String(row.ref),
+    host: String(row.host),
+    path: String(row.path),
+    size: Number(row.size),
+    mtimeMs: Number(row.mtime),
+  }
+  for (const [column, key] of HEAD_TEXT) {
+    const value = row[column]
+    if (typeof value === 'string' && value !== '')
+      head[key] = value
+  }
+  for (const [column, key] of HEAD_NUMBERS) {
+    const value = readNumber(row[column])
+    if (value !== undefined)
+      head[key] = value
+  }
+  return head
+}
+
 function clip(text: string): string {
   return text.slice(0, PROMPT_CHARS)
 }
@@ -355,25 +365,4 @@ function readNumber(value: unknown): number | undefined {
     return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
-}
-
-/** A NULL column is a capability the host does not record: it stays `undefined`, never 0. */
-function numbersOf(row: Record<string, unknown>): SessionSummary {
-  const summary: SessionSummary = {}
-  for (const [column, key] of SUMMARY_COLUMNS) {
-    const value = readNumber(row[column])
-    if (value !== undefined)
-      summary[key] = value
-  }
-  if (typeof row.context_shape === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(row.context_shape)
-      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'number'))
-        summary.contextShape = parsed
-    }
-    catch {
-      // A damaged shape is missing data.
-    }
-  }
-  return summary
 }

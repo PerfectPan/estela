@@ -8,7 +8,7 @@ export const NAMESPACE = 'agent-trace'
 export const serverFunctions = [getTrace, reconstructAt, listSessions, sessionTrace] as const
 
 export { type TraceView } from './functions/get-trace.ts'
-export { bindSessionService, requireSessionService, type SessionService, type SessionView } from './functions/service.ts'
+export { bindSessionService, type SessionService, type SessionView } from './functions/service.ts'
 export {
   emptySessionsSignal,
   SESSIONS_STATE,

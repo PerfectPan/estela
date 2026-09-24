@@ -13,6 +13,7 @@ async function listSessions(query: ListSessionsQuery): Promise<ListSessionsResul
 /**
  * Rows from `list-sessions`, kept current by push: the server's shared state carries only
  * `{ revision, pending }`, and each change asks for the rows changed since the last revision.
+ * A row that did not change keeps its object, so the list re-renders only changed rows.
  */
 export function createSessionStore() {
   const [hosts, setHosts] = createSignal<HostListEntry[]>([])
@@ -25,9 +26,14 @@ export function createSessionStore() {
   let inflight = false
   let again = false
   let wanted: string[] = []
+  let query = ''
   let searchSeq = 0
   let disposed = false
   const cleanups: (() => void)[] = []
+
+  function fail(reason: unknown): void {
+    setError(reason instanceof Error ? reason.message : String(reason))
+  }
 
   function apply(result: ListSessionsResult): void {
     batch(() => {
@@ -51,7 +57,7 @@ export function createSessionStore() {
       setError(undefined)
       setLoaded(true)
     })
-    revision = result.revision
+    revision = Math.max(revision ?? 0, result.revision)
   }
 
   async function refresh(): Promise<void> {
@@ -60,18 +66,22 @@ export function createSessionStore() {
       return
     }
     inflight = true
+    const before = revision
     try {
       const first = wanted
       wanted = []
-      const query: ListSessionsQuery = revision === undefined ? {} : { since: revision }
+      const request: ListSessionsQuery = revision === undefined ? {} : { since: revision }
       if (first.length > 0)
-        query.first = first
-      const result = await listSessions(query)
+        request.first = first
+      const result = await listSessions(request)
       if (!disposed)
         apply(result)
+      // New titles and prompts may match the active search.
+      if (query && revision !== before)
+        void runSearch()
     }
     catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      fail(reason)
     }
     finally {
       inflight = false
@@ -82,32 +92,36 @@ export function createSessionStore() {
     }
   }
 
-  /** Ask the server to summarize these refs (the rows on screen) before the rest. */
-  function prioritize(refs: string[]): void {
-    if (refs.length === 0)
-      return
-    wanted = refs
-    void refresh()
-  }
-
-  /** Search runs in the server's index. An empty query clears the filter. */
-  async function search(text: string): Promise<void> {
-    const query = text.trim()
+  async function runSearch(): Promise<void> {
     const seq = ++searchSeq
-    if (!query) {
-      setMatches(undefined)
-      return
-    }
+    const text = query
     try {
-      const result = await listSessions(revision === undefined ? { query } : { query, since: revision })
-      if (seq !== searchSeq || disposed)
+      const result = await listSessions(revision === undefined ? { query: text } : { query: text, since: revision })
+      if (seq !== searchSeq || disposed || text !== query)
         return
       apply(result)
       setMatches(new Set(result.matches ?? []))
     }
     catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      fail(reason)
     }
+  }
+
+  /** Ask the server to summarize these refs (the rows on screen) before the rest. */
+  function prioritize(refs: string[]): void {
+    wanted = refs
+    void refresh()
+  }
+
+  /** Search runs in the server's index and is re-run when rows change. An empty query clears it. */
+  function search(text: string): Promise<void> {
+    query = text.trim()
+    if (!query) {
+      searchSeq += 1
+      setMatches(undefined)
+      return Promise.resolve()
+    }
+    return runSearch()
   }
 
   void refresh()
@@ -115,17 +129,20 @@ export function createSessionStore() {
     try {
       const ctx = await scopedClient()
       const state = await ctx.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, { initialValue: { revision: 0, pending: 0 } })
-      const off = state.on('updated', (signal) => {
+      const changed = (signal: SessionsSignal) => {
         if (revision === undefined || signal.revision > revision)
           void refresh()
-      })
+      }
+      const off = state.on('updated', changed)
+      // A change between the first response and the subscription would otherwise be missed.
+      changed(state.value())
       if (disposed)
         off()
       else
         cleanups.push(off)
     }
     catch {
-      // Without push the list still shows the first response.
+      // Without push the pending poll still fills the rows in.
     }
   })()
 
@@ -135,7 +152,5 @@ export function createSessionStore() {
       fn()
   })
 
-  return { hosts, rows, pending, loaded, error, matches, search, prioritize }
+  return { hosts, rows, pending, loaded, error, matches, search, prioritize, refresh }
 }
-
-export type SessionStore = ReturnType<typeof createSessionStore>

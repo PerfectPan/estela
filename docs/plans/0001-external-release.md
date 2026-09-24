@@ -319,7 +319,8 @@ export interface HostAdapter {
   /** Default locations for this host, for example `<home>/.claude/projects`. */
   roots: (env: HostEnv) => string[]
   /** Cheap: list files and read at most 64 KB from each end. */
-  discover: (root: string, io: TraceIO, opts: { signal?: AbortSignal }) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
+  /** `onTotal` reports the number of files under the root before their heads are read (progress). */
+  discover: (root: string, io: TraceIO, opts: { signal?: AbortSignal, onTotal?: (files: number) => void }) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
   detect: (ref: SessionRef, io: TraceIO) => Promise<boolean>
   load: (ref: SessionRef, io: TraceIO, opts: { signal?: AbortSignal, onProgress?: (bytes: number) => void }) => Promise<Trace>
   /** Defaults to `fold(await load(...))`; a host may override it with a faster pass. */
@@ -438,7 +439,7 @@ flowchart LR
 
 - Tables: `sessions` (ref, host, path, size, mtime, head fields, summary numbers, flags, error), `prompts` (session ref, sequence, first 500 characters of each user prompt, at most 200 per session), and `search`, an FTS5 `trigram` table over titles and prompts.
 - `list-sessions` reads rows from the index and the latest `discover` pass. The browser receives rows first and summary updates as they finish.
-- Search runs in the index, not in the browser. Queries shorter than 3 characters fall back to a prefix match on titles.
+- Search runs in the index, not in the browser. Queries shorter than 3 characters, which the `trigram` tokenizer cannot match, fall back to a substring match (`LIKE '%q%'`, escaped) over titles and the `prompts` table, so a 2-character Chinese word still finds its sessions.
 - The index is a cache. `PRAGMA user_version` records its layout; a different layout, or a file that fails to open, is deleted and rebuilt. Writes run in one transaction per batch of summaries.
 - Claude Code subagent files count toward their parent session and are not separate rows.
 - A missing root yields a host entry with `count: 0` and `checked: <path>`.

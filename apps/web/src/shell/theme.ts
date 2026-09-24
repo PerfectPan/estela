@@ -1,11 +1,12 @@
 import { createSignal } from 'solid-js'
 
-export type ThemeName = 'dark' | 'light'
+/** `system` follows `prefers-color-scheme`; `light` and `dark` are a stored manual choice (S11). */
+export type ThemeMode = 'system' | 'light' | 'dark'
 
 const STORAGE_KEY = 'agent-trace-theme'
 const media = () => window.matchMedia('(prefers-color-scheme: dark)')
 
-function stored(): ThemeName | undefined {
+function stored(): 'light' | 'dark' | undefined {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
     return value === 'dark' || value === 'light' ? value : undefined
@@ -15,33 +16,43 @@ function stored(): ThemeName | undefined {
   }
 }
 
-const [theme, setThemeSignal] = createSignal<ThemeName>('dark')
-export { theme }
+const [mode, setMode] = createSignal<ThemeMode>('system')
+export { mode as themeMode }
 
-function apply(next: ThemeName): void {
-  setThemeSignal(next)
+function apply(): void {
+  const choice = mode()
+  const resolved = choice === 'system' ? (media().matches ? 'dark' : 'light') : choice
   const root = document.documentElement
-  root.dataset.theme = next
+  root.dataset.theme = resolved
   // Kobalte reads `data-kb-theme`.
-  root.dataset.kbTheme = next
-  root.style.colorScheme = next
+  root.dataset.kbTheme = resolved
 }
 
-/** First load follows `prefers-color-scheme`; a manual choice in `localStorage` wins (S11). */
 export function initTheme(): void {
-  apply(stored() ?? (media().matches ? 'dark' : 'light'))
-  media().addEventListener('change', (event) => {
-    if (!stored())
-      apply(event.matches ? 'dark' : 'light')
+  setMode(stored() ?? 'system')
+  apply()
+  media().addEventListener('change', () => {
+    if (mode() === 'system')
+      apply()
   })
 }
 
-export function chooseTheme(next: ThemeName): void {
+/** `system` clears the stored choice; `light` and `dark` persist it. */
+export function chooseTheme(next: ThemeMode): void {
   try {
-    localStorage.setItem(STORAGE_KEY, next)
+    if (next === 'system')
+      localStorage.removeItem(STORAGE_KEY)
+    else
+      localStorage.setItem(STORAGE_KEY, next)
   }
   catch {
     // Private mode: the choice lasts for this page only.
   }
-  apply(next)
+  setMode(next)
+  apply()
+}
+
+/** The switch cycles system → light → dark → system. */
+export function nextThemeMode(current: ThemeMode): ThemeMode {
+  return current === 'system' ? 'light' : current === 'light' ? 'dark' : 'system'
 }

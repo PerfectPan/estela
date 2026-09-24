@@ -111,11 +111,11 @@ function FilterRow(props: {
         <span class="min-w-0">
           <span class="block truncate">{props.label}</span>
           <Show when={props.detail}>
-            {detail => <span class="data block truncate text-[11px] text-subtle" title={detail()}>{detail()}</span>}
+            {detail => <span class="font-mono block truncate text-[11px] text-subtle" title={detail()}>{detail()}</span>}
           </Show>
         </span>
       </span>
-      <span class="data shrink-0 text-[11.5px] text-subtle">{formatNumber(props.count, locale())}</span>
+      <span class="font-mono shrink-0 text-[11.5px] text-subtle">{formatNumber(props.count, locale())}</span>
     </button>
   )
 }
@@ -132,7 +132,7 @@ function Flag(props: { name: string, label: string, checked: boolean, onChange: 
         onChange={event => props.onChange(event.currentTarget.checked)}
       />
       <span
-        class={`flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border peer-focus-visible:ring-2 peer-focus-visible:ring-ring ${props.checked ? 'border-[var(--kind-request)] bg-[var(--kind-request)]' : 'border-input'}`}
+        class={`flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border peer-focus-visible:ring-2 peer-focus-visible:ring-ring ${props.checked ? 'border-kind-request bg-kind-request' : 'border-input'}`}
         aria-hidden="true"
       >
         <Show when={props.checked}>

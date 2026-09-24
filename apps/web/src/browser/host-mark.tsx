@@ -4,7 +4,7 @@ const LETTER: Record<string, string> = {
   'grok': 'G',
 }
 
-export function hostLetter(id: string): string {
+function hostLetter(id: string): string {
   return LETTER[id] ?? id.slice(0, 1).toUpperCase()
 }
 
@@ -12,7 +12,7 @@ export function hostLetter(id: string): string {
 export function HostMark(props: { id: string }) {
   return (
     <span
-      class="data flex size-[22px] shrink-0 items-center justify-center rounded-md border border-input text-[11px] font-medium"
+      class="font-mono flex size-[22px] shrink-0 items-center justify-center rounded-md border border-input text-[11px] font-medium"
       style={{ color: `var(--host-${props.id}, var(--muted-foreground))` }}
       aria-hidden="true"
     >

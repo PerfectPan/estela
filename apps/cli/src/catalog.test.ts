@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createCatalog } from './catalog.ts'
+import { SessionCatalog } from './catalog.ts'
 import { registeredHosts } from './session.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -54,7 +54,7 @@ describe('session catalog', () => {
     const badPath = join(home, '.claude/projects/bad/session.jsonl')
     const index = openSessionIndex({ file: join(home, 'index.sqlite') })
     const env = { homeDir: home, env: {} }
-    const catalog = createCatalog({ env, index, hosts: registeredHosts })
+    const catalog = new SessionCatalog({ env, index, hosts: registeredHosts })
     const first = await catalog.listSessions()
     const codex = first.hosts.find(host => host.id === 'codex')
     expect(codex?.count).toBe(0)
@@ -78,7 +78,7 @@ describe('session catalog', () => {
     expect(plain?.requests).toBeGreaterThan(0)
     expect(plain?.cwd?.startsWith('~/') || plain?.cwd === '/work/app' || plain?.project).toBeTruthy()
 
-    const second = createCatalog({ env, index, hosts: registeredHosts })
+    const second = new SessionCatalog({ env, index, hosts: registeredHosts })
     const cached = await second.listSessions()
     const cachedPlain = cached.rows.find(row => row.firstPrompt === 'Run the tests')
     expect(cachedPlain?.pending).toBe(false)
@@ -129,11 +129,10 @@ describe('session catalog', () => {
         return trace(text)
       },
     }
-    const catalog = createCatalog({
+    const catalog = new SessionCatalog({
       hosts: [adapter],
       env: { homeDir: home, env: {} },
       noIndex: true,
-      concurrency: 4,
     })
     await catalog.listSessions()
     await catalog.whenIdle()
@@ -179,7 +178,7 @@ describe('session catalog', () => {
         throw new Error('fake: /tmp/bad.jsonl:3: unknown format generation')
       },
     }
-    const catalog = createCatalog({ hosts: [adapter], env: { homeDir: home, env: {} }, index })
+    const catalog = new SessionCatalog({ hosts: [adapter], env: { homeDir: home, env: {} }, index })
     await catalog.listSessions()
     await catalog.whenIdle()
     const listed = await catalog.listSessions()
@@ -200,7 +199,7 @@ describe('session catalog', () => {
     await cp(join(claude, 'compaction/session.jsonl'), join(home, '.claude/projects/b/session.jsonl'))
     const file = join(home, 'index.sqlite')
     const env = { homeDir: home, env: {} }
-    const first = createCatalog({ env, index: openSessionIndex({ file }), hosts: registeredHosts })
+    const first = new SessionCatalog({ env, index: openSessionIndex({ file }), hosts: registeredHosts })
     await first.whenIdle()
     const firstList = await first.listSessions()
     expect(first.startedFromIndex).toBe(false)
@@ -208,7 +207,7 @@ describe('session catalog', () => {
     first.close()
 
     await rm(join(home, '.claude/projects/b'), { recursive: true })
-    const second = createCatalog({ env, index: openSessionIndex({ file }), hosts: registeredHosts })
+    const second = new SessionCatalog({ env, index: openSessionIndex({ file }), hosts: registeredHosts })
     const cached = await second.listSessions()
     expect(second.startedFromIndex).toBe(true)
     expect(cached.rows).toHaveLength(2)

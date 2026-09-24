@@ -56,7 +56,7 @@ export function Workspace(props: { sessionRef: string }) {
           <div class="flex flex-1 flex-col items-start gap-3 px-6 py-8">
             <h1 class="text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
             <p class="max-w-3xl whitespace-pre-wrap text-[13px] text-muted-foreground">{messageOf(reason())}</p>
-            <a href="#/" class="text-[13px] text-[var(--link)]">{t('workspace.back')}</a>
+            <a href="#/" class="text-[13px] text-link">{t('workspace.back')}</a>
           </div>
         )}
       </Show>

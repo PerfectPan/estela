@@ -321,7 +321,8 @@ export interface HostAdapter {
   /** Default locations for this host, for example `<home>/.claude/projects`. */
   roots: (env: HostEnv) => string[]
   /** Cheap: list files and read at most 64 KB from each end. */
-  discover: (root: string, io: TraceIO, opts: { signal?: AbortSignal }) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
+  /** `onTotal` reports the number of files under the root before their heads are read (progress). */
+  discover: (root: string, io: TraceIO, opts: { signal?: AbortSignal, onTotal?: (files: number) => void }) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
   detect: (ref: SessionRef, io: TraceIO) => Promise<boolean>
   load: (ref: SessionRef, io: TraceIO, opts: { signal?: AbortSignal, onProgress?: (bytes: number) => void }) => Promise<Trace>
   /** Defaults to `fold(await load(...))`; a host may override it with a faster pass. */
@@ -440,7 +441,7 @@ flowchart LR
 
 - 表：`sessions`（ref、host、路径、大小、mtime、头部字段、摘要数字、标记、错误），`prompts`（会话 ref、序号、每条用户 prompt 的前 500 个字符，每个会话最多 200 条），以及 `search`，一张覆盖标题和 prompt 的 FTS5 `trigram` 表。
 - `list-sessions` 从索引和最近一次 `discover` 读取行。浏览器先收到行，摘要完成后收到摘要更新。
-- 搜索在索引中运行，不在浏览器中运行。短于 3 个字符的查询回退为对标题的前缀匹配。
+- 搜索在索引中运行，不在浏览器中运行。短于 3 个字符的查询（`trigram` 分词无法匹配）回退为对标题和 `prompts` 表的子串匹配（`LIKE '%q%'`，已转义），因此 2 个字符的中文词仍能找到对应会话。
 - 索引是一份缓存。`PRAGMA user_version` 记录其布局；布局不同或无法打开的文件会被删除并重建。每批摘要的写入在一个事务中执行。
 - Claude Code 的 subagent 文件计入其父会话，不单独成行。
 - 缺失的根目录产生一个 `count: 0` 且 `checked: <path>` 的 host 条目。
