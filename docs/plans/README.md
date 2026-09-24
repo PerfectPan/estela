@@ -4,6 +4,8 @@ A plan is one technical design document, not a task checklist. Product work pair
 
 Each plan has a Chinese reading copy; see [Bilingual Specs And Plans](../../CONTRIBUTING.md#bilingual-specs-and-plans).
 
+Active plan: [`0001-external-release.md`](0001-external-release.md), paired with [Spec 0001](../../specs/0001-external-release.md).
+
 Start from [`0000-template.md`](0000-template.md). Keep only the sections the change needs: background, outline, detailed design, rollout, verification, and delivery. Delete the rest. Unknown owners and dates stay "unconfirmed".
 
 The document shape matches the `technical-design-docs` skill. Install that skill for writing and review rules. This repository does not copy those rules.
