@@ -89,6 +89,8 @@ Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo
 
 Documentation-only and workflow-only PRs need no change file.
 
+Why a script: Rush requires change files only for projects in a version policy and does not follow dependencies, so an edit that only touches a bundled private package would reach users with no changelog entry. Changesets has the same gap ([changesets#944](https://github.com/changesets/changesets/issues/944), open since 2022). Putting the private packages into the version policy is not an option: `rush publish` publishes every project in a policy regardless of `"private"`. Remove `release-intent.mjs` if Rush gains this behavior.
+
 ## Repository Architecture
 
 - `@agent-trace/schema` and `@agent-trace/kernel` are domain rules. They must not import DevFrame or UI.

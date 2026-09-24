@@ -5,6 +5,9 @@
 // every other workspace project, so this script requires a change file when any shipped file under
 // apps/ or packages/, or the lockfile, changes, and writes one in Rush's format when `rush change` finds nothing to do.
 //
+// Rush and Changesets both lack this (changesets/changesets#944). A private package cannot join the
+// version policy instead, because `rush publish` publishes every policy member regardless of "private".
+//
 //   node scripts/release-intent.mjs check --base <sha>
 //   node scripts/release-intent.mjs add --type <major|minor|patch|none> --message "<text>"
 import { execFileSync } from 'node:child_process'
@@ -82,13 +85,25 @@ function fail(message) {
   process.exit(1)
 }
 
-const { positionals, values } = parseArgs({
-  allowPositionals: true,
-  options: { base: { type: 'string' }, type: { type: 'string' }, message: { type: 'string' } },
-})
+const USAGE = 'usage: release-intent.mjs check --base <sha> | add --type <major|minor|patch|none> --message "<text>"'
+let parsed
+try {
+  parsed = parseArgs({
+    allowPositionals: true,
+    options: { base: { type: 'string' }, type: { type: 'string' }, message: { type: 'string' }, help: { type: 'boolean', short: 'h' } },
+  })
+}
+catch (error) {
+  fail(`${error.message}\n${USAGE}`)
+}
+const { positionals, values } = parsed
+if (values.help) {
+  console.log(USAGE)
+  process.exit(0)
+}
 if (positionals[0] === 'check')
   check(values.base)
 else if (positionals[0] === 'add')
   add(values.type, values.message)
 else
-  fail('usage: release-intent.mjs check --base <sha> | add --type <major|minor|patch|none> --message "<text>"')
+  fail(USAGE)
