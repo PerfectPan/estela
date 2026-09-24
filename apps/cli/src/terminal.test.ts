@@ -1,6 +1,7 @@
 import { stripVTControlCharacters } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
 import { installPlainFilter, sayReady } from './terminal.ts'
+import { startSessionIndex } from './terminal-index.ts'
 
 const stdout = process.stdout as NodeJS.WriteStream & { columns: number | undefined }
 const stderr = process.stderr
@@ -66,6 +67,30 @@ describe('sayReady', () => {
     expect(new Set(boxLines.map(line => line.length)).size).toBe(1)
     const boxed = raw.split('\n').filter(line => line.includes('┌') || line.includes('└') || (line.includes('│') && line.includes(url)))
     expect(boxed.some(line => line.includes('\u001b]8;;'))).toBe(false)
+  })
+})
+
+describe('startSessionIndex', () => {
+  it('prints one line per host when it is done, when stdout is not a TTY', () => {
+    const chunks: string[] = []
+    stdout.isTTY = false
+    delete process.env.NO_COLOR
+    stdout.write = ((chunk: string | Uint8Array) => {
+      chunks.push(String(chunk))
+      return true
+    }) as typeof stdout.write
+    const index = startSessionIndex()
+    index.tick([
+      { name: 'Claude Code', read: 1, done: false },
+      { name: 'Codex', read: 0, done: false },
+    ])
+    expect(chunks).toEqual([])
+    index.tick([
+      { name: 'Claude Code', read: 2, done: true },
+      { name: 'Codex', read: 0, done: true, checked: '~/.codex/sessions' },
+    ])
+    index.finish()
+    expect(chunks.join('')).toBe('Claude Code: 2/2 files read\nCodex: 0 files, checked ~/.codex/sessions\n')
   })
 })
 

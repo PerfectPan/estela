@@ -7,10 +7,13 @@ import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
+import { createCatalog } from './catalog.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
+import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
-import { listSessionChoices, Session } from './session.ts'
+import { Session } from './session.ts'
 import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, startLoad } from './terminal.ts'
+import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
 
 const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered host accepts.'
 
@@ -40,10 +43,16 @@ export async function main(): Promise<void> {
     process.exit(1)
   }
 
+  let readyRef: string | undefined
+  let readyHook: (() => void) | undefined
+  let openRef = false
   const handle = createCac(devframe, {
-    onReady({ origin }) {
-      const url = `${origin.replace(/\/$/, '')}${BASE_PATH}`
-      sayReady(url)
+    async onReady({ origin }) {
+      readyHook?.()
+      const base = `${origin.replace(/\/$/, '')}${BASE_PATH}`
+      sayReady(readyRef ? `${base}#/s/${readyRef}` : `${base}#/`)
+      if (openRef && readyRef)
+        await openBrowser(base, readyRef, !parsed.userArgs.includes('--no-auth'))
     },
   })
 
@@ -52,20 +61,15 @@ export async function main(): Promise<void> {
     return
   }
 
-  let sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
-  if (parsed.pick)
-    sessionPath = normalizeSessionPath(await pickSession(listSessionChoices(sessionPath)))
-
-  const session = new Session(sessionPath, parsed.command !== 'dev')
-  bindSessionService(session)
-
-  if (parsed.command === 'mcp') {
-    await loadOrExit(session, { mcp: true })
-    await handle.parse(programArgv(parsed.userArgs))
-    return
-  }
-
-  if (parsed.command === 'build') {
+  if (parsed.command === 'mcp' || parsed.command === 'build') {
+    const sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
+    const session = new Session(sessionPath, true)
+    bindSessionService(session)
+    if (parsed.command === 'mcp') {
+      await loadOrExit(session, { mcp: true })
+      await handle.parse(programArgv(parsed.userArgs))
+      return
+    }
     const outDir = parsed.outDir ?? 'dist-static'
     try {
       await sayBuild(pkg.version, {
@@ -91,12 +95,72 @@ export async function main(): Promise<void> {
   }
 
   sayStart(pkg.version)
-  const loading = startLoad()
-  const trace = await loadOrExit(session, { cancel: () => loading.cancel() })
-  loading.stop(trace.events.length)
-  const userArgs = [...parsed.userArgs]
-  if (parsed.pick && !userArgs.includes('--open') && !userArgs.includes('--no-open'))
-    userArgs.push('--open')
+  const catalog = createCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
+  bindSessionService(catalog)
+  readyHook = () => catalog.resumeSummaries()
+
+  const direct = parsed.pick ? undefined : (parsed.path ?? process.env.AGENT_TRACE_PATH)
+  if (direct) {
+    const loading = startLoad()
+    try {
+      readyRef = await catalog.openPath(normalizeSessionPath(direct))
+      const view = await catalog.view()
+      loading.stop(view.trace.events.length)
+    }
+    catch (error) {
+      loading.cancel()
+      sayError(`Could not load ${direct}: ${messageOf(error)}`, FIX)
+      process.exit(1)
+    }
+  }
+
+  const indexing = startSessionIndex()
+  try {
+    await catalog.start((hosts) => {
+      if (!catalog.startedFromIndex)
+        indexing.tick(hosts)
+    })
+    if (catalog.startedFromIndex) {
+      const listed = await catalog.listSessions()
+      sayIndexFromCache(listed.hosts.map(host => ({ name: host.displayName, count: host.count })))
+    }
+    else {
+      indexing.finish()
+    }
+  }
+  catch (error) {
+    indexing.cancel()
+    sayError(`Could not index sessions: ${messageOf(error)}`, 'Check the host directories, or pass --no-index.')
+    process.exit(1)
+  }
+
+  if (parsed.pick) {
+    await catalog.discovered()
+    const options = catalog.pickChoices()
+    if (options.length === 0) {
+      sayError('No sessions to pick.', FIX)
+      process.exit(1)
+    }
+    readyRef = await pickSession(options)
+    const loading = startLoad()
+    try {
+      const view = await catalog.sessionTrace(readyRef)
+      loading.stop(view.trace.events.length)
+    }
+    catch (error) {
+      loading.cancel()
+      sayError(`Could not load the picked session: ${messageOf(error)}`, FIX)
+      process.exit(1)
+    }
+  }
+
+  // DevFrame opens `/__agent-trace/` and puts its one-time code in the fragment, so it
+  // cannot open `#/s/<ref>` itself. With a session, the shell opens the browser instead.
+  const userArgs = parsed.userArgs.filter(arg => arg !== '--open')
+  if (readyRef && !userArgs.includes('--no-open')) {
+    openRef = true
+    userArgs.push('--no-open')
+  }
   await handle.parse(programArgv(userArgs))
 }
 

@@ -7,6 +7,7 @@ if (message) {
   process.exit(1)
 }
 
+await import('@rivus/agent-trace-runtime-node/sqlite-warning')
 const { main } = await import('./src/main.ts')
 main().catch((error) => {
   const text = error instanceof Error ? error.stack ?? error.message : String(error)

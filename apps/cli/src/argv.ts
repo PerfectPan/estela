@@ -6,6 +6,7 @@ export interface ParsedCommand {
   command: CommandName
   path?: string
   pick: boolean
+  noIndex: boolean
   outDir?: string
   pretty: boolean
   /** Arguments after the program name, without the session positional or `--pick`. */
@@ -26,6 +27,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   const userArgs: string[] = command === 'dev' ? [] : [command]
   const positionals: string[] = []
   let pick = false
+  let noIndex = false
   let outDir: string | undefined
   let pretty = false
   let options = true
@@ -41,6 +43,11 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     if (options && arg.startsWith('-')) {
       if (arg === '--pick') {
         pick = true
+        index += 1
+        continue
+      }
+      if (arg === '--no-index') {
+        noIndex = true
         index += 1
         continue
       }
@@ -90,6 +97,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     command,
     path: positionals[0],
     pick,
+    noIndex,
     outDir,
     pretty,
     userArgs,

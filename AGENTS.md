@@ -6,10 +6,10 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output, embeds the web build | every package; web's build output |
-| `apps/web` | `@rivus/agent-trace-web` | Solid SPA | `rpc` (types), `kernel`, `schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts and server handlers over an injected session service | `kernel`, `schema` |
-| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory | `kernel`, `schema` |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session service (discover, summaries, ref map), starts the DevFrame server, terminal output, embeds the web build | every package; web's build output |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, tokens, dictionaries | `rpc` (types), `kernel`, `schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `get-trace`, `reconstruct`) and server handlers over an injected session service | `kernel`, `schema` |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index (`node:sqlite`) | `kernel`, `schema` |
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | `TraceIO`, host protocol, `loadTrace`, `fold`, `reconstruct`, `redact`, conformance | `schema` |
@@ -23,6 +23,9 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 - `reconstruct(trace, eventId)` is the product. A ledger without it is a transcript browser.
 - `getTrace` is one snapshot blob. No paging RPC. Do not use DevFrame streaming as session follow.
 - Adapters fail loud on unknown generations. Do not silently drop events.
+- The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, and mtime; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
+- URLs carry opaque session refs (a hash of host and path), never paths.
+- UI strings go through `apps/web/src/i18n/` (`dictionary.en.ts` is the type source, `dictionary.zh-CN.ts` satisfies it). Session content never does.
 
 ## Tooling
 

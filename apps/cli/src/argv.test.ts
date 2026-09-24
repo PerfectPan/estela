@@ -49,8 +49,10 @@ describe('parseCommand', () => {
     expect(parsed.error).toContain('/tmp/b.json')
   })
 
-  it('records --pick and --pretty', () => {
+  it('records --pick, --no-index, and --pretty', () => {
     expect(parse('--pick').pick).toBe(true)
+    expect(parse('--no-index').noIndex).toBe(true)
+    expect(parse('--no-index').userArgs).not.toContain('--no-index')
     expect(parse('build', '--pretty').pretty).toBe(true)
   })
 

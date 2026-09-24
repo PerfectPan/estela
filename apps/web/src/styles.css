@@ -1,12 +1,21 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Bundled fonts, no network (the report opens from file://). Only the weights the design uses. */
+@import "@fontsource/instrument-sans/latin-400.css";
+@import "@fontsource/instrument-sans/latin-500.css";
+@import "@fontsource/instrument-sans/latin-600.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
 
-@custom-variant dark (&:is([data-kb-theme="dark"] *));
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 @theme inline {
+  --font-sans: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
@@ -15,60 +24,85 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-selection: var(--selection);
+  --color-kind-request: var(--kind-request);
+  --color-kind-user: var(--kind-user);
+  --color-kind-thinking: var(--kind-thinking);
+  --color-kind-tool: var(--kind-tool);
+  --color-kind-subagent: var(--kind-subagent);
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  /* Trajectory kind tints, aligned with dsh USER / ASSISTANT / TOOL tags. */
-  --traj-user-fg: oklch(0.45 0.12 145);
-  --traj-user-bg: oklch(0.95 0.04 145);
-  --traj-assistant-fg: oklch(0.48 0.16 310);
-  --traj-assistant-bg: oklch(0.96 0.03 310);
-  --traj-tool-fg: oklch(0.55 0.12 75);
-  --traj-tool-bg: oklch(0.96 0.04 75);
+  --radius: 0.5rem;
 }
 
-[data-kb-theme="dark"] {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --traj-user-fg: oklch(0.78 0.12 145);
-  --traj-user-bg: oklch(0.28 0.05 145);
-  --traj-assistant-fg: oklch(0.82 0.12 310);
-  --traj-assistant-bg: oklch(0.28 0.05 310);
-  --traj-tool-fg: oklch(0.82 0.1 75);
-  --traj-tool-bg: oklch(0.28 0.05 75);
+/* Tokens from docs/design/README.md. Both themes share one layout; only these values change. */
+:root,
+html[data-theme="dark"] {
+  --background: #0d1013;
+  --secondary: #111519;
+  --muted: #171c21;
+  --accent: #1b2127;
+  --border: #222930;
+  --input: #2b333b;
+  --foreground: #e6e9ec;
+  --muted-foreground: #a3acb5;
+  --subtle-foreground: #6d7780;
+  --destructive: #e5534b;
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+  /* Event kind palette: OKLCH L 0.66, C 0.13, hues 250 / 145 / 320 / 62 / 185. Fixed order. */
+  --kind-request: #4d97de;
+  --kind-user: #5aa75e;
+  --kind-thinking: #b576c3;
+  --kind-tool: #ca7e31;
+  --kind-subagent: #00ab9d;
+  /* Selection: the request hue at 10% fill with a 55% ring. */
+  --selection: color-mix(in srgb, var(--kind-request) 10%, transparent);
+  --selection-ring: color-mix(in srgb, var(--kind-request) 55%, transparent);
+  --ring: var(--selection-ring);
+  --link: var(--kind-request);
+  --link-hover: #7db4ea;
+  /* Host marks. The Claude Code orange is the host's brand color from the design; it has no token. */
+  --host-claude-code: #d97757;
+  --host-codex: var(--foreground);
+  --host-grok: var(--muted-foreground);
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --background: #fbfaf8;
+  --secondary: #f4f3f0;
+  --muted: #ffffff;
+  --accent: #efeeea;
+  --border: #e6e4df;
+  --input: #d9d7d1;
+  --foreground: #17191c;
+  --muted-foreground: #555b62;
+  --subtle-foreground: #858b92;
+  --destructive: #c93a32;
+  /* L 0.58, C 0.13, same hues. */
+  --kind-request: #347ec4;
+  --kind-user: #418e47;
+  --kind-thinking: #9c5eaa;
+  --kind-tool: #b0660c;
+  --kind-subagent: #009284;
+  /* 8% fill with a 50% ring. */
+  --selection: color-mix(in srgb, var(--kind-request) 8%, transparent);
+  --selection-ring: color-mix(in srgb, var(--kind-request) 50%, transparent);
+  --link-hover: #2a6aa6;
+  /* Brand color, as in the light design. */
+  --host-claude-code: #c15f3c;
+  color-scheme: light;
 }
 
 html,
@@ -81,4 +115,40 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  /* The design HTML uses the browser default, not Tailwind's 1.5. */
+  line-height: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Section labels are uppercase with tracking in English only; Chinese keeps normal case. */
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+:lang(en) .section-label {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rail-label {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+:lang(en) .rail-label {
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.data {
+  font-family: var(--font-mono);
+}
+
+/* Off-screen rows skip layout and paint; 2,000+ rows stay cheap without a virtualizer. */
+.session-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
 }
