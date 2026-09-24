@@ -15,6 +15,7 @@ Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CL
 
 ```bash
 ./scripts/check-repository.sh
+node scripts/check-doc-translations.mjs
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck

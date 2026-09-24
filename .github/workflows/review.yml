@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./scripts/check-repository.sh
+      - run: node scripts/check-doc-translations.mjs
 
   pr-title:
     name: conventional PR title
