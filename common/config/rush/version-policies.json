@@ -99,4 +99,9 @@
   // 
   //   // "includeEmailInChangeFile": true
   // }
+
+  {
+    "policyName": "agent-trace",
+    "definitionName": "individualVersion"
+  }
 ]

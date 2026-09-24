@@ -47,8 +47,9 @@
       "projectFolder": "packages/adapter-grok"
     },
     {
-      "packageName": "@agent-trace/devframe",
-      "projectFolder": "packages/devframe"
+      "packageName": "@rivus/agent-trace",
+      "projectFolder": "packages/devframe",
+      "versionPolicyName": "agent-trace"
     }
   ]
 }

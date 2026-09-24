@@ -8,6 +8,7 @@ Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CL
 ./scripts/install-git-hooks.sh
 ./scripts/check-repository.sh
 node scripts/check-doc-translations.mjs
+node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
 ./scripts/check-pr-title.sh "docs: add external release plan"
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
@@ -76,11 +77,23 @@ Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo
 
 `node scripts/check-doc-translations.mjs` checks the pairing, the first line, heading counts per level, and code blocks. CI and the pre-commit hook run it. It cannot tell whether the prose says the same thing; reviewers check that.
 
+## Release Intent
+
+`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a Rush change file under `common/changes/@rivus/agent-trace/`. "What it ships" is any file under `packages/` except tests, fixtures, and Markdown, plus `common/config/rush/pnpm-lock.yaml`.
+
+- Create the file with `node common/scripts/install-run-rush.js change`. Rush only notices edits inside `packages/devframe`; when it reports nothing to do for an edit elsewhere under `packages/`, use `node scripts/release-intent.mjs add --type <major|minor|patch|none> --message "<text>"`.
+- The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change that should not trigger a release by itself; its message may be empty.
+- The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
+- CI runs `rush change --verify` and `node scripts/release-intent.mjs check` against the merge base. The checkout needs full history (`fetch-depth: 0`).
+- `rush version --bump --version-policy agent-trace` consumes the change files, sets the version, and writes `packages/devframe/CHANGELOG.md` and `CHANGELOG.json`. It runs only in the release workflow, which is not set up yet.
+
+Documentation-only and workflow-only PRs need no change file.
+
 ## Repository Architecture
 
 - `@agent-trace/schema` and `@agent-trace/kernel` are domain rules. They must not import DevFrame or UI.
 - Host packages under `packages/adapter-*` are infrastructure adapters.
-- `@agent-trace/devframe` is the CLI and SPA entrypoint.
+- `@rivus/agent-trace` (`packages/devframe`) is the CLI and SPA entrypoint and the only package that will be published. It bundles the other workspace packages.
 - Fixtures live in `fixtures/` and next to adapter tests.
 
 See [`docs/architecture/overview.md`](docs/architecture/overview.md).
