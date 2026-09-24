@@ -6,6 +6,7 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
+    "./io": "./src/node-io.ts",
     "./sqlite-warning": "./src/suppress-sqlite-warning.ts"
   },
   "scripts": {

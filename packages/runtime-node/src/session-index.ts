@@ -190,11 +190,12 @@ class SqliteIndex implements SessionIndex {
     try {
       if ([...text].length < 3) {
         const pattern = `%${casefold(text).replace(/[\\%_]/g, match => `\\${match}`)}%`
+        // Two plain `?` parameters: Node 22's node:sqlite cannot bind a positional argument to `?1`.
         const rows = this.sql(
-          `SELECT ref FROM sessions WHERE casefold(title) LIKE ?1 ESCAPE '\\'
-             OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ?1 ESCAPE '\\')
+          `SELECT ref FROM sessions WHERE casefold(title) LIKE ? ESCAPE '\\'
+             OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ? ESCAPE '\\')
            ORDER BY last_active_at DESC`,
-        ).all(pattern) as { ref: string }[]
+        ).all(pattern, pattern) as { ref: string }[]
         return rows.map(row => String(row.ref))
       }
       // One quoted phrase: FTS5 operators in the query are plain text. `trigram` folds case itself.
