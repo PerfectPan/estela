@@ -6,10 +6,10 @@ export interface SessionView {
   trace: Trace
 }
 
+/** `get-trace` (the launch session, full) and `list-sessions`. Traces by ref come from the TraceStore. */
 export interface SessionService {
   view: () => Promise<SessionView>
   listSessions?: (input: ListSessionsQuery) => Promise<ListSessionsResult>
-  sessionTrace?: (ref: string) => Promise<SessionView>
 }
 
 let service: SessionService | undefined

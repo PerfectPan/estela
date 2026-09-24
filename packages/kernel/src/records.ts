@@ -18,6 +18,18 @@ export function sourceOf(record: SourcedRecord): SourcePointer {
   }
 }
 
+/** Read a host record back from its source pointer (`end` = `offset + length`) and parse it. */
+export async function readOriginal(io: Pick<TraceIO, 'readBytes'>, source: SourcePointer): Promise<unknown> {
+  const bytes = await io.readBytes(source.file, { start: source.offset, end: source.offset + source.length })
+  const text = new TextDecoder().decode(bytes)
+  try {
+    return JSON.parse(text) as unknown
+  }
+  catch {
+    throw new Error(`${source.file}:${source.line}: the record at this source pointer is not JSON`)
+  }
+}
+
 export function generationError(host: string, file: string, line: number): Error {
   return new Error(`${host}: ${file}:${line}: unknown format generation`)
 }

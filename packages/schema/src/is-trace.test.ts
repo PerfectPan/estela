@@ -80,6 +80,9 @@ describe('isTrace', () => {
   it('rejects malformed agents and skipped entries', () => {
     expect(isTrace(trace({ agents: [{ parentId: 'main' }] }))).toBe(false)
     expect(isTrace(trace({ agents: [{ id: 1 }] }))).toBe(false)
+    expect(isTrace(trace({ agents: [{ id: 'a', title: 1 }] }))).toBe(false)
+    expect(isTrace(trace({ agents: [{ id: 'a', systemPrompt: {} }] }))).toBe(false)
+    expect(isTrace(trace({ agents: [{ id: 'a', title: 't', systemPrompt: 'p' }] }))).toBe(true)
     expect(isTrace(trace({ agents: [{ id: 'a', parentId: 2 }] }))).toBe(false)
     expect(isTrace(trace({ skipped: [{ line: 1 }] }))).toBe(false)
     expect(isTrace(trace({ skipped: [{ line: '1', file: 'f', reason: 'x' }] }))).toBe(false)

@@ -136,7 +136,7 @@ flowchart TB
 |---|---|---|---|
 | `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `get-trace-view`, `get-event`, `reconstruct`) and their server handlers over an injected session service | `kernel`, `schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
@@ -170,14 +170,20 @@ sequenceDiagram
   S-->>B: rows from head/tail reads (cached numbers when present)
   S-->>B: summary updates as full reads finish
   U->>B: open a session
+  B->>S: load-trace(ref) (action)
+  S-->>B: loadId (progress stream id)
+  B->>S: subscribe load-progress(loadId)
+  S-->>B: progress chunks (bytes read of file size), then end
   B->>S: get-trace-view(ref)
-  S-->>B: progress, then view trace (no originals, text capped)
+  S-->>B: view trace (no originals, text capped to fit 12 MB)
   U->>B: select an event
   B->>S: get-event(ref, id)
   S-->>B: full payload + original record (read by byte offset)
 ```
 
 With a path argument the CLI loads and checks that session before listening, then opens the workspace URL for it.
+
+Opening a session takes two calls because DevFrame rejects a subscription to a stream id that does not exist yet (DF0030): the `load-trace` action creates the progress stream and returns its id, the browser subscribes, then `get-trace-view` returns the view once the shared load finishes.
 
 ### 2.4 Design decisions
 
@@ -197,14 +203,14 @@ Claude Code has the most sessions and the fullest compaction record here. Codex 
 `TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in `packages/runtime-node`. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5, measured with esbuild; M1 runs the browser-target bundle with rslib `output.target: 'web'`).
 
 **D6. The browser receives a view trace; originals and full text load on demand.**
-This changes two current rules in `AGENTS.md`: "canonical storage is `events[]` plus `original`" becomes "every event can return its original", and "`getTrace` is one snapshot blob" becomes "`get-trace-view` is one snapshot blob; `get-event` returns one event in full". Measured on the 355 MB session: 360 MB full, 21.3 MB without originals, 9.5 MB with strings capped at 4 KB (A.6). Alternatives: paging events (rejected: the timeline and the ledger need every event's shape, and `reconstruct` needs the whole sequence), and compressing the full blob (rejected: the server would still hold 3.2 GB). The server keeps each event's source pointer (file, byte offset, length) and reads the line again when `get-event` asks for it. `AGENTS.md` is updated in the same change.
+This changes two current rules in `AGENTS.md`: "canonical storage is `events[]` plus `original`" becomes "every event can return its original", and "`getTrace` is one snapshot blob" becomes "`get-trace-view` is one snapshot blob; `get-event` returns one event in full". Measured on the 355 MB session: 360 MB full, 37.9 MB without originals, 14.0 MB as a view with strings capped at 4 KB, and 11.4 MB with the cap `fitView` chose (A.6). Alternatives: paging events (rejected: the timeline and the ledger need every event's shape, and `reconstruct` needs the whole sequence), and compressing the full blob (rejected: the server would still hold 3.2 GB). The server keeps each event's source pointer (file, byte offset, length) and reads the line again when `get-event` asks for it. `AGENTS.md` is updated in the same change.
 
 **D7. Session discovery reads heads and tails; full summaries are computed lazily and stored in a SQLite index.**
 A full parse of 11.6 GB at launch is not possible. `discover` lists files and reads the first and last 64 KB of each to fill title, project, start and last activity, and size. `summarize` parses one file fully for turns, requests, tokens, duration, flags, and user prompts. The shell runs `summarize` for visible rows first, with a concurrency limit of 4, and stores the result in `~/.cache/rivus-agent-trace/index.sqlite` through the built-in `node:sqlite`, keyed by path, size, and mtime. An FTS5 table with the `trigram` tokenizer indexes titles and user prompts, so search covers every prompt, in English and Chinese, not only the first one. Measured (A.10): FTS5 with `trigram` is available on Node.js 22.18 (SQLite 3.50.2) and 24.18 (SQLite 3.53.1); 2,300 rows insert in 13 ms and a search takes 0.1 ms.
 Alternatives: a JSON cache file (no search, whole-file rewrites); DuckDB (`@duckdb/node-api` installs 115 MB on macOS arm64, and scans all 550 MB of Claude Code logs in 252 ms against 1,176 ms for a Node line scan, but it would restate each host's parsing rules in SQL beside the adapters); `better-sqlite3` (a native addon per platform, where `node:sqlite` needs none). Node.js 22 prints an `ExperimentalWarning` for `node:sqlite`; `dist/bin.mjs` suppresses that one warning, verified in M1.
 
 **D8. RPC shape and the static report.**
-Queries: `list-sessions` (not a snapshot), `get-trace-view(ref)`, `get-event(ref, id)`, `reconstruct(ref, eventId)` (for MCP; `snapshot: true` removed, the measured cause of the `build` failure). DevFrame's static dump only bakes argument-free snapshot queries, so `build <path>` registers one extra argument-free query, `report-trace`, bound to that session, and the SPA starts in report mode when it finds it. A report includes the view trace and the original records of at most the first 2,000 events or 20 MB, whichever is smaller, and says so in the report header when it truncates.
+Queries: `list-sessions` (not a snapshot), `get-trace-view(ref)`, `get-event(ref, id)`, `reconstruct(ref, eventId)` (for MCP; `snapshot: true` removed, the measured cause of the `build` failure). One action, `load-trace(ref)`, starts or joins the load and returns the id of a `load-progress` stream (2.3). DevFrame's static dump only bakes argument-free snapshot queries, so `build <path>` registers one extra argument-free query, `report-trace`, bound to that session, and the SPA starts in report mode when it finds it. A report includes the view trace and the original records of at most the first 2,000 events or 20 MB, whichever is smaller, and says so in the report header when it truncates.
 
 **D9. UI stack and design contract.**
 Solid, Tailwind v4, and shadcn-solid stay. Tokens, palette, type, and encoding rules come from `docs/design/README.md` and become CSS variables in `styles.css` under `data-theme="dark|light"`. The ledger uses `@tanstack/solid-virtual` 3.13. The timeline and preview shape are SVG drawn from kernel projections; no chart library.
@@ -403,7 +409,7 @@ export interface CompactionPayload {
 export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
 export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
 
-export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string }
+export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
   schema: 'agent-trace'
@@ -422,7 +428,7 @@ A `request` event is one model call. A host that records only per-turn totals em
 - Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.
 - Each canonical field that ATIF also covers is listed in section 8, A.8, so the ATIF export follow-up is a mapping.
 
-**View trace.** `toView(trace, { maxString: 4096 })` drops `original`, caps every string at 4,096 characters, and records `payload.$truncated = [paths]` on events it shortened. The ledger shows a "shortened" marker for those; the inspector calls `get-event`.
+**View trace.** `toView(trace, { maxString: 4096 })` drops `original`, caps every string at 4,096 characters, and records `payload.$truncated = [paths]` on events it shortened. The ledger shows a "shortened" marker for those; the inspector calls `get-event`. To keep per-event overhead low, the view lists source files once in `sourceFiles` and each event's `source.file` holds its index, and `skipped` is merged per file and reason with a count. Codex event ids are `L<line>`, since a Codex trace is one file. `get-trace-view` calls `fitView`: the view keeps 4,096 when it fits the 12 MB budget (1.3); otherwise the cap drops by a factor of 0.75 until it fits, down to 256. The view records the cap in `view.maxString`, so the UI can say that text was shortened further. On the 355 MB session the cap is 2,304 (A.6). At the 256 floor a Codex event costs about 466 bytes in the view, so about 25,600 events fit; a larger session gets `view.withinBudget: false`, a server log line, and a notice in the UI.
 
 ### 3.4 Session index
 
@@ -446,9 +452,11 @@ flowchart LR
 
 ### 3.5 Loading a session
 
-- `get-trace-view` loads through the adapter with `onProgress` and streams progress (bytes read out of file size) to the browser before the result.
-- The server keeps the last 3 loaded traces in memory without originals; `get-event` reads the original from the source pointer.
-- A load is cancelled when the browser navigates away (`AbortSignal`).
+- `load-trace(ref)` starts or joins the load through the adapter with `onProgress` and returns a stream id. The browser subscribes to `load-progress` with it at once (within 5 s) and receives bytes read out of file size, then calls `get-trace-view(ref)`, which returns when the load finishes.
+- The server keeps the last 3 loaded traces in memory without originals; `get-event` reads the original from the source pointer, and returns `originalUnavailable` with a reason when the file changed and the bytes are no longer that record.
+- Each reader holds the load. The last release aborts it (`AbortSignal`): the browser cancels the stream when it navigates away, disconnects, never subscribes, or opens another session. Another tab or an MCP `reconstruct` holds its own, so it is not cancelled by one browser's navigation.
+- Error messages are redacted before they reach the browser.
+- DevFrame 1.0.0 does not expose a stream's subscribers, so the 5 s check reads the calling connection's subscriptions. After a WebSocket reconnect the browser calls `load-trace` again; the new call joins the running load or gets the cached trace.
 
 ### 3.6 UI
 
@@ -473,7 +481,7 @@ Localization details (D13):
 - Column widths in the ledger and the session list are set for the longer of the two languages; the M4 design review includes a `zh-CN` screenshot of both screens.
 - The report bundles both dictionaries (a few kilobytes), opens in the export-time locale, and keeps the switch.
 
-`reconstruct` gains per-slot token counts when the host records them: the request's input tokens, and the compaction's `postTokens` when it is the first request after a compaction. It does not estimate slot sizes from text length.
+`reconstruct` gains per-slot token counts when the host records them: the request's input tokens, and the compaction's `postTokens` when it is the first request after a compaction. It does not estimate slot sizes from text length. Each count lists the slots it covers together, because hosts record totals, not per-slot sizes. `reconstruct` works on the target event's own agent lane: a model call sees only its own agent's events.
 
 ### 3.7 Failures and recovery
 
@@ -683,6 +691,18 @@ full line scan of claude main files: 225062 lines in 2.35s
 codexAdapter.load, 26 MB file:  {"events":4970,"loadMs":101,"jsonMB":27.4,"rssMB":411}
 codexAdapter.load, 354 MB file: {"events":16652,"loadMs":1712,"jsonMB":359.7,"rssMB":3221}
 354 MB file, events JSON size:  {"full":359.7,"withoutOriginal":21.3,"withoutOriginalCapped4k":9.5}
+```
+
+```
+M4a, 2026-09-25, canonical trace from M2 (13,163 events, 355.0 MB file; MB = 10^6 bytes):
+without originals, no cap:             37.87 MB
+view at 4,096 (M2 ids, file per event): 18.57 MB
+view at 4,096 (files interned, skipped merged, short Codex ids): 14.04 MB
+view at 3,072:                           12.66 MB
+view at 2,304 (fitView choice):          11.45 MB; get-trace-view response 11.40 MB redacted
+load 896 ms, view build 245 ms, peak RSS 1,082 MiB, get-event 9 ms
+synthetic 360.5 MB Codex file (test-time generator): 10,976 events, view 11.77 MB at 4,096
+at the 256 floor: 6.14 MB for 13,163 events (466 B per event), so about 25,600 Codex events fit
 ```
 
 Current UI on a 3,300-record Grok session: 2,258 rendered rows, 14,066 DOM nodes, 1,294 rows `UNKNOWN` (hook executions).

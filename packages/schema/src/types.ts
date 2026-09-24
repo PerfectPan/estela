@@ -116,8 +116,17 @@ export const agentInfoSchema = z.object({
   parentId: z.optional(z.string()),
   spawnEventId: z.optional(z.string()),
   title: z.optional(z.string()),
+  /** This agent's own system prompt, when the host records one per lane. */
+  systemPrompt: z.optional(z.string()),
 })
 export type AgentInfo = z.infer<typeof agentInfoSchema>
+
+/**
+ * Path of a value `toView` shortened: object keys as strings, array indexes as
+ * numbers. `payload.$truncated` holds these for each shortened event.
+ */
+export const truncatedPathSchema = z.array(z.union([z.string(), z.number()]))
+export type TruncatedPath = z.infer<typeof truncatedPathSchema>
 
 export const traceSessionSchema = z.object({
   id: z.string(),
@@ -127,15 +136,29 @@ export const traceSessionSchema = z.object({
   endedAt: z.optional(z.number()),
   systemPrompt: z.optional(z.string()),
   tools: z.optional(z.unknown()),
+  /** Set by `toView` on session fields it shortened; see `TruncatedPath`. */
+  $truncated: z.optional(z.array(truncatedPathSchema)),
 })
 export type TraceSession = z.infer<typeof traceSessionSchema>
 
-export const skippedEntrySchema = z.object({
+export const skippedRecordSchema = z.object({
   line: z.number(),
   file: z.string(),
   reason: z.string(),
+  /** View traces only: records merged into this entry (same file and reason); `line` is the first. */
+  count: z.optional(z.number()),
 })
-export type SkippedEntry = z.infer<typeof skippedEntrySchema>
+export type SkippedRecord = z.infer<typeof skippedRecordSchema>
+
+export const viewInfoSchema = z.object({
+  /** String cap used: 4,096 unless the view would exceed `budgetBytes`. */
+  maxString: z.number(),
+  /** Set by `fitView`: the byte budget the view was fitted to. */
+  budgetBytes: z.optional(z.number()),
+  /** Set by `fitView`: false only when even the 256-character floor exceeds the budget. */
+  withinBudget: z.optional(z.boolean()),
+})
+export type ViewInfo = z.infer<typeof viewInfoSchema>
 
 /**
  * The canonical trace. Payloads stay loose records: their typed shapes above
@@ -148,7 +171,14 @@ export const traceSchema = z.object({
   capabilities: z.array(capabilitySchema),
   agents: z.array(agentInfoSchema),
   events: z.array(traceEventSchema),
-  skipped: z.array(skippedEntrySchema),
+  skipped: z.array(skippedRecordSchema),
+  /**
+   * View traces only (`toView`): the distinct source files. Each view event's
+   * `source.file` is then its index in this list, as a decimal string.
+   */
+  sourceFiles: z.optional(z.array(z.string())),
+  /** View traces only: how `toView` / `fitView` built this view. */
+  view: z.optional(viewInfoSchema),
 })
 export type Trace = z.infer<typeof traceSchema>
 
@@ -163,8 +193,34 @@ export interface ReconstructResult {
   unavailable: string[]
   /** How complete this reconstruction is. */
   completeness: 'full' | 'partial' | 'unavailable'
-  /** Recorded request input tokens. Absent when the host did not record them. */
-  inputTokens?: number
-  /** Compaction `postTokens` when this is the first request after that compaction. */
-  postTokens?: number
+  /** Context composition at the event, in prompt order. */
+  slots?: ContextSlot[]
+  /**
+   * Token counts the host recorded, each covering one or more slots together.
+   * Never estimated from text length. Empty when the host recorded none.
+   */
+  tokens?: ContextTokens[]
+  /** Events of the same agent that a compaction before `eventId` removed. */
+  removedIds?: string[]
+}
+
+export type ContextSlotName = 'system' | 'tools' | 'summary' | 'messages' | 'currentTurn'
+
+export interface ContextSlot {
+  name: ContextSlotName
+  /**
+   * `present`: recorded and non-empty. `empty`: recorded, nothing in it
+   * (no compaction yet, for example). `unavailable`: the host does not record it.
+   */
+  status: 'present' | 'empty' | 'unavailable'
+  /** Visible events in this slot, in order. Empty for `system` and `tools`. */
+  eventIds: string[]
+}
+
+export interface ContextTokens {
+  /** Slots this count covers together. */
+  slots: ContextSlotName[]
+  tokens: number
+  /** Recorded field the number comes from. */
+  from: 'request.inputTokens' | 'compaction.postTokens'
 }

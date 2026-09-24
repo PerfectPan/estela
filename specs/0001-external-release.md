@@ -145,7 +145,7 @@ Out of scope:
 
 - Given the first request after a compaction in a Claude Code session
 - When the user selects it and opens "Model saw"
-- Then the composition shows tools, summary, messages, and current turn with token counts, the system prompt slot is "unavailable", and the list of events removed by the compaction is shown
+- Then the composition shows summary, messages, and current turn with token counts where the host recorded them, the system prompt and tools slots are "unavailable" (Claude Code records neither), and the list of events removed by the compaction is shown
 
 ### S8: Large session
 

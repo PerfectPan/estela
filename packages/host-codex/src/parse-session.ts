@@ -8,7 +8,6 @@ import {
   baseEvent,
   generationError,
   inheritTimes,
-  lineId,
   markOrphanToolResults,
   placeRequest,
   shadowBefore,
@@ -16,6 +15,15 @@ import {
   usageFrom,
 } from '@rivus/agent-trace-kernel'
 import { emitInner, textFrom } from './codex-items.ts'
+
+/**
+ * Event id from the record's line. A Codex trace is one rollout file, so the
+ * line alone is unique; the kernel's `lineId` would repeat the 70-character
+ * rollout name on every event and request id (plan A.6).
+ */
+function lineKey(record: SourcedRecord): string {
+  return `L${record.line}`
+}
 
 const HOST = 'codex'
 const BARE_ITEM = new Set(['message', 'reasoning', 'function_call', 'function_call_output', 'custom_tool_call', 'custom_tool_call_output', 'compaction', 'agent_message', 'web_search_call'])
@@ -123,9 +131,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
     endedAt = Math.max(endedAt ?? ts, ts)
 
     const emit = (kind: TraceEvent['kind'], body: Record<string, unknown>, id?: string): TraceEvent => {
-      let eventId = id ?? asString(payload.id) ?? lineId(record)
+      let eventId = id ?? asString(payload.id) ?? lineKey(record)
       if (usedIds.has(eventId))
-        eventId = lineId(record)
+        eventId = lineKey(record)
       usedIds.add(eventId)
       const event = baseEvent(record, kind, body, { id: eventId, ts })
       events.push(event)
@@ -133,7 +141,7 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
     }
 
     const request = (usage: Record<string, unknown> | undefined, responseId: string | undefined, turnId: string | undefined): void => {
-      const key = responseId ?? lineId(record)
+      const key = responseId ?? lineKey(record)
       const body: Record<string, unknown> = {}
       if (model)
         body.model = model
@@ -222,19 +230,19 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
           continue
         }
         // Turn duration. It stays on the turn marker, never on a request.
-        emit('system', { type: 'turn_duration', durationMs, ...(inner === 'turn_aborted' ? { aborted: true } : {}) }, lineId(record))
+        emit('system', { type: 'turn_duration', durationMs, ...(inner === 'turn_aborted' ? { aborted: true } : {}) }, lineKey(record))
         continue
       }
       const reason = inner === 'task_started' ? 'task-marker' : inner === 'thread_settings_applied' ? 'thread-settings' : inner === 'thread_goal_updated' ? 'thread-goal' : undefined
       if (reason)
         skipRecord(skipped, record, reason)
       else
-        emit('unknown', { type: inner }, lineId(record))
+        emit('unknown', { type: inner }, lineKey(record))
       continue
     }
 
     if (envelope !== 'response_item' && !bare) {
-      emit('unknown', { type: envelope }, lineId(record))
+      emit('unknown', { type: envelope }, lineKey(record))
       continue
     }
     const inner = bare ? envelope : (asString(payload.type) ?? 'response_item')

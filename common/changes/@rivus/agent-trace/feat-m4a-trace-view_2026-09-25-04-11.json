@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Add the view trace (toView, fitView), timeline and ledger projections, reconstruct slot counts, and the load-trace, get-trace-view, and get-event RPCs with load progress and cancellation",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

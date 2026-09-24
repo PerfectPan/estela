@@ -1,4 +1,3 @@
-import type { TraceView } from '@rivus/agent-trace-rpc'
 import type { LedgerRow } from '@/lib/ledger'
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js'
 import { Inspector } from '@/components/inspector'
@@ -6,7 +5,7 @@ import { KindTag } from '@/components/kind-tag'
 import { translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { buildLedger, formatClock } from '@/lib/ledger'
-import { fetchTrace } from '@/workspace/trace-source.ts'
+import { fetchTrace, type WorkspaceTrace } from '@/workspace/trace-source.ts'
 import { TopBar } from '@/shell/top-bar.tsx'
 
 export function Workspace(props: { sessionRef: string }) {
@@ -61,7 +60,7 @@ export function Workspace(props: { sessionRef: string }) {
         )}
       </Show>
       <Show when={loaded()} keyed>
-        {(view: TraceView) => (
+        {(view: WorkspaceTrace) => (
           <div class="flex min-h-0 flex-1 flex-col">
             <div class="flex h-8 shrink-0 items-center gap-2 border-b border-border px-1.5" role="toolbar">
               <a href="#/" class="px-1.5 text-[12px] text-muted-foreground">{t('workspace.back')}</a>
@@ -123,7 +122,7 @@ export function Workspace(props: { sessionRef: string }) {
                   </tbody>
                 </table>
               </section>
-              <Inspector trace={view.trace} row={selectedRow()} onClose={() => setSelected(undefined)} />
+              <Inspector trace={view.trace} original={view.original} row={selectedRow()} onClose={() => setSelected(undefined)} />
             </div>
           </div>
         )}

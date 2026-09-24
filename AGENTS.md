@@ -6,22 +6,23 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session service (discover, summaries, ref map), starts the DevFrame server, terminal output, embeds the web build | every package; web's build output |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, embeds the web build | every package; web's build output |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, tokens, dictionaries | `rpc` (types), `kernel`, `schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `get-trace`, `reconstruct`) and server handlers over an injected session service | `kernel`, `schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, legacy `get-trace`), server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected I/O, resolver, and session service | `kernel`, `schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index (`node:sqlite`) | `kernel`, `schema` |
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | `TraceIO`, host protocol, `loadTrace`, `fold`, `reconstruct`, `redact`, conformance | `schema` |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | `TraceIO`, host protocol, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, projections, conformance | `schema` |
 | `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy`, `zod` schemas | no workspace package (external: `zod`) |
 
 ## Rules
 
-- Canonical storage is ordered `events[]` plus `original`. Turn, step, and tree are projections.
+- Canonical storage is ordered `events[]`; every event can return its original. The server reads it back from the event's source pointer (file, byte offset, length) for `get-event`; the view trace and the server's trace cache hold no originals. Turn, step, lane, and tree are kernel projections (`projectRequests`, `projectLanes`, `projectTurns`).
 - Missing data is `unavailable`. Never invent.
 - Compaction is `kind: 'compaction'` plus `shadowedBy` on hidden events.
 - `reconstruct(trace, eventId)` is the product. A ledger without it is a transcript browser.
-- `getTrace` is one snapshot blob. No paging RPC. Do not use DevFrame streaming as session follow.
+- `get-trace-view` is one snapshot blob (`toView`: no originals, strings capped, lowered only to fit the 12 MB budget); `get-event` returns one event in full. No paging RPC. DevFrame streaming carries load progress only (`load-progress`), never session follow.
+- RPC handlers take an opaque session `ref` and resolve it through the shell's resolver (the session catalog on the dev server; `current` is the launch session); paths never cross the wire as refs.
 - Adapters fail loud on unknown generations. Do not silently drop events.
 - The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, mtime, and `SUMMARY_VERSION`; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
 - Bump SUMMARY_VERSION in the kernel when summary numbers change meaning.

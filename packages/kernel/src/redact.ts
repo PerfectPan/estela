@@ -1,6 +1,4 @@
-import type { Trace } from '@rivus/agent-trace-schema'
 import { isObjectLike } from 'lodash-es'
-
 const SECRET = /(?:sk-|AKIA|ghp_|xox[baprs]-)[A-Za-z0-9_-]{8,}/g
 
 function homeRoot(homeDir: string): string {
@@ -69,7 +67,11 @@ function redactValue(
   return value
 }
 
-/** Default-on for static export. Mutates nothing; returns a copy. */
-export function redact(trace: Trace, options: { homeDir: string }): Trace {
-  return redactValue(trace, options.homeDir, homePattern(options.homeDir), encodedHomePattern(options.homeDir)) as Trace
+/**
+ * Home-directory and token replacement in any JSON value: a trace, one event,
+ * an original record, or an error message. Default-on for static export.
+ * Mutates nothing; returns a copy.
+ */
+export function redact<T>(value: T, options: { homeDir: string }): T {
+  return redactValue(value, options.homeDir, homePattern(options.homeDir), encodedHomePattern(options.homeDir)) as T
 }
