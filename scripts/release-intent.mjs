@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Release intent for @rivus/agent-trace. See CONTRIBUTING.md#release-intent.
 //
-// `rush change --verify` only sees files under packages/devframe. The CLI also bundles every other
-// workspace package, so this script requires a change file when any shipped file under packages/
-// or the lockfile changes, and writes one in Rush's format when `rush change` finds nothing to do.
+// `rush change --verify` only sees files inside the published project's folder. The CLI also bundles
+// every other workspace project, so this script requires a change file when any shipped file under
+// apps/ or packages/, or the lockfile, changes, and writes one in Rush's format when `rush change` finds nothing to do.
 //
 //   node scripts/release-intent.mjs check --base <sha>
 //   node scripts/release-intent.mjs add --type <major|minor|patch|none> --message "<text>"
@@ -21,7 +21,7 @@ const TYPES = ['major', 'minor', 'patch', 'none']
 function ships(path) {
   if (path === 'common/config/rush/pnpm-lock.yaml')
     return true
-  if (!path.startsWith('packages/'))
+  if (!path.startsWith('packages/') && !path.startsWith('apps/'))
     return false
   return !/\.test\.[cm]?[jt]sx?$/.test(path)
     && !/(^|\/)fixtures\//.test(path)

@@ -79,9 +79,9 @@ Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo
 
 ## Release Intent
 
-`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a Rush change file under `common/changes/@rivus/agent-trace/`. "What it ships" is any file under `packages/` except tests, fixtures, and Markdown, plus `common/config/rush/pnpm-lock.yaml`.
+`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a Rush change file under `common/changes/@rivus/agent-trace/`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus `common/config/rush/pnpm-lock.yaml`.
 
-- Create the file with `node common/scripts/install-run-rush.js change`. Rush only notices edits inside `packages/devframe`; when it reports nothing to do for an edit elsewhere under `packages/`, use `node scripts/release-intent.mjs add --type <major|minor|patch|none> --message "<text>"`.
+- Create the file with `node common/scripts/install-run-rush.js change`. Rush only notices edits inside the published project's folder; when it reports nothing to do for an edit elsewhere, use `node scripts/release-intent.mjs add --type <major|minor|patch|none> --message "<text>"`.
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change that should not trigger a release by itself; its message may be empty.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI runs `rush change --verify` and `node scripts/release-intent.mjs check` against the merge base. The checkout needs full history (`fetch-depth: 0`).
