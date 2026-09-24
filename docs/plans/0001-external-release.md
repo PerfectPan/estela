@@ -1,12 +1,13 @@
-# Ship agent-trace as one installable CLI
+# agent-trace DevTools: host protocol, session browser, and workspace
 
 - Status: draft
 - Owner: unconfirmed
 - Reviewer: unconfirmed
-- Last updated: 2026-09-23
+- Last updated: 2026-09-24
 - Paired Spec: [`specs/0001-external-release.md`](../../specs/0001-external-release.md)
+- Visual design: [`docs/design/`](../design/README.md)
 
-This plan turns the MVP on `main` (065ae72) into a CLI that someone else can run with `npx`, without cloning the repository. It fixes the three entry points the CLI already declares (viewer, `build` static report, `mcp`), because two of them fail today. It also removes Node.js from the core packages: schema, kernel, and adapters take their file and SQLite access as injected dependencies, and only the CLI shell provides Node implementations. It does not add viewer features, new hosts, or a browser file-open entry point.
+This plan turns the MVP on `main` into `@rivus/agent-trace`: a local DevTools that `npx @rivus/agent-trace` opens in the browser. The user picks a session from Claude Code, Codex, or Grok and debugs it in one workspace. The plan defines the host protocol that those three hosts implement first, the canonical trace `agent-trace/v1`, how sessions are discovered and loaded at the sizes found on a real machine, the UI build against the chosen design, and packaging. ATIF export, OpenCode, and dsh are follow-ups on the same protocol.
 
 ## Contents
 
@@ -23,406 +24,525 @@ This plan turns the MVP on `main` (065ae72) into a CLI that someone else can run
 
 ### 1.1 Current behavior and constraints
 
-All results below were measured on `main` at 065ae72 on 2026-09-23. Commands are in the appendix.
+Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands and raw output are in section 8.
 
-| Entry point | Command | Result on `main` |
-|---|---|---|
-| Viewer | `node bin.mjs --no-auth` | Works. `GET /__agent-trace/` returns 200 with the demo trace |
-| Static report | `node bin.mjs build --out-dir <dir>` | Exits 1: `TypeError: Cannot destructure property 'eventId' of 'undefined'` |
-| MCP | `node bin.mjs mcp` | Exits 1: `DF0079`, optional peer `@devframes/agentic` is not installed |
+**Entry points.** The dev server works on the demo fixture. `build` exits 1 (`Cannot destructure property 'eventId'`), because `reconstruct` is registered with `snapshot: true` and the static dump calls it without arguments. `mcp` exits 1 (`DF0079`, `@devframes/agentic` not installed). The session comes only from `AGENT_TRACE_PATH`; there is no session list.
 
-Other facts that constrain the design:
+**Runtime.** `rush.json` allows Node.js `>=20.11`. `bin.mjs` imports `.ts` directly and `adapter-opencode` imports `node:sqlite`. Both fail on 20.19 and 22.12 and work on 22.18. Node.js refuses to strip types under `node_modules`, so a published package needs compiled JavaScript.
 
-- **Node.js range is wrong.** `rush.json` allows `>=20.11.0 <25.0.0`. `bin.mjs` imports `src/devframe.ts` directly, and `adapter-opencode` imports `node:sqlite`. On Node.js 20.19.0 and 22.12.0 both fail (`ERR_UNKNOWN_FILE_EXTENSION`, `ERR_UNKNOWN_BUILTIN_MODULE`). On 22.18.0 both work.
-- **Source `.ts` cannot be published as is.** Node.js refuses to strip types under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). A published package needs compiled JavaScript.
-- **The CLI has no path argument.** The session comes only from `AGENT_TRACE_PATH`. DevFrame's `createCac` accepts `[...args]` for the dev command and ignores them (`devframe/dist/adapters/cac.mjs`, `devCommand.action(async (_args, rawFlags) => …)`).
-- **The static build fails because of `snapshot: true` on `reconstruct`.** The dump calls every snapshot query with no arguments. `get-trace` takes none. `reconstruct` needs `eventId`. The client does not call the `reconstruct` RPC. It calls `get-trace` (`client/app.tsx:17`) and runs `reconstruct` in the browser (`client/components/inspector.tsx:48`). Removing `snapshot: true` from `reconstruct` makes the build exit 0.
-- **The static report carries the sharer's local path.** After that fix, the dump for the demo contains `"path":"/Users/<name>/…/fixtures/demo.trace.json"`. `redact` (`kernel/src/redact.ts`) only rewrites `events[].payload` and `events[].original`, and only for `sk-`, `AKIA`, `ghp_`, `xox[baprs]-` tokens. `trace.session.cwd` and the `path` field are not touched. A real Grok or Codex trace also contains absolute paths in tool arguments.
-- **dsh and Claude Code adapters claim files and then throw.** `loadTrace` stops at the first adapter whose `detect` returns true. `adapter-dsh` claims `.zip` and `session*.jsonl`. `adapter-claude-code` claims any path containing `.claude/projects`.
-- **Core packages import Node.js for I/O only.** The parsers are already pure functions over rows or text: `parseJsonl`, `fold`, `reconstruct`, `redact`, `parseGrokUpdates`, `parseCodexRows`, `parseOpenCodeSession`. Node.js appears only in the `detect` and `load` wrappers and two kernel helpers:
+**Current UI.** On a real 3,300-record Grok session the ledger renders 2,258 rows at once (14,066 DOM nodes). 1,294 of those rows (57%) are `UNKNOWN hook_execution`. There is no timeline, no turn collapse, and no virtualization.
 
-  | Need | Where |
-  |---|---|
-  | Read text or bytes | `kernel/load.ts`, `kernel/jsonl.ts` (`readFile`); `adapter-grok` (`summary.json`, `system_prompt.txt`, `tool_definitions.json`); `adapter-opencode` (SQLite header sniff) |
-  | Stat | `adapter-grok` `detect` |
-  | `basename`, `dirname`, `join` | all five adapters |
-  | Environment variable | `adapter-opencode` reads `AGENT_TRACE_SESSION` |
-  | SQLite | `adapter-opencode` (`node:sqlite`) |
+**Adapter interface.** `Adapter = { id, detect(path), load(path) }`. It cannot list sessions, cannot say which fields a host provides, and reads files through `node:fs` directly. `adapter-dsh` and `adapter-claude-code` claim files and then throw.
 
-  The browser client already works around this: `inspector.tsx` imports `@agent-trace/kernel/reconstruct`, not the kernel root, which pulls in `node:fs/promises`. Bundling kernel, `adapter-grok`, and `adapter-codex` with `esbuild --platform=browser` fails today with `Could not resolve "node:path"` and `Could not resolve "node:fs/promises"`.
-- **The default fixture and client assets are found by relative URL.** `get-trace.ts` uses `new URL('../../../../../fixtures/demo.trace.json', import.meta.url)`. `devframe.ts` uses `new URL('../dist/client', import.meta.url)`. Both break once the code moves.
-- **Package name.** `agent-trace` on the public npm registry belongs to an unrelated project (version 0.4.0, "Self-hosted observability for AI coding agents"). `@agent-trace/devframe` is free. Whether the `@agent-trace` scope can be registered is unconfirmed.
-- The GitHub repository `PerfectPan/agent-trace` is private.
+**Host logs on this machine.** All three hosts record request boundaries, token usage, timing, compaction, and subagents, under different names:
 
-A bundling probe (appendix A.4) showed the approach in section 2.4 works: an esbuild bundle of `bin.mjs` is 20.4 KB, and after the two path fixes and the `snapshot` fix, the packed tarball installed into an empty directory ran `--help`, `build` (exit 0), and `mcp` (`tools/list` returned `agent-trace_get-trace`, `agent-trace_reconstruct`, `devframe_state_read`; calling reconstruct on `e6` returned `visibleIds: [e1, e2, e5, e6]`, `completeness: partial`).
+| Need | Claude Code | Codex | Grok |
+|---|---|---|---|
+| Location | `~/.claude/projects/<cwd>/<id>.jsonl`, subagents in `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` plus `summary.json`, `system_prompt.txt`, `tool_definitions.json`, `subagents/` |
+| Request boundary, model | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
+| Tokens | `message.usage` | `token_usage_record` | `turn_completed.usage` |
+| Timing | record `timestamp`, `system/turn_duration` | `started_at_ms`, `completed_at_ms` | `turn_completed.elapsed_ms` |
+| Compaction | `system/compact_boundary` with `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
+| Subagents | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
+| System prompt, tool schemas | not recorded | not recorded (unverified for all generations) | `system_prompt.txt`, `tool_definitions.json` |
+
+**Log volume on this machine.**
+
+| Host | Files | Total | Median | p95 | Max |
+|---|---|---|---|---|---|
+| Claude Code (main) | 225 | 550 MB | 146 KB | 8.6 MB | 81.6 MB |
+| Claude Code (subagents) | 74 | 49 MB | 485 KB | 1.1 MB | 5.9 MB |
+| Codex | 1,935 | 10.8 GB | 557 KB | 22 MB | 355 MB |
+| Grok | 77 | 220 MB | 1.2 MB | 10 MB | 29 MB |
+
+Only counting the lines of all Claude Code main files takes 2.35 s. The current Codex adapter loads the 355 MB file in 1.7 s into 16,652 events, but the serialized trace is 360 MB and the process peaks at 3.2 GB RSS. Without `original` the events are 21.3 MB; with long strings capped at 4 KB they are 9.5 MB.
+
+**Community formats** (read from primary sources; section 8, A.7):
+
+- ATIF v1.8 (Harbor, Apache-2.0) is a trajectory format of steps. It has tool call and result pairing by id, a written compaction boundary rule, and embedded subagent trajectories. Harbor ships converters for Claude Code, Codex, Grok, and OpenCode. Its unit is a step, roughly one model call. It does not keep the host record or say which individual events a compaction removed.
+- OpenTelemetry GenAI semantic conventions define the widest vocabulary (`gen_ai.usage.*`, `gen_ai.request.model`, `gen_ai.response.id`, `gen_ai.tool.call.id`, `CompactionPart`). All of it is at Development stability, and it moved to its own repository in May 2026 with no release yet.
+- ACP is a live client protocol. It is Grok's log format here, not a trace model.
+- Cursor's "Agent Trace" (agent-trace.dev) is a code-attribution format with a near-identical name and no functional overlap.
+
+**Publishing.** `@rivus/agent-trace` is unpublished. `PerfectPan/rivus-agent` is a private repository that publishes the `@rivus/*` packages from `.github/workflows/publish-npm.yml` on a GitHub release, with `id-token: write` and no npm token.
 
 ### 1.2 Problem
 
-"Usable by someone else" today means: clone, install Rush, run eight package installs, set an environment variable, and avoid two commands that crash. The product's main idea is that other agents can call `reconstruct` over MCP. That path does not start. The share path does not start either, and once it does, it would publish the sharer's home directory.
+A developer cannot open the tool, pick a session, and see what happened. The shipped commands are half broken, there is no list of sessions, Claude Code (the host with the most local sessions and the richest compaction data) is not supported, and the data model cannot express request boundaries, context size, or subagent lanes, so the UI cannot draw them. At the log sizes above, sending one complete trace to the browser does not work for the largest sessions.
 
 ### 1.3 Goals and success criteria
 
-- `npx <package> [path]`, `npx <package> build [path]`, and `npx <package> mcp [path]` work from an empty directory on Node.js 22.18 and 24. CI proves this against the packed tarball, not the workspace.
-- A static report built on the CI runner contains no occurrence of `os.homedir()`.
-- A dsh or Claude Code input exits 1 with `UnsupportedTraceError`.
-- Node.js 20 gets a one-line message that names 22.18.
-- Every scenario in the paired Spec has a CI check or a recorded manual run.
-- `schema`, `kernel`, and every `adapter-*` package have no `node:*` import outside test files, and CI bundles them with `esbuild --platform=browser` without errors.
+- Every scenario in the Spec passes as listed under its Acceptance Evidence: in CI against the packed tarball, and for real sessions by a recorded local run.
+- Claude Code, Codex, and Grok adapters implement host protocol v1 and pass the conformance suite on synthetic fixtures.
+- The session browser shows rows within 2 s on this machine (2,300+ files, 11.6 GB) and within 300 ms on the second launch for the cached numbers.
+- The 355 MB Codex session opens with at most 12 MB sent to the browser before the first event is selected.
+- `schema`, `kernel`, and adapters import no `node:*` module outside tests.
+- The two screens match `docs/design/` in both themes, reviewed side by side with the PNGs in the delivery PR.
 
 ### 1.4 Non-goals
 
-- Viewer features listed in the Spec as out of scope.
-- dsh and Claude Code parsers.
-- Publishing `schema`, `kernel`, or adapters as separate packages.
-- A secret scanner beyond the current token patterns plus path rewriting.
-- A browser entry point that opens a session the user drops into the page. D9 makes it possible; it is a follow-up (section 7).
-- Running the CLI shell on Bun or Deno. DevFrame's server, static build, and MCP stdio stay on Node.js.
-- Changing repository visibility. That is an owner decision; section 4.1 lists what must be true first.
+- ATIF export, OTLP export (follow-ups, section 7).
+- OpenCode and dsh in the session browser (follow-ups on protocol v1).
+- Live follow of a running session.
+- Search inside session content beyond title and first prompt.
+- A stable library API for internal packages.
+- Changing repository visibility.
 
 ## 2. Outline
 
 ### 2.1 Design principles
 
-- The unit that ships is the CLI. Internal packages are an implementation detail until someone needs them as a library.
-- Tests run against what users install. A green `rush test` does not prove the tarball works.
-- A shared file must not identify the sharer's machine by default.
-- The core does not know where bytes come from. Files, SQLite, environment variables, and the home directory are passed in by the entry point.
+- The product is the DevTools screen. The CLI only starts it.
+- Draw only what the host recorded. Missing is `unavailable`, never zero or an estimate.
+- A host plugs in through one protocol with a declared capability list, and proves it with the same conformance suite as every other host.
+- The browser receives a view of the trace sized for display. The full record is one request away.
+- The core does not know where bytes come from. Files, SQLite, the environment, and the home directory are passed in.
 
 ### 2.2 Boundaries and responsibilities
 
-| Piece | Owns in this plan | Change |
-|---|---|---|
-| `@agent-trace/kernel` | `TraceIO`, `SqliteIO`, `TraceRef`, path helpers, `loadTrace`, `redact` | Defines the injected interfaces (D9). `redact` takes `homeDir` from the caller and rewrites it in all strings, including `session` |
-| `adapter-grok`, `adapter-codex`, `adapter-opencode` | Host format to `Trace` | Read through the injected `TraceIO` / `SqliteIO`. No `node:*` import |
-| `adapter-dsh`, `adapter-claude-code` | Stub adapters | Only the new `Adapter` signature and kernel path helpers. They stay in the workspace and are not registered by the CLI |
-| `@agent-trace/devframe` | CLI argv, startup load, RPC, Node I/O implementation, bundle, package | Most of the work. `src/io/node.ts` is the only Node implementation of `TraceIO` and `SqliteIO` |
-| `scripts/smoke.mjs` (new) | Runs Spec scenarios against an installed bin | New |
-| CI | Runs smoke on the packed tarball | Extended |
-
-Solid arrows mean "imports". The dotted arrow is the injected implementation: kernel declares `TraceIO` and `SqliteIO`, `src/io/node.ts` implements them, and `src/cli.ts` passes that implementation into `loadTrace`. `adapter-dsh` and `adapter-claude-code` stay in the core but are not registered, so they are not drawn. DevFrame 1.0.0 and `@devframes/agentic` 1.0.0 host the RPC and are left out of the picture.
-
 ```mermaid
 flowchart TB
-  subgraph shell["Shell: @agent-trace/devframe, Node.js 22.18+"]
-    direction LR
-    cli["src/cli.ts<br/>argv and env to TraceRef"]
-    io["src/io/node.ts<br/>node:fs/promises, node:sqlite"]
-    rpc["RPC<br/>get-trace, reconstruct"]
+  subgraph hosts["Host logs on disk (read only)"]
+    cc["Claude Code JSONL"]
+    cx["Codex rollout JSONL"]
+    gk["Grok session dir"]
   end
   subgraph core["Core: no node:* imports"]
-    direction LR
-    hosts["adapter-grok<br/>adapter-codex<br/>adapter-opencode"]
-    kernel["@agent-trace/kernel<br/>TraceIO, SqliteIO, TraceRef<br/>loadTrace, fold, reconstruct, redact"]
-    schema["@agent-trace/schema"]
+    ad["Host adapters<br/>protocol v1"]
+    kernel["kernel<br/>loadTrace, fold, reconstruct, redact,<br/>view, conformance suite"]
+    schema["schema<br/>agent-trace/v1"]
   end
-  spa["SPA in the browser"]
+  subgraph shell["Shell: @rivus/agent-trace, Node.js 22.18+"]
+    io["NodeIO<br/>fs, homedir"]
+    idx["Session index<br/>discover + summary cache"]
+    rpc["RPC<br/>list-sessions, get-trace-view,<br/>get-event, reconstruct"]
+    cli["CLI<br/>dev, build, mcp"]
+  end
+  spa["SPA<br/>session browser, workspace"]
 
-  cli --> io
-  cli --> hosts
+  hosts --> io
+  io -. "implements TraceIO" .-> ad
+  ad --> kernel --> schema
+  idx --> ad
+  rpc --> idx
   rpc --> kernel
-  hosts --> kernel
-  kernel --> schema
-  io -. "implements" .-> kernel
-  spa --> rpc
-  spa --> kernel
+  cli --> rpc
+  spa -- "RPC over localhost" --> rpc
 ```
+
+| Piece | Owns | Change in this plan |
+|---|---|---|
+| `@agent-trace/schema` | `agent-trace/v1` types, v0 reader | New event kinds, request and compaction payloads, agents, capabilities, source pointers |
+| `@agent-trace/kernel` | `TraceIO`, `HostAdapter`, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, conformance suite | New protocol, view projection, conformance suite; no `node:*` |
+| `adapter-claude-code` | Claude Code logs | New implementation |
+| `adapter-codex`, `adapter-grok` | Their logs | Ported to protocol v1, extended to requests, usage, timing, compaction, subagents |
+| `adapter-opencode`, `adapter-dsh` | Their logs | Not registered in this release |
+| `@agent-trace/devframe` (published as `@rivus/agent-trace`) | NodeIO, session index, RPC, CLI, SPA | Most of the work |
+| `docs/design/` | Visual contract | Implemented as tokens in `styles.css` |
 
 ### 2.3 Main path
 
-One process handles one trace. The trace is loaded and checked before any subcommand starts, so a bad path fails before a port opens.
-
 ```mermaid
-flowchart LR
-  user["npx pkg [build | mcp] [path]"] --> bin["dist/bin.mjs<br/>Node.js 22.18+ check"]
-  bin -- "old Node" --> old["one-line message, exit 1"]
-  bin -- "dynamic import" --> cli["dist/cli.mjs<br/>argv to TraceRef<br/>path, #id or AGENT_TRACE_SESSION"]
-  cli --> load["loadTrace(ref, adapters, nodeIO)"]
-  load -- "error" --> fail["stderr message, exit 1"]
-  load -- "ok: host, event count" --> sub{"subcommand"}
-  sub -- "none" --> dev["dev server on localhost<br/>SPA from dist/client + RPC"]
-  sub -- "build" --> build["static dump of get-trace<br/>redact with os.homedir(), forced"]
-  sub -- "mcp" --> mcp["stdio MCP server<br/>agent-trace_reconstruct"]
+sequenceDiagram
+  participant U as User
+  participant C as CLI
+  participant S as Server
+  participant B as Browser
+  U->>C: npx @rivus/agent-trace
+  C->>C: Node.js version check
+  C->>S: start on localhost
+  C->>B: open /__agent-trace/
+  B->>S: list-sessions
+  S-->>B: rows from head/tail reads (cached numbers when present)
+  S-->>B: summary updates as full reads finish
+  U->>B: open a session
+  B->>S: get-trace-view(ref)
+  S-->>B: progress, then view trace (no originals, text capped)
+  U->>B: select an event
+  B->>S: get-event(ref, id)
+  S-->>B: full payload + original record (read by byte offset)
 ```
+
+With a path argument the CLI loads and checks that session before listening, then opens the workspace URL for it.
 
 ### 2.4 Design decisions
 
-**D1. Distribute as one npm package. Do not stop at git clone.**
-Alternative A: git clone plus Rush. It needs no build work, but every user installs a monorepo to read one file, and `mcp` cannot be registered in another agent's config as a short command. Alternative B: publish all eight workspace packages. It gives library users an API, but `agent-trace/v0` is not stable and every package becomes a support promise. Chosen: one package whose `dist/` contains the bundled workspace code. Runtime dependencies are only `devframe`, `@devframes/agentic`, and `cac`.
+**D1. The product is a browser DevTools; the CLI is its launcher.**
+Alternatives: a CLI-first tool (the previous draft of this plan), and a desktop app. A CLI cannot show a timeline or an inspector. A desktop app adds an installer and signing for no capability the browser lacks. DevFrame already provides the local server, the SPA shell, the static build, and MCP.
 
-**D2. Bundle with esbuild.**
-Alternative: `tsc` per package plus `workspace:*` rewriting. That brings back alternative B. Alternative: `tsdown`. It would work, but the probe already passed with esbuild, and esbuild needs no config file. Command: `esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22.18 --external:devframe --external:@devframes/agentic --external:cac --outfile=dist/cli.mjs`. `node:sqlite` stays a Node built-in.
+**D2. Host protocol v1 replaces `Adapter`.**
+The current interface cannot list sessions or state which fields a host records, so the UI cannot tell "zero" from "not recorded". Protocol v1 adds `discover`, `summarize`, a capability list, and a conformance suite (3.2). Alternative: keep `Adapter` and add discovery in the shell per host. Rejected because each host's layout knowledge would then live in two places.
 
-**D3. Require Node.js `>=22.18.0 <25`.**
-Measured in section 1.1. The bundle removes the type-stripping requirement, but `node:sqlite` still needs 22.13 or later, and the workspace dev path (`rushx dev`) still runs `.ts` directly. One floor for both keeps it simple. Set it in `rush.json`, in `engines`, and in `dist/bin.mjs` (see 3.1), because npm only warns on `engines` by default. After D9 the floor applies to the CLI shell and `src/io/node.ts` only. The core packages have no Node.js floor.
+**D3. `agent-trace/v1` stays event-level; field meanings follow OTel GenAI; the structure stays mappable to ATIF.**
+Events remain the canonical unit because `reconstruct` answers per event and the inspector shows per-event raw records. Alternatives: ATIF as storage (rejected: step granularity, no raw record, no per-event visibility), OTel spans as storage (rejected: Development stability, and a span tree has no place for per-event visibility). Usage, model, request, and tool fields take their meaning, units, and names from OTel GenAI, written in camelCase in TypeScript with a one-to-one table (3.3). Every v1 field that ATIF has must map to it without loss, so the ATIF export follow-up is a projection, not a redesign.
 
-**D4. Path as positional argument, parsed in our bin, not in DevFrame.**
-DevFrame ignores dev-command args and has no build or mcp args. Changing DevFrame means an upstream release. Our bin reads the first positional argument after an optional `build` or `mcp` subcommand, removes it from `argv`, resolves it to an absolute path, and sets `AGENT_TRACE_PATH`. `#sessionId` suffixes are kept. The environment variable still works when no argument is given.
+**D4. Claude Code, Codex, and Grok in this release.**
+Claude Code has the most sessions and the fullest compaction record here. Codex and Grok already have adapters to port. OpenCode needs `SqliteIO` and is the next host on the same protocol; dsh needs zstd and its format catalog.
 
-**D5. Do not register dsh and Claude Code in the CLI.**
-Alternative: make their `detect` return false. That also works, but changes two packages to express a CLI decision, and has to be reverted in both when a parser lands. Chosen: remove them from the `adapters` array in `get-trace.ts`. `loadTrace` then throws `UnsupportedTraceError`. When a parser lands, its PR adds it back to the array.
+**D5. Core packages take I/O by injection.**
+`TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in the shell. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5).
 
-**D6. Remove `snapshot: true` from the `reconstruct` RPC.**
-It is the measured cause of the build failure. The static page does not need it (section 1.1). MCP still lists and calls the tool without it (probe). `get-trace` keeps `snapshot: true`.
+**D6. The browser receives a view trace; originals and full text load on demand.**
+This changes two current rules in `AGENTS.md`: "canonical storage is `events[]` plus `original`" becomes "every event can return its original", and "`getTrace` is one snapshot blob" becomes "`get-trace-view` is one snapshot blob; `get-event` returns one event in full". Measured on the 355 MB session: 360 MB full, 21.3 MB without originals, 9.5 MB with strings capped at 4 KB (A.6). Alternatives: paging events (rejected: the timeline and the ledger need every event's shape, and `reconstruct` needs the whole sequence), and compressing the full blob (rejected: the server would still hold 3.2 GB). The server keeps each event's source pointer (file, byte offset, length) and reads the line again when `get-event` asks for it. `AGENTS.md` is updated in the same change.
 
-**D7. Redact paths, always redact the static report.**
-`redact` gains a second rule: replace every occurrence of the caller's home directory with `~` in all strings of the trace, including `session.cwd` and `session.title`. The home directory is a required argument, not a default read inside kernel, so kernel stays free of `node:os` (D9). The CLI passes `os.homedir()`. `get-trace` returns `path` as its base name when redaction is on. For `build`, redaction is forced; if `AGENT_TRACE_REDACT=0` is set, `build` prints that it was ignored. After a build, the CLI prints the count of replaced tokens and paths and one line: session text is included; read the report before you send it. Alternative: a general secret scanner. Not designed; listed as follow-up.
+**D7. Session discovery reads heads and tails; full summaries are computed lazily and cached on disk.**
+A full parse of 11.6 GB at launch is not possible. `discover` lists files and reads the first and last 64 KB of each to fill title, project, start and last activity, and size. `summarize` parses one file fully for turns, requests, tokens, duration, and flags. The shell runs `summarize` for visible rows first, with a concurrency limit of 4, and stores results in `~/.cache/rivus-agent-trace/summaries-v1.json` keyed by path, size, and mtime. Alternative: an SQLite index. Rejected for now; revisit if the JSON cache exceeds 5 MB or the first screen misses 2 s.
 
-**D8. Pin `devframe` and `@devframes/agentic` to `1.0.0` exactly.**
-`@devframes/agentic@1.0.0` declares `peerDependencies: { devframe: "1.0.0" }`. With `devframe: ^1.0.0`, a `1.0.1` release would break the peer and `mcp`. Upgrades are explicit.
+**D8. RPC shape and the static report.**
+Queries: `list-sessions` (not a snapshot), `get-trace-view(ref)`, `get-event(ref, id)`, `reconstruct(ref, eventId)` (for MCP; `snapshot: true` removed, the measured cause of the `build` failure). DevFrame's static dump only bakes argument-free snapshot queries, so `build <path>` registers one extra argument-free query, `report-trace`, bound to that session, and the SPA starts in report mode when it finds it. A report includes the view trace and the original records of at most the first 2,000 events or 20 MB, whichever is smaller, and says so in the report header when it truncates.
 
-**D9. Core packages take I/O by injection and import no Node.js built-ins.**
-`schema`, `kernel`, and all `adapter-*` packages receive file access, SQLite access, and the session id from the caller (interfaces in 3.2). The Node implementation lives in `packages/devframe/src/io/node.ts`.
-Why now: the refactor is small (two kernel files, five adapters, `get-trace.ts`) because the parsers are already pure. It also removes two couplings that this plan would otherwise add or keep: `adapter-opencode` reading `AGENT_TRACE_SESSION`, and `redact` reading `os.homedir()`. Adapter tests can use an in-memory `TraceIO` instead of temp files.
-What it makes possible later: a static page that opens a dropped Codex file or Grok directory in the browser, and running the core in a Worker, Bun, or Deno. None of these ships in this plan.
-Alternatives considered:
-- Keep Node in the core and add a browser build later. Rejected because every new adapter would add more `node:*` imports to undo, and the kernel root is already unusable in the browser.
-- Inject through adapter factories (`createGrokAdapter(io)`). Rejected because adapters hold no state; an `io` argument per call is simpler and lets one adapter list serve several I/O implementations.
-- A put-everything-in-memory interface (`files: Map<string, Uint8Array>`). Rejected because an OpenCode database or a large Codex rollout would have to be read in full before `detect`. `readBytes` with a range keeps `detect` to a header read.
-- Put `node.ts` in its own `io-node` package. Rejected for now: only the CLI uses it, and the CLI is the one package that ships (D1). Move it out if a second Node entry point appears.
-Enforcement: oxlint `no-restricted-imports` with pattern `node:*` on `packages/{schema,kernel,adapter-*}/src`, excluding `*.test.ts` (tests may keep `node:url` for fixture paths). Plus a CI step that bundles kernel and every adapter with `esbuild --platform=browser`. Both checks were run against `main` and both fail on the current imports, so they detect the problem they are meant to prevent (appendix A.5).
+**D9. UI stack and design contract.**
+Solid, Tailwind v4, and shadcn-solid stay. Tokens, palette, type, and encoding rules come from `docs/design/README.md` and become CSS variables in `styles.css` under `data-theme="dark|light"`. The ledger uses `@tanstack/solid-virtual` 3.13. The timeline and preview shape are SVG drawn from kernel projections; no chart library.
+
+**D10. Redaction.**
+`redact(trace, { homeDir })` replaces the home directory with `~` in every string and replaces the known token patterns. The report path always redacts. `AGENT_TRACE_REDACT=0` affects only the local server.
+
+**D11. One bundled package, `@rivus/agent-trace`.**
+esbuild bundles the shell and all workspace packages into `dist/cli.mjs` with `devframe`, `@devframes/agentic`, and `cac` as runtime dependencies. `dist/bin.mjs` checks Node.js `>=22.18` before a dynamic import, because a static import would load `node:sqlite` first. `devframe` and `@devframes/agentic` are pinned to `1.0.0`, since `@devframes/agentic@1.0.0` declares `peerDependencies: { devframe: "1.0.0" }`. A packing probe of this approach installed into an empty directory ran `build` and `mcp` successfully (A.4).
+
+**D12. Release through GitHub release and npm trusted publishing, like `rivus-agent`.**
+A workflow on `release: published` runs the gates, then publishes with `id-token: write`. The repository can stay private. Whether npm provenance is attached for a private repository is not asserted here.
 
 ## 3. Detailed design
 
-### 3.1 Entry points and request path
-
-`packages/devframe` layout after this plan:
-
-| File | Purpose |
-|---|---|
-| `bin.mjs` | Workspace entry, unchanged role: `rushx dev` runs source `.ts` |
-| `src/cli.ts` (new) | argv handling (D4), startup load, then `createCac(devframe).parse(argv)` |
-| `src/shared/paths.ts` (new) | Resolves `clientAssets` and the demo fixture for both source and bundle layouts |
-| `src/io/node.ts` (new) | `nodeIO: TraceIO & { sqlite: SqliteIO }` over `node:fs/promises` and `node:sqlite` (D9) |
-| `dist/bin.mjs` (generated) | Checks `process.versions.node >= 22.18.0`, prints one line and exits 1 if not, then `await import('./cli.mjs')` |
-| `dist/cli.mjs` (generated) | esbuild output |
-| `dist/client/` (generated) | Vite SPA, as today |
-| `dist/demo.trace.json` (copied) | Copy of `fixtures/demo.trace.json` |
-
-`dist/bin.mjs` must use a dynamic import. A static import would load `node:sqlite` before the version check runs.
-
-`paths.ts` uses one build-time constant. esbuild sets `--define:AGENT_TRACE_BUNDLE=true`; source mode leaves it undefined. In bundle mode, paths are relative to `dist/cli.mjs` (`./client`, `./demo.trace.json`). In source mode they stay as today.
-
-Commands after this plan:
+### 3.1 Entry points
 
 ```
-agent-trace [path] [--port] [--host] [--no-auth] [--open]
-agent-trace build [path] [--out-dir report]
-agent-trace mcp [path]
+npx @rivus/agent-trace [path] [--port] [--host] [--no-open] [--no-auth]
+npx @rivus/agent-trace build <path> [--out-dir report]
+npx @rivus/agent-trace mcp <path>
 ```
 
-Startup load: `src/cli.ts` calls `loadTrace` once before handing off to DevFrame, prints `host`, `session.id`, and `events.length` to stderr, and exits 1 on error. The RPC handlers keep loading on each call, as today. A cache is not added in this plan.
+- No path: open `/__agent-trace/` (session browser).
+- Path: load it once through `loadTrace`; on failure exit 1 with the message before listening; on success open `/__agent-trace/#/s/<ref>`.
+- `ref` is an opaque id the index assigns (a hash of host and path). The absolute path never appears in a URL.
+- `AGENT_TRACE_PATH` is used when no path argument is given.
 
-### 3.2 Interfaces
+### 3.2 Host protocol v1
 
-- RPC `get-trace`: unchanged shape `{ path, trace, fold }`. `path` is a base name when redaction is on.
-- RPC `reconstruct`: unchanged shape. No longer a snapshot query.
-- MCP tools: whatever DevFrame derives from the two RPCs. Today that is `agent-trace_get-trace` and `agent-trace_reconstruct`.
-- `redact(trace, { homeDir })`: `homeDir` is required. An empty string disables the path rule. Tests pass a fixed value.
-- Package `bin`: `{ "agent-trace": "dist/bin.mjs" }`. `files`: `["dist"]`.
-
-Injected I/O, exported from `@agent-trace/kernel` (D9):
+Exported from `@agent-trace/kernel`:
 
 ```ts
-/** Where the trace comes from. `path` uses `/` separators; `sessionId` replaces `#id` and AGENT_TRACE_SESSION. */
-export interface TraceRef {
-  path: string
-  sessionId?: string
-}
-
 export interface TraceIO {
   readText: (path: string) => Promise<string>
-  /** `end` is exclusive. Used by `detect` to read a header without loading the file. */
+  /** `end` is exclusive. */
   readBytes: (path: string, range?: { start: number, end: number }) => Promise<Uint8Array>
+  list: (dir: string) => Promise<{ name: string, kind: 'file' | 'dir' }[]>
   /** `null` when the path does not exist. */
-  kind: (path: string) => Promise<'file' | 'dir' | null>
+  stat: (path: string) => Promise<{ kind: 'file' | 'dir', size: number, mtimeMs: number } | null>
+  /** Iterate lines with their byte offsets; used to build source pointers. */
+  lines: (path: string, opts?: { signal?: AbortSignal }) => AsyncIterable<{ text: string, offset: number, length: number, line: number }>
 }
 
-export interface SqliteIO {
-  /** Opens `file` read-only, runs one statement, closes. */
-  all: <T>(file: string, sql: string, params?: readonly unknown[]) => Promise<T[]>
+export interface HostEnv {
+  homeDir: string
+  env: Readonly<Record<string, string | undefined>>
 }
 
-export interface LoadIO extends TraceIO {
-  sqlite?: SqliteIO
+export type Capability =
+  | 'requests' | 'usage' | 'durations' | 'thinking'
+  | 'compaction' | 'compactionTokens' | 'subagents'
+  | 'systemPrompt' | 'toolSchemas' | 'hooks'
+
+export interface SessionRef { host: string, path: string, sessionId?: string }
+
+export interface SessionHead {
+  ref: SessionRef
+  title?: string
+  cwd?: string
+  startedAt?: number
+  lastActiveAt: number
+  sizeBytes: number
+  firstPrompt?: string
 }
 
-export interface Adapter {
+export interface SessionSummary {
+  turns?: number
+  requests?: number
+  tokensIn?: number
+  tokensOut?: number
+  durationMs?: number
+  compactions?: number
+  subagents?: number
+  failedTools?: number
+  /** Input tokens per request in order, downsampled to at most 120 points, for the preview shape. */
+  contextShape?: number[]
+}
+
+export interface HostAdapter {
   id: string
-  detect: (ref: TraceRef, io: LoadIO) => Promise<boolean>
-  load: (ref: TraceRef, io: LoadIO) => Promise<Trace>
+  displayName: string
+  protocol: 1
+  capabilities: readonly Capability[]
+  /** Default locations for this host, for example `<home>/.claude/projects`. */
+  roots: (env: HostEnv) => string[]
+  /** Cheap: list files and read at most 64 KB from each end. */
+  discover: (root: string, io: TraceIO, opts: { signal?: AbortSignal }) => AsyncIterable<SessionHead | { ref: SessionRef, error: string }>
+  detect: (ref: SessionRef, io: TraceIO) => Promise<boolean>
+  load: (ref: SessionRef, io: TraceIO, opts: { signal?: AbortSignal, onProgress?: (bytes: number) => void }) => Promise<Trace>
+  /** Defaults to `fold(await load(...))`; a host may override it with a faster pass. */
+  summarize?: (ref: SessionRef, io: TraceIO, opts: { signal?: AbortSignal }) => Promise<SessionSummary>
 }
-
-export function loadTrace(ref: TraceRef, adapters: readonly Adapter[], io: LoadIO): Promise<Trace>
-export function parseTraceRef(input: string, fallbackSessionId?: string): TraceRef
-export const tracePath: { basename, dirname, join }  // pure, `/` only
 ```
 
 Rules:
 
-- `readJsonl(path)` becomes `parseJsonl(await io.readText(path))` at the call site. `readJsonl` is removed from the kernel exports.
-- `adapter-opencode` `detect` checks `basename === 'opencode.db'` or the first 16 bytes from `io.readBytes(file, { start: 0, end: 16 })`. `load` throws `opencode adapter needs SqliteIO` when `io.sqlite` is absent. It runs its three queries through `io.sqlite.all`, which opens the database once per statement. Three opens per load is acceptable for a local tool. A connection-scoped interface is a follow-up if a trace needs many queries.
-- `parseTraceRef` replaces `splitSessionRef`. The CLI calls `parseTraceRef(path, process.env.AGENT_TRACE_SESSION)`. No adapter reads the environment.
-- `src/io/node.ts` converts Windows separators to `/` in `TraceRef.path` before it reaches the core, and back when it calls `fs`. The Node implementation is the only place that knows the platform.
-- The UI client may now import the kernel root instead of `@agent-trace/kernel/reconstruct`. The subpath export stays for compatibility.
+- An adapter reads only through `TraceIO` and writes nothing.
+- A field the host can record is declared in `capabilities`. A declared field that is missing from one record is `undefined` for that record, never zero.
+- `load` must account for every input record: it becomes one or more events, or one `skipped` entry with a reason and line number.
+- An unknown record type becomes an `unknown` event with `payload.type` set to the host's type name. An unknown format generation fails `load` with the line number.
+- Event ids are derived from host ids when the host has them, otherwise from file and line, so a second load gives the same ids.
 
-### 3.3 Failures and recovery
+**Conformance suite.** `@agent-trace/kernel/conformance` exports `describeHostConformance(adapter, fixtures)` for Vitest. Every registered adapter runs it on its synthetic fixtures. It checks:
 
-`loadTrace` tries canonical JSON first, then each registered adapter in order. The first `detect` that returns true owns the input. On `main`, dsh and Claude Code sit after Codex and claim their files, then throw a not-implemented error. After D5 they are not in the list, so those inputs reach `UnsupportedTraceError`.
+1. `discover` returns every fixture session and reads no more than 128 KB per file.
+2. `load` twice gives identical event ids and order.
+3. Records in = events + skipped, per the fixture's record count.
+4. Every `tool_result.callId` matches an earlier `tool_call.callId` in the same agent, or the result is flagged `orphan`.
+5. Every `shadowedBy` points to an earlier `compaction` event.
+6. Every event has a source pointer that reads back the same record.
+7. Each declared capability appears at least once in the fixture that claims it; an undeclared one never appears.
+8. `summarize` equals `fold(load())` for the fixture.
+9. No `node:*` import is reachable from the adapter entry.
 
-```mermaid
-flowchart TD
-  start["loadTrace(ref, adapters, io)"] --> canon{"canonical<br/>agent-trace/v0 JSON?"}
-  canon -- "yes" --> trace["Trace"]
-  canon -- "no" --> g{"grok.detect"}
-  g -- "no" --> o{"opencode.detect"}
-  o -- "no" --> c{"codex.detect"}
-  c -- "no" --> un["UnsupportedTraceError<br/>dsh, Claude Code, anything else"]
-  g -- "yes" --> load["matched adapter<br/>load(ref, io)"]
-  o -- "yes" --> load
-  c -- "yes" --> load
-  load -- "ok" --> trace
-  load -- "throws" --> err["adapter error, exit 1"]
+### 3.3 Canonical trace `agent-trace/v1`
+
+```ts
+export type EventKind =
+  | 'user' | 'assistant' | 'thinking' | 'tool_call' | 'tool_result'
+  | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
+
+export interface SourcePointer { file: string, offset: number, length: number, line: number }
+
+export interface TraceEvent {
+  id: string
+  /** Order within the trace; ties in `ts` keep host order. */
+  seq: number
+  ts: number
+  kind: EventKind
+  agentId?: string
+  parentId?: string
+  /** Groups events that belong to one model request. */
+  requestId?: string
+  shadowedBy?: string
+  payload: Record<string, unknown>
+  source: SourcePointer
+  /** Present in memory and in `get-event`; absent in the view trace. */
+  original?: unknown
+}
+
+export interface RequestPayload {
+  model?: string          // gen_ai.request.model
+  responseId?: string     // gen_ai.response.id
+  usage?: {
+    inputTokens?: number        // gen_ai.usage.input_tokens
+    outputTokens?: number       // gen_ai.usage.output_tokens
+    cacheReadTokens?: number    // gen_ai.usage.cache_read.input_tokens
+    cacheWriteTokens?: number   // gen_ai.usage.cache_write.input_tokens
+    reasoningTokens?: number    // gen_ai.usage.reasoning.output_tokens
+  }
+  startedAt?: number
+  durationMs?: number
+  stopReason?: string     // gen_ai.response.finish_reasons[0]
+}
+
+export interface CompactionPayload {
+  trigger?: 'auto' | 'manual'
+  preTokens?: number
+  postTokens?: number
+  summaryEventId?: string
+}
+
+export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
+export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
+
+export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string }
+
+export interface Trace {
+  schema: 'agent-trace/v1'
+  host: { id: string, version?: string }
+  session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
+  capabilities: Capability[]
+  agents: AgentInfo[]
+  events: TraceEvent[]
+  skipped: { line: number, file: string, reason: string }[]
+}
 ```
 
-| Input | Result |
-|---|---|
-| No path, no env | Demo trace |
-| Path does not exist | Exit 1 at startup, message names the path |
-| Canonical JSON, Grok dir, Codex rollout, `opencode.db#id` | That trace |
-| `opencode.db` with several sessions, no id | Existing error that names the session count |
-| dsh file, Claude Code path, anything else | Exit 1, `UnsupportedTraceError` |
-| Unknown host generation | Adapter throws, exit 1. No silent drop |
-| Node.js < 22.18 | One-line message, exit 1 |
-| `opencode.db` loaded with an I/O that has no `sqlite` | `opencode adapter needs SqliteIO`. Cannot happen in the CLI; guards future entry points |
+- `agent-trace/v0` files load through a reader that converts them to v1 with `capabilities: []` and a source pointer of line 0.
+- Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.
+- Each ATIF field that v1 covers is listed in section 8, A.8, so the ATIF export follow-up is a mapping.
 
-### 3.4 Compatibility and migration
+**View trace.** `toView(trace, { maxString: 4096 })` drops `original`, caps every string at 4,096 characters, and records `payload.$truncated = [paths]` on events it shortened. The ledger shows a "shortened" marker for those; the inspector calls `get-event`.
 
-- `agent-trace/v0` files: unchanged.
-- `AGENT_TRACE_PATH`, `AGENT_TRACE_SESSION`: unchanged. A positional path wins over `AGENT_TRACE_PATH`.
-- `AGENT_TRACE_REDACT=0`: still disables redaction in the viewer and MCP. Ignored by `build` (D7).
-- `rushx dev` from the workspace: unchanged.
-- Node.js 20 and 22.0–22.17: dropped. They never worked (section 1.1).
-- `Adapter`, `loadTrace`, `splitSessionRef`, `readJsonl`: signatures change (D9). Their only callers are in this repository, so there is no external migration. Adapter unit tests on `parse*` functions do not change.
-
-### 3.5 Security and privacy
-
-- Default bind stays `localhost`. `--no-auth` stays opt-in. README documents it for loopback only.
-- The static report is redacted for tokens and home-directory paths. Session text, file contents, and other secrets stay. README and the post-build message say so.
-- `mcp` over stdio returns unredacted data when `AGENT_TRACE_REDACT=0`. That matches the viewer and is local only.
-- The package must not include `fixtures/` beyond `demo.trace.json`, or any file from a real session. CI checks the tarball file list (5.1).
-
-## 4. Rollout and stability
-
-### 4.1 Gates and rollout stages
+### 3.4 Session index and cache
 
 ```mermaid
 flowchart LR
-  scaf["PR #3, merged<br/>scaffolding: CI, templates"] --> m1
-  m1["M1 workspace<br/>D9 first, then D3 to D8<br/>smoke via rushx"] --> m2["M2 tarball<br/>esbuild bundle<br/>smoke on installed bin"]
-  m2 --> m3["M3 publish 0.1.0"]
-  owner["owner decisions<br/>package name, visibility"] --> m3
+  roots["HostAdapter.roots(env)"] --> disc["discover<br/>list + head/tail 64 KB"]
+  disc --> rows["rows sent to the browser"]
+  disc --> q{"cached summary<br/>for path+size+mtime?"}
+  q -- "yes" --> rows
+  q -- "no" --> sum["summarize<br/>visible rows first, 4 at a time"]
+  sum --> cache["~/.cache/rivus-agent-trace/<br/>summaries-v1.json"]
+  sum --> rows
 ```
 
-| Stage | Precondition | What ships | Stop if |
-|---|---|---|---|
-| M1: entry points work in the workspace | This plan accepted | D9 first, then D3–D8 in source, `scripts/smoke.mjs`, the `node:*` lint rule and browser-bundle check, CI runs smoke with `rushx` on Node 22.18 and 24 | Any smoke scenario fails, or either D9 check fails |
-| M2: packable CLI | M1 merged | D1, D2, `dist/bin.mjs`, `paths.ts`, CI job: `npm pack`, install tarball in a temp dir, run the same smoke against the installed bin; Node 20 check for S8 | Tarball smoke differs from workspace smoke |
-| M3: first publish | M2 merged; owner decides name and visibility | `0.1.0` published from a GitHub Actions workflow triggered by a tag | Any item in the list below is not done |
+- The index lives in the shell process and is rebuilt on each `list-sessions`. The browser receives rows first and summary updates as they finish.
+- The cache file is written atomically (temp file then rename). A corrupt or unknown-version cache is discarded.
+- Claude Code subagent files count toward their parent session and are not separate rows.
+- A missing root yields a host entry with `count: 0` and `checked: <path>`.
 
-M3 checklist:
+### 3.5 Loading a session
 
-1. Package name chosen (7, first row).
-2. If the repository goes public: a secret scanner such as gitleaks run over the full history with no findings. PR #3 (merged as 62be3fd) deleted `docs/VISION.md` from the tree, but commit 065ae72 still contains it with a local home path and `/tmp` research paths. Decide whether that is acceptable or whether the history is squashed before the visibility change.
-3. `LICENSE` present at the root (MIT is already declared in `package.json`).
-4. README quick start is `npx <package>`, and the host table lists canonical JSON, Grok, Codex, OpenCode only.
+- `get-trace-view` loads through the adapter with `onProgress` and streams progress (bytes read out of file size) to the browser before the result.
+- The server keeps the last 3 loaded traces in memory without originals; `get-event` reads the original from the source pointer.
+- A load is cancelled when the browser navigates away (`AbortSignal`).
+
+### 3.6 UI
+
+Components map to the design:
+
+| Area | Data | Notes |
+|---|---|---|
+| Session browser rows and preview | `list-sessions` rows and summaries | Filters and search are client-side over rows |
+| Session header | `fold(trace)` | "—" for undeclared capabilities |
+| Timeline | `projectRequests(trace)`, `projectLanes(trace)` from kernel | Bar height = `usage.inputTokens`; missing usage draws a hollow bar; brush emits a time range |
+| Ledger | `projectTurns(trace)`, hook-run folding, visibility from `reconstruct` | `@tanstack/solid-virtual`, fixed 36 px rows, 40 px turn headers |
+| Inspector: Model saw | `reconstruct(trace, eventId)` extended with slot token counts | Slots not recorded show hatched "unavailable" |
+| Inspector: Raw | `get-event` | Pretty-printed original record |
+| Theme | `prefers-color-scheme`, manual switch in `localStorage` | Tokens from `docs/design/README.md` |
+
+`reconstruct` gains per-slot token counts when the host records them: the request's input tokens, and the compaction's `postTokens` when it is the first request after a compaction. It does not estimate slot sizes from text length.
+
+### 3.7 Failures and recovery
+
+| Condition | Behavior |
+|---|---|
+| Host root missing | Host shows 0 and the checked path |
+| File unreadable or unknown generation | Row marked "could not read"; opening shows host, file, and line |
+| Summary fails | Row keeps head fields; numbers show "—"; failure is not cached |
+| Session load fails | Workspace shows the error with host, file, and line; back to the list |
+| Browser closes during a load | Load aborted |
+| Cache corrupt | Discarded and rebuilt |
+| Node.js < 22.18 | One-line message, exit 1 |
+
+### 3.8 Compatibility and migration
+
+- `Adapter`, `loadTrace(path, adapters)`, `splitSessionRef`, `readJsonl` change signature. All callers are in this repository.
+- `agent-trace/v0` files keep loading (3.3).
+- `AGENTS.md` rules on `original` and `getTrace` change as stated in D6, in the same PR as the code.
+- Node.js 20 and 22.0–22.17 are dropped; they never worked.
+
+### 3.9 Security and privacy
+
+- The server binds `localhost`. DevFrame's authentication gate stays on by default; `--no-auth` stays opt-in. How the gate behaves with `--open` is an open question (section 7).
+- URLs carry opaque session refs, never paths.
+- The summary cache holds titles, first prompts (first 200 characters), paths, and numbers. It lives in the user's cache directory with mode 0600.
+- The report is always redacted (D10). Session text and file contents remain; the export dialog and the report header say so.
+- Nothing is sent off the machine.
+
+## 4. Rollout and stability
+
+### 4.1 Stages
+
+```mermaid
+flowchart LR
+  m1["M1 Runtime<br/>Node floor, DevFrame fixes,<br/>DI, CLI path"] --> m2["M2 Protocol<br/>schema v1, HostAdapter,<br/>conformance, 3 hosts"]
+  m2 --> m3["M3 Session browser<br/>index, cache, list UI"]
+  m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes"]
+  m3 --> m5["M5 Ship<br/>report, bundle, tarball e2e,<br/>release 0.1.0"]
+  m4 --> m5
+```
+
+| Stage | Ships | Gate |
+|---|---|---|
+| M1 | D5, D11 runtime parts (Node floor, pins, `@devframes/agentic`), `snapshot` fix, positional path | `build` and `mcp` exit 0 on the demo; D5 checks pass |
+| M2 | `agent-trace/v1`, protocol v1, conformance suite, Claude Code adapter, Codex and Grok ports, synthetic fixtures | Conformance green for 3 hosts; real-session runs recorded |
+| M3 | Session index, cache, `list-sessions`, session browser screen | S1, S3, S4 green; 2 s first screen on this machine recorded |
+| M4 | View trace, `get-event`, timeline, ledger, inspector, themes | S5–S8, S11, S12 green; design review against PNGs |
+| M5 | Report mode, bundle, tarball e2e, release workflow | All scenarios green on the tarball; `0.1.0` published |
+
+M3 and M4 can run in parallel after M2.
 
 ### 4.2 Signals
 
-Local tool, no telemetry. Signals are CI results on each PR and GitHub issues after publish. Owner unconfirmed.
+Local tool, no telemetry. Signals are CI results and GitHub issues.
 
 ### 4.3 Rollback
 
-- M1, M2: revert the PR. No data changes.
-- M3: `npm deprecate <package>@<version> "<reason>"` and publish a fixed patch. Do not `npm unpublish` after other people may have installed it.
+- M1–M4: revert the PR.
+- M5: `npm deprecate @rivus/agent-trace@<version> "<reason>"` and publish a patch. Do not unpublish.
 
 ## 5. Verification
 
-### 5.1 Functional checks
+### 5.1 Unit and conformance
 
-`scripts/smoke.mjs <bin>` runs the Spec scenarios against a given bin path. M1 passes the workspace `bin.mjs`; M2 passes the installed `node_modules/.bin/agent-trace`.
+- Kernel: `toView`, `redact`, `fold`, `reconstruct` slot counts, projections, v0 reader.
+- Each host: `describeHostConformance` on synthetic fixtures under `packages/adapter-*/fixtures/`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
+- D5: oxlint `node:*` rule and `esbuild --platform=browser` bundle of kernel and adapters.
+
+### 5.2 Browser end-to-end
+
+Playwright against the packed tarball, with a synthetic home directory that holds fixture sessions for the three hosts:
 
 | Spec | Check |
 |---|---|
-| S1 | Start with `--no-open --port <free>`, wait for the ready line, `GET /__agent-trace/` is 200, stop |
-| S3 | Nonexistent path exits 1 before any ready line |
-| S4 | Temp file `session.jsonl` with one non-canonical line exits 1, stderr contains `UnsupportedTraceError`; same for a temp dir named `.claude/projects/x` |
-| S5 | `build` on demo exits 0; `index.html` exists; `grep -r "$HOME"` over the output finds nothing |
-| S6 | Same as S5 with `AGENT_TRACE_REDACT=0`; stderr contains the ignore notice |
-| S7 | Pipe `initialize`, `notifications/initialized`, `tools/list`, `tools/call` for reconstruct on `e6`; assert the tool is listed and the result has `completeness` |
-| S8 | M2 only: run the installed bin on Node 20; exit 1, stderr names 22.18 |
+| S1 | Rows for all three hosts and per-host counts |
+| S3 | Home without `.codex`: Codex shows 0 and the checked path |
+| S4 | Fixture with an unknown generation: "could not read" row, error with line |
+| S5 | Compaction fixture: dashed rule with pre/post tokens |
+| S6 | Brush drag filters the ledger; event count shown |
+| S7 | Model saw: slots, hatched system prompt, removed events |
+| S8 | Generated 10,000-event trace: rendered rows stay under 100 while scrolling |
+| S9 | Export, open from `file://`, grep output for the home path |
+| S11 | Emulated light scheme, then switch and reload |
+| S12 | Generated 350 MB Codex-format file (built at test time): payload before selection ≤ 12 MB; selecting a shortened event loads the full text |
 
-M2 also asserts the tarball file list is `package.json`, `README.md`, `LICENSE`, and `dist/**` only.
+### 5.3 CLI smoke
 
-Unit tests: `redact` replaces a fixed `homeDir` in `session.cwd`, `payload`, and `original`, and leaves other strings alone. `cli.ts` argv parsing: `[]`, `[path]`, `[build, path, --out-dir, x]`, `[mcp, path]`, `[path#id]`.
+S2, S10, S13 on the installed tarball, on Node.js 22.18 and 24; S13 also on Node.js 20.
 
-D9 checks:
+### 5.4 Real sessions and design review
 
-| Check | Pass condition |
-|---|---|
-| `rush lint` with the `node:*` rule | No finding in `packages/{schema,kernel,adapter-*}/src` outside `*.test.ts` |
-| `esbuild <kernel and each adapter entry> --bundle --platform=browser` | Exit 0 |
-| `detect` / `load` tests per adapter with an in-memory `TraceIO` | Grok: directory with `summary.json` + `updates.jsonl` is detected; missing `summary.json` is not. Codex: `rollout-*.jsonl` is detected by name and by first record. OpenCode: header bytes detect; a fake `SqliteIO` returning fixed rows produces the same trace as today's `parseOpenCodeSession` test; no `sqlite` gives the named error |
-| `src/io/node.ts` tests | `readBytes` with a range returns only that range; `kind` returns `null` for a missing path; `sqlite.all` opens read-only |
-
-### 5.2 Compatibility checks
-
-One local Grok session directory, one Codex rollout file, and one `opencode.db#<id>` load through the installed M2 tarball. Record the command, host, and event count in the M2 PR. Do not commit the files or paste session text.
-
-### 5.3 End-to-end acceptance
-
-M2 is accepted when the tarball smoke job is green on Node 22.18 and 24 in GitHub Actions. A run on the author's machine does not count.
+- One local run per host through the installed tarball. Record host, event count, load time, and view size in the delivery PR. No session text.
+- Screenshots of both screens in both themes beside `docs/design/*.png`.
+- Session browser first-screen time and second-launch time on this machine.
 
 ## 6. Delivery plan and effort
 
-One person can deliver this. Estimates assume the author knows the code and the probe in A.4 is representative. They are not commitments.
+One person can deliver this. Owners and dates are unconfirmed. Estimates assume the author knows the code base; they are not commitments.
 
-### 6.1 Work split
+| Stage | Main work | Estimate |
+|---|---|---|
+| M1 | Runtime fixes, `TraceIO`, NodeIO, CLI path, D5 checks | 1.5 days |
+| M2 | Schema v1, protocol, conformance suite, Claude Code adapter, Codex and Grok ports, fixtures | 5 days |
+| M3 | Index, cache, `list-sessions`, session browser UI | 3 days |
+| M4 | View trace, `get-event`, projections, timeline, virtualized ledger, inspector, themes | 6 days |
+| M5 | Report mode, bundle, Playwright on tarball, release workflow | 2.5 days |
 
-| Component | Change | Owner | Depends on | Effort |
-|---|---|---|---|---|
-| kernel I/O interfaces + adapters (D9) | `TraceIO`, `SqliteIO`, `TraceRef`, path helpers; five adapters moved onto them; `src/io/node.ts`; in-memory adapter tests; lint rule and browser-bundle check | unconfirmed | plan accepted | 1 day |
-| kernel `redact` | Home-dir rule with required `homeDir`, `session` fields, tests | unconfirmed | D9 | 0.5 day |
-| devframe RPC | D5, D6, D7 `path` base name, forced redaction in build | unconfirmed | redact | 0.5 day |
-| devframe CLI | `src/cli.ts`, startup load, argv tests | unconfirmed | none | 0.5 day |
-| deps and Node range | D3, D8 in `rush.json` and `package.json` | unconfirmed | none | under 0.5 day |
-| smoke + CI (M1) | `scripts/smoke.mjs`, CI matrix | unconfirmed | items above | 1 day |
-| bundle + package (M2) | esbuild, `paths.ts`, `dist/bin.mjs`, pack job, S8 | unconfirmed | M1 | 1 day |
-| publish (M3) | Release workflow, README, LICENSE, M3 checklist | unconfirmed | M2, owner decisions | 0.5 day plus owner time |
-
-Basis: the probe did bundle, path patch, pack, install, build, and MCP in under an hour by hand. Most of the estimate is tests and CI.
-
-### 6.2 Release order
-
-Inside M1, land D9 first as its own commit with no behavior change: `rush test` and the smoke run on the demo must give the same results before and after. The other M1 decisions then build on the new interfaces. M1 before M2, because the smoke script is written against the workspace first and then reused unchanged against the tarball. The README must not show `npx` until M3 publishes.
+Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by the Claude Code adapter and fixtures; M4 by the timeline and ledger.
 
 ## 7. Risks, open questions, and follow-up
 
 | Item | Type | Impact | Owner | Next step |
 |---|---|---|---|---|
-| Package name: `agent-trace` is taken on npm | open question | Blocks M3 | unconfirmed | Pick `@agent-trace/cli` (try to register the org) or a user scope like `@perfectpan/agent-trace` before M3 |
-| Repository visibility | open question | npm provenance may require a public source repository; unverified | unconfirmed | Decide before M3. If it stays private, publish without `--provenance` |
-| `redact` misses secrets outside the token patterns | risk | A report can contain session text with secrets | unconfirmed | README and post-build message; scanner is follow-up |
-| DevFrame 1.0.0 behavior changes on upgrade | risk | Pinned versions (D8) avoid surprise breakage | unconfirmed | Upgrade in a dedicated PR with the tarball smoke |
-| `node:sqlite` prints `ExperimentalWarning` on 22.x | risk | Rush treats that stderr as a warning and exits 1, which failed the first CI run of PR #3. PR #3 (merged) disables the warning in the opencode test workers only. In the CLI it is still printed once on stderr | unconfirmed | `smoke.mjs` must not fail on it. Decide in M2 whether `dist/bin.mjs` filters this one warning |
-| Project scaffolding (CONTRIBUTING, CI, templates) | dependency | Resolved. PR #3 merged as 62be3fd; `main` has CI, the Spec and Plan templates, and `check-repository.sh` | unconfirmed | None |
-| Browser entry point: open a dropped session in the static page | follow-up | No install needed for Codex and Grok; enabled by D9 | unconfirmed | Separate Spec and Plan after 0.1.0. Start with Codex (one file) and Grok (directory via `webkitdirectory` or the File System Access API) |
-| OpenCode in the browser | risk for that follow-up | Needs a WASM SQLite (sql.js or wa-sqlite, about 1 MB). `opencode.db` usually runs in WAL mode; if the user picks only the `.db` file, rows still in `opencode.db-wal` are missing, and the page would show an incomplete trace without an error. `node:sqlite` reads the WAL itself | unconfirmed | The browser plan must either require the `-wal` file, detect a non-empty WAL and refuse, or leave OpenCode to the CLI |
-| dsh zstd frames outside Node | risk for the dsh plan | The dsh parser will need a WASM zstd decoder behind `TraceIO` to stay Node-free | unconfirmed | Decide in the dsh plan |
-| dsh and Claude Code parsers | follow-up | Users of those hosts cannot use 0.1.0 | unconfirmed | Separate Spec and Plan each |
-| Viewer features (timeline, virtualization, request dots, turn collapse, composer) | follow-up | Large traces may be slow | unconfirmed | Separate plans after 0.1.0 |
-| Split packages as a library | follow-up | Only if someone asks for it | unconfirmed | Revisit after `agent-trace/v1` |
+| Host log formats change without notice | risk | Adapters fail on new generations | unconfirmed | Fail loud with line numbers (3.2); conformance fixtures per known generation |
+| DevFrame auth gate with `--open` | open question | Extra manual step on first launch would break S1 | unconfirmed | Verify in M1; if it adds a step, check whether DevFrame accepts a one-time token in the opened URL before choosing |
+| Summary cache holds prompt text | risk | Sensitive text in the cache directory | unconfirmed | 200-character limit, mode 0600, documented; `--no-cache` flag |
+| 2 s first screen on slower disks | risk | S1 budget missed | unconfirmed | Measure in M3; SQLite index is the fallback (D7) |
+| OTel GenAI renames | risk | Mapping table goes stale | unconfirmed | Pin the schema version used (`gen-ai-dev/1.42.0-dev` at time of writing) in the mapping table |
+| Name overlap with Cursor Agent Trace | risk | Search confusion | unconfirmed | Keep the `@rivus` scope in docs and README title |
+| `node:sqlite` ExperimentalWarning on Node 22 | risk | Rush exits 1 on stderr; CLI prints one warning | unconfirmed | Already silenced in opencode tests on `main`; OpenCode is not registered in this release |
+| ATIF export | follow-up | Interop with Harbor evaluation and datasets | unconfirmed | Next plan; mapping in A.8; validate with Harbor's validator |
+| OpenCode on protocol v1 | follow-up | OpenCode users | unconfirmed | Needs `SqliteIO`; next host after 0.1.0 |
+| dsh on protocol v1 | follow-up | dsh users | unconfirmed | Needs zstd and the format catalog |
+| OTLP export | follow-up | Langfuse, LangSmith, Phoenix | unconfirmed | After ATIF |
+| Live follow, content search, lane view toggle | follow-up | Viewer features | unconfirmed | Separate plans |
 
 ## 8. Appendix: measurements
+
+A.1–A.5 are from 2026-09-23 on `main` at 065ae72. A.6 is from 2026-09-24.
 
 All on macOS, 2026-09-23, from a worktree of `main` at 065ae72 after `install-run-rush.js update` and `build`.
 
@@ -466,7 +586,7 @@ npx agent-trace mcp  (tools/list) → agent-trace_get-trace, agent-trace_reconst
                      (reconstruct e6) → visibleIds [e1,e2,e5,e6], unavailable [tools], completeness partial
 ```
 
-A.5 D9 checks against `main` (both must fail today and pass after D9):
+A.5 D5 checks against `main` (both must fail today and pass after D5):
 
 ```
 $ oxlint -c <config with no-restricted-imports patterns ["node:*"]> packages/kernel/src packages/adapter-grok/src
@@ -479,3 +599,48 @@ $ esbuild kernel/src/index.ts adapter-grok/src/index.ts adapter-codex/src/index.
 ```
 
 The first finding is a test file, which is why the rule excludes `*.test.ts`. oxlint 1.83.0.
+
+A.6 Log volume and large-session load (2026-09-24, this machine):
+
+```
+claude-code main: 225 files, total 550.5 MB, median 146 KB, p95 8.61 MB, max 81.6 MB
+claude-code subagents: 74 files, total 48.7 MB, median 485 KB, p95 1.14 MB, max 5.9 MB
+codex: 1935 files, total 10832.9 MB, median 557 KB, p95 22.07 MB, max 355.0 MB
+grok updates.jsonl: 77 files, total 220.0 MB, median 1211 KB, p95 10.13 MB, max 28.8 MB
+full line scan of claude main files: 225062 lines in 2.35s
+
+codexAdapter.load, 26 MB file:  {"events":4970,"loadMs":101,"jsonMB":27.4,"rssMB":411}
+codexAdapter.load, 354 MB file: {"events":16652,"loadMs":1712,"jsonMB":359.7,"rssMB":3221}
+354 MB file, events JSON size:  {"full":359.7,"withoutOriginal":21.3,"withoutOriginalCapped4k":9.5}
+```
+
+Current UI on a 3,300-record Grok session: 2,258 rendered rows, 14,066 DOM nodes, 1,294 rows `UNKNOWN` (hook executions).
+
+A.7 Community formats, primary sources (read 2026-09-23):
+
+- ATIF RFC 0001, v1.8, Status Active: https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md . Converters: `src/harbor/agents/installed/{claude_code,codex,grok_build,opencode}.py` in the same repository (Apache-2.0).
+- OpenTelemetry GenAI semantic conventions: https://github.com/open-telemetry/semantic-conventions-genai (created 2026-05-05, no release).
+- Agent Client Protocol schema: https://github.com/agentclientprotocol/agent-client-protocol/tree/main/schema
+- Claude Code monitoring (OTel export): https://code.claude.com/docs/en/monitoring-usage
+- Codex OTel: https://github.com/openai/codex/tree/main/codex-rs/otel
+- Cursor Agent Trace: https://agent-trace.dev/
+
+A.8 `agent-trace/v1` to ATIF v1.8 (constraint for the export follow-up):
+
+| v1 | ATIF |
+|---|---|
+| `session.id` | `session_id`; `trajectory_id` for the document |
+| `host.id`, `host.version` | `agent.name`, `agent.version` |
+| `RequestPayload.model` | `agent.model_name`, or `model_name` on the step |
+| `user` event | step with `source: "user"`, `message` |
+| `assistant` event | step with `source: "agent"`, `message` |
+| `thinking` event | `reasoning_content` on the agent step |
+| `tool_call` (`callId`, `name`, `args`) | `tool_calls[]` (`tool_call_id`, `function_name`, `arguments`) |
+| `tool_result` (`callId`, `output`) | `observation.results[]` (`source_call_id`, `content`) |
+| `usage.inputTokens`, `outputTokens`, `cacheReadTokens` | `metrics.prompt_tokens`, `completion_tokens`, `cached_tokens` |
+| `compaction` event | system step with `extra.context_management` `{ type: "compaction", boundary: "replace" }` |
+| events kept across a compaction | steps with `is_copied_context: true` |
+| `agents[]` with `spawnEventId` | `subagent_trajectories[]` and `subagent_trajectory_ref` |
+| `session.systemPrompt`, `session.tools` | step with `source: "system"`; `agent.tool_definitions` |
+| `ts` | `timestamp` (ISO 8601) |
+| `durationMs`, `hook` events, `skipped`, `source`, `original` | `extra` only; ATIF has no field for them |
