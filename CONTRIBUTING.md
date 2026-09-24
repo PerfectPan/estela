@@ -9,6 +9,7 @@ Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CL
 ./scripts/check-repository.sh
 node scripts/check-doc-translations.mjs
 node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
+node scripts/check-conventions.mjs
 ./scripts/check-pr-title.sh "docs: add external release plan"
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
@@ -90,6 +91,14 @@ Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo
 Documentation-only and workflow-only PRs need no change file.
 
 Why a script: Rush requires change files only for projects in a version policy and does not follow dependencies, so an edit that only touches a bundled private package would reach users with no changelog entry. Changesets has the same gap ([changesets#944](https://github.com/changesets/changesets/issues/944), open since 2022). Putting the private packages into the version policy is not an option: `rush publish` publishes every project in a policy regardless of `"private"`. Remove `release-intent.mjs` if Rush gains this behavior.
+
+## File Conventions
+
+- File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.
+- Names fixed by convention or a platform keep their form: `README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CHANGELOG.json`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, `.gitlab/merge_request_templates/`, and everything under `common/`, which Rush owns.
+- A code file (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, and their variants) under `apps/`, `packages/`, or `scripts/` has at most 500 lines, tests included. Fixtures and documentation have no line limit. A file near the limit splits along a responsibility, not at an arbitrary line.
+
+`node scripts/check-conventions.mjs` checks every tracked file. CI and the pre-commit hook run it.
 
 ## Repository Architecture
 

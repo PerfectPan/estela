@@ -17,6 +17,7 @@ Use Node.js 22.18 or later. `rush.json` still allows `>=20.11.0 <25`, but the CL
 ./scripts/check-repository.sh
 node scripts/check-doc-translations.mjs
 node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
+node scripts/check-conventions.mjs
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck
