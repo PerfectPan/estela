@@ -26,13 +26,6 @@ function normalizeSessionPath(input: string): string {
   return sessionId === undefined ? resolved : `${resolved}#${sessionId}`
 }
 
-/** The `file#sessionId` form `Session` loads, for a catalog target. */
-function pathOf(target: ResolvedSession['path']): string {
-  if (typeof target === 'string')
-    return target
-  return target.sessionId ? `${target.path}#${target.sessionId}` : target.path
-}
-
 export async function main(): Promise<void> {
   const parsed = parseCommand(process.argv)
   if (parsed.error) {
@@ -115,16 +108,8 @@ export async function main(): Promise<void> {
   const catalog = new SessionCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
   const traces = createTraceStore({ adapters: registeredHosts, redacts, resolve: ref => catalog.resolve(ref) })
   bindTraceStore(traces.store)
-  // `get-trace` (legacy, full trace) serves the launch session and loads it only if called.
-  let launch: Session | undefined
-  bindSessionService({
-    view: async () => {
-      if (!launch)
-        throw new Error('No session is open')
-      return launch.view()
-    },
-    listSessions: input => catalog.listSessions(input),
-  })
+  // No `get-trace` here: the workspace loads by ref through the TraceStore.
+  bindSessionService({ listSessions: input => catalog.listSessions(input) })
   readyHook = () => catalog.resumeSummaries()
   if (catalog.indexUnavailable)
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
@@ -134,7 +119,6 @@ export async function main(): Promise<void> {
     const path = normalizeSessionPath(direct)
     const trace = await loadLaunch(path, `Could not load ${direct}`)
     readyRef = catalog.openPath(path, trace)
-    launch = new Session(path, redacts)
     await traces.seed({ key: readyRef, path }, trace)
   }
 
@@ -168,7 +152,6 @@ export async function main(): Promise<void> {
     readyRef = await pickSession(options)
     const picked = catalog.resolve(readyRef)!
     const trace = await loadLaunch(picked.path, 'Could not load the picked session')
-    launch = new Session(pathOf(picked.path), redacts)
     await traces.seed(picked, trace)
   }
 

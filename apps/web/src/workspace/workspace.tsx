@@ -1,139 +1,91 @@
-import type { LedgerRow } from '@/lib/ledger'
-import { For, Show, createMemo, createResource, createSignal } from 'solid-js'
-import { Inspector } from '@/components/inspector'
-import { KindTag } from '@/components/kind-tag'
-import { translate as t } from '@/i18n/locale.ts'
-import { cx } from '@/lib/cva'
-import { buildLedger, formatClock } from '@/lib/ledger'
-import { fetchTrace, type WorkspaceTrace } from '@/workspace/trace-source.ts'
+import type { LoadedSession } from './load-session.ts'
+import { Match, Show, Switch } from 'solid-js'
+import { ExportIcon } from '@/components/icons.tsx'
+import { locale, translate as t } from '@/i18n/locale.ts'
+import { formatNumber } from '@/lib/format.ts'
 import { TopBar } from '@/shell/top-bar.tsx'
+import { Inspector } from './inspector/inspector.tsx'
+import { Ledger } from './ledger/ledger.tsx'
+import { ErrorPanel, LoadingPanel } from './load-screen.tsx'
+import { createSessionLoad } from './load-session.ts'
+import { SessionHeader } from './session-header.tsx'
+import { Timeline } from './timeline/timeline.tsx'
+import { createWorkspaceState } from './workspace-state.ts'
 
+/** The default string cap of the view trace (`toView`); a lower cap means `fitView` shortened more to fit 12 MB. */
+const DEFAULT_MAX_STRING = 4096
+
+/** `#/s/<ref>`: load with progress, then header, timeline, ledger, and inspector (plan 3.6). */
 export function Workspace(props: { sessionRef: string }) {
-  const [boot] = createResource(() => props.sessionRef, fetchTrace)
-  // Reading an errored resource throws; read it only when it is ready.
-  const loaded = () => boot.state === 'ready' ? boot() : undefined
-  const [selected, setSelected] = createSignal<string>()
-  const [query, setQuery] = createSignal('')
-  const sections = createMemo(() => {
-    const view = loaded()
-    return view ? buildLedger(view.trace) : []
-  })
-  const selectedRow = createMemo((): LedgerRow | undefined => {
-    const id = selected()
-    for (const section of sections()) {
-      const row = section.rows.find(item => item.id === id)
-      if (row)
-        return row
-    }
-    return undefined
-  })
-  const visibleSections = createMemo(() => {
-    const q = query().trim().toLowerCase()
-    if (!q)
-      return sections()
-    return sections()
-      .map(section => ({
-        ...section,
-        rows: section.rows.filter(row =>
-          row.preview.toLowerCase().includes(q)
-          || row.kind.includes(q)
-          || (row.name?.toLowerCase().includes(q) ?? false)),
-      }))
-      .filter(section => section.rows.length > 0)
-  })
+  const load = createSessionLoad(props.sessionRef)
+  const ready = () => {
+    const state = load.state()
+    return state.status === 'ready' ? state.session : undefined
+  }
   const crumbs = () => {
-    const session = loaded()?.trace.session
+    const session = ready()?.trace.session
     const project = session?.cwd?.split('/').filter(Boolean).pop()
     return [project, session?.title].filter((part): part is string => Boolean(part))
   }
-
+  const exportButton = (
+    <button
+      type="button"
+      aria-disabled="true"
+      title={t('workspace.exportLater')}
+      class="flex h-8 cursor-not-allowed items-center gap-[7px] rounded-lg border border-input px-3 text-[13px] whitespace-nowrap text-foreground opacity-60"
+      data-testid="export-report"
+    >
+      <ExportIcon />
+      {t('report.export')}
+    </button>
+  )
   return (
     <div class="flex h-full min-h-0 flex-col bg-background text-foreground">
-      <TopBar crumbs={crumbs()} onJump={() => document.getElementById('ledger-search')?.focus()} />
-      <Show when={boot.error}>
-        {reason => (
-          <div class="flex flex-1 flex-col items-start gap-3 px-6 py-8">
-            <h1 class="text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
-            <p class="max-w-3xl whitespace-pre-wrap text-[13px] text-muted-foreground">{messageOf(reason())}</p>
-            <a href="#/" class="text-[13px] text-link">{t('workspace.back')}</a>
-          </div>
-        )}
-      </Show>
-      <Show when={loaded()} keyed>
-        {(view: WorkspaceTrace) => (
-          <div class="flex min-h-0 flex-1 flex-col">
-            <div class="flex h-8 shrink-0 items-center gap-2 border-b border-border px-1.5" role="toolbar">
-              <a href="#/" class="px-1.5 text-[12px] text-muted-foreground">{t('workspace.back')}</a>
-              <span class="rounded-sm bg-muted px-1.5 font-mono text-[11px] text-muted-foreground">{view.trace.host.id}</span>
-              <span class="flex-1" />
-              <input
-                id="ledger-search"
-                name="ledger-search"
-                class="h-5 w-44 rounded-sm border border-border bg-background px-2 text-[12px] outline-none placeholder:text-subtle"
-                placeholder={t('workspace.search')}
-                value={query()}
-                onInput={event => setQuery(event.currentTarget.value)}
-              />
-            </div>
-            <div class="flex min-h-0 flex-1 overflow-hidden">
-              <section class="min-w-[280px] flex-1 overflow-auto">
-                <table class="w-full table-fixed border-collapse text-[12px]">
-                  <thead class="sticky top-0 z-10 bg-muted">
-                    <tr class="h-[30px] text-left text-muted-foreground">
-                      <th class="w-[122px] px-2 font-medium">{t('workspace.event')}</th>
-                      <th class="px-2 font-medium">{t('workspace.content')}</th>
-                      <th class="w-[88px] px-2 font-medium">{t('workspace.time')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={visibleSections()}>
-                      {section => (
-                        <>
-                          <tr class="h-5 text-[11px] text-muted-foreground">
-                            <td class="px-2" colspan="3">{section.title}</td>
-                          </tr>
-                          <For each={section.rows}>
-                            {row => (
-                              <tr
-                                class={cx(
-                                  'h-[30px] cursor-default border-b border-border/60',
-                                  selected() === row.id ? 'bg-accent' : 'hover:bg-accent/50',
-                                  row.shadowed && 'opacity-50',
-                                )}
-                                data-kind={row.kind}
-                                onClick={() => setSelected(row.id)}
-                              >
-                                <td class="px-2"><KindTag kind={row.kind} /></td>
-                                <td class="min-w-0 px-2">
-                                  <Show when={row.resultPreview} fallback={<span class="block truncate">{row.preview || t('common.dash')}</span>}>
-                                    <span class="grid min-w-0 grid-cols-2 gap-2">
-                                      <span class="truncate font-mono">{row.preview}</span>
-                                      <span class="truncate text-muted-foreground">{row.resultPreview}</span>
-                                    </span>
-                                  </Show>
-                                </td>
-                                <td class="px-2 font-mono text-muted-foreground">{formatClock(row.ts)}</td>
-                              </tr>
-                            )}
-                          </For>
-                        </>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </section>
-              <Inspector trace={view.trace} original={view.original} row={selectedRow()} onClose={() => setSelected(undefined)} />
-            </div>
-          </div>
-        )}
-      </Show>
-      <Show when={boot.loading}>
-        <div class="grid flex-1 place-items-center text-[12px] text-muted-foreground">{t('common.loading')}</div>
-      </Show>
+      <TopBar crumbs={crumbs()} actions={ready() ? exportButton : undefined} onJump={() => document.querySelector<HTMLElement>('[data-testid="ledger"]')?.focus()} />
+      <Switch>
+        <Match when={load.state().status === 'loading' && load.state()}>
+          {state => {
+            const progress = () => state() as { bytesRead: number, totalBytes: number }
+            return <LoadingPanel bytesRead={progress().bytesRead} totalBytes={progress().totalBytes} />
+          }}
+        </Match>
+        <Match when={load.state().status === 'error' && load.state()}>
+          {state => <ErrorPanel failure={(state() as Extract<ReturnType<typeof load.state>, { status: 'error' }>).failure} onRetry={load.retry} />}
+        </Match>
+        <Match when={ready()} keyed>
+          {session => <SessionView session={session} />}
+        </Match>
+      </Switch>
     </div>
   )
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function SessionView(props: { session: LoadedSession }) {
+  const state = createWorkspaceState(props.session)
+  const view = () => props.session.trace.view
+  const start = state.timeline.start
+  return (
+    <div class="flex min-h-0 flex-1 flex-col">
+      <SessionHeader trace={props.session.trace} summary={props.session.summary} />
+      <Show when={view() && (view()!.withinBudget === false || view()!.maxString < DEFAULT_MAX_STRING)}>
+        <p class="m-0 shrink-0 border-b border-border bg-secondary px-5 py-1.5 text-[12px] text-muted-foreground" data-testid="view-notice">
+          {view()!.withinBudget === false
+            ? t('workspace.overBudget')
+            : t('workspace.cappedNotice', { count: formatNumber(view()!.maxString, locale()) })}
+        </p>
+      </Show>
+      <Timeline
+        data={state.timeline}
+        range={state.range()}
+        onRange={state.setRange}
+        count={state.eventCount()}
+        selectedId={state.selectedEventId()}
+        onSelect={state.reveal}
+      />
+      <div class="flex min-h-0 flex-1">
+        <Ledger state={state} start={start} />
+        <Inspector state={state} start={start} />
+      </div>
+    </div>
+  )
 }

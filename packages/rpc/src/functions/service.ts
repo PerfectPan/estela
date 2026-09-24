@@ -6,9 +6,12 @@ export interface SessionView {
   trace: Trace
 }
 
-/** `get-trace` (the launch session, full) and `list-sessions`. Traces by ref come from the TraceStore. */
+/**
+ * `get-trace` (the launch session, full; bound by `build` and `mcp` only) and `list-sessions`
+ * (the dev server). Traces by ref come from the TraceStore.
+ */
 export interface SessionService {
-  view: () => Promise<SessionView>
+  view?: () => Promise<SessionView>
   listSessions?: (input: ListSessionsQuery) => Promise<ListSessionsResult>
 }
 

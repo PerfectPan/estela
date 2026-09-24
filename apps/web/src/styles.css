@@ -36,6 +36,10 @@
   --color-kind-tool: var(--kind-tool);
   --color-kind-subagent: var(--kind-subagent);
   --color-link: var(--link);
+  --color-hatch: var(--hatch);
+  --color-hatch-edge: var(--hatch-edge);
+  --color-thinking-text: var(--thinking-text);
+  --color-lane-link: var(--lane-link);
 }
 
 :root {
@@ -74,6 +78,13 @@ html[data-theme="dark"] {
   --host-claude-code: #d97757;
   --host-codex: var(--foreground);
   --host-grok: var(--muted-foreground);
+  /* "Unavailable" hatching and its edge, the muted thinking text, and the subagent "open lane" link (design mockup values). */
+  --hatch: #3a434c;
+  --hatch-edge: #4a545e;
+  --thinking-text: #c9ced3;
+  --lane-link: #7ecfc6;
+  /* The hatched compaction row: text 1 at 3.5 %. */
+  --stripe: color-mix(in srgb, var(--foreground) 3.5%, transparent);
   color-scheme: dark;
 }
 
@@ -99,6 +110,10 @@ html[data-theme="light"] {
   --selection-ring: color-mix(in srgb, var(--kind-request) 50%, transparent);
   /* Brand color, as in the light design. */
   --host-claude-code: #c15f3c;
+  --hatch: #c9c6bf;
+  --hatch-edge: #b4b1aa;
+  --thinking-text: #4a5057;
+  --lane-link: #00796d;
   color-scheme: light;
 }
 
@@ -144,4 +159,35 @@ body {
 .session-row {
   content-visibility: auto;
   contain-intrinsic-size: auto 52px;
+}
+
+/* A slot or segment the host does not record: hatched, never filled with an estimate. */
+.hatched {
+  background: repeating-linear-gradient(135deg, var(--hatch) 0 3px, transparent 3px 6px);
+  box-shadow: inset 0 0 0 1px var(--hatch);
+}
+
+.hatched-small {
+  background: repeating-linear-gradient(135deg, var(--hatch) 0 2px, transparent 2px 4px);
+  box-shadow: inset 0 0 0 1px var(--hatch-edge);
+}
+
+.compaction-stripes {
+  background: repeating-linear-gradient(135deg, var(--stripe) 0 6px, transparent 6px 12px);
+}
+
+/* Kind labels in the ledger: uppercase data font with tracking; Chinese labels keep normal tracking. */
+.kind-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+:lang(en) .kind-label {
+  letter-spacing: 0.06em;
+}
+
+/* Timeline brush handles are sliders: a visible focus state for keyboard users. */
+.brush-handle rect:focus-visible {
+  stroke: var(--foreground);
+  stroke-width: 2;
 }

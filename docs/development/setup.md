@@ -75,12 +75,71 @@ node ../../common/scripts/install-run-rushx.js test:smoke
 
 ## Check in a real browser
 
-Before a UI change is done, check it in a real browser (D16) with the dev server on a synthetic `HOME`. `chrome-devtools-mcp` starts its own headless Chrome; always pass the two opt-out flags, because by default it sends usage statistics to Google and may send trace URLs to the CrUX API:
+Before a UI change is done, check it in a real browser (D16) with the dev server on a synthetic `HOME`. The web app is served from `apps/web/dist`, so rebuild it after a UI change:
+
+```bash
+node common/scripts/install-run-rush.js build --to @rivus/agent-trace-web
+```
+
+### Synthetic home and generated traces
+
+Build a home from the host fixtures (no real session content):
+
+```bash
+H="$TMPDIR/agent-trace-home"; rm -rf "$H"
+mkdir -p "$H/.claude/projects" "$H/.codex/sessions/2026/09/25" "$H/.grok/sessions"
+for f in plain compaction subagent; do
+  mkdir -p "$H/.claude/projects/app-$f"
+  cp -R packages/host-claude-code/fixtures/conformance/$f/* "$H/.claude/projects/app-$f/"
+done
+mkdir -p "$H/.claude/projects/app-bad"
+cp packages/host-claude-code/fixtures/unknown-generation/session.jsonl "$H/.claude/projects/app-bad/"
+for f in plain compaction token-count subagent; do
+  cp packages/host-codex/fixtures/conformance/rollout-$f.jsonl "$H/.codex/sessions/2026/09/25/"
+done
+for f in plain compaction subagent; do
+  cp -R packages/host-grok/fixtures/conformance/$f "$H/.grok/sessions/grok-$f"
+done
+```
+
+`scripts/generate-trace.mjs` writes a synthetic canonical trace shaped like a Claude Code session (turns, growing input tokens, tool calls, failures, long outputs, hook runs, two subagent lanes, compactions). Open it by path:
+
+```bash
+node scripts/generate-trace.mjs --events 640 --name design.trace.json   # about the size of the design mockup
+node scripts/generate-trace.mjs --events 10000 --name s8.trace.json      # S8
+HOME="$H" XDG_CACHE_HOME="$TMPDIR/agent-trace-cache" \
+  node apps/cli/bin.mjs "$TMPDIR/agent-trace-generated/design.trace.json" --no-auth --no-open --port 7461
+```
+
+For S12, write the 350 MB Codex-format file into a second home and open it from the session list, so the browser sees the load progress:
+
+```bash
+mkdir -p "$TMPDIR/agent-trace-big/.codex/sessions/2026/09/25"
+node -e "import('./packages/host-codex/testing/large-session.ts').then(m => m.writeLargeCodexSession(process.argv[1], { targetBytes: 350e6 }))" \
+  "$TMPDIR/agent-trace-big/.codex/sessions/2026/09/25"
+HOME="$TMPDIR/agent-trace-big" XDG_CACHE_HOME="$TMPDIR/agent-trace-cache-big" node apps/cli/bin.mjs --no-auth --no-open --port 7464
+```
+
+Delete the generated files when done.
+
+### Driving the browser
+
+`chrome-devtools-mcp` starts its own headless Chrome; always pass the two opt-out flags, because by default it sends usage statistics to Google and may send trace URLs to the CrUX API:
 
 ```bash
 npx -y chrome-devtools-mcp@1.10.1 --headless --isolated --no-usage-statistics --no-performance-crux
 ```
 
-Drive it over stdio from an MCP client. Useful tools: `new_page`, `emulate` (`viewport: 1440x900x1`, `colorScheme`), `take_screenshot`, `evaluate_script`, `list_console_messages`. Add `--chromeArg=--lang=zh-CN --chromeArg=--accept-lang=zh-CN` for the Chinese UI. Compare screenshots with `docs/design/*.html` at 1440 × 900, both themes and both languages, and check that the console is empty. Keep screenshots out of the repository. M4 finishes this section.
+Drive it over stdio from an MCP client. Useful tools: `new_page`, `emulate` (`viewport: 1440x900x1`, `colorScheme`), `take_screenshot`, `evaluate_script`, `list_console_messages`, `performance_start_trace`. Add `--chromeArg=--lang=zh-CN --chromeArg=--accept-lang=zh-CN` for the Chinese UI. Playwright (`playwright-core` with `channel: 'chrome'`, installed in a scratch directory outside the repository) works too; set `viewport`, `colorScheme`, and `locale` on the context.
+
+What to check for a workspace change:
+
+- Screenshots at 1440 × 900 of `#/s/<ref>` in dark and light, English and `zh-CN`, next to `docs/design/session-workspace-{dark,light}.html` at the same size. List every visible difference.
+- S5: on the Claude Code compaction fixture, the timeline has one `[data-marker=compaction]` whose `data-label` is `compacted  1k → 100`.
+- S6: drag on `[data-testid=timeline-plot]`; `[data-testid=timeline-range]` states the range and the event count. Focus `[data-testid=brush-from]` and press the arrow keys (Shift for 10 % steps); `aria-valuenow` changes.
+- S7: select the request after the compaction and open "Model saw": `[data-slot=system]` and `[data-slot=tools]` have `data-status="unavailable"`, and `[data-testid=dropped]` lists the removed events.
+- S8: on the 10,000-event trace, scroll `[data-testid=ledger]` to the bottom while counting `[role=option]` elements (under 100) and collecting `PerformanceObserver` `longtask` entries (none over 200 ms). Record a performance trace of the scroll.
+- S12: the loading panel shows bytes read of the file size; after the load a `[data-testid=shortened]` marker is visible, and selecting its row loads the full text.
+- The console has no errors or warnings. Keep screenshots and traces out of the repository.
 
 `host-opencode` and `host-dsh` are not registered. Set `AGENT_TRACE_REDACT=0` only when debugging redaction on the local server; `build` always redacts.
