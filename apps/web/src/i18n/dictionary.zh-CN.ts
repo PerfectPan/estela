@@ -28,6 +28,8 @@ import type { Dictionary } from './dictionary.en.ts'
  * | main agent | 主代理 | |
  * | slot | 槽位 | A part of the model's context (system prompt, tools, …). |
  * | shortened | 已截短 | Text the view cut; the full text loads on selection. |
+ * | report | 报告 | The static export of one session. |
+ * | redacted | 已脱敏 | Home directory and credential patterns replaced. |
  *
  * Section labels keep normal case and tracking in Chinese (`:lang(en)` only uppercases English).
  */
@@ -119,7 +121,6 @@ export const zhCN = {
     failedTools: '失败的工具调用',
     cappedNotice: '为了让视图保持在 12 MB 以内，长文本被截短到 {{ count }} 个字符。选中事件即可加载完整文本。',
     overBudget: '即使使用最短的文本长度，这个会话仍超过 12 MB 的视图预算，页面可能较慢。',
-    exportLater: '导出报告将在后续版本提供。',
   },
   timeline: {
     title: '时间线',
@@ -249,5 +250,21 @@ export const zhCN = {
   report: {
     title: '报告',
     export: '导出报告',
+    dialogTitle: '导出此会话的报告',
+    dialogBody: '报告是一个 index.html 文件，无需服务即可在浏览器中打开。报告已脱敏：主目录显示为 ~，已知的密钥格式会被替换。',
+    dialogKeeps: '会话文本和文件内容仍保留在报告中。分享前请先阅读。',
+    dialogLimit: '报告包含此处显示的全部事件，以及前 {{ events }} 个事件或 {{ size }}（取较小者）的原始记录。',
+    cancel: '取消',
+    confirm: '导出',
+    writing: '正在写入报告…',
+    written: '报告已写入',
+    writtenDetail: '包含 {{ total }} 个事件中 {{ included }} 个的原始记录。',
+    failed: '无法写入报告：{{ reason }}',
+    close: '关闭',
+    banner: '静态报告，已脱敏：主目录显示为 ~，已知的密钥格式已被替换。会话文本和文件内容仍保留。',
+    truncated: '仅包含前 {{ included }} 个事件（共 {{ total }} 个）的原始记录。',
+    cappedNotice: '此报告中的长文本截短为 {{ count }} 个字符。已包含原始记录的事件在选中后显示完整文本。',
+    notIncluded: '此报告未包含该事件的原始记录。',
+    fullNotIncluded: '视图中已截短。此报告未包含该事件的完整文本。',
   },
 } satisfies Dictionary

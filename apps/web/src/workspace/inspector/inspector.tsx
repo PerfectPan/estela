@@ -1,7 +1,7 @@
-import type { EventDetail } from '@rivus/agent-trace-rpc'
 import type { JSX } from 'solid-js'
 import type { Entry, RowKind } from '@/lib/ledger-model.ts'
 import type { MessageKey } from '@/i18n/locale.ts'
+import type { SessionEvent } from '../load-session.ts'
 import type { WorkspaceState } from '../workspace-state.ts'
 import { asString } from '@rivus/agent-trace-kernel'
 import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js'
@@ -129,9 +129,11 @@ export function Inspector(props: { state: WorkspaceState, start: number }) {
       return undefined
     if (full.state === 'errored')
       return t('inspector.shortenedFailed', { reason: String((full.error as Error | undefined)?.message ?? full.error) })
-    return full.state === 'ready' ? t('inspector.shortenedLoaded') : t('inspector.shortenedLoading')
+    if (full.state !== 'ready')
+      return t('inspector.shortenedLoading')
+    return [...full().values()].some(event => event.notInReport) ? t('report.fullNotIncluded') : t('inspector.shortenedLoaded')
   }
-  const sourceOf = (event: EventDetail) => {
+  const sourceOf = (event: SessionEvent) => {
     const file = state.session.trace.sourceFiles?.[Number(event.source.file)] ?? event.source.file
     return `${file}:${event.source.line}`
   }
@@ -219,7 +221,12 @@ export function Inspector(props: { state: WorkspaceState, start: number }) {
                           {event => (
                             <div class="flex flex-col gap-1.5">
                               <span class="font-mono text-[11px] break-all text-subtle">{`${t('inspector.source')} ${sourceOf(event)}`}</span>
-                              <TextView text={event.originalUnavailable ? t('inspector.rawUnavailable', { reason: event.originalUnavailable }) : pretty(event.original)} />
+                              <TextView
+                                text={event.notInReport
+                                  ? t('report.notIncluded')
+                                  : event.originalUnavailable ? t('inspector.rawUnavailable', { reason: event.originalUnavailable }) : pretty(event.original)}
+                                muted={event.notInReport}
+                              />
                             </div>
                           )}
                         </For>

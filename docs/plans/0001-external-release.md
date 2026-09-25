@@ -1,9 +1,9 @@
 # agent-trace DevTools: host protocol, session browser, and workspace
 
-- Status: draft
+- Status: Implemented
 - Owner: unconfirmed
 - Reviewer: unconfirmed
-- Last updated: 2026-09-24
+- Last updated: 2026-09-25
 - Paired Spec: [`docs/specs/0001-external-release.md`](../specs/0001-external-release.md)
 - Visual design: [`docs/design/`](../design/README.md)
 
@@ -135,7 +135,7 @@ flowchart TB
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
 | `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
-| `apps/e2e` | `@rivus/agent-trace-e2e` | Private test harness for the packed tarball: CLI smoke (5.3), later the browser suite (5.2) | nothing at runtime; test tooling only |
+| `apps/e2e` | `@rivus/agent-trace-e2e` | Private test harness for the packed tarball: CLI smoke (5.3) and the browser suite (5.2) | nothing at runtime; test tooling only |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema` |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
@@ -596,6 +596,20 @@ One person can deliver this. Owners and dates are unconfirmed. Estimates assume 
 | M5 | Report mode, rslib bundle, Playwright suite on the tarball | 2 days |
 
 Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by the Claude Code adapter and fixtures; M4 by the timeline and ledger.
+
+### 6.1 Delivery notes
+
+Implemented as planned, except for these choices made during delivery:
+
+- Report file: a page opened from `file://` cannot `fetch()` DevFrame's static dump, run module scripts, or load fonts in Chromium. `build` still registers `report-trace` and lets DevFrame bake it; then the report writer moves the baked output into `index.html` as `<script type="application/json" id="report-trace">`, inlines the script, the styles, and the `woff2` fonts, and removes `assets/`, `__rpc-dump/`, and `__connection.json`. A report is one `index.html`. DevFrame's `build --pretty` flag has no effect any more.
+- Report contents: the first events are included in full (normalized payload plus original record), not only their originals, so a shortened text is also complete for those events. The 2,000-event and 20 MB limits count those full events. `build` records no locale, so its report opens in the browser's language; an export records the UI locale.
+- Export: "Export report" writes into a new `agent-trace-report-<ref>-<time>/` directory in the server's working directory and shows the absolute path with `~` for the home directory. Exports run one at a time. DevFrame's build mode skips the session push, so a build inside the dev server does not rebind the live shared state.
+- Legacy `get-trace` is removed. `mcp` keeps `reconstruct` over the TraceStore. Model saw computes `reconstruct` in the browser on the view trace, on the dev server and in a report.
+- S4: the session list does not open a "could not read" row. Its preview shows file, line, and reason, and the workspace URL of that ref shows host, file, and line in the error panel.
+- S2: the CLI opens `<base>?s=<ref>#devframe_otp=<code>`, because DevFrame's one-time code uses the fragment; the SPA moves the ref to `#/s/<ref>`. The smoke test checks the opened URL; the browser suite checks the landing route.
+- Ledger: each subagent lane's events in a turn sit behind one subagent row at its spawn call; row sizes are fixed per row type (hook fold 30 px, compaction 44 px).
+- Tooling: `@clack/prompts` is bundled into `dist/cli.mjs`; `node-pty` is `1.2.0-beta.15` because 1.1.0 has no Linux prebuilds; `dist/THIRD-PARTY-NOTICES.txt` is written by a small rspack plugin; `npm pack` keeps `workspace:*` in the packed `devDependencies`, which `npm install` ignores (the publish follow-up should pack with Rush or pnpm).
+- The browser suite runs Playwright's Chromium in CI. `AGENT_TRACE_E2E_CHANNEL=chrome` runs it on an installed Google Chrome where Playwright's download is not reachable.
 
 ## 7. Risks, open questions, and follow-up
 

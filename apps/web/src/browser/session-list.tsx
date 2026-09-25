@@ -158,6 +158,7 @@ function Row(props: {
       role="option"
       aria-selected={props.selected}
       data-ref={props.row.ref}
+      data-host={props.row.host}
       title={props.row.error ? errorTitle(props.row) : undefined}
       class={`session-row flex h-[52px] cursor-default items-center gap-3.5 border-b border-border px-[18px] ${props.selected ? 'bg-selection shadow-[inset_0_0_0_1px_var(--selection-ring)]' : 'hover:bg-accent'}`}
       onClick={() => props.onSelect(props.row.ref)}

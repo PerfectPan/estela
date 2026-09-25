@@ -1,30 +1,28 @@
+import type { ReportTrace } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { LoadClient } from './load-session.ts'
 import { createRoot } from 'solid-js'
 import { describe, expect, it } from 'vitest'
-import { createSessionLoad } from './load-session.ts'
+import { createSessionLoad, reportSession } from './load-session.ts'
 
 type Status = LoadClient['status']
 
 const trace: Trace = { schema: 'agent-trace', host: { id: 'claude-code' }, session: { id: 's' }, capabilities: [], agents: [], events: [], skipped: [] }
 
 /** A fake DevFrame client: `get-trace-view` resolves when `finish` is called, or fails with `reject`. */
-function fakeClient(options: { transport?: string, viewError?: string } = {}) {
+function fakeClient(options: { viewError?: string } = {}) {
   const listeners = new Set<(status: Status) => void>()
   let finish: (() => void) | undefined
   let rejectView: ((error: Error) => void) | undefined
   let cancelled = 0
   const chunks: { bytesRead: number, totalBytes: number }[] = []
   const client: LoadClient = {
-    transport: options.transport ?? 'websocket',
     status: 'connected',
     onStatus: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
     call: (async (method: string): Promise<unknown> => {
-      if (method === 'get-trace')
-        return { path: 'x', trace, fold: {} }
       if (method === 'load-trace')
         return { loadId: 'id-1', cached: false, totalBytes: 100 }
       if (method === 'get-trace-view') {
@@ -60,6 +58,10 @@ function fakeClient(options: { transport?: string, viewError?: string } = {}) {
     },
     cancelled: () => cancelled,
   }
+}
+
+function event(id: string, text: string) {
+  return { id, seq: 0, ts: 0, kind: 'user' as const, payload: { text }, source: { file: '0', offset: 0, length: 1, line: 1 } }
 }
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
@@ -116,12 +118,19 @@ describe('createSessionLoad', () => {
     expect(load.state()).toEqual({ status: 'error', failure: { reason: 'connection lost', lost: true } })
   })
 
-  it('reads the baked trace in a static build', async () => {
-    const fake = fakeClient({ transport: 'static' })
-    const load = createRoot(() => createSessionLoad('', async () => fake.client))
-    await tick()
-    const state = load.state()
-    expect(state.status).toBe('ready')
-    expect(state.status === 'ready' && state.session.trace.session.id).toBe('s')
+  it('serves a report\'s included events in full and marks the rest', async () => {
+    const report: ReportTrace = {
+      trace: { ...trace, events: [event('a', 'short'), event('b', 'short')] },
+      summary: {},
+      events: [{ ...event('a', 'full text'), original: { raw: true } }],
+      total: 2,
+      eventBytes: 10,
+      truncated: true,
+      limits: { events: 2000, bytes: 20_000_000 },
+    }
+    const session = reportSession(report)
+    expect(await session.event('a')).toMatchObject({ payload: { text: 'full text' }, original: { raw: true } })
+    expect(await session.event('b')).toMatchObject({ payload: { text: 'short' }, notInReport: true })
+    await expect(session.event('c')).rejects.toThrow('unknown event c')
   })
 })

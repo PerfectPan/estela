@@ -7,7 +7,7 @@ let watching = false
 /**
  * True once the DevFrame WebSocket has closed or failed. DevFrame 1.0.0 does not reconnect a
  * closed client, so every later call would fail: the screens show "Lost the connection" with a
- * Reload button instead of waiting. A static build has no socket and never reports a loss.
+ * Reload button instead of waiting. A report never calls this: it has no server.
  */
 export function connectionLost(): boolean {
   if (!watching) {

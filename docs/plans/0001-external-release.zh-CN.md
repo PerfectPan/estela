@@ -2,10 +2,10 @@
 
 # agent-trace DevTools：host 协议、会话浏览器与工作区
 
-- 状态：草稿
+- 状态：已实现
 - 负责人：未确认
 - 评审人：未确认
-- 最后更新：2026-09-24
+- 最后更新：2026-09-25
 - 配套 Spec：[`docs/specs/0001-external-release.md`](../specs/0001-external-release.md)
 - 视觉设计：[`docs/design/`](../design/README.md)
 
@@ -137,7 +137,7 @@ flowchart TB
 | 目录 | 包 | 负责 | 允许依赖 |
 |---|---|---|---|
 | `apps/cli` | `@rivus/agent-trace` | 组合根：注册 host、提供 Node 运行时、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
-| `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3），之后是浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
+| `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3）和浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO`（基于 `node:fs` 的 `TraceIO`）、home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
@@ -598,6 +598,20 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 | M5 | 报告模式、rslib 打包、在 tarball 上运行的 Playwright 测试套件 | 2 天 |
 
 依据：M1 的每项改动都已在探针中试过（第 8 节）；M2 的主要工作量是 Claude Code adapter 和 fixture；M4 的主要工作量是 timeline 和 ledger。
+
+### 6.1 交付说明
+
+按计划实现，以下是交付过程中做出的选择：
+
+- 报告文件：在 Chromium 中，从 `file://` 打开的页面无法用 `fetch()` 读取 DevFrame 的静态 dump，无法运行模块脚本，也无法加载字体。`build` 仍然注册 `report-trace` 并由 DevFrame 烘焙；随后报告写入器把烘焙结果以 `<script type="application/json" id="report-trace">` 放入 `index.html`，内联脚本、样式和 `woff2` 字体，并删除 `assets/`、`__rpc-dump/` 和 `__connection.json`。一份报告就是一个 `index.html`。DevFrame 的 `build --pretty` 参数不再有作用。
+- 报告内容：前面的事件以完整形式包含（规范化 payload 加原始记录），而不只是原始记录，因此这些事件的截短文本也是完整的。2,000 个事件和 20 MB 的上限按这些完整事件计算。`build` 不记录语言，因此它的报告按浏览器语言打开；导出会记录界面语言。
+- 导出：“导出报告”写入服务工作目录下一个新的 `agent-trace-report-<ref>-<time>/` 目录，并显示绝对路径，主目录显示为 `~`。导出一次只运行一个。DevFrame 的 build 模式跳过会话推送，因此在开发服务器内运行的 build 不会重新绑定正在使用的共享状态。
+- 旧的 `get-trace` 已删除。`mcp` 保留基于 TraceStore 的 `reconstruct`。“模型所见”在浏览器中基于视图版 trace 计算 `reconstruct`，开发服务器和报告中都是如此。
+- S4：会话列表不会打开“无法读取”的行。它的预览显示文件、行号和原因；该 ref 的工作区 URL 在错误面板中显示 host、文件和行号。
+- S2：CLI 打开 `<base>?s=<ref>#devframe_otp=<code>`，因为 DevFrame 的一次性码使用 fragment；SPA 把 ref 移到 `#/s/<ref>`。冒烟测试检查打开的 URL；浏览器测试检查落地的路由。
+- Ledger：一个轮次中每个子代理泳道的事件收在该泳道 spawn 调用处的一行子代理行之后；行高按行类型固定（hook 折叠行 30 px，上下文压缩行 44 px）。
+- 工具：`@clack/prompts` 打包进 `dist/cli.mjs`；`node-pty` 使用 `1.2.0-beta.15`，因为 1.1.0 没有 Linux 预编译包；`dist/THIRD-PARTY-NOTICES.txt` 由一个小的 rspack 插件写出；`npm pack` 在打包后的 `devDependencies` 中保留 `workspace:*`，`npm install` 会忽略它（发布的后续工作应使用 Rush 或 pnpm 打包）。
+- 浏览器测试在 CI 中使用 Playwright 的 Chromium。在无法访问 Playwright 下载地址的机器上，`AGENT_TRACE_E2E_CHANNEL=chrome` 让它在已安装的 Google Chrome 上运行。
 
 ## 7. 风险、待定问题与后续工作
 

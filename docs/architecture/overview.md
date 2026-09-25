@@ -18,6 +18,12 @@ host log
   -> kernel toView / fold / reconstruct / projections / redact
   -> DevFrame load-trace (progress stream) + get-trace-view + get-event
   -> Solid workspace: header, SVG timeline, virtualized ledger, inspector
+
+one session (build <path>, or export-report on the dev server)
+  -> buildReport: view trace + summary + first events in full, always redacted
+  -> DevFrame static build baking report-trace
+  -> packForFile: one index.html (report JSON, script, styles, fonts inlined)
+  -> the same SPA in report mode, opened from file://
 ```
 
 `events[]` is the archive. Every event can return its original: the store keeps each event's source pointer (file, byte offset, length) and `get-event(ref, id)` reads that line again (`readOriginal`). The store records each source file's size and mtime at load and a fingerprint of each record; if the file changed since (a live session appends), the bytes must still parse to the same record, else the event comes back with `originalUnavailable` and the reason. A canonical JSON file keeps originals inside the file, so `get-event` reloads it once per cached entry.
@@ -51,13 +57,15 @@ The `reconstruct` RPC takes `{ ref?, eventId }`; without a ref (MCP) it reads `c
 | `packages/schema` (`@rivus/agent-trace-schema`) | Canonical `Trace` (`schema: 'agent-trace'`), kinds, capabilities, `shadowedBy` |
 | `packages/kernel` (`@rivus/agent-trace-kernel`) | `HostAdapter`, `TraceIO`, load, fold, reconstruct, redact, `toView` / `fitView`, projections, conformance |
 | `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | `NodeIO`, `homeDir`, session index (`node:sqlite`) |
-| `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; legacy `get-trace` for the static build and MCP (the dev server does not bind it) |
+| `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; `export-report` over an injected writer; `buildReport`; `report-trace`, registered only in DevFrame's build mode |
 | `packages/host-claude-code` | Claude Code JSONL, registered |
 | `packages/host-codex` | Codex `rollout-*.jsonl`, registered |
 | `packages/host-grok` | Grok `updates.jsonl` plus side files, registered |
 | `packages/host-opencode` | OpenCode SQLite, kept, not registered |
 | `packages/host-dsh` | detect stub, kept, not registered |
-| `apps/web` (`@rivus/agent-trace-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<ref>` (workspace), design tokens, `en` / `zh-CN` dictionaries |
+| `apps/web` (`@rivus/agent-trace-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<ref>` (workspace), report mode, design tokens, `en` / `zh-CN` dictionaries |
+| `apps/cli` (`@rivus/agent-trace`) | DevFrame CLI, the session catalog, the TraceStore wiring, and the report writer; the only published package |
+| `apps/e2e` (`@rivus/agent-trace-e2e`) | Private: CLI smoke and Playwright suites against the installed tarball |
 
 ## Workspace
 
@@ -67,13 +75,24 @@ The `reconstruct` RPC takes `{ ref?, eventId }`; without a ref (MCP) it reads `c
 - Ledger (`workspace/ledger/`): `lib/ledger-model.ts` builds turns from `projectTurns`, folds hook runs with `foldHookRuns`, pairs tool results with their calls, and puts each subagent lane's events of a turn behind one row at its spawn call. `flattenLedger` applies collapse, expansion, the kind chips, and the brush range. `@tanstack/solid-virtual` draws fixed sizes per row type (36 px rows, 40 px turn headers, 30 px hook fold, 44 px compaction), so the DOM holds about 40 rows at any scroll position. The dim toggle uses `hiddenAfterCompaction`.
 - Inspector (`workspace/inspector/`): Input and Output show normalized fields; a shortened event (`payload.$truncated`) loads its full text through `get-event` on selection. Model saw is kernel `reconstruct` on the view trace: slots with their status, the recorded token counts with the slots each covers, and the removed events. Raw is `get-event`'s original record.
 
-A static build (until M5's `report-trace`) reads the argument-free `get-trace` snapshot and computes the summary with `fold` in the browser.
-| `apps/cli` (`@rivus/agent-trace`) | DevFrame CLI, the session catalog, and the TraceStore wiring; the only published package |
+## Report
+
+A report is one session's workspace as a static page that opens from `file://` with no server (plan D8). `build <path> --out-dir <dir>` and the workspace's "Export report" (`export-report(ref, locale)`) run the same pipeline in `apps/cli/src/report.ts`:
+
+1. `buildReport` (`packages/rpc/src/report.ts`) takes the view trace and summary as `get-trace-view` returns them, and the full events (payload and original record) of the first events in order, until 2,000 events or 20 MB of serialized events, whichever comes first. Everything passes through `redact` with the home directory, whatever `AGENT_TRACE_REDACT` says (D10). `build` takes the full events from the trace it already loaded (the file is read once); the export reads them through `TraceStore.events`, which reads source pointers 32 at a time, or reloads a canonical file once per batch of 250 events.
+2. DevFrame's `createBuild` runs the definition's `setup` in build mode, which registers one extra argument-free snapshot query, `report-trace`, bound to that payload, and bakes it into `__rpc-dump/`. Build mode skips the session push, so an export inside the dev server leaves the live server's shared state alone. Exports run one at a time, each into a new `agent-trace-report-<ref>-<time>` directory in the server's working directory.
+3. `packForFile` (`apps/cli/src/report-site.ts`) makes the build open from disk. Chromium refuses `fetch()`, module scripts, and fonts from `file://`, so the baked `report-trace` output moves into `index.html` as `<script type="application/json" id="report-trace">`, the module script and the stylesheet are inlined (`woff2` fonts as data URIs), and `assets/`, `__rpc-dump/`, and `__connection.json` are removed. The result is a single `index.html`.
+
+The SPA starts in report mode when it finds that element (`apps/web/src/shell/report.ts`): no DevFrame connection, no session browser, no Export button. The workspace reads the view trace from the report; `get-event` becomes a lookup in the included events, and any other event shows its view with "not included in this report" in Raw. Model saw runs `reconstruct` in the browser as on the dev server. A banner says that session text and file contents remain, and how many originals are included when the report holds fewer than all events. The report opens in the UI locale recorded at export time (`build` records none, so the browser's language decides) and keeps the language and theme switches.
+
+## Bundle
+
+`apps/cli` builds with rslib into `dist/bin.mjs` (Node version check, then a dynamic import) and `dist/cli.mjs` (the CLI with every `@rivus/*` package bundled; `devframe`, `@devframes/agentic`, and `cac` stay runtime dependencies). The web build is copied into `dist/web/`, and `src/paths.ts` finds it there through the build-time constant `AGENT_TRACE_BUNDLE`. `apps/e2e` tests the packed tarball from outside: `test:smoke` (CLI, S2, S10, S13, S15, S16) and `test:e2e` (Playwright, the browser scenarios).
 
 ## Trust
 
-Session files stay on disk. The dev server binds localhost. The index holds titles, user prompts (500 characters each), paths, and numbers, in the user's cache directory with mode 0600. `build` and `mcp` always redact (home directory and token patterns). The dev server redacts the view trace, `get-event`, error messages, and list rows alike, unless `AGENT_TRACE_REDACT=0`. Do not put machine paths or live secrets into fixtures.
+Session files stay on disk. The dev server binds localhost. The index holds titles, user prompts (500 characters each), paths, and numbers, in the user's cache directory with mode 0600. `build`, "Export report", and `mcp` always redact (home directory and token patterns); a report still holds session text and file contents, and says so. The dev server redacts the view trace, `get-event`, error messages, and list rows alike, unless `AGENT_TRACE_REDACT=0`. Do not put machine paths or live secrets into fixtures.
 
 ## Out of the current viewer
 
-Not built: report export (M5; the header's "Export report" is a disabled placeholder), the ⌘K jump palette (the box focuses the ledger), and a composer overlay. dsh ingestion is not implemented.
+Not built: the ⌘K jump palette (the box focuses the ledger) and a composer overlay. dsh ingestion is not implemented.

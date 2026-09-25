@@ -1,17 +1,7 @@
-import type { Trace } from '@rivus/agent-trace-schema'
 import type { ListSessionsQuery, ListSessionsResult } from '../list-types.ts'
 
-export interface SessionView {
-  path: string
-  trace: Trace
-}
-
-/**
- * `get-trace` (the launch session, full; bound by `build` and `mcp` only) and `list-sessions`
- * (the dev server). Traces by ref come from the TraceStore.
- */
+/** `list-sessions` on the dev server. Traces by ref come from the TraceStore. */
 export interface SessionService {
-  view?: () => Promise<SessionView>
   listSessions?: (input: ListSessionsQuery) => Promise<ListSessionsResult>
 }
 

@@ -8,6 +8,8 @@ import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
 const CAPACITY = 3
 /** The 12 MB budget covers the whole response; keep 64 KB for `summary` and the envelope. */
 const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024
+/** Concurrent source-pointer reads in `events`. */
+const READ_BATCH = 32
 
 /** What a `ref` resolves to. The shell's resolver (its session catalog) supplies it. */
 export interface ResolvedSession {
@@ -203,6 +205,21 @@ export class TraceStore {
         return this.present({ ...event, originalUnavailable: checked.unavailable })
       return this.present({ ...event, original: checked.original })
     })
+  }
+
+  /**
+   * Several events in full, in the order asked (the report's first events). A canonical file is
+   * reloaded once for the whole batch, because concurrent reads share the reload in flight.
+   */
+  async events(ref: string, ids: readonly string[], owner?: object): Promise<EventDetail[]> {
+    const entry = await this.guard(() => this.entryFor(ref, owner))
+    if (entry.canonical)
+      return Promise.all(ids.map(id => this.event(ref, id, owner)))
+    // Source-pointer reads: a few at a time, so a long batch never runs out of file handles.
+    const out: EventDetail[] = []
+    for (let start = 0; start < ids.length; start += READ_BATCH)
+      out.push(...await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(ref, id, owner))))
+    return out
   }
 
   async reconstruct(ref: string, eventId: string, owner?: object): Promise<ReconstructResult> {

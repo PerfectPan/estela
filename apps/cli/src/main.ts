@@ -1,11 +1,10 @@
-import type { ResolvedSession } from '@rivus/agent-trace-rpc'
+import type { ReportTrace, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { loadTrace, splitSessionRef } from '@rivus/agent-trace-kernel'
-import { bindSessionService, bindTraceStore } from '@rivus/agent-trace-rpc'
+import { bindReportExporter, bindSessionService, bindTraceStore, CURRENT_REF } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO } from '@rivus/agent-trace-runtime-node'
-import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
@@ -13,6 +12,7 @@ import { SessionCatalog } from './catalog.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
 import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
+import { exportReport, reportOfLoaded, writeReport } from './report.ts'
 import { registeredHosts, Session } from './session.ts'
 import { createTraceStore } from './trace-store.ts'
 import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, sayWarning, startLoad } from './terminal.ts'
@@ -68,8 +68,7 @@ export async function main(): Promise<void> {
     // `build` and `mcp` always redact; only the local server honors `AGENT_TRACE_REDACT=0`.
     const sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
     const current: ResolvedSession = { key: sessionPath, path: sessionPath }
-    const session = new Session(sessionPath, true)
-    bindSessionService(session)
+    const session = new Session(sessionPath)
     const traces = createTraceStore({ adapters: registeredHosts, redacts: true })
     bindTraceStore(traces.store)
     if (parsed.command === 'mcp') {
@@ -78,20 +77,22 @@ export async function main(): Promise<void> {
       return
     }
     const outDir = parsed.outDir ?? 'dist-static'
+    let report: ReportTrace | undefined
     try {
       await sayBuild(pkg.version, {
         load: async () => {
           const trace = await session.load()
-          // One load per build: the store gets this trace, so no RPC reloads the file.
+          // One load per build: the store gets this trace, so nothing reads the file again.
           await traces.seed(current, trace)
           return `${trace.events.length} events`
         },
         redact: async () => {
-          const view = await session.view()
-          return `redacted ${view.trace.events.length} events`
+          report = await reportOfLoaded(traces.store, CURRENT_REF, await session.load())
+          const included = report.truncated ? `; original records for the first ${report.events.length}` : ''
+          return `redacted ${report.total} events${included}`
         },
         write: async () => {
-          await createBuild(devframe, { outDir, pretty: parsed.pretty })
+          await writeReport(outDir, report!)
           return outDir
         },
       })
@@ -108,8 +109,8 @@ export async function main(): Promise<void> {
   const catalog = new SessionCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
   const traces = createTraceStore({ adapters: registeredHosts, redacts, resolve: ref => catalog.resolve(ref) })
   bindTraceStore(traces.store)
-  // No `get-trace` here: the workspace loads by ref through the TraceStore.
   bindSessionService({ listSessions: input => catalog.listSessions(input) })
+  bindReportExporter(input => exportReport(traces.store, input))
   readyHook = () => catalog.resumeSummaries()
   if (catalog.indexUnavailable)
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)

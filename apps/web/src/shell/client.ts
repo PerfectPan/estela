@@ -33,13 +33,3 @@ export function trustedClient(): Promise<DevframeRpcClient> {
 export async function scopedClient(): Promise<ScopedClient> {
   return (await trustedClient()).scope(NAMESPACE) as ScopedClient
 }
-
-/** A static build (the report) has no live server: no session list, one baked trace. */
-export async function isStaticBuild(): Promise<boolean> {
-  try {
-    return (await devframeClient()).transport === 'static'
-  }
-  catch {
-    return false
-  }
-}

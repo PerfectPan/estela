@@ -91,7 +91,6 @@ export const en = {
     failedTools: 'failed tool calls',
     cappedNotice: 'Long text is shortened to {{ count }} characters to keep this view under 12 MB. Select an event to load its full text.',
     overBudget: 'This session is larger than the 12 MB view budget even with the shortest text, so the page may be slow.',
-    exportLater: 'Report export arrives in a later release.',
   },
   timeline: {
     title: 'Timeline',
@@ -221,6 +220,22 @@ export const en = {
   report: {
     title: 'Report',
     export: 'Export report',
+    dialogTitle: 'Export a report of this session',
+    dialogBody: 'The report is one index.html file that opens in a browser without a server. It is redacted: your home directory becomes ~ and known credential patterns are replaced.',
+    dialogKeeps: 'Session text and file contents remain in the report. Read it before you share it.',
+    dialogLimit: 'It holds every event as shown here, and the original records of the first {{ events }} events or {{ size }}, whichever is smaller.',
+    cancel: 'Cancel',
+    confirm: 'Export',
+    writing: 'Writing the report…',
+    written: 'Report written to',
+    writtenDetail: 'Original records included for {{ included }} of {{ total }} events.',
+    failed: 'Could not write the report: {{ reason }}',
+    close: 'Close',
+    banner: 'Static report, redacted: the home directory shows as ~ and known credential patterns are replaced. Session text and file contents remain.',
+    truncated: 'Original records are included for the first {{ included }} of {{ total }} events.',
+    cappedNotice: 'Long text is shortened to {{ count }} characters in this report. Events with an included original record show their full text when selected.',
+    notIncluded: 'The original record of this event is not included in this report.',
+    fullNotIncluded: 'Shortened in the view. The full text of this event is not included in this report.',
   },
 }
 
