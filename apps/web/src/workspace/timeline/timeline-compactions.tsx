@@ -2,9 +2,10 @@ import type { CompactionMark } from './timeline-data.ts'
 import type { TimeScale } from '@/lib/timeline-scale.ts'
 import type { LabelBox } from '@/lib/label-layout.ts'
 import { For, Show, createMemo, createSignal } from 'solid-js'
+import { locale } from '@/i18n/locale.ts'
 import { translate as t } from '@/i18n/locale.ts'
-import { formatTokens } from '@/lib/format.ts'
-import { layoutLabels, placeLabel } from '@/lib/label-layout.ts'
+import { formatDuration, formatTokens } from '@/lib/format.ts'
+import { layoutLabels, placeLabel, rovingIndex, ruleTarget } from '@/lib/label-layout.ts'
 import { measureText } from '@/lib/measure-text.ts'
 import { xOf } from '@/lib/timeline-scale.ts'
 
@@ -40,8 +41,9 @@ function Box(props: { box: LabelBox, label: string, more?: number, raised?: bool
  * Compaction rules (S5): a neutral dashed rule per compaction, and a `compacted pre → post`
  * box laid out left to right (`layoutLabels`) so boxes never overlap, flipping left at the
  * right edge. A rule whose box does not fit is counted as `+N` inside the box before it, and
- * every rule has a hover and keyboard-focus target that shows its own box on top.
- * Rendered after the plot's drag surface, so the boxes and targets receive the pointer.
+ * every rule has a hover and keyboard-focus target in the label row that shows its own box on
+ * top. The targets are one tab stop (roving tabindex; arrows, Home, End move between rules).
+ * They cover only the label row, so the plot's drag surface below keeps the pointer.
  */
 export function CompactionLayer(props: { marks: CompactionMark[], scale: TimeScale, bottom: number, right: number }) {
   const items = createMemo(() => props.marks.map((mark) => {
@@ -63,6 +65,19 @@ export function CompactionLayer(props: { marks: CompactionMark[], scale: TimeSca
     return layout
   })
   const [active, setActive] = createSignal<number>()
+  /** The rule that holds the group's one tab stop. */
+  const [focusIndex, setFocusIndex] = createSignal(0)
+  const targets: SVGRectElement[] = []
+  function onKey(event: KeyboardEvent, index: number): void {
+    const next = rovingIndex(index, event.key, items().length)
+    if (next === undefined)
+      return
+    event.preventDefault()
+    setFocusIndex(next)
+    targets[next]?.focus()
+  }
+  const spoken = (item: { label: string, mark: CompactionMark }) =>
+    t('timeline.compactionAt', { label: item.label, time: formatDuration(item.mark.ts - props.scale.start, locale()) })
   const activeBox = () => {
     const index = active()
     if (index === undefined)
@@ -82,30 +97,34 @@ export function CompactionLayer(props: { marks: CompactionMark[], scale: TimeSca
           </Show>
         )}
       </For>
+      <g role="group" aria-label={t('timeline.compactionsLabel')}>
       <For each={items()}>
         {(item, index) => (
           <rect
-            x={item.x - 4}
-            y="4"
-            width="8"
-            height={props.bottom - 4}
+            ref={(element) => { targets[index()] = element }}
+            {...ruleTarget(item.x)}
             fill="transparent"
-            class="cursor-default outline-none"
-            tabindex="0"
+            class="cursor-default outline-none focus-visible:stroke-foreground"
+            tabindex={index() === Math.min(focusIndex(), items().length - 1) ? 0 : -1}
             role="img"
-            aria-label={item.label}
+            aria-label={spoken(item)}
             data-marker="compaction"
             data-label={item.label}
             data-boxed={slots()[index()]?.box ? 'true' : 'false'}
             onPointerEnter={() => setActive(index())}
             onPointerLeave={() => setActive(undefined)}
-            onFocus={() => setActive(index())}
+            onFocus={() => {
+              setActive(index())
+              setFocusIndex(index())
+            }}
             onBlur={() => setActive(undefined)}
+            onKeyDown={event => onKey(event, index())}
           >
-            <title>{item.label}</title>
+            <title>{spoken(item)}</title>
           </rect>
         )}
       </For>
+      </g>
       <Show when={activeBox()}>
         {current => <Box box={current().box} label={current().item.label} raised />}
       </Show>

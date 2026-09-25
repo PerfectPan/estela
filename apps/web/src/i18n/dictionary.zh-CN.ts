@@ -137,6 +137,8 @@ export const zhCN = {
     contextTokens: '上下文 Token',
     compacted: '上下文压缩',
     moreCompactions: '+{{ count }}',
+    compactionsLabel: '上下文压缩',
+    compactionAt: '{{ label }}，位于 {{ time }}',
     rangeStart: '范围起点',
     rangeEnd: '范围终点',
     moreLanes: '另有 {{ count }} 条泳道',

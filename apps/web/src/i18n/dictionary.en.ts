@@ -109,6 +109,8 @@ export const en = {
     contextTokens: 'context tokens',
     compacted: 'compacted',
     moreCompactions: '+{{ count }}',
+    compactionsLabel: 'Compactions',
+    compactionAt: '{{ label }} at {{ time }}',
     rangeStart: 'Range start',
     rangeEnd: 'Range end',
     moreLanes: '+{{ count }} more lanes',

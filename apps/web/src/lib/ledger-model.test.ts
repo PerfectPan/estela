@@ -101,8 +101,8 @@ describe('flattenLedger', () => {
     const failures = flattenLedger(model, view({ filter: 'failures' }))
     expect(failures.map(row => row.key)).toEqual(['t0', 'e:c1'])
     const requests = flattenLedger(model, view({ filter: 'requests' }))
-    // The subagent row stays because one of its rows is a request.
-    expect(requests.map(row => row.key)).toEqual(['t0', 'e:r1', 's:t0:sub', 't1', 'e:r2'])
+    // The subagent row stays because one of its rows is a request, and opens to list it.
+    expect(requests.map(row => row.key)).toEqual(['t0', 'e:r1', 's:t0:sub', 'e:s1', 't1', 'e:r2'])
     const late = flattenLedger(model, view({ range: { from: 11_000, to: 12_000 } }))
     expect(late.map(row => row.key)).toEqual(['t1', 'e:p2', 'e:r2'])
   })
@@ -136,6 +136,21 @@ describe('keyboard and counts', () => {
     expect(inner?.type === 'entry' && inner.lane).toBe(true)
     expect(model.requests.get('s1')?.lane.id).toBe('sub')
     expect(model.requests.get('r2')?.index).toBe(1)
+  })
+
+  it('lists under Failures every failed result the chip counts: orphans and second results too', () => {
+    const trace = sample()
+    const extra = [
+      { id: 'orphan', kind: 'tool_result' as const, payload: { callId: 'none', isError: true } },
+      { id: 'again', kind: 'tool_result' as const, payload: { callId: 'x1', isError: true } },
+    ]
+    for (const item of extra)
+      trace.events.push({ ...item, seq: trace.events.length, ts: 1000 * trace.events.length, source: { file: '0', offset: 0, length: 1, line: trace.events.length + 1 } })
+    const model = buildLedgerModel(trace)
+    const failed = trace.events.filter(item => item.kind === 'tool_result' && item.payload.isError === true).length
+    const rows = flattenLedger(model, view({ filter: 'failures' })).filter(row => row.type === 'entry')
+    expect(failed).toBe(3)
+    expect(rows.map(row => row.key)).toEqual(['e:c1', 'e:orphan', 'e:again'])
   })
 
   it('counts the events inside a range', () => {

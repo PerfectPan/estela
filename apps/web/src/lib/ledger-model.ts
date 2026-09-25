@@ -278,13 +278,16 @@ export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView)
     return entry.kind === 'request'
   if (view.filter === 'tools')
     return entry.kind === 'tool'
-  return entry.kind === 'tool' && isFailedResult(entry.resultId ? model.byId.get(entry.resultId) : undefined)
+  // The same rows the chip counts (fold's rule): a call whose result failed, and a failed
+  // result drawn on its own row (no matching call, or a second result for one call).
+  return entry.kind === 'tool' && (isFailedResult(entry.resultId ? model.byId.get(entry.resultId) : undefined) || isFailedResult(model.byId.get(entry.eventId)))
 }
 
 function pushEntry(out: VirtualRow[], entry: Entry, depth: 0 | 1, lane: boolean, model: LedgerModel, view: LedgerView): void {
   if (!entryMatches(entry, model, view))
     return
-  const expanded = view.expanded.has(entry.id)
+  // Under a kind chip a subagent row opens, so the rows the chip counts are listed, not hidden behind it.
+  const expanded = view.expanded.has(entry.id) || (view.filter !== 'all' && entry.type === 'subagent')
   out.push({ key: entry.id, type: 'entry', entry, depth, expanded, lane, size: rowSize({ type: 'entry', entry }) })
   if (!expanded)
     return

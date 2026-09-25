@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { layoutLabels, placeLabel } from './label-layout.ts'
+import { LABEL_ROW, layoutLabels, placeLabel, rovingIndex, ruleTarget } from './label-layout.ts'
 
 describe('compaction label layout', () => {
   it('puts a box right of its rule, or left of it at the right edge', () => {
@@ -31,5 +31,23 @@ describe('compaction label layout', () => {
     // A flipped box whose left edge would pass over the previous rule is not drawn.
     const slots = layoutLabels([{ x: 880, width: 10 }, { x: 990, width: 150 }], 1000)
     expect(slots[1]!.box).toBeUndefined()
+  })
+
+  it('keeps each rule target inside the label row, off the plot area below', () => {
+    const target = ruleTarget(500)
+    expect(target).toEqual({ x: 496, y: 4, width: 8, height: 18 })
+    // The main lane's bars start at y 22 and the drag surface covers the plot below the row.
+    expect(target.y + target.height).toBeLessThanOrEqual(LABEL_ROW.y + LABEL_ROW.height)
+    expect(target.y + target.height).toBeLessThanOrEqual(22)
+  })
+
+  it('moves the one tab stop with arrows, Home, and End', () => {
+    expect(rovingIndex(0, 'ArrowRight', 3)).toBe(1)
+    expect(rovingIndex(2, 'ArrowRight', 3)).toBe(2)
+    expect(rovingIndex(0, 'ArrowLeft', 3)).toBe(0)
+    expect(rovingIndex(1, 'End', 3)).toBe(2)
+    expect(rovingIndex(2, 'Home', 3)).toBe(0)
+    expect(rovingIndex(1, 'Tab', 3)).toBeUndefined()
+    expect(rovingIndex(0, 'ArrowRight', 0)).toBeUndefined()
   })
 })

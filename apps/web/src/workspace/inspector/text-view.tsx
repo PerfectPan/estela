@@ -3,7 +3,7 @@ import { locale, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { formatBytes } from '@/lib/format.ts'
 import { escapeBidi } from '@/lib/preview.ts'
-import { textChunks } from '@/lib/text-chunks.ts'
+import { estimateBytes, textChunks } from '@/lib/text-chunks.ts'
 
 const PRE = 'm-0 font-mono text-[11.5px] leading-[1.6] break-words whitespace-pre-wrap [unicode-bidi:isolate]'
 
@@ -36,7 +36,7 @@ export function TextView(props: { text: string, muted?: boolean }) {
     frame = requestAnimationFrame(step)
   }
 
-  const size = createMemo(() => chunks().rest.length > 0 ? formatBytes(new Blob([props.text]).size, locale()) : '')
+  const size = createMemo(() => chunks().rest.length > 0 ? `≈${formatBytes(estimateBytes(props.text), locale())}` : '')
   return (
     <div class="flex flex-col" data-testid="inspector-body" dir="auto">
       <pre class={cx(PRE, props.muted ? 'text-subtle' : 'text-foreground')}>{escapeBidi(chunks().head)}</pre>

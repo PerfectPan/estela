@@ -46,15 +46,15 @@ export function SessionHeader(props: { trace: Trace, summary: SessionSummary }) 
           {escapeBidi(props.trace.session.title || props.trace.session.id)}
         </h1>
       </div>
-      <div class="flex shrink-0 gap-[34px]">
-        <Metric value={formatOptional(props.summary.durationMs, v => formatDuration(v, locale()), dash())} label={t('workspace.duration')} />
-        <Metric value={num(props.summary.turns)} label={t('workspace.turns')} />
-        <Metric value={num(props.summary.requests)} label={t('workspace.requests')} />
-        <Metric value={tokens()} label={t('workspace.tokensInOut')} />
-        <Metric value={num(props.summary.compactions)} label={t(props.summary.compactions === 1 ? 'workspace.compaction' : 'workspace.compactions')} />
-        <Metric value={num(props.summary.subagents)} label={t('workspace.subagents')} />
-        <Metric value={num(props.summary.failedTools)} label={t('workspace.failedTools')} failed={failed() > 0} />
-      </div>
+      <dl class="m-0 flex shrink-0 gap-[34px]">
+        <Metric term value={formatOptional(props.summary.durationMs, v => formatDuration(v, locale()), dash())} label={t('workspace.duration')} />
+        <Metric term value={num(props.summary.turns)} label={t('workspace.turns')} />
+        <Metric term value={num(props.summary.requests)} label={t('workspace.requests')} />
+        <Metric term value={tokens()} label={t('workspace.tokensInOut')} />
+        <Metric term value={num(props.summary.compactions)} label={t(props.summary.compactions === 1 ? 'workspace.compaction' : 'workspace.compactions')} />
+        <Metric term value={num(props.summary.subagents)} label={t('workspace.subagents')} />
+        <Metric term value={num(props.summary.failedTools)} label={t('workspace.failedTools')} failed={failed() > 0} />
+      </dl>
     </section>
   )
 }

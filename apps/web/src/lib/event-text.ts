@@ -29,8 +29,9 @@ export function toolTarget(args: unknown): string {
   return previewUnknown(args)
 }
 
+/** The recorded tool name, bidi controls escaped. */
 export function toolName(event: TraceEvent): string {
-  return asString(event.payload.name) || 'tool'
+  return escapeBidi(asString(event.payload.name) || 'tool')
 }
 
 export interface RowText {

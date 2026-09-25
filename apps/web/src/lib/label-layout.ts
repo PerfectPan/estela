@@ -50,3 +50,29 @@ export function layoutLabels(rules: readonly { x: number, width: number }[], rig
   })
   return slots
 }
+
+/** Top and height of the label row above the plot (the boxes sit at y 4–22). */
+export const LABEL_ROW = { y: 4, height: 18 } as const
+
+/**
+ * The hover and focus target of one rule: 8 px wide and only as tall as the label row, so a
+ * drag or click on the plot next to a rule still reaches the brush.
+ */
+export function ruleTarget(x: number): { x: number, y: number, width: number, height: number } {
+  return { x: x - 4, y: LABEL_ROW.y, width: 8, height: LABEL_ROW.height }
+}
+
+/** Roving focus over the rules: arrows move by one, Home / End jump; other keys give `undefined`. */
+export function rovingIndex(current: number, key: string, count: number): number | undefined {
+  if (count === 0)
+    return undefined
+  if (key === 'ArrowRight' || key === 'ArrowDown')
+    return Math.min(count - 1, current + 1)
+  if (key === 'ArrowLeft' || key === 'ArrowUp')
+    return Math.max(0, current - 1)
+  if (key === 'Home')
+    return 0
+  if (key === 'End')
+    return count - 1
+  return undefined
+}

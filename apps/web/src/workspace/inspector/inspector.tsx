@@ -10,6 +10,7 @@ import { KIND_TITLE, KindSquare } from '@/components/kind-mark.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { isShortened, numberField, pretty, toolName } from '@/lib/event-text.ts'
+import { createEventCache, rawFetchKey } from '@/lib/event-cache.ts'
 import { elapsedFrom, formatDuration, formatTokens } from '@/lib/format.ts'
 import { ModelSaw } from './model-saw.tsx'
 import { inputText, outputText } from './tab-text.ts'
@@ -24,8 +25,6 @@ const TABS: { id: Tab, label: MessageKey }[] = [
   { id: 'raw', label: 'inspector.raw' },
 ]
 
-/** Full events fetched through `get-event`, kept for the last few selections (a full output can be megabytes). */
-const CACHE_SIZE = 24
 
 function entryKind(entry: Entry): RowKind {
   switch (entry.type) {
@@ -53,18 +52,7 @@ export function Inspector(props: { state: WorkspaceState, start: number }) {
   const state = props.state
   const [tab, setTab] = createSignal<Tab>('input')
   const [visited, setVisited] = createSignal<ReadonlySet<Tab>>(new Set(['input']))
-  const cache = new Map<string, Promise<EventDetail>>()
-  function fetchEvent(id: string): Promise<EventDetail> {
-    let found = cache.get(id)
-    if (!found) {
-      found = state.session.event(id)
-      cache.set(id, found)
-      found.catch(() => cache.delete(id))
-      if (cache.size > CACHE_SIZE)
-        cache.delete(cache.keys().next().value!)
-    }
-    return found
-  }
+  const fetchEvent = createEventCache(id => state.session.event(id))
   function choose(next: Tab): void {
     setTab(next)
     if (!visited().has(next))
@@ -97,7 +85,8 @@ export function Inspector(props: { state: WorkspaceState, start: number }) {
     async key => new Map((await Promise.all(key.split('\0').map(fetchEvent))).map(event => [event.id, event])),
   )
   const [raw] = createResource(
-    () => visited().has('raw') && ids().length > 0 ? ids().join('\0') : undefined,
+    // Only while Raw is open; a hidden Raw panel keeps its last result and fetches nothing.
+    () => rawFetchKey(tab(), ids()),
     key => Promise.all(key.split('\0').map(fetchEvent)),
   )
   const lookup = (id: string) => (full.state === 'ready' ? full()?.get(id) : undefined) ?? state.model.byId.get(id)
