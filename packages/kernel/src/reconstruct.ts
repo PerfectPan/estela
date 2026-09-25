@@ -1,6 +1,7 @@
 import type { ContextSlot, ContextSlotName, ContextTokens, ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { asNumber, asString } from './jsonl.ts'
 import { isPrompt, laneOf, mainAgentId, recordKey, requestUsage, shadowedIn } from './lanes.ts'
+import { latestSnapshot, promptSnapshot, snapshotHasSystemPrompt, snapshotHasTools } from './prompt-snapshot.ts'
 
 const MESSAGE_KINDS = new Set<TraceEvent['kind']>(['user', 'assistant', 'thinking', 'tool_call', 'tool_result'])
 const ALL_SLOTS: ContextSlotName[] = ['system', 'tools', 'summary', 'messages', 'currentTurn']
@@ -58,7 +59,18 @@ function slot(name: ContextSlotName, recorded: boolean, eventIds: string[], pres
   return { name, status: recorded ? (present ? 'present' : 'empty') : 'unavailable', eventIds }
 }
 
-/** The session system prompt belongs to the main lane; a subagent lane needs its own. */
+/** `system` or `tools` slot: present when recorded, else unavailable; `recordedBy` names the snapshot it comes from. */
+function recordedSlot(name: 'system' | 'tools', recorded: boolean, snapshot: TraceEvent | undefined): ContextSlot {
+  const out = slot(name, recorded, [], recorded)
+  if (snapshot)
+    out.recordedBy = snapshot.id
+  return out
+}
+
+/**
+ * Session-level fields, for a trace without prompt snapshots: the session
+ * system prompt belongs to the main lane; a subagent lane needs its own.
+ */
 function systemRecorded(trace: Trace, lane: string, mainId: string): boolean {
   if (!trace.capabilities.includes('systemPrompt'))
     return false
@@ -67,9 +79,24 @@ function systemRecorded(trace: Trace, lane: string, mainId: string): boolean {
   return Boolean(trace.agents.find(agent => agent.id === lane)?.systemPrompt)
 }
 
+/**
+ * The `system` and `tools` slots. A trace with prompt snapshots uses the latest
+ * snapshot at or before the event on its lane that recorded the field; one
+ * without snapshots uses the session and lane fields.
+ */
+function promptSlots(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[]): [ContextSlot, ContextSlot] {
+  if (trace.events.some(event => promptSnapshot(event) !== undefined)) {
+    const system = latestSnapshot(prefix, snapshotHasSystemPrompt)
+    const tools = latestSnapshot(prefix, snapshotHasTools)
+    return [recordedSlot('system', system !== undefined, system), recordedSlot('tools', tools !== undefined, tools)]
+  }
+  return [
+    recordedSlot('system', systemRecorded(trace, lane, mainId), undefined),
+    recordedSlot('tools', trace.session.tools != null, undefined),
+  ]
+}
+
 function slotsOf(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[], visible: TraceEvent[]): ContextSlot[] {
-  const hasSystem = systemRecorded(trace, lane, mainId)
-  const hasTools = trace.session.tools != null || prefix.some(event => event.payload.tools != null)
   const recordsCompaction = trace.capabilities.includes('compaction') || prefix.some(event => event.kind === 'compaction')
   const summaries = summaryIds(prefix)
   const summary: string[] = []
@@ -89,8 +116,7 @@ function slotsOf(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[
       messages.push(event.id)
   })
   return [
-    slot('system', hasSystem, [], hasSystem),
-    slot('tools', hasTools, [], hasTools),
+    ...promptSlots(trace, lane, mainId, prefix),
     slot('summary', recordsCompaction, summary),
     slot('messages', true, messages),
     slot('currentTurn', true, current),
@@ -115,7 +141,9 @@ function tokensOf(target: TraceEvent, compaction: TraceEvent | undefined): Conte
  * log, minus events whose `shadowedBy` compaction is already in that prefix.
  *
  * Does not invent messages, tools, or system prompts. Slots a host does not
- * log are `unavailable`. Token counts are copied only when the host recorded
+ * log are `unavailable`; the system prompt and tools come from the latest
+ * prompt snapshot at or before `eventId` on its lane, when the host writes
+ * snapshots. Token counts are copied only when the host recorded
  * them: the request's input tokens, and the compaction's `postTokens` when this
  * is the first request after it. Slot sizes are never estimated from text.
  */

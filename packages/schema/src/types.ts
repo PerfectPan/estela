@@ -111,6 +111,19 @@ export const toolResultPayloadSchema = z.object({
 })
 export type ToolResultPayload = z.infer<typeof toolResultPayloadSchema>
 
+/**
+ * A `system` event with `type: 'prompt_snapshot'`: the system prompt and tool
+ * definitions the host recorded at that point on the event's lane. A later
+ * snapshot on the same lane replaces an earlier one; a field left out was not
+ * recorded by that snapshot.
+ */
+export const promptSnapshotPayloadSchema = z.object({
+  type: z.literal('prompt_snapshot'),
+  systemPrompt: z.string().optional(),
+  tools: z.array(z.unknown()).optional(),
+})
+export type PromptSnapshotPayload = z.infer<typeof promptSnapshotPayloadSchema>
+
 export const agentInfoSchema = z.object({
   id: z.string(),
   parentId: z.optional(z.string()),
@@ -215,6 +228,8 @@ export interface ContextSlot {
   status: 'present' | 'empty' | 'unavailable'
   /** Visible events in this slot, in order. Empty for `system` and `tools`. */
   eventIds: string[]
+  /** `system` and `tools`: the prompt snapshot event this slot's content comes from, when it comes from one. */
+  recordedBy?: string
 }
 
 export interface ContextTokens {

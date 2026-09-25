@@ -58,6 +58,15 @@ describeHostConformance(claudeCodeAdapter, {
       records: 14,
       capabilities: ['requests', 'usage', 'subagents'],
     },
+    {
+      path: join(root, 'prompt-snapshot/session.jsonl'),
+      files: [
+        join(root, 'prompt-snapshot/session.jsonl'),
+        join(root, 'prompt-snapshot/session/subagents/agent-worker.jsonl'),
+      ],
+      records: 13,
+      capabilities: ['requests', 'usage', 'subagents', 'systemPrompt', 'toolSchemas'],
+    },
   ],
 }, repoEvidence())
 

@@ -154,7 +154,7 @@ What to check for a workspace change:
 - Screenshots at 1440 × 900 of `#/s/<ref>` in dark and light, English and `zh-CN`, next to `docs/design/session-workspace-{dark,light}.html` at the same size. List every visible difference.
 - S5: on the Claude Code compaction fixture, the timeline has one `[data-marker=compaction]` whose `data-label` is `compacted  1k → 100`.
 - S6: drag on `[data-testid=timeline-plot]`; `[data-testid=timeline-range]` states the range and the event count. Focus `[data-testid=brush-from]` and press the arrow keys (Shift for 10 % steps); `aria-valuenow` changes.
-- S7: select the request after the compaction and open "Model saw": `[data-slot=system]` and `[data-slot=tools]` have `data-status="unavailable"`, and `[data-testid=dropped]` lists the removed events.
+- S7: select the request after the compaction and open "Model saw": on a session without prompt snapshots `[data-slot=system]` and `[data-slot=tools]` have `data-status="unavailable"`; on one with snapshots (Claude Code 2.1.268 and later) they have `data-status="present"`. `[data-testid=dropped]` lists the removed events.
 - S8: on the 10,000-event trace, scroll `[data-testid=ledger]` to the bottom while counting `[role=option]` elements (under 100) and collecting `PerformanceObserver` `longtask` entries (none over 200 ms). Record a performance trace of the scroll.
 - S12: the loading panel shows bytes read of the file size; after the load a `[data-testid=shortened]` marker is visible, and selecting its row loads the full text.
 - The console has no errors or warnings. Keep screenshots and traces out of the repository.

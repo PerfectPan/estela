@@ -9,10 +9,12 @@ import {
   generationError,
   lineId,
   markOrphanToolResults,
+  promptSnapshot,
   shadowBefore,
   skipRecord,
   usageFrom,
 } from '@rivus/agent-trace-kernel'
+import { applySnapshots, snapshotPayload } from './prompt-snapshot.ts'
 
 const HOST = 'claude-code'
 
@@ -142,12 +144,15 @@ function shadowRemoved(events: TraceEvent[]): void {
     if (compaction.kind !== 'compaction')
       continue
     const keep = preservedUuids(events, compaction)
-    shadowBefore(events, compaction, keep
-      ? (event) => {
-          const uuid = asString(asRecord(event.original)?.uuid)
-          return Boolean(uuid && keep.has(uuid))
-        }
-      : undefined)
+    // A prompt snapshot is not conversation: a compaction does not remove it.
+    shadowBefore(events, compaction, (event) => {
+      if (promptSnapshot(event))
+        return true
+      if (!keep)
+        return false
+      const uuid = asString(asRecord(event.original)?.uuid)
+      return Boolean(uuid && keep.has(uuid))
+    })
   }
 }
 
@@ -352,7 +357,10 @@ export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: 
     if (type === 'attachment') {
       const attachment = asRecord(rec.attachment)
       const attachmentType = asString(attachment?.type) ?? ''
-      if (attachmentType.startsWith('hook_')) {
+      if (attachment && attachmentType === 'prompt_snapshot') {
+        emit('system', snapshotPayload(attachment, record), 0)
+      }
+      else if (attachmentType.startsWith('hook_')) {
         const payload: Record<string, unknown> = { type: attachmentType }
         const name = asString(attachment?.hookName)
         const hookEvent = asString(attachment?.hookEvent)
@@ -395,19 +403,16 @@ export function parseClaudeRecords(stamped: readonly StampedRecord[], options?: 
   markOrphanToolResults(events)
   assignSeq(events)
 
-  return {
-    events,
-    skipped,
-    version,
-    agents: agentLanes(events, options?.agentMeta),
-    session: {
-      id: sessionId ?? 'unknown',
-      ...(title ? { title } : {}),
-      ...(cwd ? { cwd } : {}),
-      ...(startedAt !== undefined ? { startedAt } : {}),
-      ...(endedAt !== undefined ? { endedAt } : {}),
-    },
+  const agents = agentLanes(events, options?.agentMeta)
+  const session: Trace['session'] = {
+    id: sessionId ?? 'unknown',
+    ...(title ? { title } : {}),
+    ...(cwd ? { cwd } : {}),
+    ...(startedAt !== undefined ? { startedAt } : {}),
+    ...(endedAt !== undefined ? { endedAt } : {}),
   }
+  applySnapshots(events, agents, session)
+  return { events, skipped, version, agents, session }
 }
 
 /**

@@ -45,7 +45,7 @@ Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands an
 | Timing | record `timestamp`, `system/turn_duration` | record `timestamp`, `task_complete.duration_ms` per turn; `started_at_ms` / `completed_at_ms` only on `item_completed` | `turn_completed.elapsed_ms` per turn |
 | Compaction | `system/compact_boundary` with `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
 | Subagents | `isSidechain`, `subagents/*.jsonl` | `event_msg/item_completed` with `item.type: SubAgentActivity` (`agent_thread_id`); `inter_agent_communication_metadata` carries only `trigger_turn` | `subagent_spawned/finished`, `subagents/` |
-| System prompt, tool schemas | not recorded | not recorded (unverified for all generations) | `system_prompt.txt`, `tool_definitions.json` |
+| System prompt, tool schemas | Since 2.1.268: `attachment` records with `attachment.type: prompt_snapshot`, one or more per file (main and subagent files). Each has `systemPrompt` (a string array); some also have `tools` (`tools[].schema.input_schema`) and `cliPrefix`. Older files record neither (re-measured 2026-09-25: 34 of 221 main files and 61 of 95 subagent files have snapshots) | System prompt: `session_meta.base_instructions.text` of the file's first `session_meta` (on 2026-09-25, 1,846 of the 1,984 `session_meta` records in 1,941 rollouts; older rollouts leave it out). Tool schemas: not recorded (`session_meta.dynamic_tools` lists only dynamic tools) | `system_prompt.txt`, `tool_definitions.json` (optional; 66 of 66 and 10 of 66 sessions on 2026-09-25) |
 
 **Log volume on this machine.**
 
@@ -340,6 +340,7 @@ Rules:
 
 - An adapter reads only through `TraceIO` and writes nothing.
 - A field the host can record is declared in `capabilities`. A declared field that is missing from one record is `undefined` for that record, never zero.
+- `HostAdapter.capabilities` lists what the host can record. `Trace.capabilities` lists what that session's files record, a subset: a host whose system prompt or tool schemas are optional (a Claude Code prompt snapshot, a Codex `base_instructions`, a Grok `system_prompt.txt`) lists `systemPrompt` and `toolSchemas` only on a trace whose files contain them.
 - `load` must account for every input record: it becomes one or more events, or one `skipped` entry with a reason and line number.
 - An unknown record type becomes an `unknown` event with `payload.type` set to the host's type name. An unknown format generation fails `load` with the line number.
 - Event ids are derived from host ids when the host has them, otherwise from file and line, so a second load gives the same ids.
@@ -352,7 +353,7 @@ Rules:
 4. Every `tool_result.callId` matches an earlier `tool_call.callId` in the same agent, or the result is flagged `orphan`.
 5. Every `shadowedBy` points to a later `compaction` event of the same agent.
 6. Every event has a source pointer that reads back the same record.
-7. Each declared capability appears at least once in the fixture that claims it; an undeclared one never appears.
+7. Each declared capability appears at least once in the fixture that claims it; an undeclared one never appears. A trace lists only declared capabilities, lists every capability its fixture claims, and never shows one it does not list.
 8. `summarize` equals `fold(load())` for the fixture.
 9. No `node:*` import is reachable from the adapter entry.
 10. Event ids are unique.
@@ -411,6 +412,8 @@ export interface CompactionPayload {
 export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
 export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
 
+export interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }  // on a `system` event
+
 export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
@@ -425,6 +428,8 @@ export interface Trace {
 ```
 
 A `request` event is one model call. A host that records only per-turn totals emits one request per turn and says so in its adapter. A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
+
+A host that records the system prompt or tool list during the session emits each record as a `system` event with `type: 'prompt_snapshot'` (`PromptSnapshotPayload`) on its lane; the event keeps its source pointer and original, and a compaction does not shadow it. `reconstruct` fills the `system` and `tools` slots from the latest snapshot at or before the event on that lane that recorded each field, and names it in `slot.recordedBy`; a slot with no such snapshot is `unavailable`, even when a later snapshot exists. `session.systemPrompt` and `session.tools` hold the main lane's latest snapshot, and `AgentInfo.systemPrompt` a subagent lane's own. A trace without snapshots uses those session and lane fields for every event. Claude Code joins the recorded `systemPrompt` blocks with a blank line.
 
 - `schema: 'agent-trace'` marks a canonical JSON file. The demo fixture is rewritten to this shape; no reader for the MVP shape is kept.
 - Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.
@@ -564,7 +569,7 @@ Playwright against the packed tarball, with a synthetic home directory that hold
 | S4 | Fixture with an unknown generation: "could not read" row, error with line | Click the row, read the error panel |
 | S5 | Compaction fixture: dashed rule with pre/post tokens | Timeline SVG locator and its label |
 | S6 | Brush filters the ledger; event count shown. The brush handles are focusable and move with arrow keys | `page.keyboard` on a focused handle, and a mouse drag |
-| S7 | Model saw: slots, hatched system prompt, removed events | Select the request, read the inspector |
+| S7 | Model saw: slots, system prompt and tools present with a prompt snapshot and hatched without one, removed events | Select the request in both Claude Code sessions, read the inspector |
 | S8 | Generated 10,000-event trace: rendered rows stay under 100 while scrolling, and no long task over 200 ms during the scroll | Row count in the DOM; a `PerformanceObserver` for `longtask` in the page |
 | S9 | Export, open from `file://`, grep output for the home path | `page.goto('file://…')`; file scan in Node |
 | S11 | Emulated light scheme, then switch and reload | `page.emulateMedia({ colorScheme })`, reload |
@@ -608,6 +613,7 @@ Implemented as planned, except for these choices made during delivery:
 - Dictionaries are `apps/web/src/i18n/dictionary.en.ts` and `dictionary.zh-CN.ts`, not `{en,zh-CN}.ts`.
 - Model saw lists each token count the host recorded with the slots it covers together (a request's input tokens, a compaction's post tokens); there is no count per slot.
 - `reconstruct` works on the target event's own lane: a subagent's request sees only that subagent's events.
+- System prompt and tools: the 1.1 table said Claude Code records neither. Claude Code 2.1.268 and later writes `prompt_snapshot` attachments, and Codex rollouts carry `session_meta.base_instructions.text`; the adapters now read them (3.3), traces list `systemPrompt` / `toolSchemas` only when their files record them (3.2), and Model saw explains an unavailable slot from what that trace lacks.
 - Report contents: the first events are included in full (normalized payload plus original record), not only their originals, so a shortened text is also complete for those events. The 2,000-event and 20 MB limits count those full events. `build` records no locale, so its report opens in the browser's language; an export records the UI locale.
 - Export: "Export report" writes into a new `agent-trace-report-<ref>-<time>/` directory in the server's working directory and shows the absolute path with `~` for the home directory. Exports run one at a time. DevFrame's build mode skips the session push, so a build inside the dev server does not rebind the live shared state.
 - Legacy `get-trace` is removed. `mcp` keeps `reconstruct` over the TraceStore. Model saw computes `reconstruct` in the browser on the view trace, on the dev server and in a report.

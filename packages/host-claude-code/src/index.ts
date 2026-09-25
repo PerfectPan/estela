@@ -17,8 +17,10 @@ import {
   walkFiles,
 } from '@rivus/agent-trace-kernel'
 import { isPrompt, parseClaudeRecords, recordText, userFlags, type AgentMeta } from './parse-session.ts'
+import { snapshotCapabilities } from './prompt-snapshot.ts'
 
-const CAPABILITIES: Capability[] = [
+/** Recorded by every session this adapter reads. */
+const BASE_CAPABILITIES: Capability[] = [
   'requests',
   'usage',
   'durations',
@@ -28,6 +30,13 @@ const CAPABILITIES: Capability[] = [
   'subagents',
   'hooks',
 ]
+
+/**
+ * Possible for the host: `systemPrompt` and `toolSchemas` come from
+ * `prompt_snapshot` attachments (Claude Code 2.1.268 and later). A trace lists
+ * them only when its files contain a snapshot that records them.
+ */
+const CAPABILITIES: Capability[] = [...BASE_CAPABILITIES, 'systemPrompt', 'toolSchemas']
 
 /** Title and first prompt use the same rule as turns: the first real user prompt. */
 function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
@@ -110,7 +119,7 @@ export const claudeCodeAdapter: HostAdapter = {
     parsed.skipped.push(...nested.skipped)
     if (parsed.session.id === 'unknown')
       parsed.session.id = stem || 'unknown'
-    return toTrace('claude-code', CAPABILITIES, parsed)
+    return toTrace('claude-code', [...BASE_CAPABILITIES, ...snapshotCapabilities(parsed.events)], parsed)
   },
 }
 

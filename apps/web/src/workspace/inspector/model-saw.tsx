@@ -1,4 +1,4 @@
-import type { ContextSlot, ContextSlotName, ReconstructResult, Trace } from '@rivus/agent-trace-schema'
+import type { Capability, ContextSlot, ContextSlotName, ReconstructResult, Trace } from '@rivus/agent-trace-schema'
 import type { LedgerModel } from '@/lib/ledger-model.ts'
 import type { MessageKey } from '@/i18n/locale.ts'
 import { reconstruct } from '@rivus/agent-trace-kernel'
@@ -8,7 +8,6 @@ import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { rowLine, rowText } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
-import { hostName } from '@/lib/host-names.ts'
 
 const SLOT_LABEL: Record<ContextSlotName, MessageKey> = {
   system: 'inspector.slots.system',
@@ -33,6 +32,12 @@ const SLOT_FILL: Record<ContextSlotName, string> = {
   summary: 'bg-kind-thinking',
   messages: 'bg-kind-request',
   currentTurn: 'bg-kind-user',
+}
+
+/** Capability that says this trace records a slot's content somewhere, for the slots that have one. */
+const SLOT_CAPABILITY: Partial<Record<ContextSlotName, Capability>> = {
+  system: 'systemPrompt',
+  tools: 'toolSchemas',
 }
 
 /** Removed events listed before "Show all". */
@@ -81,13 +86,26 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
       return t('inspector.complete')
     return missing === 1 ? t('inspector.partialOne') : t('inspector.partialMany', { count: missing })
   }
-  const note = () => {
-    const missing = unavailable()
-    if (missing.length === 0)
-      return undefined
+  const phraseList = (missing: ContextSlot[]) => {
     const phrases = missing.map(slot => t(SLOT_PHRASE[slot.name]))
-    const joined = phrases.length > 1 ? `${phrases.slice(0, -1).join(t('inspector.listSeparator'))}${t('inspector.listJoin')}${phrases.at(-1)}` : phrases[0]!
-    return t('inspector.unavailableNote', { host: hostName(props.trace.host.id), slots: joined })
+    return phrases.length > 1 ? `${phrases.slice(0, -1).join(t('inspector.listSeparator'))}${t('inspector.listJoin')}${phrases.at(-1)}` : phrases[0]!
+  }
+  /**
+   * Says what this trace lacks: a slot its log never records, or one it records
+   * only after this event or on another lane (a later prompt snapshot).
+   */
+  const note = () => {
+    const recordedElsewhere = (slot: ContextSlot) => {
+      const capability = SLOT_CAPABILITY[slot.name]
+      return capability !== undefined && props.trace.capabilities.includes(capability)
+    }
+    const never = unavailable().filter(slot => !recordedElsewhere(slot))
+    const elsewhere = unavailable().filter(recordedElsewhere)
+    const lines = [
+      never.length > 0 ? t('inspector.unavailableNote', { slots: phraseList(never) }) : '',
+      elsewhere.length > 0 ? t('inspector.unavailableHereNote', { slots: phraseList(elsewhere) }) : '',
+    ].filter(Boolean)
+    return lines.length > 0 ? lines.join(' ') : undefined
   }
   const [showAll, setShowAll] = createSignal(false)
   const removed = () => result().removedIds ?? []

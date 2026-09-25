@@ -9,6 +9,8 @@ export interface FixtureHome {
   claudeRising: string
   /** With `browser`: the same session under the home directory, naming it in every form a log does (S9). */
   claudeHomeCwd: string
+  /** With `browser`: the rising session as Claude Code 2.1.268 writes it, with prompt snapshots (S7). */
+  claudeSnapshot: string
   /** Sessions per host. */
   counts: Record<'claude-code' | 'codex' | 'grok', number>
 }
@@ -16,7 +18,7 @@ export interface FixtureHome {
 export interface FixtureOptions {
   /** Leave out `~/.codex` (S3). */
   codex?: boolean
-  /** The browser suite's extra sessions: an unknown record type, an unknown generation (S4), and the two generated ones. */
+  /** The browser suite's extra sessions: an unknown record type, an unknown generation (S4), and the three generated ones. */
   browser?: boolean
 }
 
@@ -28,11 +30,25 @@ function line(record: Record<string, unknown>): string {
   return `${JSON.stringify({ sessionId: 's-rising', version: '2.0.0', ...record })}\n`
 }
 
+/** Prompt snapshots in the shape Claude Code 2.1.268 writes: the system prompt first, the tool list later. */
+function snapshot(uuid: string, timestamp: string, withTools: boolean): string {
+  const tools = [{ name: 'Read', description: 'Read a file', schema: { name: 'Read', description: 'Read a file', input_schema: { type: 'object', properties: { file_path: { type: 'string' } } } } }]
+  return line({
+    type: 'attachment',
+    uuid,
+    timestamp,
+    sessionId: 's-snapshot',
+    version: '2.1.268',
+    attachment: { type: 'prompt_snapshot', systemPrompt: ['You are a test agent.'], ...(withTools ? { tools, cliPrefix: 'Test CLI prefix.' } : {}) },
+  })
+}
+
 /**
  * A Claude Code session whose input tokens rise over three requests, drop after an automatic
  * compaction (pre 3,500, post 400), and rise again. `prompts` are extra user prompts at the end.
+ * With `snapshots`, prompt snapshots record the system prompt and the tool list before the first request.
  */
-export function risingSession(cwd: string, prompts: string[] = []): string {
+export function risingSession(cwd: string, prompts: string[] = [], snapshots = false): string {
   let clock = 0
   const at = () => new Date(Date.UTC(2026, 0, 1) + 1000 * clock++).toISOString()
   const user = (uuid: string, content: string) => line({ type: 'user', uuid, timestamp: at(), cwd, message: { role: 'user', content } })
@@ -45,7 +61,9 @@ export function risingSession(cwd: string, prompts: string[] = []): string {
     message: { role: 'assistant', model: 'claude-test', id: `msg-r${n}`, stop_reason: 'end_turn', usage: { input_tokens: input, output_tokens: 10 }, content: [{ type: 'text', text: `Reply ${n}` }] },
   })
   return [
+    ...(snapshots ? [snapshot('r-s1', at(), false)] : []),
     user('r-u1', 'Start the task'),
+    ...(snapshots ? [snapshot('r-s2', at(), true)] : []),
     reply(1, 1000),
     user('r-u2', 'Keep going'),
     reply(2, 2000),
@@ -72,11 +90,14 @@ export async function buildFixtureHome(home: string, repo: string, options: Fixt
   // Claude Code names a project folder after its cwd with every other character as `-`.
   const homeCwd = `${home}/work/app`
   const claudeHomeCwd = join(projects, homeCwd.replaceAll(/[^A-Za-z0-9]/g, '-'), 'session.jsonl')
+  const claudeSnapshot = join(projects, 'app-snapshot/session.jsonl')
   if (options.browser) {
     // S4: records of a format generation the adapter does not know.
     await cp(join(repo, 'packages/host-claude-code/fixtures/unknown-generation'), join(projects, 'app-unknown-generation'), { recursive: true })
     await mkdir(join(claudeRising, '..'), { recursive: true })
     await writeFile(claudeRising, risingSession('/work/app'))
+    await mkdir(join(claudeSnapshot, '..'), { recursive: true })
+    await writeFile(claudeSnapshot, risingSession('/work/app', [], true))
     await mkdir(join(claudeHomeCwd, '..'), { recursive: true })
     await writeFile(claudeHomeCwd, risingSession(homeCwd, [
       `diff --git a${homeCwd}/src/a.ts b${homeCwd}/src/a.ts`,
@@ -98,6 +119,7 @@ export async function buildFixtureHome(home: string, repo: string, options: Fixt
     claudePlain: join(projects, 'app-plain/session.jsonl'),
     claudeRising,
     claudeHomeCwd,
-    counts: { 'claude-code': claude.length + (options.browser ? 3 : 0), 'codex': options.codex === false ? 0 : CODEX.length, 'grok': GROK.length },
+    claudeSnapshot,
+    counts: { 'claude-code': claude.length + (options.browser ? 4 : 0), 'codex': options.codex === false ? 0 : CODEX.length, 'grok': GROK.length },
   }
 }

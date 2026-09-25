@@ -25,7 +25,7 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 ## Encoding rules
 
 - **Request bar height is context size.** In the main lane each request is a bar whose height is the input tokens of that request. Growth and the drop at a compaction are visible without reading numbers.
-- **Missing data is drawn as missing.** A slot the host log does not record (for example the Claude Code system prompt) is a hatched segment labeled "unavailable". It is never estimated.
+- **Missing data is drawn as missing.** A slot the host log does not record (for example the system prompt in a Claude Code session written before 2.1.268) is a hatched segment labeled "unavailable". It is never estimated.
 - **Kind is a mark, not text color.** Each event kind has a colored square or bar. Labels and values stay in the text tokens.
 - **Red is reserved.** Only failed tool calls use the error color, and always with the warning icon.
 - **Compaction is a neutral dashed rule** with the before → after token count.

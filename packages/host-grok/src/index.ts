@@ -15,7 +15,8 @@ import {
 } from '@rivus/agent-trace-kernel'
 import { chunkText, isInjectedChunk, META_KEY, parseGrokRecords, summaryFields, type GrokSessionMeta } from './parse-session.ts'
 
-const CAPABILITIES: Capability[] = [
+/** Recorded by every session this adapter reads. */
+const BASE_CAPABILITIES: Capability[] = [
   'requests',
   'usage',
   'durations',
@@ -24,9 +25,23 @@ const CAPABILITIES: Capability[] = [
   'compactionTokens',
   'subagents',
   'hooks',
-  'systemPrompt',
-  'toolSchemas',
 ]
+
+/**
+ * Possible for the host: `system_prompt.txt` and `tool_definitions.json` are
+ * optional files. A trace lists `systemPrompt` and `toolSchemas` only when its
+ * session directory has them.
+ */
+const CAPABILITIES: Capability[] = [...BASE_CAPABILITIES, 'systemPrompt', 'toolSchemas']
+
+function traceCapabilities(parsed: { session: Trace['session'], agents: Trace['agents'] }): Capability[] {
+  const out = [...BASE_CAPABILITIES]
+  if (parsed.session.systemPrompt || parsed.agents.some(agent => agent.systemPrompt))
+    out.push('systemPrompt')
+  if (parsed.session.tools != null)
+    out.push('toolSchemas')
+  return out
+}
 
 function sessionDir(path: string): string {
   return path.endsWith('updates.jsonl') ? dirnamePath(path) : path
@@ -179,6 +194,6 @@ export const grokAdapter: HostAdapter = {
     const records = await readJsonlRecords(file, io, 'grok', { signal: opts.signal, progress })
     const parsed = parseGrokRecords(records, { ...meta, id: meta.id ?? ref.sessionId })
     await enrichAgents(io, dir, parsed.agents, progress)
-    return toTrace('grok', CAPABILITIES, parsed)
+    return toTrace('grok', traceCapabilities(parsed), parsed)
   },
 }
