@@ -90,10 +90,10 @@ test('S6: a brush filters the ledger to its range, by mouse drag and by keyboard
   }
 })
 
-/** Selects the first request after the compaction (600 input tokens) and opens "Model saw". */
-async function openModelSaw(page: Page) {
+/** Selects the request with `input` input tokens (600 is the first after the compaction) and opens "Model saw". */
+async function openModelSaw(page: Page, input = '600 in') {
   // `hasText` ignores case, so "REQUEST" alone would also match a turn header's "1 request".
-  await page.locator('[role=option]').filter({ hasText: 'REQUEST' }).filter({ hasText: '600 in' }).click()
+  await page.locator('[role=option]').filter({ hasText: 'REQUEST' }).filter({ hasText: input }).click()
   await page.getByRole('tab', { name: 'Model saw' }).click()
   const saw = page.getByTestId('model-saw')
   await expect(saw).toBeVisible()
@@ -126,6 +126,13 @@ test('S7: Model saw at the first request after a compaction', async ({ page, lau
 
 test('S7: Model saw shows the system prompt and tools a prompt snapshot recorded', async ({ page, launch }) => {
   await openWorkspace(page, launch, sessions.claudeSnapshot)
+  // Request #1 comes after the system-prompt snapshot and before the one with the tool list.
+  const first = await openModelSaw(page, '1k in')
+  await expect(first.locator('[data-slot=system]')).toHaveAttribute('data-status', 'present')
+  await expect(first.locator('[data-slot=tools]')).toHaveAttribute('data-status', 'unavailable')
+  await expect(first).toContainText('The log of this session records tool definitions only after this event or on another lane')
+  await expect(first).not.toContainText('does not record')
+
   const saw = await openModelSaw(page)
   for (const slot of ['system', 'tools', 'summary', 'messages', 'currentTurn'])
     await expect(saw.locator(`[data-slot=${slot}]`)).toHaveAttribute('data-status', 'present')
@@ -135,4 +142,10 @@ test('S7: Model saw shows the system prompt and tools a prompt snapshot recorded
   // The snapshots stay out of the events the compaction removed.
   await expect(saw.getByTestId('dropped')).not.toContainText('prompt_snapshot')
   await expect(saw.getByTestId('recorded-counts').locator('[data-from="request.inputTokens"]')).toHaveAttribute('data-tokens', '600')
+  // The system prompt row links to the snapshot it comes from; its Input tab shows what the model saw.
+  await saw.locator('[data-slot=system] [data-testid=slot-source]').click()
+  await expect(page.getByTestId('inspector').locator('h2')).toContainText('#')
+  await page.getByRole('tab', { name: 'Input' }).click()
+  await expect(activePanel(page)).toContainText('You are a test agent.')
+  await expect(activePanel(page)).toContainText('input_schema')
 })

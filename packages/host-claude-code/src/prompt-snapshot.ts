@@ -6,7 +6,7 @@ import { asString, generationError, latestSnapshot, promptSnapshot, snapshotHasS
 const BLOCK_SEPARATOR = '\n\n'
 
 /**
- * `attachment.type: 'prompt_snapshot'` (Claude Code 2.1.268 and later): the
+ * `attachment.type: 'prompt_snapshot'` (Claude Code, seen from 2.1.268): the
  * system prompt the CLI sent, as a string array, and on some snapshots the
  * tool list (`tools[].schema.input_schema`) and `cliPrefix`. A field of another
  * shape is an unknown generation.

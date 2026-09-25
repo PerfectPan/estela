@@ -1,7 +1,7 @@
 import type { ContextSlot, ContextSlotName, ContextTokens, ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { asNumber, asString } from './jsonl.ts'
 import { isPrompt, laneOf, mainAgentId, recordKey, requestUsage, shadowedIn } from './lanes.ts'
-import { latestSnapshot, promptSnapshot, snapshotHasSystemPrompt, snapshotHasTools } from './prompt-snapshot.ts'
+import { latestSnapshot, promptSnapshot, snapshotHasSystemPrompt, snapshotHasTools, snapshotToolsEmpty } from './prompt-snapshot.ts'
 
 const MESSAGE_KINDS = new Set<TraceEvent['kind']>(['user', 'assistant', 'thinking', 'tool_call', 'tool_result'])
 const ALL_SLOTS: ContextSlotName[] = ['system', 'tools', 'summary', 'messages', 'currentTurn']
@@ -59,9 +59,12 @@ function slot(name: ContextSlotName, recorded: boolean, eventIds: string[], pres
   return { name, status: recorded ? (present ? 'present' : 'empty') : 'unavailable', eventIds }
 }
 
-/** `system` or `tools` slot: present when recorded, else unavailable; `recordedBy` names the snapshot it comes from. */
-function recordedSlot(name: 'system' | 'tools', recorded: boolean, snapshot: TraceEvent | undefined): ContextSlot {
-  const out = slot(name, recorded, [], recorded)
+/**
+ * `system` or `tools` slot: present when recorded (empty for a recorded list with nothing in it),
+ * else unavailable; `recordedBy` names the snapshot it comes from.
+ */
+function recordedSlot(name: 'system' | 'tools', recorded: boolean, snapshot: TraceEvent | undefined, empty = false): ContextSlot {
+  const out = slot(name, recorded, [], !empty)
   if (snapshot)
     out.recordedBy = snapshot.id
   return out
@@ -88,11 +91,15 @@ function promptSlots(trace: Trace, lane: string, mainId: string, prefix: TraceEv
   if (trace.events.some(event => promptSnapshot(event) !== undefined)) {
     const system = latestSnapshot(prefix, snapshotHasSystemPrompt)
     const tools = latestSnapshot(prefix, snapshotHasTools)
-    return [recordedSlot('system', system !== undefined, system), recordedSlot('tools', tools !== undefined, tools)]
+    return [
+      recordedSlot('system', system !== undefined, system),
+      recordedSlot('tools', tools !== undefined, tools, tools !== undefined && snapshotToolsEmpty(promptSnapshot(tools))),
+    ]
   }
+  const tools = trace.session.tools
   return [
     recordedSlot('system', systemRecorded(trace, lane, mainId), undefined),
-    recordedSlot('tools', trace.session.tools != null, undefined),
+    recordedSlot('tools', tools != null, undefined, Array.isArray(tools) && tools.length === 0),
   ]
 }
 

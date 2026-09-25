@@ -1,4 +1,4 @@
-import type { Capability, ContextSlot, ContextSlotName, ReconstructResult, Trace } from '@rivus/agent-trace-schema'
+import type { ContextSlot, ContextSlotName, ReconstructResult, Trace } from '@rivus/agent-trace-schema'
 import type { LedgerModel } from '@/lib/ledger-model.ts'
 import type { MessageKey } from '@/i18n/locale.ts'
 import { reconstruct } from '@rivus/agent-trace-kernel'
@@ -8,6 +8,7 @@ import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { rowLine, rowText } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
+import { unavailableNote } from '@/lib/unavailable-note.ts'
 
 const SLOT_LABEL: Record<ContextSlotName, MessageKey> = {
   system: 'inspector.slots.system',
@@ -17,14 +18,6 @@ const SLOT_LABEL: Record<ContextSlotName, MessageKey> = {
   currentTurn: 'inspector.slots.currentTurn',
 }
 
-const SLOT_PHRASE: Record<ContextSlotName, MessageKey> = {
-  system: 'inspector.slotPhrases.system',
-  tools: 'inspector.slotPhrases.tools',
-  summary: 'inspector.slotPhrases.summary',
-  messages: 'inspector.slotPhrases.messages',
-  currentTurn: 'inspector.slotPhrases.currentTurn',
-}
-
 /** Slot colors from the design: tools orange, summary purple, messages blue, this turn green. */
 const SLOT_FILL: Record<ContextSlotName, string> = {
   system: 'bg-subtle',
@@ -32,12 +25,6 @@ const SLOT_FILL: Record<ContextSlotName, string> = {
   summary: 'bg-kind-thinking',
   messages: 'bg-kind-request',
   currentTurn: 'bg-kind-user',
-}
-
-/** Capability that says this trace records a slot's content somewhere, for the slots that have one. */
-const SLOT_CAPABILITY: Partial<Record<ContextSlotName, Capability>> = {
-  system: 'systemPrompt',
-  tools: 'toolSchemas',
 }
 
 /** Removed events listed before "Show all". */
@@ -86,27 +73,7 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
       return t('inspector.complete')
     return missing === 1 ? t('inspector.partialOne') : t('inspector.partialMany', { count: missing })
   }
-  const phraseList = (missing: ContextSlot[]) => {
-    const phrases = missing.map(slot => t(SLOT_PHRASE[slot.name]))
-    return phrases.length > 1 ? `${phrases.slice(0, -1).join(t('inspector.listSeparator'))}${t('inspector.listJoin')}${phrases.at(-1)}` : phrases[0]!
-  }
-  /**
-   * Says what this trace lacks: a slot its log never records, or one it records
-   * only after this event or on another lane (a later prompt snapshot).
-   */
-  const note = () => {
-    const recordedElsewhere = (slot: ContextSlot) => {
-      const capability = SLOT_CAPABILITY[slot.name]
-      return capability !== undefined && props.trace.capabilities.includes(capability)
-    }
-    const never = unavailable().filter(slot => !recordedElsewhere(slot))
-    const elsewhere = unavailable().filter(recordedElsewhere)
-    const lines = [
-      never.length > 0 ? t('inspector.unavailableNote', { slots: phraseList(never) }) : '',
-      elsewhere.length > 0 ? t('inspector.unavailableHereNote', { slots: phraseList(elsewhere) }) : '',
-    ].filter(Boolean)
-    return lines.length > 0 ? lines.join(' ') : undefined
-  }
+  const note = () => unavailableNote(props.trace.capabilities, slots())
   const [showAll, setShowAll] = createSignal(false)
   const removed = () => result().removedIds ?? []
   const shownRemoved = () => showAll() ? removed().slice(0, MAX_DROPPED) : removed().slice(0, PREVIEW_DROPPED)
@@ -155,12 +122,26 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
                   <span class={cx('box-border size-[9px] shrink-0 rounded-[2px]', slotClass(slot, true))} aria-hidden="true" />
                   {t(SLOT_LABEL[slot.name])}
                 </span>
-                <span class={cx('font-mono text-[12px]', slot.status === 'present' ? 'text-muted-foreground' : 'text-subtle')}>
+                <span class="flex items-baseline gap-2.5">
+                  <Show when={slot.recordedBy}>
+                    {id => (
+                      <button
+                        type="button"
+                        class="text-[12px] text-link hover:underline"
+                        data-testid="slot-source"
+                        onClick={() => props.onSelectEvent(id())}
+                      >
+                        {props.model.ordinals.get(id()) ? t('inspector.slotRecordedAt', { ordinal: props.model.ordinals.get(id())! }) : t('inspector.slotRecorded')}
+                      </button>
+                    )}
+                  </Show>
+                  <span class={cx('font-mono text-[12px]', slot.status === 'present' ? 'text-muted-foreground' : 'text-subtle')}>
                   {slot.status === 'unavailable'
                     ? t('inspector.slotUnavailable')
                     : slot.status === 'empty'
                       ? t('inspector.slotEmpty')
                       : slot.eventIds.length > 0 ? plural(slot.eventIds.length, 'inspector.slotEventsOne', 'inspector.slotEvents', formatNumber(slot.eventIds.length, locale())) : ''}
+                  </span>
                 </span>
               </li>
             )}

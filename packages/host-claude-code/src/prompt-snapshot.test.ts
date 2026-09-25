@@ -62,10 +62,12 @@ describe('claude-code prompt snapshots', () => {
     ])
   })
 
-  it('reconstructs the same slots from the view trace', async () => {
+  it('reconstructs the same result from the view trace, which keeps each repeated prompt once', async () => {
     const trace = await load('prompt-snapshot')
     const view = toView(trace, { maxString: 16 })
-    expect(promptSlots(view, 'request:req-p4')).toEqual(promptSlots(trace, 'request:req-p4'))
+    for (const event of trace.events)
+      expect(reconstruct(view, event.id), event.id).toEqual(reconstruct(trace, event.id))
+    expect(view.events.find(event => event.id === 'p-s2')?.payload.systemPromptSameAs).toBe('p-s1')
   })
 
   it('leaves both slots unavailable for a session without snapshots', async () => {

@@ -194,6 +194,8 @@ export const en = {
       currentTurn: 'this turn',
     },
     slotUnavailable: 'unavailable',
+    slotRecordedAt: 'recorded at #{{ ordinal }}',
+    slotRecorded: 'recorded',
     slotEmpty: 'empty',
     slotEvents: '{{ count }} events',
     slotEventsOne: '1 event',

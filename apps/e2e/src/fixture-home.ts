@@ -9,7 +9,7 @@ export interface FixtureHome {
   claudeRising: string
   /** With `browser`: the same session under the home directory, naming it in every form a log does (S9). */
   claudeHomeCwd: string
-  /** With `browser`: the rising session as Claude Code 2.1.268 writes it, with prompt snapshots (S7). */
+  /** With `browser`: the rising session with prompt snapshots in the order Claude Code writes them (S7). */
   claudeSnapshot: string
   /** Sessions per host. */
   counts: Record<'claude-code' | 'codex' | 'grok', number>
@@ -30,15 +30,16 @@ function line(record: Record<string, unknown>): string {
   return `${JSON.stringify({ sessionId: 's-rising', version: '2.0.0', ...record })}\n`
 }
 
-/** Prompt snapshots in the shape Claude Code 2.1.268 writes: the system prompt first, the tool list later. */
+/**
+ * Prompt snapshots in the shape and order Claude Code writes them: one with the system prompt
+ * before the first prompt, and one with the system prompt and the tool list after the first request.
+ */
 function snapshot(uuid: string, timestamp: string, withTools: boolean): string {
   const tools = [{ name: 'Read', description: 'Read a file', schema: { name: 'Read', description: 'Read a file', input_schema: { type: 'object', properties: { file_path: { type: 'string' } } } } }]
   return line({
     type: 'attachment',
     uuid,
     timestamp,
-    sessionId: 's-snapshot',
-    version: '2.1.268',
     attachment: { type: 'prompt_snapshot', systemPrompt: ['You are a test agent.'], ...(withTools ? { tools, cliPrefix: 'Test CLI prefix.' } : {}) },
   })
 }
@@ -46,7 +47,7 @@ function snapshot(uuid: string, timestamp: string, withTools: boolean): string {
 /**
  * A Claude Code session whose input tokens rise over three requests, drop after an automatic
  * compaction (pre 3,500, post 400), and rise again. `prompts` are extra user prompts at the end.
- * With `snapshots`, prompt snapshots record the system prompt and the tool list before the first request.
+ * With `snapshots`, prompt snapshots record the system prompt before the first request and the tool list after it.
  */
 export function risingSession(cwd: string, prompts: string[] = [], snapshots = false): string {
   let clock = 0
@@ -63,8 +64,8 @@ export function risingSession(cwd: string, prompts: string[] = [], snapshots = f
   return [
     ...(snapshots ? [snapshot('r-s1', at(), false)] : []),
     user('r-u1', 'Start the task'),
-    ...(snapshots ? [snapshot('r-s2', at(), true)] : []),
     reply(1, 1000),
+    ...(snapshots ? [snapshot('r-s2', at(), true)] : []),
     user('r-u2', 'Keep going'),
     reply(2, 2000),
     user('r-u3', 'Keep this one'),

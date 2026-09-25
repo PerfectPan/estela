@@ -51,6 +51,19 @@ describeHostConformance(grokAdapter, {
 const load = (name: string) => grokAdapter.load({ host: 'grok', path: join(root, name) }, nodeIO, {})
 
 describe('grok behavior', () => {
+  it('lists systemPrompt and toolSchemas only for a session directory with the side files', async () => {
+    const plain = await load('plain/updates.jsonl')
+    expect(plain.capabilities).toEqual(expect.arrayContaining(['systemPrompt', 'toolSchemas']))
+    for (const name of ['compaction', 'subagent', 'unknown-type']) {
+      const trace = await load(`${name}/updates.jsonl`)
+      expect(trace.session.systemPrompt, name).toBeUndefined()
+      expect(trace.session.tools, name).toBeUndefined()
+      expect(trace.capabilities, name).not.toContain('systemPrompt')
+      expect(trace.capabilities, name).not.toContain('toolSchemas')
+      expect(trace.capabilities, name).toContain('requests')
+    }
+  })
+
   it('maps one request per turn before its output, keeps turn duration on a marker, and stores hook runs', async () => {
     const trace = await load('plain/updates.jsonl')
     expect(trace.session.systemPrompt).toContain('test agent')

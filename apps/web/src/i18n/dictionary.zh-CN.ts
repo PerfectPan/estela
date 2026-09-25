@@ -224,6 +224,8 @@ export const zhCN = {
       currentTurn: '本轮内容',
     },
     slotUnavailable: '不可用',
+    slotRecordedAt: '记录于 #{{ ordinal }}',
+    slotRecorded: '已记录',
     slotEmpty: '空',
     slotEvents: '{{ count }} 个事件',
     slotEventsOne: '1 个事件',

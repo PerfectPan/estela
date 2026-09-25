@@ -33,7 +33,7 @@ const BASE_CAPABILITIES: Capability[] = [
 
 /**
  * Possible for the host: `systemPrompt` and `toolSchemas` come from
- * `prompt_snapshot` attachments (Claude Code 2.1.268 and later). A trace lists
+ * `prompt_snapshot` attachments (Claude Code, seen from 2.1.268). A trace lists
  * them only when its files contain a snapshot that records them.
  */
 const CAPABILITIES: Capability[] = [...BASE_CAPABILITIES, 'systemPrompt', 'toolSchemas']

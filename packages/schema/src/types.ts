@@ -119,8 +119,15 @@ export type ToolResultPayload = z.infer<typeof toolResultPayloadSchema>
  */
 export const promptSnapshotPayloadSchema = z.object({
   type: z.literal('prompt_snapshot'),
-  systemPrompt: z.string().optional(),
-  tools: z.array(z.unknown()).optional(),
+  systemPrompt: z.optional(z.string()),
+  tools: z.optional(z.array(z.unknown())),
+  /**
+   * View traces only: this snapshot's `systemPrompt` equals the one on the
+   * named earlier snapshot, which holds the text; `get-event` returns it in full.
+   */
+  systemPromptSameAs: z.optional(z.string()),
+  /** View traces only: the same for a non-empty `tools`. */
+  toolsSameAs: z.optional(z.string()),
 })
 export type PromptSnapshotPayload = z.infer<typeof promptSnapshotPayloadSchema>
 

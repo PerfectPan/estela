@@ -1,5 +1,6 @@
 import type { AgentInfo, SkippedRecord, Trace, TraceEvent, TruncatedPath } from '@rivus/agent-trace-schema'
 import { isObjectLike } from 'lodash-es'
+import { promptSnapshot } from './prompt-snapshot.ts'
 
 const DEFAULT_MAX = 4096
 /** Plan 1.3: at most 12 MB reaches the browser before an event is selected. */
@@ -54,10 +55,59 @@ class Capper {
   }
 }
 
-function capEvent(event: TraceEvent, max: number, fileIndex: (file: string) => string): TraceEvent {
+/** Snapshot fields a view replaces with a reference: `systemPrompt` → `systemPromptSameAs`, `tools` → `toolsSameAs`. */
+type SnapshotRefs = Map<string, { systemPromptSameAs?: string, toolsSameAs?: string }>
+
+/**
+ * For each prompt snapshot whose system prompt or non-empty tool list already
+ * appeared on an earlier snapshot of the trace (any lane: subagents often repeat
+ * one prompt), the id of the first snapshot that holds that content. Compared
+ * on the full values, before any cap.
+ */
+function repeatedSnapshots(events: readonly TraceEvent[]): SnapshotRefs {
+  const refs: SnapshotRefs = new Map()
+  const prompts = new Map<string, string>()
+  const toolLists = new Map<string, string>()
+  for (const event of events) {
+    const snapshot = promptSnapshot(event)
+    if (!snapshot)
+      continue
+    const ref: { systemPromptSameAs?: string, toolsSameAs?: string } = {}
+    if (typeof snapshot.systemPrompt === 'string' && snapshot.systemPrompt.length > 0) {
+      const holder = prompts.get(snapshot.systemPrompt)
+      if (holder)
+        ref.systemPromptSameAs = holder
+      else
+        prompts.set(snapshot.systemPrompt, event.id)
+    }
+    if (Array.isArray(snapshot.tools) && snapshot.tools.length > 0) {
+      const value = JSON.stringify(snapshot.tools)
+      const holder = toolLists.get(value)
+      if (holder)
+        ref.toolsSameAs = holder
+      else
+        toolLists.set(value, event.id)
+    }
+    if (ref.systemPromptSameAs || ref.toolsSameAs)
+      refs.set(event.id, ref)
+  }
+  return refs
+}
+
+function capEvent(event: TraceEvent, max: number, fileIndex: (file: string) => string, refs: SnapshotRefs): TraceEvent {
   const capper = new Capper(max)
   const { $truncated: _previous, ...rest } = event.payload
-  const payload = capper.value(rest, []) as Record<string, unknown>
+  const ref = refs.get(event.id)
+  if (ref?.systemPromptSameAs) {
+    delete rest.systemPrompt
+    capper.truncated.push(['systemPrompt'])
+  }
+  if (ref?.toolsSameAs) {
+    delete rest.tools
+    capper.truncated.push(['tools'])
+  }
+  // The references are added after capping: they are ids, and their keys must stay whole.
+  const payload: Record<string, unknown> = { ...capper.value(rest, []) as Record<string, unknown>, ...ref }
   if (capper.truncated.length > 0)
     payload.$truncated = capper.truncated
   const { original: _original, ...fields } = event
@@ -98,6 +148,10 @@ function capAgent(agent: AgentInfo, max: number): AgentInfo {
  * - Interns source files: `sourceFiles` lists them once and each event's
  *   `source.file` is its index, so `file` + `line` still names one record.
  * - Merges `skipped` entries per file and reason, with a count.
+ * - Keeps each distinct prompt snapshot system prompt and non-empty tool list
+ *   once, on the first snapshot that has it; a later snapshot with the same
+ *   content names that holder in `systemPromptSameAs` / `toolsSameAs` and lists
+ *   the field in `payload.$truncated`, so the inspector loads it via `get-event`.
  * - Records the cap in `view.maxString`, so the UI can say how text was shortened.
  */
 export function toView(trace: Trace, opts?: { maxString?: number }): Trace {
@@ -117,11 +171,12 @@ export function toView(trace: Trace, opts?: { maxString?: number }): Trace {
     return index
   }
   const { view: _view, ...base } = trace
+  const refs = repeatedSnapshots(trace.events)
   return {
     ...base,
     session,
     agents: trace.agents.map(agent => capAgent(agent, max)),
-    events: trace.events.map(event => capEvent(event, max, fileIndex)),
+    events: trace.events.map(event => capEvent(event, max, fileIndex, refs)),
     skipped: groupSkipped(trace.skipped, max),
     sourceFiles: [...files.keys()],
     view: { maxString: max },
