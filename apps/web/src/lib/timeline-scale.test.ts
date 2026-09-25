@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { axisTicks, bucketBars, edgeTo, fitText, isFullRange, makeScale, niceStep, normalizeRange, stepEdge, tokenGrid, tsOf, xOf } from './timeline-scale.ts'
+import { axisTicks, bucketBars, edgeTo, isFullRange, makeScale, niceStep, normalizeRange, stepEdge, tokenGrid, tsOf, xOf } from './timeline-scale.ts'
 
 const MINUTE = 60_000
 const scale = makeScale(0, 72 * MINUTE, 148, 1404)
@@ -79,10 +79,5 @@ describe('bars', () => {
       { ts: 2000, tokens: 3, id: 'c' },
     ], scale, 3)
     expect(bars).toEqual([{ x: 148, tokens: 7, id: 'b', count: 3 }])
-  })
-
-  it('fits labels by character width', () => {
-    expect(fitText('Explore · callers', 200, 6.5)).toBe('Explore · callers')
-    expect(fitText('Explore · CI config and more', 60, 6)).toBe('Explore ·…')
   })
 })

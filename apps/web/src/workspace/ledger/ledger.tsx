@@ -5,7 +5,7 @@ import { createVirtualizer } from '@tanstack/solid-virtual'
 import { For, Match, Show, Switch, createEffect, createMemo, on } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
-import { moveSelection } from '@/lib/ledger-model.ts'
+import { anchorIndex, moveSelection } from '@/lib/ledger-model.ts'
 import { CompactionRow, EventRow, HooksRow, SubagentRow, TurnHeader } from './ledger-rows.tsx'
 import { LedgerToolbar } from './ledger-toolbar.tsx'
 
@@ -26,10 +26,9 @@ export function Ledger(props: { state: WorkspaceState, start: number }) {
   const state = props.state
   const rows = state.rows
   const ctx = createMemo((): RowContext => ({ model: state.model, start: props.start, dim: state.dim() }))
-  const turnNumbers = createMemo(() => {
-    const offset = state.model.turns[0]?.turn.promptEventId ? 1 : 0
-    return (index: number, hasPrompt: boolean) => hasPrompt || index > 0 ? index + offset : undefined
-  })
+  // Turn 0 without a prompt is "Before the first prompt"; numbering then starts at its successor.
+  const offset = state.model.turns[0]?.turn.promptEventId ? 1 : 0
+  const turnNumber = (index: number, hasPrompt: boolean) => hasPrompt || index > 0 ? index + offset : undefined
 
   const virtualizer = createVirtualizer({
     get count() {
@@ -47,6 +46,15 @@ export function Ledger(props: { state: WorkspaceState, start: number }) {
     const key = state.selectedKey()
     return key ? rows().findIndex(row => row.key === key) : -1
   })
+  /** Where the keyboard continues from: the selected row, or its turn header when a filter hides it. */
+  const anchor = createMemo(() => anchorIndex(rows(), state.model, state.selectedKey()))
+  /** `aria-activedescendant` names only a row the virtualizer has drawn. */
+  const activeId = () => {
+    const index = selectedIndex()
+    if (index < 0 || !virtualizer.getVirtualItems().some(item => item.index === index))
+      return undefined
+    return rowId(rows()[index]!.key)
+  }
   createEffect(on(selectedIndex, (index) => {
     if (index >= 0)
       virtualizer.scrollToIndex(index, { align: 'auto' })
@@ -62,14 +70,18 @@ export function Ledger(props: { state: WorkspaceState, start: number }) {
   function onKeyDown(event: KeyboardEvent): void {
     const list = rows()
     let next: number | undefined
+    const from = anchor()
+    // A hidden selection continues from its turn header: ArrowDown moves past it, ArrowUp lands on it.
+    const hidden = from >= 0 && from !== selectedIndex()
+    const step = (delta: number) => hidden && delta < 0 ? from : moveSelection(list.length, from, delta)
     if (event.key === 'ArrowDown')
-      next = moveSelection(list.length, selectedIndex(), 1)
+      next = step(1)
     else if (event.key === 'ArrowUp')
-      next = moveSelection(list.length, selectedIndex(), -1)
+      next = step(-1)
     else if (event.key === 'PageDown')
-      next = moveSelection(list.length, selectedIndex(), 10)
+      next = step(10)
     else if (event.key === 'PageUp')
-      next = moveSelection(list.length, selectedIndex(), -10)
+      next = step(-10)
     else if (event.key === 'Home')
       next = list.length > 0 ? 0 : -1
     else if (event.key === 'End')
@@ -99,7 +111,7 @@ export function Ledger(props: { state: WorkspaceState, start: number }) {
         role="listbox"
         tabindex="0"
         aria-label={t('ledger.label')}
-        aria-activedescendant={selectedIndex() >= 0 ? rowId(rows()[selectedIndex()]!.key) : undefined}
+        aria-activedescendant={activeId()}
         data-testid="ledger"
         onKeyDown={onKeyDown}
       >
@@ -130,7 +142,7 @@ export function Ledger(props: { state: WorkspaceState, start: number }) {
                             activate(current())
                         }}
                       >
-                        <RowBody row={current()} ctx={ctx()} number={turnNumbers()} state={state} />
+                        <RowBody row={current()} ctx={ctx()} number={turnNumber} state={state} />
                       </div>
                     )}
                   </Show>
@@ -169,11 +181,10 @@ function RowBody(props: { row: VirtualRow, ctx: RowContext, number: (index: numb
 
 function EntryBody(props: { row: Extract<VirtualRow, { type: 'entry' }>, ctx: RowContext, state: WorkspaceState }) {
   const entry = () => props.row.entry
-  const lane = () => props.row.depth === 1 && props.state.model.locate.get(entryEventOf(entry()))?.parents[0]?.startsWith('s:')
   return (
     <Switch>
       <Match when={entry().type === 'event' ? entry() as Extract<Entry, { type: 'event' }> : undefined}>
-        {current => <EventRow entry={current()} depth={props.row.depth} ctx={props.ctx} lane={lane() || false} />}
+        {current => <EventRow entry={current()} depth={props.row.depth} ctx={props.ctx} lane={props.row.lane} />}
       </Match>
       <Match when={entry().type === 'subagent' ? entry() as Extract<Entry, { type: 'subagent' }> : undefined}>
         {current => <SubagentRow entry={current()} expanded={props.row.expanded} ctx={props.ctx} onToggle={() => props.state.toggleEntry(current().id)} />}
@@ -186,8 +197,4 @@ function EntryBody(props: { row: Extract<VirtualRow, { type: 'entry' }>, ctx: Ro
       </Match>
     </Switch>
   )
-}
-
-function entryEventOf(entry: Entry): string {
-  return entry.type === 'event' || entry.type === 'compaction' ? entry.eventId : entry.type === 'hooks' ? entry.eventIds[0]! : entry.eventId ?? ''
 }

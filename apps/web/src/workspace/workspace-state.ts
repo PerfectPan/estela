@@ -1,8 +1,8 @@
-import type { Entry, LedgerFilter, LedgerModel } from '@/lib/ledger-model.ts'
+import type { LedgerFilter, LedgerModel } from '@/lib/ledger-model.ts'
 import type { TimeRange } from '@/lib/timeline-scale.ts'
 import type { LoadedSession } from './load-session.ts'
 import { batch, createMemo, createSignal } from 'solid-js'
-import { buildLedgerModel, countEvents, entryMatches, flattenLedger, isFailedResult } from '@/lib/ledger-model.ts'
+import { buildLedgerModel, countEvents, entryEventIds, entryMatches, flattenLedger, isFailedResult } from '@/lib/ledger-model.ts'
 import { timelineData } from './timeline/timeline-data.ts'
 
 function toggled(set: ReadonlySet<string>, id: string): Set<string> {
@@ -14,22 +14,10 @@ function toggled(set: ReadonlySet<string>, id: string): Set<string> {
   return next
 }
 
-/** The event the inspector shows for a ledger entry. */
-export function entryEventId(entry: Entry | undefined): string | undefined {
-  if (!entry)
-    return undefined
-  switch (entry.type) {
-    case 'event':
-    case 'compaction': return entry.eventId
-    case 'hooks': return entry.eventIds[0]
-    case 'subagent': return entry.eventId ?? (entry.children[0] ? entryEventId(entry.children[0]) : undefined)
-  }
-}
-
 /** All workspace UI state over one loaded session: filters, range, collapse, selection. */
 export function createWorkspaceState(session: LoadedSession) {
   const model: LedgerModel = buildLedgerModel(session.trace)
-  const timeline = timelineData(session.trace, model.lanes)
+  const timeline = timelineData(session.trace, model.lanes, model.byId)
   const [filter, setFilter] = createSignal<LedgerFilter>('all')
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
@@ -45,12 +33,16 @@ export function createWorkspaceState(session: LoadedSession) {
     range: range(),
   }))
   const eventCount = createMemo(() => countEvents(session.trace, range()))
-  const failures = [...model.results.values()].filter(isFailedResult).length
+  // The header's number (fold) and the chip use one rule: every failed tool result.
+  const failures = session.summary.failedTools ?? session.trace.events.filter(isFailedResult).length
   const selectedEntry = createMemo(() => {
     const key = selectedKey()
     return key ? model.entries.get(key) : undefined
   })
-  const selectedEventId = createMemo(() => entryEventId(selectedEntry()))
+  const selectedEventId = createMemo(() => {
+    const entry = selectedEntry()
+    return entry ? entryEventIds(entry)[0] : undefined
+  })
 
   /** Select an event from outside the ledger (a timeline bar): open what hides it, and drop filters that exclude it. */
   function reveal(eventId: string): void {

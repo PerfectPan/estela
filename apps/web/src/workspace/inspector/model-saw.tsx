@@ -6,7 +6,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js'
 import { ArrowRightIcon } from '@/components/icons.tsx'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
-import { requestNumbers, rowText } from '@/lib/event-text.ts'
+import { rowLine, rowText } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
 import { hostName } from '@/lib/host-names.ts'
 
@@ -48,16 +48,11 @@ function Pill(props: { children: string }) {
   return <span class="rounded-full border border-input px-[9px] py-px text-[12px] whitespace-nowrap text-muted-foreground">{props.children}</span>
 }
 
-function SlotMark(props: { slot: ContextSlot }) {
-  return (
-    <span
-      class={cx(
-        'box-border size-[9px] shrink-0 rounded-[2px]',
-        props.slot.status === 'unavailable' ? 'hatched-small' : props.slot.status === 'empty' ? 'border border-input' : SLOT_FILL[props.slot.name],
-      )}
-      aria-hidden="true"
-    />
-  )
+/** Hatched when the host does not record the slot, outlined when it is empty, else the slot color. */
+function slotClass(slot: ContextSlot, small = false): string {
+  if (slot.status === 'unavailable')
+    return small ? 'hatched hatched-small' : 'hatched'
+  return slot.status === 'empty' ? 'border border-input' : SLOT_FILL[slot.name]
 }
 
 /**
@@ -73,19 +68,11 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
   const unavailable = () => slots().filter(slot => slot.status === 'unavailable')
   const inputGroup = () => result().tokens?.find(group => group.from === 'request.inputTokens')
   const headline = () => inputGroup() ?? result().tokens?.[0]
-  const earlier = createMemo(() => {
-    const current = event()
-    if (!current || current.kind !== 'request')
-      return undefined
-    const lane = current.agentId
-    const index = props.trace.events.indexOf(current)
-    for (let at = index - 1; at >= 0; at--) {
-      const candidate = props.trace.events[at]!
-      if (candidate.kind === 'request' && candidate.agentId === lane)
-        return requestNumbers(candidate).inputTokens
-    }
-    return undefined
-  })
+  /** Input tokens of the previous request on the same lane. */
+  const earlier = () => {
+    const found = props.model.requests.get(props.eventId)
+    return found && found.index > 0 ? found.lane.requests[found.index - 1]!.inputTokens : undefined
+  }
   const completeness = () => {
     const missing = unavailable().length
     if (result().completeness === 'unavailable')
@@ -137,10 +124,7 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
           <For each={slots()}>
             {slot => (
               <div
-                class={cx(
-                  'box-border h-3 flex-1 rounded-[3px]',
-                  slot.status === 'unavailable' ? 'hatched' : slot.status === 'empty' ? 'border border-input' : SLOT_FILL[slot.name],
-                )}
+                class={cx('box-border h-3 flex-1 rounded-[3px]', slotClass(slot))}
               />
             )}
           </For>
@@ -150,7 +134,7 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
             {slot => (
               <li class="flex h-[27px] items-center justify-between border-b border-border" data-slot={slot.name} data-status={slot.status}>
                 <span class="flex items-center gap-[9px] text-[13px] text-foreground">
-                  <SlotMark slot={slot} />
+                  <span class={cx('box-border size-[9px] shrink-0 rounded-[2px]', slotClass(slot, true))} aria-hidden="true" />
                   {t(SLOT_LABEL[slot.name])}
                 </span>
                 <span class={cx('font-mono text-[12px]', slot.status === 'present' ? 'text-muted-foreground' : 'text-subtle')}>
@@ -197,16 +181,13 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
                 const found = () => props.model.byId.get(id)
                 const text = () => {
                   const current = found()
-                  if (!current)
-                    return id
-                  const row = rowText(current)
-                  return [row.text, row.mono].filter(Boolean).join('  ')
+                  return current ? rowLine(current) : id
                 }
                 return (
                   <li>
                     <button type="button" class="flex h-[26px] w-full min-w-0 items-center gap-2.5 text-left" onClick={() => props.onSelectEvent(id)}>
                       <span class="w-[34px] shrink-0 font-mono text-[11px] text-subtle">{props.model.ordinals.get(id) ? `#${props.model.ordinals.get(id)}` : ''}</span>
-                      <span class="min-w-0 truncate text-[12.5px] text-subtle line-through decoration-hatch-edge">{text()}</span>
+                      <span class="min-w-0 truncate text-[12.5px] text-subtle line-through decoration-hatch-edge [unicode-bidi:isolate]" dir="auto">{text()}</span>
                     </button>
                   </li>
                 )
@@ -217,7 +198,7 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
             <span class="text-[12px] text-subtle">{t('inspector.andMore', { count: formatNumber(removed().length - MAX_DROPPED, locale()) })}</span>
           </Show>
           <Show when={showAll() && summaryText()}>
-            {text => <p class="m-0 rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-normal text-muted-foreground">{text()}</p>}
+            {text => <p class="m-0 rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-normal text-muted-foreground [unicode-bidi:isolate]" dir="auto">{text()}</p>}
           </Show>
           <Show when={removed().length > PREVIEW_DROPPED || summaryText()}>
             <button type="button" class="flex items-center gap-1.5 self-start text-[12.5px] text-link hover:underline" onClick={() => setShowAll(!showAll())}>

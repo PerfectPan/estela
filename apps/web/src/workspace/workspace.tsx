@@ -3,6 +3,9 @@ import { Match, Show, Switch } from 'solid-js'
 import { ExportIcon } from '@/components/icons.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatNumber } from '@/lib/format.ts'
+import { escapeBidi } from '@/lib/preview.ts'
+import { connectionLost } from '@/shell/connection.ts'
+import { ConnectionLost } from '@/shell/connection-lost.tsx'
 import { TopBar } from '@/shell/top-bar.tsx'
 import { Inspector } from './inspector/inspector.tsx'
 import { Ledger } from './ledger/ledger.tsx'
@@ -22,10 +25,18 @@ export function Workspace(props: { sessionRef: string }) {
     const state = load.state()
     return state.status === 'ready' ? state.session : undefined
   }
+  const loading = () => {
+    const state = load.state()
+    return state.status === 'loading' ? state : undefined
+  }
+  const failure = () => {
+    const state = load.state()
+    return state.status === 'error' ? state.failure : undefined
+  }
   const crumbs = () => {
     const session = ready()?.trace.session
     const project = session?.cwd?.split('/').filter(Boolean).pop()
-    return [project, session?.title].filter((part): part is string => Boolean(part))
+    return [project, session?.title].filter((part): part is string => Boolean(part)).map(escapeBidi)
   }
   const exportButton = (
     <button
@@ -43,17 +54,20 @@ export function Workspace(props: { sessionRef: string }) {
     <div class="flex h-full min-h-0 flex-col bg-background text-foreground">
       <TopBar crumbs={crumbs()} actions={ready() ? exportButton : undefined} onJump={() => document.querySelector<HTMLElement>('[data-testid="ledger"]')?.focus()} />
       <Switch>
-        <Match when={load.state().status === 'loading' && load.state()}>
-          {state => {
-            const progress = () => state() as { bytesRead: number, totalBytes: number }
-            return <LoadingPanel bytesRead={progress().bytesRead} totalBytes={progress().totalBytes} />
-          }}
+        <Match when={loading()}>
+          {progress => <LoadingPanel bytesRead={progress().bytesRead} totalBytes={progress().totalBytes} />}
         </Match>
-        <Match when={load.state().status === 'error' && load.state()}>
-          {state => <ErrorPanel failure={(state() as Extract<ReturnType<typeof load.state>, { status: 'error' }>).failure} onRetry={load.retry} />}
+        <Match when={failure()}>
+          {current => <ErrorPanel failure={current()} onRetry={load.retry} />}
         </Match>
         <Match when={ready()} keyed>
-          {session => <SessionView session={session} />}
+          {session => (
+            <>
+              {/* A loaded view stays readable after a drop; `get-event` would fail, so say so. */}
+              <Show when={connectionLost()}><ConnectionLost compact /></Show>
+              <SessionView session={session} />
+            </>
+          )}
         </Match>
       </Switch>
     </div>

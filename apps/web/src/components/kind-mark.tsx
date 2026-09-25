@@ -3,7 +3,7 @@ import type { MessageKey } from '@/i18n/locale.ts'
 import { translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 
-export const KIND_LABEL: Record<RowKind, MessageKey> = {
+const KIND_LABEL: Record<RowKind, MessageKey> = {
   user: 'common.kinds.user',
   request: 'common.kinds.request',
   tool: 'common.kinds.tool',

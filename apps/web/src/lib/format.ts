@@ -164,3 +164,15 @@ export function formatBytes(bytes: number, locale: string): string {
   const [unit, divisor] = bytes >= 1e9 ? ['gigabyte', 1e9] as const : bytes >= 1e6 ? ['megabyte', 1e6] as const : ['kilobyte', 1e3] as const
   return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: 1 }).format(bytes / divisor)
 }
+
+/** The ledger time column for an event: elapsed since `start`, or empty when the event has no time. */
+export function elapsedFrom(ts: number | undefined, start: number): string {
+  return ts === undefined || ts <= 0 ? '' : formatElapsed(ts - start)
+}
+
+/** `2.41M / 61k`; one dash when neither side was recorded. */
+export function formatInOut(input: number | undefined, output: number | undefined, dash: string): string {
+  if (input === undefined && output === undefined)
+    return dash
+  return `${formatOptional(input, formatTokens, dash)} / ${formatOptional(output, formatTokens, dash)}`
+}

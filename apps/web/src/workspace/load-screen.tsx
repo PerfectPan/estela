@@ -3,6 +3,7 @@ import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatBytes } from '@/lib/format.ts'
 import { hostName } from '@/lib/host-names.ts'
+import { ConnectionLost } from '@/shell/connection-lost.tsx'
 
 /** Bytes read out of the file size while `load-trace` runs (3.5, S12). */
 export function LoadingPanel(props: { bytesRead: number, totalBytes: number }) {
@@ -36,6 +37,14 @@ export function LoadingPanel(props: { bytesRead: number, totalBytes: number }) {
 
 /** A failed load: host, file, and line when the message carries them, and a way back (3.7). */
 export function ErrorPanel(props: { failure: LoadFailure, onRetry: () => void }) {
+  if (props.failure.lost) {
+    return (
+      <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
+        <h1 class="m-0 text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
+        <ConnectionLost />
+      </div>
+    )
+  }
   return (
     <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
       <h1 class="m-0 text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>

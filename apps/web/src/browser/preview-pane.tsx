@@ -1,9 +1,10 @@
 import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
-import { formatDuration, formatNumber, formatOptional, formatTokens, formatWhen } from '@/lib/format.ts'
+import { formatDuration, formatInOut, formatNumber, formatOptional, formatWhen } from '@/lib/format.ts'
 import { ContextShape } from '@/browser/context-shape.tsx'
 import { HostMark } from '@/browser/host-mark.tsx'
+import { Metric } from '@/components/metric.tsx'
 
 /** Right pane (340 px): the selected row's shape, headline numbers, first prompt, and "Open session". */
 export function PreviewPane(props: { row?: SessionListRow, hosts: HostListEntry[], now: number, onOpen: (ref: string) => void }) {
@@ -20,15 +21,10 @@ const dash = () => t('common.dash')
 
 function Preview(props: { row: SessionListRow, hosts: HostListEntry[], now: number, onOpen: (ref: string) => void }) {
   const num = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
-  const tokens = (value: number | undefined) => formatOptional(value, formatTokens, dash())
   const hostName = () => props.hosts.find(host => host.id === props.row.host)?.displayName ?? props.row.host
   const when = () => props.row.lastActiveAt ? formatWhen(props.row.lastActiveAt, locale(), props.now) : ''
   const pair = (left: string, right: string) => left === dash() && right === dash() ? dash() : `${left} · ${right}`
-  const inOut = () => {
-    const left = tokens(props.row.tokensIn)
-    const right = tokens(props.row.tokensOut)
-    return left === dash() && right === dash() ? dash() : `${left} / ${right}`
-  }
+  const inOut = () => formatInOut(props.row.tokensIn, props.row.tokensOut, dash())
   const shape = () => props.row.shape ?? []
 
   return (
@@ -96,14 +92,5 @@ function Preview(props: { row: SessionListRow, hosts: HostListEntry[], now: numb
         </svg>
       </button>
     </>
-  )
-}
-
-function Metric(props: { value: string, label: string }) {
-  return (
-    <div class="flex flex-col gap-[3px]">
-      <span class="font-mono text-[15px] font-medium text-foreground">{props.value}</span>
-      <span class="text-[11.5px] text-subtle">{props.label}</span>
-    </div>
   )
 }

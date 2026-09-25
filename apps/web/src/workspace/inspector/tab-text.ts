@@ -1,6 +1,6 @@
 import type { TraceEvent } from '@rivus/agent-trace-schema'
 import type { Entry, LedgerModel } from '@/lib/ledger-model.ts'
-import { pretty, rowText } from '@/lib/event-text.ts'
+import { pretty, rowLine } from '@/lib/event-text.ts'
 
 type Lookup = (id: string) => TraceEvent | undefined
 
@@ -42,15 +42,12 @@ export function outputText(entry: Entry, primary: TraceEvent | undefined, result
   }
   if (!primary)
     return ''
-  if (primary.kind === 'request' && primary.requestId) {
-    const lines: string[] = []
-    for (const event of model.trace.events) {
-      if (event.requestId !== primary.requestId || event.id === primary.id)
-        continue
-      const text = rowText(lookup(event.id) ?? event)
-      lines.push(`[${event.kind}] ${[text.text, text.mono].filter(Boolean).join('  ')}`)
-    }
-    return lines.join('\n')
+  const request = model.requests.get(primary.id)?.entry
+  if (request) {
+    return request.eventIds.map((id) => {
+      const event = lookup(id) ?? model.byId.get(id)
+      return event ? `[${event.kind}] ${rowLine(event)}` : ''
+    }).filter(Boolean).join('\n')
   }
   if (primary.kind === 'compaction') {
     const summaryId = typeof primary.payload.summaryEventId === 'string' ? primary.payload.summaryEventId : undefined

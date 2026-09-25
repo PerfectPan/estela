@@ -1,6 +1,6 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vitest'
-import { buildLedgerModel, countEvents, flattenLedger, moveSelection, ROW_SIZE, type LedgerView } from './ledger-model.ts'
+import { anchorIndex, buildLedgerModel, countEvents, flattenLedger, moveSelection, ROW_SIZE, type LedgerView } from './ledger-model.ts'
 
 let seq = 0
 function event(partial: Partial<TraceEvent> & Pick<TraceEvent, 'id' | 'kind'>): TraceEvent {
@@ -116,6 +116,26 @@ describe('keyboard and counts', () => {
     expect(moveSelection(5, 4, 1)).toBe(4)
     expect(moveSelection(5, 0, -1)).toBe(0)
     expect(moveSelection(5, 2, 1)).toBe(3)
+  })
+
+  it('continues from the turn header when the selected row is hidden', () => {
+    const model = buildLedgerModel(sample())
+    const open = flattenLedger(model, view())
+    expect(anchorIndex(open, model, 'e:c1')).toBe(open.findIndex(row => row.key === 'e:c1'))
+    const collapsed = flattenLedger(model, view({ collapsed: new Set(['t0']) }))
+    expect(anchorIndex(collapsed, model, 'e:c1')).toBe(0)
+    const requests = flattenLedger(model, view({ filter: 'requests' }))
+    expect(requests[anchorIndex(requests, model, 'e:p2')]!.key).toBe('t1')
+    expect(anchorIndex(requests, model, undefined)).toBe(-1)
+  })
+
+  it('marks rows inside an expanded subagent lane and indexes requests by lane', () => {
+    const model = buildLedgerModel(sample())
+    const rows = flattenLedger(model, view({ expanded: new Set(['s:t0:sub']) }))
+    const inner = rows.find(row => row.key === 'e:s1')
+    expect(inner?.type === 'entry' && inner.lane).toBe(true)
+    expect(model.requests.get('s1')?.lane.id).toBe('sub')
+    expect(model.requests.get('r2')?.index).toBe(1)
   })
 
   it('counts the events inside a range', () => {

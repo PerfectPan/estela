@@ -8,6 +8,8 @@ import { SessionList } from '@/browser/session-list.tsx'
 import { createSessionStore } from '@/browser/session-store.ts'
 import { openSession } from '@/shell/router.ts'
 import { SearchIcon, TopBar } from '@/shell/top-bar.tsx'
+import { connectionLost } from '@/shell/connection.ts'
+import { ConnectionLost } from '@/shell/connection-lost.tsx'
 
 const SEARCH_DEBOUNCE_MS = 160
 /** Rows asked for first when the view changes: about two screens. */
@@ -177,8 +179,18 @@ export function SessionBrowser() {
                 {t('browser.sortLastActive')}
               </div>
             </div>
-            <Show when={store.error()}>
-              {reason => <p class="m-0 text-[13px] text-muted-foreground" role="alert">{t('browser.connectionError', { reason: reason() })}</p>}
+            <Show when={!connectionLost() && store.error()}>
+              {reason => (
+                <div class="flex items-center gap-3" role="alert">
+                  <p class="m-0 text-[13px] text-muted-foreground">{t('browser.connectionError', { reason: reason() })}</p>
+                  <button type="button" class="rounded-md border border-input px-2.5 py-1 text-[12.5px] text-foreground hover:bg-accent" onClick={() => location.reload()}>
+                    {t('common.reload')}
+                  </button>
+                </div>
+              )}
+            </Show>
+            <Show when={connectionLost()}>
+              <ConnectionLost />
             </Show>
           </div>
           <SessionList

@@ -1,14 +1,17 @@
-import type { CompactionMark, LaneDraw, Mark } from './timeline-data.ts'
+import type { LaneDraw, Mark } from './timeline-data.ts'
 import type { TimeScale } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatDuration, formatTokens } from '@/lib/format.ts'
-import { axisTicks, bucketBars, fitText, tokenGrid, xOf } from '@/lib/timeline-scale.ts'
+import { escapeBidi } from '@/lib/preview.ts'
+import { axisTicks, bucketBars, tokenGrid, xOf } from '@/lib/timeline-scale.ts'
 
 /** Pixel layout from docs/design/session-workspace-*.html (1440 px wide, 166 px tall with two subagent lanes). */
 export const LAYOUT = {
   labelX: 20,
+  /** Plot start; the label column grows past it for long lane titles, up to `maxX0`. */
   x0: 148,
+  maxX0: 280,
   right: 36,
   baseline: 74,
   barMax: 52,
@@ -27,11 +30,9 @@ export function axisTop(lanes: number, extra: boolean): number {
   return rows === 0 ? LAYOUT.firstLane - 4 : LAYOUT.firstLane + LAYOUT.laneStep * (rows - 1) + 14
 }
 
-export function barHeight(tokens: number, top: number): number {
+function barHeight(tokens: number, top: number): number {
   return top > 0 ? Math.max(1, (tokens / top) * LAYOUT.barMax) : 0
 }
-
-const MONO = 'font-mono'
 
 export function MainLane(props: { draw: LaneDraw, scale: TimeScale, top: number, selectedId?: string }) {
   const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 3.5))
@@ -44,14 +45,14 @@ export function MainLane(props: { draw: LaneDraw, scale: TimeScale, top: number,
   return (
     <g>
       <text x={LAYOUT.labelX} y="44" class="font-sans" font-size="12" fill="var(--muted-foreground)">{t('timeline.mainAgent')}</text>
-      <text x={LAYOUT.labelX} y="60" class={MONO} font-size="10" fill="var(--subtle-foreground)">{t('timeline.contextTokens')}</text>
+      <text x={LAYOUT.labelX} y="60" class="font-mono" font-size="10" fill="var(--subtle-foreground)">{t('timeline.contextTokens')}</text>
       <For each={grid()}>
         {(value) => {
           const y = () => LAYOUT.baseline - barHeight(value, props.top)
           return (
             <>
               <line x1={props.scale.x0} y1={y()} x2={props.scale.x1} y2={y()} stroke="var(--border)" stroke-dasharray="2 4" />
-              <text x={LAYOUT.x0 - 8} y={y() + 3} text-anchor="end" class={MONO} font-size="9.5" fill="var(--subtle-foreground)">{formatTokens(value)}</text>
+              <text x={props.scale.x0 - 8} y={y() + 3} text-anchor="end" class="font-mono" font-size="9.5" fill="var(--subtle-foreground)">{formatTokens(value)}</text>
             </>
           )
         }}
@@ -99,10 +100,11 @@ function FailedMarks(props: { marks: Mark[], scale: TimeScale, y: number, size?:
   )
 }
 
-export function SubLane(props: { draw: LaneDraw, index: number, scale: TimeScale }) {
+export function SubLane(props: { draw: LaneDraw, index: number, scale: TimeScale, fit: (text: string, width: number) => string }) {
   const y = () => LAYOUT.firstLane + LAYOUT.laneStep * props.index
   const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 5))
-  const label = () => fitText(props.draw.lane.title ?? props.draw.lane.id, LAYOUT.x0 - LAYOUT.labelX - 4, 6.2)
+  const title = () => escapeBidi(props.draw.lane.title ?? props.draw.lane.id)
+  const label = () => props.fit(title(), props.scale.x0 - LAYOUT.labelX - 12)
   const span = () => {
     const { from, to } = props.draw
     if (from === undefined || to === undefined)
@@ -113,7 +115,7 @@ export function SubLane(props: { draw: LaneDraw, index: number, scale: TimeScale
   return (
     <g data-lane={props.draw.lane.id}>
       <text x={LAYOUT.labelX} y={y() + 4} class="font-sans" font-size="12" fill="var(--muted-foreground)">
-        <title>{props.draw.lane.title ?? props.draw.lane.id}</title>
+        <title>{title()}</title>
         {label()}
       </text>
       <line x1={props.scale.x0} y1={y()} x2={props.scale.x1} y2={y()} stroke="var(--border)" />
@@ -127,40 +129,6 @@ export function SubLane(props: { draw: LaneDraw, index: number, scale: TimeScale
         {spawn => <path d={`M${xOf(props.scale, spawn().ts)} 82 V${y() - 7}`} stroke="var(--kind-subagent)" stroke-width="1" stroke-dasharray="2 3" />}
       </Show>
       <FailedMarks marks={props.draw.failed} scale={props.scale} y={y() - 13} size={7} />
-    </g>
-  )
-}
-
-export function compactionLabel(mark: CompactionMark): string {
-  const { preTokens, postTokens } = mark
-  const numbers = preTokens !== undefined && postTokens !== undefined ? `  ${formatTokens(preTokens)} → ${formatTokens(postTokens)}` : ''
-  return `${t('timeline.compacted')}${numbers}`
-}
-
-/** Width of the label box: 10.5 px JetBrains Mono is about 6.3 px per character; CJK characters about 10.5 px. */
-export function compactionLabelWidth(label: string): number {
-  return [...label].reduce((sum, char) => sum + (char.charCodeAt(0) > 0x2E80 ? 10.5 : 6.3), 16)
-}
-
-/**
- * A neutral dashed rule labeled `compacted pre → post` when the host records both (S5).
- * When rules are too close for their boxes, only the first of a cluster is boxed; the others
- * keep the label as a tooltip.
- */
-export function CompactionRule(props: { mark: CompactionMark, scale: TimeScale, bottom: number, boxed: boolean }) {
-  const x = () => xOf(props.scale, props.mark.ts)
-  const label = () => compactionLabel(props.mark)
-  const width = () => compactionLabelWidth(label())
-  const flip = () => x() + 6 + width() > props.scale.x1 + LAYOUT.right - 4
-  const boxX = () => flip() ? x() - 6 - width() : x() + 6
-  return (
-    <g data-marker="compaction" data-label={label()}>
-      <title>{label()}</title>
-      <line x1={x()} y1="8" x2={x()} y2={props.bottom} stroke="var(--foreground)" stroke-width="1.2" stroke-dasharray="4 3" />
-      <Show when={props.boxed}>
-        <rect x={boxX()} y="4" width={width()} height="18" rx="4" fill="var(--muted)" stroke="var(--input)" />
-        <text x={boxX() + 8} y="17" class={MONO} font-size="10.5" fill="var(--foreground)" style={{ 'white-space': 'pre' }}>{label()}</text>
-      </Show>
     </g>
   )
 }
@@ -179,7 +147,7 @@ export function Axis(props: { scale: TimeScale, top: number }) {
         return (
           <>
             <line x1={x()} y1={props.top} x2={x()} y2={props.top + 4} stroke="var(--input)" />
-            <text x={x()} y={props.top + 16} text-anchor="middle" class={MONO} font-size="10" fill="var(--subtle-foreground)">
+            <text x={x()} y={props.top + 16} text-anchor="middle" class="font-mono" font-size="10" fill="var(--subtle-foreground)">
               {at === 0 ? zeroLabel(ticks()[1] ?? 1000) : formatDuration(at, locale())}
             </text>
           </>

@@ -1,13 +1,7 @@
 import type { TraceEvent } from '@rivus/agent-trace-schema'
-import { previewText, previewUnknown } from './preview.ts'
-
-function asText(value: unknown): string {
-  return typeof value === 'string' ? value : ''
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value != null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
-}
+import { asNumber, asRecord, asString } from '@rivus/agent-trace-kernel'
+import { translate as t } from '@/i18n/locale.ts'
+import { escapeBidi, previewText, previewUnknown } from './preview.ts'
 
 /** `payload.$truncated` from `toView`: this event has strings the view shortened (S12). */
 export function isShortened(event: TraceEvent | undefined): boolean {
@@ -18,7 +12,7 @@ export function isShortened(event: TraceEvent | undefined): boolean {
 /** Argument keys that name what a tool call acts on, in the order they are tried. */
 const TARGET_KEYS = ['command', 'cmd', 'file_path', 'filePath', 'path', 'pattern', 'query', 'url', 'description', 'prompt']
 
-/** The one argument that says what a tool call acts on (a path, a command), or a JSON preview. */
+/** The one argument that says what a tool call acts on (a path, a command), or a JSON preview. Already a preview. */
 export function toolTarget(args: unknown): string {
   if (typeof args === 'string')
     return previewText(args)
@@ -36,7 +30,7 @@ export function toolTarget(args: unknown): string {
 }
 
 export function toolName(event: TraceEvent): string {
-  return asText(event.payload.name) || 'tool'
+  return asString(event.payload.name) || 'tool'
 }
 
 export interface RowText {
@@ -48,7 +42,7 @@ export interface RowText {
   muted?: boolean
 }
 
-/** One-line content of a ledger row. Session text is shown as recorded. */
+/** One-line content of a ledger row. Session text is shown as recorded (bidi controls escaped). */
 export function rowText(event: TraceEvent): RowText {
   const payload = event.payload
   switch (event.kind) {
@@ -57,55 +51,27 @@ export function rowText(event: TraceEvent): RowText {
     case 'tool_result':
       return { text: previewUnknown(payload.output ?? payload.text) }
     case 'request': {
-      const model = asText(payload.model)
-      const stop = asText(payload.stopReason)
-      return { text: [model, stop ? `stop ${stop}` : ''].filter(Boolean).join(' · ') }
+      const model = asString(payload.model) ?? ''
+      const stop = asString(payload.stopReason)
+      return { text: [escapeBidi(model), stop ? t('common.stop', { reason: escapeBidi(stop) }) : ''].filter(Boolean).join(' · ') }
     }
     case 'thinking':
-      return { text: previewText(asText(payload.text)), muted: true }
+      return { text: previewText(asString(payload.text) ?? ''), muted: true }
     case 'hook':
-      return { text: asText(payload.name) || asText(payload.event) || asText(payload.type) || 'hook' }
+      return { text: escapeBidi(asString(payload.name) || asString(payload.event) || asString(payload.type) || 'hook') }
     case 'compaction':
       return { text: previewUnknown(payload.summary) }
     default: {
-      const text = asText(payload.text)
+      const text = asString(payload.text)
       return { text: text ? previewText(text) : previewUnknown(payload.type ?? payload) }
     }
   }
 }
 
-export interface RequestNumbers {
-  model?: string
-  inputTokens?: number
-  outputTokens?: number
-  durationMs?: number
-  stopReason?: string
-}
-
-function asNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
-}
-
-/** Recorded fields of a `request` event; a field the host did not record is absent. */
-export function requestNumbers(event: TraceEvent): RequestNumbers {
-  const usage = asRecord(event.payload.usage)
-  const out: RequestNumbers = {}
-  const model = asText(event.payload.model)
-  if (model)
-    out.model = model
-  const input = asNumber(usage?.inputTokens)
-  if (input !== undefined)
-    out.inputTokens = input
-  const output = asNumber(usage?.outputTokens)
-  if (output !== undefined)
-    out.outputTokens = output
-  const duration = asNumber(event.payload.durationMs)
-  if (duration !== undefined)
-    out.durationMs = duration
-  const stop = asText(event.payload.stopReason)
-  if (stop)
-    out.stopReason = stop
-  return out
+/** A row's content as one line: text, then the command or path. */
+export function rowLine(event: TraceEvent): string {
+  const text = rowText(event)
+  return [text.text, text.mono].filter(Boolean).join('  ')
 }
 
 export function numberField(event: TraceEvent | undefined, key: string): number | undefined {

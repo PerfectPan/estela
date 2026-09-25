@@ -1,5 +1,5 @@
 import type { Lane } from '@rivus/agent-trace-kernel'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { BarInput } from '@/lib/timeline-scale.ts'
 import { mainAgentId } from '@rivus/agent-trace-kernel'
 
@@ -37,7 +37,7 @@ export interface TimelineData {
 }
 
 /** Built once per trace; the SVG only maps it to pixels. */
-export function timelineData(trace: Trace, lanes: readonly Lane[]): TimelineData {
+export function timelineData(trace: Trace, lanes: readonly Lane[], byId: ReadonlyMap<string, TraceEvent>): TimelineData {
   const mainId = mainAgentId(trace)
   const draws = new Map<string, LaneDraw>()
   for (const lane of lanes) {
@@ -61,9 +61,7 @@ export function timelineData(trace: Trace, lanes: readonly Lane[]): TimelineData
   }
   let start = Number.POSITIVE_INFINITY
   let end = Number.NEGATIVE_INFINITY
-  const byId = new Map<string, number>()
   for (const event of trace.events) {
-    byId.set(event.id, event.ts)
     if (!Number.isFinite(event.ts) || event.ts <= 0)
       continue
     start = Math.min(start, event.ts)
@@ -82,7 +80,7 @@ export function timelineData(trace: Trace, lanes: readonly Lane[]): TimelineData
   }
   for (const draw of draws.values()) {
     const spawn = draw.lane.spawnEventId
-    const ts = spawn ? byId.get(spawn) : undefined
+    const ts = spawn ? byId.get(spawn)?.ts : undefined
     if (spawn && ts !== undefined)
       draw.spawn = { ts, id: spawn }
   }

@@ -5,8 +5,8 @@ import { CheckIcon, ChevronDownIcon, ChevronRightIcon, CompactIcon, EyeIcon, Hoo
 import { KindMark } from '@/components/kind-mark.tsx'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
-import { isShortened, numberField, requestNumbers, rowText, toolTarget } from '@/lib/event-text.ts'
-import { formatDuration, formatElapsed, formatNumber, formatTokens } from '@/lib/format.ts'
+import { isShortened, numberField, rowText, toolTarget } from '@/lib/event-text.ts'
+import { elapsedFrom, formatDuration, formatNumber, formatTokens } from '@/lib/format.ts'
 import { isFailedResult } from '@/lib/ledger-model.ts'
 import { previewText } from '@/lib/preview.ts'
 
@@ -20,7 +20,7 @@ export interface RowContext {
 const dash = () => t('common.dash')
 
 function elapsed(ts: number | undefined, ctx: RowContext): string {
-  return ts === undefined || ts <= 0 ? '' : formatElapsed(ts - ctx.start)
+  return elapsedFrom(ts, ctx.start)
 }
 
 /** Base row: 36 px, number, kind, content, status, metric (164 px, sized for zh-CN), time. */
@@ -50,7 +50,7 @@ function RowFrame(props: {
       </Show>
       <span class="w-[30px] shrink-0 font-mono text-[11px] text-subtle">{props.ordinal || ''}</span>
       <KindMark kind={props.kind} />
-      <div class="min-w-0 flex-1 truncate text-[13px] text-foreground">{props.children}</div>
+      <div class="min-w-0 flex-1 truncate text-[13px] text-foreground [unicode-bidi:isolate]" dir="auto">{props.children}</div>
       {props.marker}
       {props.status}
       <span class="w-[164px] shrink-0 truncate text-right font-mono text-[11.5px] text-muted-foreground">{props.metric ?? ''}</span>
@@ -93,13 +93,13 @@ export function EventRow(props: { entry: Extract<Entry, { type: 'event' }>, dept
   const text = () => rowText(event())
   const metric = () => {
     const current = event()
-    if (current.kind === 'request') {
-      const numbers = requestNumbers(current)
-      if (numbers.inputTokens === undefined && numbers.outputTokens === undefined)
+    const request = props.ctx.model.requests.get(current.id)?.entry
+    if (request) {
+      if (request.inputTokens === undefined && request.outputTokens === undefined)
         return dash()
       return t('ledger.inOut', {
-        input: numbers.inputTokens === undefined ? dash() : formatTokens(numbers.inputTokens),
-        output: numbers.outputTokens === undefined ? dash() : formatTokens(numbers.outputTokens),
+        input: request.inputTokens === undefined ? dash() : formatTokens(request.inputTokens),
+        output: request.outputTokens === undefined ? dash() : formatTokens(request.outputTokens),
       })
     }
     const duration = numberField(result(), 'durationMs') ?? numberField(current, 'durationMs')
@@ -129,7 +129,6 @@ export function EventRow(props: { entry: Extract<Entry, { type: 'event' }>, dept
 }
 
 export function SubagentRow(props: { entry: Extract<Entry, { type: 'subagent' }>, expanded: boolean, ctx: RowContext, onToggle: () => void }) {
-  const lane = () => props.ctx.model.lanes.find(item => item.id === props.entry.laneId)
   const spawn = () => props.entry.eventId ? props.ctx.model.byId.get(props.entry.eventId) : undefined
   const events = () => props.entry.children.flatMap(child => child.type === 'event' ? [props.ctx.model.byId.get(child.eventId)!] : [])
   const metric = () => {
@@ -144,9 +143,9 @@ export function SubagentRow(props: { entry: Extract<Entry, { type: 'subagent' }>
   const prompt = () => {
     const call = spawn()
     const target = call ? toolTarget(call.payload.args) : ''
-    return target ? `“${previewText(target)}”` : ''
+    return target ? `“${target}”` : ''
   }
-  const title = () => lane()?.title ?? props.entry.laneId
+  const title = () => props.entry.title ?? props.entry.laneId
   return (
     <RowFrame
       ordinal={props.entry.ordinal}
@@ -243,7 +242,7 @@ export function TurnHeader(props: { group: TurnGroup, number?: number, collapsed
       <span class="min-w-[52px] shrink-0 text-[12.5px] font-semibold whitespace-nowrap text-foreground">
         {props.number === undefined ? t('ledger.beforePrompt') : t('ledger.turn', { index: props.number })}
       </span>
-      <span class="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{prompt()}</span>
+      <span class="min-w-0 flex-1 truncate text-[13px] text-muted-foreground [unicode-bidi:isolate]" dir="auto">{prompt()}</span>
       <Show when={props.group.hidden > 0}>
         <span class="flex shrink-0 items-center gap-1.5 rounded-full border border-input px-[9px] py-0.5 text-[11.5px] text-muted-foreground">
           <EyeIcon size={12} class="text-subtle" />

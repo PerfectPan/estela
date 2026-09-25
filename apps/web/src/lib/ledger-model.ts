@@ -1,6 +1,7 @@
-import type { Lane, Turn } from '@rivus/agent-trace-kernel'
+import type { Lane, RequestEntry, Turn } from '@rivus/agent-trace-kernel'
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { foldHookRuns, hiddenAfterCompaction, mainAgentId, projectLanes, projectTurns } from '@rivus/agent-trace-kernel'
+import { asString, foldHookRuns, hiddenAfterCompaction, mainAgentId, projectLanes, projectTurns } from '@rivus/agent-trace-kernel'
+import { inRange } from './timeline-scale.ts'
 
 /** The kind mark of a ledger row (docs/design/README.md palette). */
 export type RowKind = 'user' | 'request' | 'tool' | 'thinking' | 'reply' | 'subagent' | 'system' | 'hook' | 'compaction' | 'unknown'
@@ -8,8 +9,8 @@ export type RowKind = 'user' | 'request' | 'tool' | 'thinking' | 'reply' | 'suba
 export type Entry =
   | { type: 'event', id: string, eventId: string, kind: RowKind, ordinal: number, resultId?: string }
   | { type: 'hooks', id: string, eventIds: string[], count: number }
-  | { type: 'compaction', id: string, eventId: string, ordinal: number }
-  | { type: 'subagent', id: string, laneId: string, eventId?: string, resultId?: string, ordinal?: number, children: Entry[] }
+  | { type: 'compaction', id: string, eventId: string }
+  | { type: 'subagent', id: string, laneId: string, title?: string, eventId?: string, resultId?: string, ordinal?: number, children: Entry[] }
 
 export interface TurnGroup {
   /** Stable key, `t<index>`. */
@@ -32,6 +33,8 @@ export interface LedgerModel {
   hidden: Set<string>
   /** Tool results by call id. */
   results: Map<string, TraceEvent>
+  /** `projectLanes` request entries by event id, with their lane and position on it. */
+  requests: Map<string, { entry: RequestEntry, lane: Lane, index: number }>
   /** Every entry by id, including the single hook rows of an expanded hooks row. */
   entries: Map<string, Entry>
   /** Per compaction: how many events it hid, and the lowest and highest of their row numbers. */
@@ -39,8 +42,7 @@ export interface LedgerModel {
 }
 
 function callIdOf(event: TraceEvent): string | undefined {
-  const id = event.payload.callId
-  return typeof id === 'string' && id ? id : undefined
+  return asString(event.payload.callId) || undefined
 }
 
 function rowKind(event: TraceEvent): RowKind {
@@ -63,6 +65,7 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
   const mainId = mainAgentId(trace)
   const byId = new Map(trace.events.map(event => [event.id, event]))
   const lanes = projectLanes(trace)
+  const titles = new Map(lanes.flatMap(lane => lane.title ? [[lane.id, lane.title] as const] : []))
   const spawnOf = new Map<string, string>()
   for (const lane of lanes) {
     if (lane.id !== mainId && lane.spawnEventId && byId.has(lane.spawnEventId))
@@ -121,7 +124,7 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
       const place = { turnId, entryId: id, parents }
       locate.set(event.id, place)
       if (event.kind === 'compaction') {
-        const compaction: Entry = { type: 'compaction', id, eventId: event.id, ordinal: 0 }
+        const compaction: Entry = { type: 'compaction', id, eventId: event.id }
         out.push(compaction)
         all.set(id, compaction)
         continue
@@ -166,7 +169,7 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
       const spawnAt = entries.findIndex(entry => entry.type === 'event' && spawnOf.get(entry.eventId) === laneId)
       if (spawnAt >= 0) {
         const spawn = entries[spawnAt] as Extract<Entry, { type: 'event' }>
-        const entry: Entry = { type: 'subagent', id, laneId, eventId: spawn.eventId, ordinal: spawn.ordinal, children }
+        const entry: Entry = { type: 'subagent', id, laneId, title: titles.get(laneId), eventId: spawn.eventId, ordinal: spawn.ordinal, children }
         if (spawn.resultId)
           entry.resultId = spawn.resultId
         entries[spawnAt] = entry
@@ -177,8 +180,8 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
         continue
       }
       const firstSeq = laneEvents[0]!.seq
-      const at = entries.findIndex(entry => firstSeqOf(entry, byId) > firstSeq)
-      const entry: Entry = { type: 'subagent', id, laneId, children }
+      const at = entries.findIndex(entry => byId.get(entryEventIds(entry)[0]!)!.seq > firstSeq)
+      const entry: Entry = { type: 'subagent', id, laneId, title: titles.get(laneId), children }
       entries.splice(at < 0 ? entries.length : at, 0, entry)
       all.set(id, entry)
     }
@@ -204,7 +207,11 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
     shadowed.set(event.shadowedBy, stats)
   }
 
-  return { trace, turns, lanes, byId, ordinals, locate, hidden, results, entries: all, shadowed }
+  const requests: LedgerModel['requests'] = new Map()
+  for (const lane of lanes)
+    lane.requests.forEach((entry, index) => requests.set(entry.id, { entry, lane, index }))
+
+  return { trace, turns, lanes, byId, ordinals, locate, hidden, results, requests, entries: all, shadowed }
 }
 
 /** One hook of a folded run, drawn when its hooks row is expanded. Hooks carry no row number. */
@@ -212,12 +219,13 @@ function hookEntry(eventId: string): Entry {
   return { type: 'event', id: `e:${eventId}`, eventId, kind: 'hook', ordinal: 0 }
 }
 
-function firstSeqOf(entry: Entry, byId: Map<string, TraceEvent>): number {
+/** The events an entry draws, its main event first (a subagent row: the spawn call, then its lane's rows). */
+export function entryEventIds(entry: Entry): string[] {
   switch (entry.type) {
     case 'event':
-    case 'compaction': return byId.get(entry.eventId)!.seq
-    case 'hooks': return byId.get(entry.eventIds[0]!)!.seq
-    case 'subagent': return entry.eventId ? byId.get(entry.eventId)!.seq : firstSeqOf(entry.children[0]!, byId)
+    case 'compaction': return [entry.eventId]
+    case 'hooks': return entry.eventIds
+    case 'subagent': return [...(entry.eventId ? [entry.eventId] : []), ...entry.children.flatMap(entryEventIds)]
   }
 }
 
@@ -233,12 +241,12 @@ export interface LedgerView {
 
 export type VirtualRow =
   | { key: string, type: 'turn', group: TurnGroup, collapsed: boolean, size: number }
-  | { key: string, type: 'entry', entry: Entry, depth: 0 | 1, expanded: boolean, size: number }
+  | { key: string, type: 'entry', entry: Entry, depth: 0 | 1, expanded: boolean, size: number, /** Inside an expanded subagent lane. */ lane: boolean }
 
 /** Fixed heights (3.6): 36 px rows, 40 px turn headers; the design's hook fold row is 30 px and the compaction row 44 px. */
 export const ROW_SIZE = { turn: 40, event: 36, hooks: 30, compaction: 44 } as const
 
-export function rowSize(row: { type: 'turn' } | { type: 'entry', entry: Entry }): number {
+function rowSize(row: { type: 'turn' } | { type: 'entry', entry: Entry }): number {
   if (row.type === 'turn')
     return ROW_SIZE.turn
   if (row.entry.type === 'hooks')
@@ -252,28 +260,15 @@ export function isFailedResult(event: TraceEvent | undefined): boolean {
   return event?.kind === 'tool_result' && event.payload.isError === true
 }
 
-function entryTs(entry: Entry, byId: Map<string, TraceEvent>): number[] {
-  switch (entry.type) {
-    case 'event':
-    case 'compaction': return [byId.get(entry.eventId)!.ts]
-    case 'hooks': return entry.eventIds.map(id => byId.get(id)!.ts)
-    case 'subagent': return [
-      ...(entry.eventId ? [byId.get(entry.eventId)!.ts] : []),
-      ...entry.children.flatMap(child => entryTs(child, byId)),
-    ]
-  }
-}
-
 /** Whether an entry passes the kind chip and the brush range. A subagent row passes when one of its rows does. */
 export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView): boolean {
-  const range = view.range
-  const inside = (ts: number) => range === undefined || (ts >= range.from && ts <= range.to)
+  const inside = (ts: number) => inRange(ts, view.range)
   if (entry.type === 'subagent') {
     if (view.filter === 'all' && entry.eventId && inside(model.byId.get(entry.eventId)!.ts))
       return true
     return entry.children.some(child => entryMatches(child, model, view))
   }
-  if (!entryTs(entry, model.byId).some(inside))
+  if (!entryEventIds(entry).some(id => inside(model.byId.get(id)!.ts)))
     return false
   if (view.filter === 'all')
     return true
@@ -286,22 +281,22 @@ export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView)
   return entry.kind === 'tool' && isFailedResult(entry.resultId ? model.byId.get(entry.resultId) : undefined)
 }
 
-function pushEntry(out: VirtualRow[], entry: Entry, depth: 0 | 1, model: LedgerModel, view: LedgerView): void {
+function pushEntry(out: VirtualRow[], entry: Entry, depth: 0 | 1, lane: boolean, model: LedgerModel, view: LedgerView): void {
   if (!entryMatches(entry, model, view))
     return
   const expanded = view.expanded.has(entry.id)
-  out.push({ key: entry.id, type: 'entry', entry, depth, expanded, size: rowSize({ type: 'entry', entry }) })
+  out.push({ key: entry.id, type: 'entry', entry, depth, expanded, lane, size: rowSize({ type: 'entry', entry }) })
   if (!expanded)
     return
   if (entry.type === 'subagent') {
     for (const child of entry.children)
-      pushEntry(out, child, 1, model, view)
+      pushEntry(out, child, 1, true, model, view)
   }
   else if (entry.type === 'hooks') {
     for (const eventId of entry.eventIds) {
       const hook = hookEntry(eventId)
       if (entryMatches(hook, model, view))
-        out.push({ key: hook.id, type: 'entry', entry: hook, depth: 1, expanded: false, size: ROW_SIZE.event })
+        out.push({ key: hook.id, type: 'entry', entry: hook, depth: 1, expanded: false, lane, size: ROW_SIZE.event })
     }
   }
 }
@@ -318,7 +313,7 @@ export function flattenLedger(model: LedgerModel, view: LedgerView): VirtualRow[
   for (const group of model.turns) {
     const rows: VirtualRow[] = []
     for (const entry of group.entries)
-      pushEntry(rows, entry, 0, model, view)
+      pushEntry(rows, entry, 0, false, model, view)
     if (filtering && rows.length === 0)
       continue
     const collapsed = view.collapsed.has(group.id)
@@ -344,8 +339,24 @@ export function countEvents(trace: Trace, range?: { from: number, to: number }):
     return trace.events.length
   let count = 0
   for (const event of trace.events) {
-    if (event.ts >= range.from && event.ts <= range.to)
+    if (inRange(event.ts, range))
       count += 1
   }
   return count
+}
+
+/**
+ * The row the keyboard continues from: the selected row when it is drawn, else the header
+ * of its turn (collapse, a chip, or the range hid it), else nothing.
+ */
+export function anchorIndex(rows: readonly VirtualRow[], model: LedgerModel, key: string | undefined): number {
+  if (!key)
+    return -1
+  const at = rows.findIndex(row => row.key === key)
+  if (at >= 0)
+    return at
+  const entry = model.entries.get(key)
+  const eventId = entry ? entryEventIds(entry)[0] : undefined
+  const turnId = eventId ? model.locate.get(eventId)?.turnId : undefined
+  return turnId ? rows.findIndex(row => row.key === turnId) : -1
 }

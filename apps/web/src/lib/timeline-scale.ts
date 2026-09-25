@@ -169,10 +169,3 @@ export function bucketBars(inputs: readonly BarInput[], scale: TimeScale, minGap
   }
   return out
 }
-
-/** Characters that fit `width` px of text at roughly `charPx` px each, with an ellipsis. */
-export function fitText(text: string, width: number, charPx: number): string {
-  const max = Math.max(1, Math.floor(width / charPx))
-  const chars = [...text]
-  return chars.length <= max ? text : `${chars.slice(0, Math.max(1, max - 1)).join('')}…`
-}
