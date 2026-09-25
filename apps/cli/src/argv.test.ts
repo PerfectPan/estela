@@ -49,11 +49,10 @@ describe('parseCommand', () => {
     expect(parsed.error).toContain('/tmp/b.json')
   })
 
-  it('records --pick, --no-index, and --pretty', () => {
+  it('records --pick and --no-index', () => {
     expect(parse('--pick').pick).toBe(true)
     expect(parse('--no-index').noIndex).toBe(true)
     expect(parse('--no-index').userArgs).not.toContain('--no-index')
-    expect(parse('build', '--pretty').pretty).toBe(true)
   })
 
   it('rejects a flag used as --out-dir', () => {

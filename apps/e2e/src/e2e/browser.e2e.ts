@@ -1,6 +1,12 @@
+import type { Page } from '@playwright/test'
 import { ctx, expect, test } from './harness.ts'
 
 const HOSTS = ['claude-code', 'codex', 'grok'] as const
+
+/** The count at the right of a host's rail row. */
+function railCount(page: Page, host: string) {
+  return page.locator(`button[data-host="${host}"] > span`).last()
+}
 
 test('S1: the opened URL shows sessions from all three hosts with per-host counts', async ({ page, launch }) => {
   // Auth on: the opener gets DevFrame's one-time code in the URL, as a user's browser would.
@@ -8,22 +14,24 @@ test('S1: the opened URL shows sessions from all three hosts with per-host count
   const [opened] = server.opened()
   expect(opened).toContain('#devframe_otp=')
   await page.goto(opened!)
-  await expect(page.locator('[data-ref]')).toHaveCount(Object.values(ctx.homes.counts).reduce((sum, count) => sum + count, 0))
+  const { counts } = ctx.homes.main
+  await expect(page.locator('[data-ref]')).toHaveCount(counts['claude-code'] + counts.codex + counts.grok)
   for (const host of HOSTS) {
-    const count = ctx.homes.counts[host]
-    await expect(page.locator(`[data-ref][data-host="${host}"]`)).toHaveCount(count)
-    await expect(page.locator(`button[data-host="${host}"]`)).toContainText(String(count))
+    await expect(page.locator(`[data-ref][data-host="${host}"]`)).toHaveCount(counts[host])
+    await expect(railCount(page, host)).toHaveText(String(counts[host]))
   }
 })
 
 test('S3: a home without ~/.codex shows Codex with 0 and the checked path', async ({ page, launch }) => {
-  const server = await launch({ args: ['--no-auth', '--no-open'], home: ctx.homes.noCodex })
+  const { home, counts } = ctx.homes.noCodex
+  const server = await launch({ args: ['--no-auth', '--no-open'], home })
   await page.goto(server.base)
-  const codex = page.locator('button[data-host="codex"]')
-  await expect(codex).toContainText('0')
-  await expect(codex).toContainText('.codex')
-  await expect(page.locator('[data-ref][data-host="claude-code"]')).toHaveCount(ctx.homes.counts['claude-code'])
-  await expect(page.locator('[data-ref][data-host="grok"]')).toHaveCount(ctx.homes.counts.grok)
+  await expect(railCount(page, 'codex')).toHaveText('0')
+  await expect(page.locator('button[data-host="codex"]')).toContainText('~/.codex')
+  for (const host of ['claude-code', 'grok'] as const) {
+    await expect(page.locator(`[data-ref][data-host="${host}"]`)).toHaveCount(counts[host])
+    await expect(railCount(page, host)).toHaveText(String(counts[host]))
+  }
   await expect(page.locator('[data-ref][data-host="codex"]')).toHaveCount(0)
 })
 

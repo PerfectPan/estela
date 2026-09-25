@@ -4,7 +4,7 @@ test.describe('S11: theme', () => {
   test.use({ colorScheme: 'light' })
 
   test('the first load follows the light system scheme; a switch to dark survives a reload', async ({ page, launch }) => {
-    await openWorkspace(page, launch, ctx.homes.sessions.claudePlain)
+    await openWorkspace(page, launch, ctx.homes.main.claudePlain)
     const root = page.locator('html')
     await expect(root).toHaveAttribute('data-theme', 'light')
     const toggle = page.getByTestId('theme-switch')
@@ -23,7 +23,7 @@ test.describe('S14: language', () => {
   test.use({ locale: 'zh-CN' })
 
   test('zh-CN shows Chinese labels and dates, keeps session text, and English survives a reload', async ({ page, launch }) => {
-    await openWorkspace(page, launch, ctx.homes.sessions.claudeCompaction)
+    await openWorkspace(page, launch, ctx.homes.main.claudeRising)
     const root = page.locator('html')
     const header = page.locator('section').first()
     const promptText = async (kind: string) => {

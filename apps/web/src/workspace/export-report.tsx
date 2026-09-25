@@ -1,7 +1,8 @@
 import type { ExportReportResult } from '@rivus/agent-trace-rpc'
-import { Match, Show, Switch, createSignal, onCleanup } from 'solid-js'
+import { Match, Show, Switch, createSignal } from 'solid-js'
 import { ExportIcon } from '@/components/icons.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
+import { messageOf } from '@/lib/error-message.ts'
 import { formatBytes, formatNumber } from '@/lib/format.ts'
 import { scopedClient } from '@/shell/client.ts'
 
@@ -15,12 +16,6 @@ type ExportState =
   | { status: 'done', result: ExportReportResult }
   | { status: 'error', reason: string }
 
-function reasonOf(error: unknown): string {
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
-    return error.message
-  return String(error)
-}
-
 /**
  * "Export report" and its dialog (plan 3.9): what the report holds and what stays in it, then
  * `export-report` for this session, then where it was written.
@@ -30,6 +25,7 @@ export function ExportReport(props: { sessionRef: string }) {
   const [state, setState] = createSignal<ExportState>({ status: 'idle' })
   let confirm: HTMLButtonElement | undefined
   let trigger: HTMLButtonElement | undefined
+  let dialog: HTMLDivElement | undefined
 
   function show(): void {
     if (state().status !== 'writing')
@@ -47,17 +43,39 @@ export function ExportReport(props: { sessionRef: string }) {
       const ctx = await scopedClient()
       const result = await ctx.rpc.call('export-report', { ref: props.sessionRef, locale: locale() })
       setState({ status: 'done', result })
+      // The Export button is gone now; keep focus in the dialog.
+      dialog?.querySelector<HTMLElement>('button')?.focus()
     }
     catch (error) {
-      setState({ status: 'error', reason: reasonOf(error) })
+      setState({ status: 'error', reason: messageOf(error) })
+      confirm?.focus()
     }
   }
-  const onKey = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && open())
+  /** Modal: Escape closes it and goes no further (the workspace clears its range on Escape); Tab stays inside. */
+  function onKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
       hide()
+      return
+    }
+    if (event.key !== 'Tab' || !dialog)
+      return
+    const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')]
+    if (focusable.length === 0)
+      return
+    const first = focusable[0]!
+    const last = focusable.at(-1)!
+    const inside = focusable.includes(document.activeElement as HTMLElement)
+    if (event.shiftKey && (document.activeElement === first || !inside)) {
+      event.preventDefault()
+      last.focus()
+    }
+    else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+      event.preventDefault()
+      first.focus()
+    }
   }
-  window.addEventListener('keydown', onKey)
-  onCleanup(() => window.removeEventListener('keydown', onKey))
 
   const written = () => {
     const current = state()
@@ -86,11 +104,15 @@ export function ExportReport(props: { sessionRef: string }) {
       <Show when={open()}>
         <div class="fixed inset-0 z-50 grid place-items-center bg-background/80 px-6" onClick={event => event.target === event.currentTarget && hide()}>
           <div
+            ref={(element) => {
+              dialog = element
+            }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="export-title"
             class="flex w-full max-w-[520px] flex-col gap-3 rounded-xl border border-border bg-secondary p-5 text-[13px] shadow-lg"
             data-testid="export-dialog"
+            onKeyDown={onKey}
           >
             <h2 id="export-title" class="m-0 text-[15px] font-semibold text-foreground">{t('report.dialogTitle')}</h2>
             <p class="m-0 text-muted-foreground">{t('report.dialogBody')}</p>

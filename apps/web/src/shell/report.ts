@@ -1,9 +1,7 @@
 import type { ReportTrace } from '@rivus/agent-trace-rpc'
 
-/** Must match `REPORT_ELEMENT_ID` in `apps/cli/src/report-site.ts`: the baked `report-trace` output. */
+/** Must match `REPORT_ELEMENT_ID` in `apps/cli/src/report-site.ts`: the baked `report-trace` output. Read once, in `main.tsx`. */
 const REPORT_ELEMENT_ID = 'report-trace'
-
-let cached: { report: ReportTrace | undefined } | undefined
 
 /**
  * The report this page is, or `undefined` on the dev server. `build` and "Export report" put
@@ -12,9 +10,6 @@ let cached: { report: ReportTrace | undefined } | undefined
  * only, and no call that needs a server.
  */
 export function reportTrace(): ReportTrace | undefined {
-  if (!cached) {
-    const text = document.getElementById(REPORT_ELEMENT_ID)?.textContent
-    cached = { report: text ? JSON.parse(text) as ReportTrace : undefined }
-  }
-  return cached.report
+  const text = document.getElementById(REPORT_ELEMENT_ID)?.textContent
+  return text ? JSON.parse(text) as ReportTrace : undefined
 }

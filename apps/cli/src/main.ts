@@ -12,8 +12,8 @@ import { SessionCatalog } from './catalog.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
 import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
-import { exportReport, reportOfLoaded, writeReport } from './report.ts'
-import { registeredHosts, Session } from './session.ts'
+import { exportReport, reportOf, writeReport } from './report.ts'
+import { registeredHosts, sessionLoader } from './session.ts'
 import { createTraceStore } from './trace-store.ts'
 import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, sayWarning, startLoad } from './terminal.ts'
 import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
@@ -68,11 +68,11 @@ export async function main(): Promise<void> {
     // `build` and `mcp` always redact; only the local server honors `AGENT_TRACE_REDACT=0`.
     const sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
     const current: ResolvedSession = { key: sessionPath, path: sessionPath }
-    const session = new Session(sessionPath)
+    const load = sessionLoader(sessionPath)
     const traces = createTraceStore({ adapters: registeredHosts, redacts: true })
     bindTraceStore(traces.store)
     if (parsed.command === 'mcp') {
-      await traces.seed(current, await loadOrExit(session))
+      await traces.seed(current, await loadOrExit(load, sessionPath))
       await handle.parse(programArgv(parsed.userArgs))
       return
     }
@@ -81,13 +81,14 @@ export async function main(): Promise<void> {
     try {
       await sayBuild(pkg.version, {
         load: async () => {
-          const trace = await session.load()
+          const trace = await load()
           // One load per build: the store gets this trace, so nothing reads the file again.
           await traces.seed(current, trace)
           return `${trace.events.length} events`
         },
         redact: async () => {
-          report = await reportOfLoaded(traces.store, CURRENT_REF, await session.load())
+          const byId = new Map((await load()).events.map(event => [event.id, event]))
+          report = await reportOf(traces.store, CURRENT_REF, async ids => ids.map(id => byId.get(id)!))
           const included = report.truncated ? `; original records for the first ${report.events.length}` : ''
           return `redacted ${report.total} events${included}`
         },
@@ -98,7 +99,7 @@ export async function main(): Promise<void> {
       })
     }
     catch (error) {
-      sayError(`Could not build ${session.path}: ${messageOf(error)}`, FIX)
+      sayError(`Could not build ${sessionPath}: ${messageOf(error)}`, FIX)
       process.exit(1)
     }
     return
@@ -182,12 +183,12 @@ async function loadLaunch(target: ResolvedSession['path'], failure: string): Pro
 }
 
 /** `mcp` writes only to stderr: stdout carries the protocol. */
-async function loadOrExit(session: Session): Promise<Trace> {
+async function loadOrExit(load: () => Promise<Trace>, path: string): Promise<Trace> {
   try {
-    return await session.load()
+    return await load()
   }
   catch (error) {
-    process.stderr.write(`Could not load ${session.path}: ${messageOf(error)}\n${FIX}\n`)
+    process.stderr.write(`Could not load ${path}: ${messageOf(error)}\n${FIX}\n`)
     process.exit(1)
   }
 }

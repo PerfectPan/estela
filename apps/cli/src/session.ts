@@ -7,17 +7,11 @@ import { nodeIO } from '@rivus/agent-trace-runtime-node'
 
 export const registeredHosts = [claudeCodeAdapter, codexAdapter, grokAdapter]
 
-/** The one session `build` and `mcp` work on, loaded once with its original records. */
-export class Session {
-  readonly path: string
-  private raw: Trace | undefined
-
-  constructor(path: string) {
-    this.path = path
-  }
-
-  async load(): Promise<Trace> {
-    this.raw ??= await loadTrace(this.path, registeredHosts, nodeIO)
-    return this.raw
+/** The one session `build` and `mcp` work on: loaded once, with its original records. */
+export function sessionLoader(path: string): () => Promise<Trace> {
+  let loaded: Promise<Trace> | undefined
+  return () => {
+    loaded ??= loadTrace(path, registeredHosts, nodeIO)
+    return loaded
   }
 }

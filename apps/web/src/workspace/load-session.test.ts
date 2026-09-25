@@ -124,9 +124,7 @@ describe('createSessionLoad', () => {
       summary: {},
       events: [{ ...event('a', 'full text'), original: { raw: true } }],
       total: 2,
-      eventBytes: 10,
       truncated: true,
-      limits: { events: 2000, bytes: 20_000_000 },
     }
     const session = reportSession(report)
     expect(await session.event('a')).toMatchObject({ payload: { text: 'full text' }, original: { raw: true } })

@@ -1,9 +1,10 @@
-import { readFile, rm, writeFile } from 'node:fs/promises'
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { NAMESPACE } from '@rivus/agent-trace-rpc'
 
 /** The `<script type="application/json">` id the SPA looks for (`apps/web/src/shell/report.ts`). */
-export const REPORT_ELEMENT_ID = 'report-trace'
-const METHOD = 'agent-trace:report-trace'
+const REPORT_ELEMENT_ID = 'report-trace'
+const METHOD = `${NAMESPACE}:report-trace`
 
 interface DumpEntry {
   type?: string
@@ -66,6 +67,10 @@ export async function packForFile(outDir: string): Promise<void> {
   const style = /<link rel="stylesheet" crossorigin href="\.\/assets\/([^"]+\.css)">/.exec(html)
   if (!script || !style)
     throw new Error('the web build has no module script or stylesheet in index.html')
+  // Only the entry is inlined; any other script would be dropped and fail to load from disk.
+  const extra = (await readdir(assets)).filter(name => name.endsWith('.js') && name !== script[1])
+  if (extra.length > 0)
+    throw new Error(`the web build has scripts besides its entry (${extra.join(', ')}); build it as one chunk`)
   const code = await readFile(join(assets, script[1]!), 'utf8')
   const css = await inlineFonts(await readFile(join(assets, style[1]!), 'utf8'), assets)
   const data = `<script type="application/json" id="${REPORT_ELEMENT_ID}">${jsonSafe(report)}</script>`

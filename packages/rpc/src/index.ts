@@ -28,7 +28,7 @@ export {
   type SessionsSignal,
 } from './list-types.ts'
 export { bindSessionPublisher, emitSessions } from './publish.ts'
-export { buildReport, REPORT_MAX_BYTES, REPORT_MAX_EVENTS, type ReportInput, type ReportLocale, type ReportTrace } from './report.ts'
+export { buildReport, type ReportLocale, type ReportTrace } from './report.ts'
 export {
   LoadCancelledError,
   TraceStore,

@@ -2,6 +2,7 @@ import type { SessionSummary } from '@rivus/agent-trace-kernel'
 import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { createSignal, onCleanup } from 'solid-js'
+import { messageOf } from '@/lib/error-message.ts'
 import { devframeClient, scopedClient } from '@/shell/client.ts'
 
 /** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/agent-trace-rpc` (the web app imports only its types). */
@@ -41,13 +42,6 @@ function parseFailure(message: string): LoadFailure {
   return { host: match[1], file: match[2], line: Number(match[3]), reason: match[4]! }
 }
 
-function messageOf(error: unknown): string {
-  if (error instanceof Error)
-    return error.message
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
-    return error.message
-  return String(error)
-}
 
 function isCancelled(error: unknown): boolean {
   return error instanceof Error && error.name === 'LoadCancelledError'

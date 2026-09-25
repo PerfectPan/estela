@@ -156,4 +156,40 @@ describe('TraceStore', () => {
     expect(loads).toEqual([])
     expect((await store.reconstruct('a', 'u1')).visibleIds).toEqual(['u1'])
   })
+  it('withEvents reads source pointers in the order asked', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', Array.from({ length: 100 }, (_, index) => ({ id: `e${index}`, kind: 'user', text: `t${index}` })))
+    const { store } = storeOf({ io: f.io, parse: f.parse })
+    await store.view('a')
+    const before = f.reads.length
+    const ids = Array.from({ length: 100 }, (_, index) => `e${99 - index}`)
+    const events = await store.withEvents('a', read => read(ids))
+    expect(events.map(event => event.id)).toEqual(ids)
+    expect(f.reads.length - before).toBe(100)
+  })
+
+  it('withEvents reloads a canonical file once for all of its reads', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', Array.from({ length: 6 }, (_, index) => ({ id: `e${index}`, kind: 'user' })))
+    let loads = 0
+    const { store } = storeOf({
+      io: f.io,
+      parse: f.parse,
+      load: async session => {
+        loads += 1
+        return { trace: f.parse(session.path as string), canonical: true }
+      },
+    })
+    await store.view('a')
+    const got = await store.withEvents('a', async (read) => {
+      const first = await read(['e0', 'e1', 'e2'])
+      const second = await read(['e3', 'e4', 'e5'])
+      return [...first, ...second].map(event => (event.original as { id: string }).id)
+    })
+    expect(got).toEqual(['e0', 'e1', 'e2', 'e3', 'e4', 'e5'])
+    // One load for the view, one reload for both batches.
+    expect(loads).toBe(2)
+    await store.event('a', 'e0')
+    expect(loads).toBe(3)
+  })
 })

@@ -11,25 +11,34 @@ export interface RunResult {
   stderr: string
 }
 
+/** Where a CLI run lives: its `HOME`, its `XDG_CACHE_HOME`, and the directory with the fake opener. */
+export interface CliHome {
+  home: string
+  cache: string
+  fakeBin: string
+}
+
 /**
  * The environment a user has: synthetic `HOME`, a cache dir inside the run, the fake opener first
- * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` from the caller, and no npm notices.
+ * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `AGENT_TRACE_*` from the caller, and no npm notices.
+ * `extra` goes on top (for example `AGENT_TRACE_REDACT=0`).
  */
-export function smokeEnv(ctx: SmokeContext, openLog: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    HOME: ctx.home,
-    XDG_CACHE_HOME: ctx.cache,
-    PATH: `${ctx.fakeBin}:${process.env.PATH ?? ''}`,
+export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  for (const name of ['NO_COLOR', 'FORCE_COLOR', 'AGENT_TRACE_PATH', 'AGENT_TRACE_REDACT'])
+    delete env[name]
+  return {
+    ...env,
+    HOME: where.home,
+    XDG_CACHE_HOME: where.cache,
+    PATH: `${where.fakeBin}:${process.env.PATH ?? ''}`,
     AGENT_TRACE_SMOKE_OPEN_LOG: openLog,
     // A fresh HOME means a fresh npm update check; its notice would land in the output under test.
     npm_config_update_notifier: 'false',
     npm_config_fund: 'false',
     npm_config_audit: 'false',
+    ...extra,
   }
-  for (const name of ['NO_COLOR', 'FORCE_COLOR', 'AGENT_TRACE_PATH', 'AGENT_TRACE_REDACT'])
-    delete env[name]
-  return env
 }
 
 /** URLs the fake opener recorded, in order. */

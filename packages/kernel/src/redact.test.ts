@@ -62,6 +62,23 @@ describe('redact', () => {
     expect(textOf(`${home.toUpperCase()}/x`, home)).not.toContain(home.toUpperCase())
   })
 
+  it('replaces the home directory after any character, without its leading slash, and JSON-escaped', () => {
+    const bare = home.slice(1)
+    const escaped = home.replaceAll('/', '\\/')
+    expect(textOf(`diff --git a${home}/x b${home}/x`, home)).toContain('diff --git a~/x b~/x')
+    expect(textOf(`--- a${home}/x`, home)).not.toContain('alice')
+    expect(textOf(`file://${home}/x`, home)).toContain('file://~/x')
+    expect(textOf(`cd ${bare}/x`, home)).toContain('cd ~/x')
+    expect(textOf(`"${bare.toUpperCase()}/x"`, home)).not.toMatch(/alice/i)
+    const raw = redact({ text: `{"cwd":"${escaped}\\/x"}` }, { homeDir: home })
+    expect(raw.text).toBe('{"cwd":"~\\/x"}')
+    // The same segment rules as the literal form.
+    expect(textOf(`${bare}x ${escaped}.bak`, home)).toContain(`${bare}x`)
+    expect(redact({ text: `${escaped}.bak` }, { homeDir: home }).text).toBe(`${escaped}.bak`)
+    // A longer name before the slash-less form is another path, not the home directory.
+    expect(textOf(`My${bare}/x`, home)).toContain(`My${bare}/x`)
+  })
+
   it('replaces dash-encoded and percent-encoded home directories', () => {
     const dash = home.replaceAll('/', '-')
     const encoded = home.replaceAll('/', '%2F')

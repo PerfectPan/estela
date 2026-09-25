@@ -1,4 +1,4 @@
-import { chmodSync, closeSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs'
+import { chmodSync, closeSync, existsSync, fchmodSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
@@ -12,32 +12,71 @@ const INDEX_LAYOUT_VERSION = 1
 const BUSY_TIMEOUT_MS = 200
 /** SQLITE_CORRUPT and SQLITE_NOTADB. */
 const BROKEN_CODES = new Set([11, 26])
+/** SQLITE_BUSY and SQLITE_LOCKED: another process holds the write lock; open again. */
+const BUSY_CODES = new Set([5, 6])
 /** A rebuild lock older than this is left over from a crashed process. */
 const STALE_LOCK_MS = 10_000
-const LOCK_WAIT_MS = 2_000
+/** How long an open waits for another process's rebuild or write lock before it gives up. */
+const LOCK_WAIT_MS = 5_000
 
 /**
  * Open the index at `file`: the directory is 0700 (also when it already exists) and the file
  * 0600 before SQLite touches it; SQLite gives `-wal` and `-shm` the database file's mode.
  * The schema is created inside `BEGIN IMMEDIATE`, so two processes opening a fresh cache at
  * once end with one schema. The file is rebuilt only when it is not a database, is corrupt, or
- * has another layout version (plan 3.4), and only by the process holding `<file>.lock`.
- * Throws for anything else (for example EACCES or a busy lock); the caller runs without the index.
+ * has another layout version (plan 3.4), and only by the process holding `<file>.lock`; the
+ * others wait for that lock to go and open again. Throws for anything else (for example EACCES),
+ * or after `LOCK_WAIT_MS`; the caller runs without the index.
  */
 export function openDatabase(file: string): DatabaseSync {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
   chmodSync(dirname(file), 0o700)
-  closeSync(openSync(file, 'a', 0o600))
-  chmodSync(file, 0o600)
+  touchPrivate(file)
+  const lock = `${file}.lock`
+  const deadline = Date.now() + LOCK_WAIT_MS
+  for (;;) {
+    let failure: unknown
+    try {
+      return prepare(file)
+    }
+    catch (error) {
+      failure = error
+    }
+    const rebuilding = existsSync(lock)
+    if (!rebuilding && (isBroken(failure) || failure instanceof LayoutMismatch)) {
+      const rebuilt = rebuildUnderLock(file, lock)
+      if (rebuilt)
+        return rebuilt
+    }
+    else if (!rebuilding && !isBusy(failure)) {
+      throw failure
+    }
+    // Another process holds the rebuild lock or the write lock: open again once it lets go.
+    if (Date.now() > deadline)
+      throw rebuilding ? new Error(`index rebuild is locked by another process (${lock})`) : failure
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
+  }
+}
+
+/**
+ * Delete and rebuild under an exclusive-create lock file, so two processes never delete each
+ * other's fresh index. `undefined` when another process holds the lock: the caller waits and
+ * opens again. A lock older than `STALE_LOCK_MS` is left over from a crashed process.
+ */
+function rebuildUnderLock(file: string, lock: string): DatabaseSync | undefined {
   try {
-    return prepare(file)
+    closeSync(openSync(lock, 'wx', 0o600))
   }
   catch (error) {
-    if (!isBroken(error) && !(error instanceof LayoutMismatch))
+    if ((error as { code?: unknown }).code !== 'EEXIST')
       throw error
+    const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())
+    if (age > STALE_LOCK_MS)
+      rmSync(lock, { force: true })
+    return undefined
   }
-  return withRebuildLock(file, () => {
-    // Another process may have rebuilt it while this one waited for the lock.
+  try {
+    // Another process may have rebuilt it between this one's failed open and the lock.
     try {
       return prepare(file)
     }
@@ -46,47 +85,42 @@ export function openDatabase(file: string): DatabaseSync {
         throw error
     }
     removeDatabase(file)
-    closeSync(openSync(file, 'a', 0o600))
+    touchPrivate(file)
     return prepare(file)
-  })
-}
-
-/** An exclusive-create lock file around delete-and-rebuild, so two processes never delete each other's fresh index. */
-function withRebuildLock<T>(file: string, fn: () => T): T {
-  const lock = `${file}.lock`
-  const deadline = Date.now() + LOCK_WAIT_MS
-  for (;;) {
-    try {
-      closeSync(openSync(lock, 'wx', 0o600))
-      break
-    }
-    catch (error) {
-      if ((error as { code?: unknown }).code !== 'EEXIST')
-        throw error
-      const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? 0)
-      if (age > STALE_LOCK_MS)
-        rmSync(lock, { force: true })
-      else if (Date.now() > deadline)
-        // EEXIST means another process holds the lock; the timeout, not EEXIST, is the failure.
-        // oxlint-disable-next-line preserve-caught-error
-        throw new Error(`index rebuild is locked by another process (${lock})`)
-      else
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
-    }
-  }
-  try {
-    return fn()
   }
   finally {
     rmSync(lock, { force: true })
   }
 }
 
+/**
+ * Create `file` if missing and make it 0600 through the open descriptor: a path-based chmod can
+ * race with another process deleting the file for a rebuild.
+ */
+function touchPrivate(file: string): void {
+  const fd = openSync(file, 'a', 0o600)
+  try {
+    fchmodSync(fd, 0o600)
+  }
+  finally {
+    closeSync(fd)
+  }
+}
+
 class LayoutMismatch extends Error {}
 
+function errcode(error: unknown): unknown {
+  return (error as { errcode?: unknown } | null)?.errcode
+}
+
 function isBroken(error: unknown): boolean {
-  const code = (error as { errcode?: unknown } | null)?.errcode
+  const code = errcode(error)
   return typeof code === 'number' && BROKEN_CODES.has(code)
+}
+
+function isBusy(error: unknown): boolean {
+  const code = errcode(error)
+  return typeof code === 'number' && BUSY_CODES.has(code)
 }
 
 function prepare(file: string): DatabaseSync {
@@ -105,7 +139,9 @@ function prepare(file: string): DatabaseSync {
       db.exec('COMMIT')
     }
     catch (error) {
-      db.exec('ROLLBACK')
+      // SQLite may have rolled back already (a busy or I/O error); keep the first error.
+      if (db.isTransaction)
+        db.exec('ROLLBACK')
       throw error
     }
     return withWal(db)
@@ -180,7 +216,11 @@ function createSchema(db: DatabaseSync): void {
   `)
 }
 
+/**
+ * Side files first, the database last: a process that opens the path after the database is gone
+ * creates its own `-wal` and `-shm`, and they must not be deleted under it.
+ */
 function removeDatabase(file: string): void {
-  for (const suffix of ['', '-journal', '-wal', '-shm'])
+  for (const suffix of ['-wal', '-shm', '-journal', ''])
     rmSync(`${file}${suffix}`, { force: true })
 }

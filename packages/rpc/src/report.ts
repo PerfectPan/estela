@@ -20,11 +20,8 @@ export interface ReportTrace {
   events: EventDetail[]
   /** Events in the session. */
   total: number
-  /** UTF-8 bytes of `events` as serialized. */
-  eventBytes: number
   /** `events.length < total`: the report header says so, and later events show "original not included". */
   truncated: boolean
-  limits: { events: number, bytes: number }
   /** The UI locale at export time; absent for `build`, where the browser's language decides. */
   locale?: ReportLocale
 }
@@ -32,7 +29,7 @@ export interface ReportTrace {
 export interface ReportInput {
   view: TraceViewResult
   /** Full events (with `original`) for these ids, in the same order. */
-  full: (ids: string[]) => Promise<EventDetail[]>
+  full: (ids: readonly string[]) => Promise<EventDetail[]>
   /** Always applied (plan D10): the report is redacted whatever the server does. */
   redact: <T>(value: T) => T
   locale?: ReportLocale
@@ -74,9 +71,7 @@ export async function buildReport(input: ReportInput): Promise<ReportTrace> {
     summary: input.redact(input.view.summary),
     events,
     total: ids.length,
-    eventBytes,
     truncated: events.length < ids.length,
-    limits: { events: maxEvents, bytes: maxBytes },
     locale: input.locale,
   }
 }

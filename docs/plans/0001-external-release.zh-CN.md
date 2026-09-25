@@ -139,7 +139,7 @@ flowchart TB
 | `apps/cli` | `@rivus/agent-trace` | 组合根：注册 host、提供 Node 运行时、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3）和浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO`（基于 `node:fs` 的 `TraceIO`）、home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | 每个包对应一个 host：目录布局知识、解析、capability | `kernel`、`schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | 保留，本次发布中不注册 | `kernel`、`schema` |
@@ -214,7 +214,7 @@ Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已�
 备选方案：JSON 缓存文件（不能搜索，每次整文件重写）；DuckDB（`@duckdb/node-api` 在 macOS arm64 上安装后占 115 MB，扫描全部 550 MB 的 Claude Code 日志耗时 252 ms，而 Node 逐行扫描耗时 1,176 ms，但它会在 adapter 之外用 SQL 重复表述每个 host 的解析规则）；`better-sqlite3`（每个平台一个原生 addon，而 `node:sqlite` 不需要）。Node.js 22 对 `node:sqlite` 打印一条 `ExperimentalWarning`；`dist/bin.mjs` 屏蔽这一条警告，在 M1 中验证。
 
 **D8. RPC 形态与静态报告。**
-查询：`list-sessions`（不是 snapshot）、`get-trace-view(ref)`、`get-event(ref, id)`、`reconstruct(ref, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。一个 action `load-trace(ref)` 启动或加入加载，并返回 `load-progress` stream 的 id（2.3）。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数查询 `report-trace`，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
+查询：`list-sessions`（不是 snapshot）、`get-trace-view(ref)`、`get-event(ref, id)`、`reconstruct(ref, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。两个 action：`load-trace(ref)` 启动或加入加载，并返回 `load-progress` stream 的 id（2.3）；`export-report(ref, locale)` 为开发服务器上的会话写出与 `build` 相同的报告。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数 snapshot 查询 `report-trace`，它只在 DevFrame 的 build 模式下注册，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
 
 **D9. UI 技术栈与设计契约。**
 保留 Solid、Tailwind v4 和 shadcn-solid。token、调色板、字体和编码规则来自 `docs/design/README.md`，在 `styles.css` 中以 `data-theme="dark|light"` 下的 CSS 变量实现。ledger 使用 `@tanstack/solid-virtual` 3.13。timeline 和预览形状是根据 kernel 投影绘制的 SVG；不使用图表库。
@@ -603,7 +603,13 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 
 按计划实现，以下是交付过程中做出的选择：
 
-- 报告文件：在 Chromium 中，从 `file://` 打开的页面无法用 `fetch()` 读取 DevFrame 的静态 dump，无法运行模块脚本，也无法加载字体。`build` 仍然注册 `report-trace` 并由 DevFrame 烘焙；随后报告写入器把烘焙结果以 `<script type="application/json" id="report-trace">` 放入 `index.html`，内联脚本、样式和 `woff2` 字体，并删除 `assets/`、`__rpc-dump/` 和 `__connection.json`。一份报告就是一个 `index.html`。DevFrame 的 `build --pretty` 参数不再有作用。
+- RPC：D8 和 2.2 表格现在列出 `export-report` action（工作区中的“导出报告”）和 `report-trace` snapshot，后者只在 DevFrame 的 build 模式下注册。
+- 报告文件：在 Chromium 中，从 `file://` 打开的页面无法用 `fetch()` 读取 DevFrame 的静态 dump，无法运行模块脚本，也无法加载字体。`build` 仍然注册 `report-trace` 并由 DevFrame 烘焙；随后报告写入器把烘焙结果以 `<script type="application/json" id="report-trace">` 放入 `index.html`，内联脚本（web 构建只有一个 chunk）、样式和 `woff2` 字体，并删除 `assets/`、`__rpc-dump/` 和 `__connection.json`。一份报告就是一个 `index.html`。agent-trace 不再读取 `--pretty`；DevFrame 仍在 `build --help` 中列出它，但它没有作用。
+- 会话列表：行发送 `shape`（摘要的 `contextShape` 缩放到 0–100），而不是 `contextShape`。
+- 摘要在服务开始监听后才开始计算，每次 `summarize` 失败都会把该行标为“无法读取”并附上原因；3.7 中“行保留头部字段；数字显示 —”指的就是这一行。
+- 词典文件是 `apps/web/src/i18n/dictionary.en.ts` 和 `dictionary.zh-CN.ts`，而不是 `{en,zh-CN}.ts`。
+- “模型所见”列出 host 记录的每个 token 数，以及该数共同覆盖的槽位（请求的输入 token、上下文压缩的压缩后 token）；没有按槽位的计数。
+- `reconstruct` 作用于目标事件所在的泳道：子代理的请求只看到该子代理的事件。
 - 报告内容：前面的事件以完整形式包含（规范化 payload 加原始记录），而不只是原始记录，因此这些事件的截短文本也是完整的。2,000 个事件和 20 MB 的上限按这些完整事件计算。`build` 不记录语言，因此它的报告按浏览器语言打开；导出会记录界面语言。
 - 导出：“导出报告”写入服务工作目录下一个新的 `agent-trace-report-<ref>-<time>/` 目录，并显示绝对路径，主目录显示为 `~`。导出一次只运行一个。DevFrame 的 build 模式跳过会话推送，因此在开发服务器内运行的 build 不会重新绑定正在使用的共享状态。
 - 旧的 `get-trace` 已删除。`mcp` 保留基于 TraceStore 的 `reconstruct`。“模型所见”在浏览器中基于视图版 trace 计算 `reconstruct`，开发服务器和报告中都是如此。

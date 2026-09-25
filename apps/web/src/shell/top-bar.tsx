@@ -30,9 +30,9 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
           <span class="text-[15px] font-semibold tracking-[-0.01em]">{t('common.appName')}</span>
         </a>
         <nav class="flex min-w-0 items-center gap-2.5 text-[13px]">
+          <span class="text-subtle">/</span>
           {/* A report has no session list to go back to. */}
-          <Show when={!props.report} fallback={<><span class="text-subtle">/</span><span class="text-muted-foreground">{t('report.title')}</span></>}>
-            <span class="text-subtle">/</span>
+          <Show when={!props.report} fallback={<span class="text-muted-foreground">{t('report.title')}</span>}>
             <a href="#/" class={crumbs().length > 0 ? 'text-muted-foreground hover:text-foreground' : 'text-foreground'}>
               {t('common.sessions')}
             </a>

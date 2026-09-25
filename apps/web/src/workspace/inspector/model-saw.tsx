@@ -149,11 +149,11 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
           </For>
         </ul>
         <Show when={(result().tokens?.length ?? 0) > 0}>
-          <div class="flex flex-col gap-1.5">
+          <div class="flex flex-col gap-1.5" data-testid="recorded-counts">
             <span class="text-[12px] text-subtle">{t('inspector.recordedCounts')}</span>
             <For each={result().tokens}>
               {group => (
-                <div class="flex items-baseline gap-2.5 text-[12.5px]">
+                <div class="flex items-baseline gap-2.5 text-[12.5px]" data-from={group.from} data-tokens={group.tokens} data-slots={group.slots.join(' ')}>
                   <span class="w-[52px] shrink-0 font-mono text-foreground">{formatTokens(group.tokens)}</span>
                   <span class="text-muted-foreground">
                     {group.from === 'request.inputTokens' ? t('inspector.fromInput') : t('inspector.fromPost')}

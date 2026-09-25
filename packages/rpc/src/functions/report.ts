@@ -12,7 +12,6 @@ export interface ExportReportResult {
   /** Events whose original record the report includes, and events in the session. */
   included: number
   total: number
-  truncated: boolean
 }
 
 let source: (() => Promise<ReportTrace>) | undefined

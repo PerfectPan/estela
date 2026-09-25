@@ -1,14 +1,18 @@
 import type { Page } from '@playwright/test'
 import type { Server } from '../cli-process.ts'
 import type { E2eContext } from './global-setup.ts'
+import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
+import { promisify } from 'node:util'
 import { test as base, expect } from '@playwright/test'
-import { openedUrls, start, waitFor } from '../cli-process.ts'
+import { openedUrls, smokeEnv, start, waitFor } from '../cli-process.ts'
 import { CONTEXT_ENV } from './global-setup.ts'
 
 export { expect }
+
+const exec = promisify(execFile)
 
 export interface Launched {
   /** `http://localhost:<port>/__agent-trace/`. */
@@ -19,7 +23,6 @@ export interface Launched {
   opened: () => string[]
   /** The server's working directory ("Export report" writes here). */
   cwd: string
-  output: () => { stdout: string, stderr: string }
 }
 
 export interface LaunchOptions {
@@ -51,22 +54,6 @@ export const ctx = readContext()
 
 let runs = 0
 
-/** A user's environment: the synthetic home, a fresh cache, the fake opener first on `PATH`, no color overrides. */
-function cliEnv(home: string, cache: string, openLog: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    HOME: home,
-    XDG_CACHE_HOME: cache,
-    PATH: `${ctx.fakeBin}:${process.env.PATH ?? ''}`,
-    AGENT_TRACE_SMOKE_OPEN_LOG: openLog,
-    npm_config_update_notifier: 'false',
-    ...extra,
-  }
-  for (const name of ['NO_COLOR', 'FORCE_COLOR', 'AGENT_TRACE_PATH', ...(extra.AGENT_TRACE_REDACT ? [] : ['AGENT_TRACE_REDACT'])])
-    delete env[name]
-  return env
-}
-
 export const test = base.extend<Fixtures>({
   consoleErrors: [async ({ context }, use) => {
     const errors: string[] = []
@@ -79,7 +66,8 @@ export const test = base.extend<Fixtures>({
     expect(errors, 'console errors').toEqual([])
   }, { auto: true }],
 
-  launch: async ({ browserName: _browserName }, use) => {
+  // eslint-disable-next-line no-empty-pattern -- Playwright reads the fixture's dependencies from this pattern.
+  launch: async ({}, use) => {
     const servers: Server[] = []
     await use(async (options = {}) => {
       runs += 1
@@ -87,9 +75,10 @@ export const test = base.extend<Fixtures>({
       const cache = join(cwd, 'cache')
       await mkdir(cache, { recursive: true })
       const openLog = join(cwd, 'opened.log')
+      const home = options.home ?? ctx.homes.main.home
       const server = start(process.execPath, [ctx.bin, ...(options.args ?? []), '--port', '0'], {
         cwd,
-        env: cliEnv(options.home ?? ctx.homes.main, cache, openLog, options.env),
+        env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin }, openLog, options.env),
       })
       servers.push(server)
       const ready = () => READY.exec(server.output().stdout)
@@ -98,7 +87,7 @@ export const test = base.extend<Fixtures>({
           throw new Error(`${error.message}\nstdout:\n${server.output().stdout}\nstderr:\n${server.output().stderr}`)
         })
       const match = ready()!
-      return { base: match[1]!, ref: match[2], opened: () => openedUrls(openLog), cwd, output: server.output }
+      return { base: match[1]!, ref: match[2], opened: () => openedUrls(openLog), cwd }
     })
     for (const server of servers)
       await server.stop()
@@ -113,7 +102,20 @@ export async function openWorkspace(page: Page, launch: Fixtures['launch'], path
   return server
 }
 
-/** Visible text of the open inspector tab panel. */
+/** The open inspector tab panel. */
 export function activePanel(page: Page) {
   return page.locator('[role=tabpanel]:not([hidden])')
+}
+
+/** `scripts/generate-trace.mjs`: a synthetic canonical trace of about `events` events in `dir`; returns its path. */
+export async function generateTrace(dir: string, events: number): Promise<string> {
+  const { stdout } = await exec(process.execPath, [join(ctx.repo, 'scripts/generate-trace.mjs'), '--events', String(events), '--out', dir])
+  // The script prints the path, then a summary line.
+  return stdout.split('\n')[0]!
+}
+
+/** `packages/host-codex/testing/large-session.ts` run by path: a synthetic Codex rollout of at least `bytes` in `dir`. */
+export async function generateCodex(dir: string, bytes: number): Promise<{ path: string, bytes: number, turns: number, longOutputs: number }> {
+  const { stdout } = await exec(process.execPath, [join(ctx.repo, 'packages/host-codex/testing/large-session.ts'), dir, String(bytes)], { maxBuffer: 1024 * 1024 })
+  return JSON.parse(stdout) as { path: string, bytes: number, turns: number, longOutputs: number }
 }
