@@ -14,4 +14,6 @@ npx @rivus/agent-trace mcp <session-path>      # MCP server on stdio
 
 The server binds `localhost`. `build` always redacts the home directory and known token patterns. The session index is a cache at `$XDG_CACHE_HOME/rivus-agent-trace/` (default `~/.cache/rivus-agent-trace/`); delete it at any time.
 
+Licenses of the bundled third-party code: `dist/THIRD-PARTY-NOTICES.txt`.
+
 Source and issues: https://github.com/PerfectPan/agent-trace

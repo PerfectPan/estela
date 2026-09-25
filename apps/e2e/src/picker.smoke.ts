@@ -6,26 +6,9 @@ import { openedUrls, openLogPath, readyUrl, smokeEnv, start, waitFor } from './c
 
 const ctx = inject('smoke')
 
-const OSC8 = '\u001B]8;;'
-const ST = '\u001B\\'
-
-/** Terminal text without OSC 8 hyperlink markers (the link text stays) or other escape sequences. */
-function visibleText(raw: string): string {
-  let text = ''
-  let at = 0
-  for (let open = raw.indexOf(OSC8); open !== -1; open = raw.indexOf(OSC8, at)) {
-    const end = raw.indexOf(ST, open + OSC8.length)
-    if (end === -1)
-      break
-    text += raw.slice(at, open)
-    at = end + ST.length
-  }
-  return stripVTControlCharacters(text + raw.slice(at))
-}
-
 /** The three lines of clack's Ready box (top border, URL, bottom border), once drawn. */
 function readyBox(raw: string): string[] {
-  const lines = visibleText(raw).split(/\r?\n/)
+  const lines = stripVTControlCharacters(raw).split(/\r?\n/)
   const top = lines.findIndex(line => line.includes('┌─Ready'))
   return top === -1 ? [] : lines.slice(top, top + 3).filter(line => line.length > 0)
 }
@@ -47,14 +30,12 @@ describe('installed tarball in a terminal', () => {
     const subagent = join(ctx.home, '.claude/projects/app-subagent/session.jsonl')
     const expected = await refOf(subagent)
     const log = openLogPath(ctx, 's16')
-    const env = smokeEnv(ctx, log)
-    env.TERM = 'xterm-256color'
     const term = spawnPty(process.execPath, [ctx.bin, '--pick', '--port', '0'], {
       name: 'xterm-256color',
       cols: 120,
       rows: 40,
       cwd: ctx.installDir,
-      env: env as Record<string, string>,
+      env: smokeEnv(ctx, log),
     })
     let screen = ''
     term.onData((data) => {
@@ -73,9 +54,8 @@ describe('installed tarball in a terminal', () => {
         return /Search: helper\S* \(1 match\)/.test(after) && after.includes('● Ask the helper')
       })
       term.write('\r')
-      await waitFor('the browser opener', () => openedUrls(log).length > 0)
+      await waitFor('the Ready box and the browser opener', () => readyUrl(screen) !== undefined && openedUrls(log).length > 0)
       const ready = readyUrl(screen)
-      expect(ready, visible()).toBeDefined()
       expect(ready!.ref).toBe(expected)
       const [opened] = openedUrls(log)
       expect(opened).toContain(`?s=${expected}#devframe_otp=`)
@@ -86,8 +66,7 @@ describe('installed tarball in a terminal', () => {
       expect(new Set(box.map(line => Array.from(line).length)).size, box.join('\n')).toBe(1)
       expect(box[1]).toContain(`${ready!.base}#/s/${expected}`)
       expect(screen).toContain(`\u001B]8;;${ready!.base}#/s/${expected}\u001B\\`)
-      const text = visibleText(screen)
-      expect(text.split(`${ready!.base}#/s/${expected}`)).toHaveLength(2)
+      expect(visible().split(`${ready!.base}#/s/${expected}`)).toHaveLength(2)
     }
     finally {
       term.kill('SIGTERM')

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import process from 'node:process'
 import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
@@ -18,11 +18,24 @@ export interface Installed {
   bin: string
 }
 
-/** `npm pack` in `apps/cli`, then `npm install <tarball>` into an empty directory under `root`. */
+/**
+ * Builds `@rivus/agent-trace` and what it depends on, so the tarball never holds a stale bundle.
+ * Rush skips projects whose inputs did not change, so this is quick after a build.
+ */
+async function buildCli(repo: string): Promise<void> {
+  try {
+    await exec(process.execPath, ['common/scripts/install-run-rush.js', 'build', '--to', '@rivus/agent-trace'], { cwd: repo, maxBuffer: 64 * 1024 * 1024 })
+  }
+  catch (error) {
+    const { stdout = '', stderr = '' } = error as { stdout?: string, stderr?: string }
+    throw new Error(`rush build --to @rivus/agent-trace failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`, { cause: error })
+  }
+}
+
+/** Build, `npm pack` in `apps/cli`, then `npm install <tarball>` into an empty directory under `root`. */
 export async function packAndInstall(root: string, repo: string): Promise<Installed> {
+  await buildCli(repo)
   const cliDir = join(repo, 'apps/cli')
-  if (!existsSync(join(cliDir, 'dist/cli.mjs')) || !existsSync(join(cliDir, 'dist/bin.mjs')))
-    throw new Error('apps/cli/dist is missing. Run `node common/scripts/install-run-rush.js build --to @rivus/agent-trace` first.')
   const { stdout } = await exec('npm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
   const [packed] = JSON.parse(stdout) as { filename: string, size: number, files: { path: string }[] }[]
   if (!packed)

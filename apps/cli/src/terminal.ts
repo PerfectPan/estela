@@ -75,14 +75,11 @@ function osc8(url: string, text: string): string {
 
 /**
  * Guide (2), borders (2), padding (4), and one column for clack rounding the box to an even
- * width, so the URL never wraps (a wrapped OSC 8 link breaks). `columns` of 0 is falsy; under
- * 10 clack's box repeats a negative width.
+ * width, so the URL never wraps (a wrapped OSC 8 link breaks). This also keeps clack's box away
+ * from 0 or very few columns, where it would repeat a negative width.
  */
 function boxFits(url: string): boolean {
-  const columns = process.stdout.columns
-  if (!columns || columns < 10)
-    return false
-  return columns >= url.length + 9
+  return (process.stdout.columns ?? 0) >= url.length + 9
 }
 
 export function sayStart(version: string): void {

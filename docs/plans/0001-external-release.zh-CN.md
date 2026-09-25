@@ -137,6 +137,7 @@ flowchart TB
 | 目录 | 包 | 负责 | 允许依赖 |
 |---|---|---|---|
 | `apps/cli` | `@rivus/agent-trace` | 组合根：注册 host、提供 Node 运行时、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
+| `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3），之后是浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO`（基于 `node:fs` 的 `TraceIO`）、home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
@@ -152,6 +153,7 @@ flowchart TB
 - 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel`、`rpc` 和每个 `host-*` 都不导入（D5）。
 - UI 组件留在 `apps/web` 内，直到出现第二个使用方。
 - “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，不依赖任何工作区包。
+- `apps/e2e` 从外部测试打包后的 tarball：它不依赖任何工作区包，也没有运行时依赖。
 - `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
 
 本计划中的“shell”指 `apps/cli` 加上 `packages/runtime-node`。

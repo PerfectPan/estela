@@ -1,5 +1,5 @@
-import type { ChildProcess, StdioOptions } from 'node:child_process'
-import type { SmokeContext } from './smoke-context.ts'
+import type { ChildProcess } from 'node:child_process'
+import type { SmokeContext } from './global-setup.ts'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -13,7 +13,7 @@ export interface RunResult {
 
 /**
  * The environment a user has: synthetic `HOME`, a cache dir inside the run, the fake opener first
- * on `PATH`, and no `NO_COLOR` / `FORCE_COLOR` from the caller.
+ * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` from the caller, and no npm notices.
  */
 export function smokeEnv(ctx: SmokeContext, openLog: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
@@ -22,6 +22,10 @@ export function smokeEnv(ctx: SmokeContext, openLog: string): NodeJS.ProcessEnv 
     XDG_CACHE_HOME: ctx.cache,
     PATH: `${ctx.fakeBin}:${process.env.PATH ?? ''}`,
     AGENT_TRACE_SMOKE_OPEN_LOG: openLog,
+    // A fresh HOME means a fresh npm update check; its notice would land in the output under test.
+    npm_config_update_notifier: 'false',
+    npm_config_fund: 'false',
+    npm_config_audit: 'false',
   }
   for (const name of ['NO_COLOR', 'FORCE_COLOR', 'AGENT_TRACE_PATH', 'AGENT_TRACE_REDACT'])
     delete env[name]
@@ -39,9 +43,9 @@ export function openLogPath(ctx: SmokeContext, name: string): string {
   return join(ctx.root, `opened-${name}.log`)
 }
 
-export function run(command: string, args: string[], options: { cwd: string, env: NodeJS.ProcessEnv, stdio?: StdioOptions }): Promise<RunResult> {
+export function run(command: string, args: string[], options: { cwd: string, env: NodeJS.ProcessEnv }): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio: ['ignore', 'pipe', 'pipe'] })
     const out = collect(child)
     child.on('error', reject)
     child.on('close', code => resolve({ code: code ?? 1, ...out() }))
@@ -49,20 +53,24 @@ export function run(command: string, args: string[], options: { cwd: string, env
 }
 
 export interface Server {
-  child: ChildProcess
   output: () => { stdout: string, stderr: string }
+  /** Writes to stdin; only with `input: true`. */
+  send: (text: string) => void
   stop: () => Promise<void>
 }
 
-/** A long-running CLI (the dev server). `stop` sends SIGTERM and waits for the exit. */
-export function start(command: string, args: string[], options: { cwd: string, env: NodeJS.ProcessEnv }): Server {
-  const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio: ['ignore', 'pipe', 'pipe'] })
+/** A long-running CLI (dev server, MCP). `stop` ends stdin, sends SIGTERM, and waits for the exit. */
+export function start(command: string, args: string[], options: { cwd: string, env: NodeJS.ProcessEnv, input?: boolean }): Server {
+  const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio: [options.input ? 'pipe' : 'ignore', 'pipe', 'pipe'] })
   const output = collect(child)
   const closed = new Promise<void>(resolve => child.once('close', () => resolve()))
   return {
-    child,
     output,
+    send(text) {
+      child.stdin!.write(text)
+    },
     async stop() {
+      child.stdin?.end()
       if (child.exitCode === null && child.signalCode === null)
         child.kill('SIGTERM')
       await closed

@@ -135,6 +135,7 @@ flowchart TB
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
 | `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
+| `apps/e2e` | `@rivus/agent-trace-e2e` | Private test harness for the packed tarball: CLI smoke (5.3), later the browser suite (5.2) | nothing at runtime; test tooling only |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema` |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
@@ -150,6 +151,7 @@ Rules:
 - Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, `rpc`, and every `host-*` do not (D5).
 - UI components stay inside `apps/web` until a second consumer needs them.
 - The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod` and no workspace package.
+- `apps/e2e` tests the packed tarball from outside: it depends on no workspace package and has no runtime dependencies.
 - `scripts/check-layers.mjs` checks every `package.json` against the "May depend on" column in CI.
 
 In this plan, "the shell" means `apps/cli` together with `packages/runtime-node`.

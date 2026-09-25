@@ -69,4 +69,4 @@ cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 cd apps/e2e && node ../../common/scripts/install-run-rushx.js test:smoke
 ```
 
-`test:smoke` packs `apps/cli` and installs the tarball, so run `rush build` first. It is not part of `rush test`. Never run `npm publish` or `rush publish`.
+`test:smoke` builds `@rivus/agent-trace`, packs `apps/cli`, and installs the tarball. It is not part of `rush test`. Never run `npm publish` or `rush publish`.

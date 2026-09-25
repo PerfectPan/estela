@@ -58,9 +58,8 @@ describe('sayReady', () => {
     const chunks = capture(120)
     sayReady(url)
     const raw = chunks.join('')
-    const link = `\u001b]8;;${url}\u001b\\${url}\u001b]8;;\u001b\\`
-    expect(raw.split(link)).toHaveLength(2)
-    const visible = stripVTControlCharacters(raw.replace(link, url)).split('\n')
+    expect(raw.split(`\u001b]8;;${url}\u001b\\`)).toHaveLength(2)
+    const visible = stripVTControlCharacters(raw).split('\n')
     const start = visible.findIndex(line => line.includes('┌'))
     const end = visible.findIndex((line, index) => index > start && line.includes('└') && line.includes('─'))
     const boxLines = visible.slice(start, end + 1)

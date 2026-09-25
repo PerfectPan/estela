@@ -1,5 +1,3 @@
-import { spawn } from 'node:child_process'
-import { closeSync, openSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -21,6 +19,11 @@ async function filesContaining(dir: string, needle: string): Promise<string[]> {
 }
 
 describe('installed tarball', () => {
+  it('ships only dist, the README, the license, and the notices', () => {
+    expect(ctx.files).toEqual(expect.arrayContaining(['LICENSE', 'README.md', 'package.json', 'dist/bin.mjs', 'dist/cli.mjs', 'dist/THIRD-PARTY-NOTICES.txt', 'dist/web/index.html', 'dist/fixtures/demo.trace.json']))
+    expect(ctx.files.filter(file => !['LICENSE', 'README.md', 'package.json', 'CHANGELOG.md'].includes(file) && !file.startsWith('dist/'))).toEqual([])
+  })
+
   it('--help through npx', async () => {
     const result = await run('npx', ['--no-install', 'agent-trace', '--help'], { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 'help')) })
     expect(result.code).toBe(0)
@@ -34,9 +37,8 @@ describe('installed tarball', () => {
     const log = openLogPath(ctx, 's2')
     const server = start(process.execPath, [ctx.bin, ctx.claudePlain, '--port', '0'], { cwd: ctx.installDir, env: smokeEnv(ctx, log) })
     try {
-      await waitFor('the browser opener', () => openedUrls(log).length > 0)
+      await waitFor('the Ready line and the browser opener', () => readyUrl(server.output().stdout) !== undefined && openedUrls(log).length > 0)
       const ready = readyUrl(server.output().stdout)
-      expect(ready, server.output().stdout).toBeDefined()
       expect(server.output().stdout).toContain(`Ready: ${ready!.base}#/s/${ready!.ref}`)
       // The fragment carries DevFrame's one-time code, so the ref rides `?s=`; the SPA moves it to `#/s/<ref>`.
       const [opened] = openedUrls(log)
@@ -51,21 +53,12 @@ describe('installed tarball', () => {
   })
 
   it('S10: mcp lists tools and reconstruct returns completeness', async () => {
-    const child = spawn(process.execPath, [ctx.bin, 'mcp', ctx.claudePlain], { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 's10')), stdio: ['pipe', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.setEncoding('utf8')
-    child.stderr.setEncoding('utf8')
-    child.stdout.on('data', (chunk: string) => {
-      stdout += chunk
-    })
-    child.stderr.on('data', (chunk: string) => {
-      stderr += chunk
-    })
-    const send = (message: unknown) => child.stdin.write(`${JSON.stringify(message)}\n`)
+    const server = start(process.execPath, [ctx.bin, 'mcp', ctx.claudePlain], { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 's10')), input: true })
+    const send = (message: unknown) => server.send(`${JSON.stringify(message)}\n`)
+    const lines = () => server.output().stdout.split('\n').filter(text => text.trim().length > 0)
     const response = async (id: number) => {
-      await waitFor(`mcp response ${id}`, () => stdout.split('\n').some(line => line.includes(`"id":${id}`)))
-      return JSON.parse(stdout.split('\n').find(line => line.includes(`"id":${id}`))!)
+      await waitFor(`mcp response ${id}`, () => lines().some(line => line.includes(`"id":${id}`)))
+      return JSON.parse(lines().find(line => line.includes(`"id":${id}`))!)
     }
     try {
       send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'agent-trace-smoke', version: '0.0.0' } } })
@@ -84,13 +77,11 @@ describe('installed tarball', () => {
       expect(surface.completeness).toBe('partial')
     }
     finally {
-      child.stdin.end()
-      child.kill('SIGTERM')
-      await new Promise(resolve => child.once('close', resolve))
+      await server.stop()
     }
-    for (const line of stdout.split('\n').filter(text => text.trim().length > 0))
+    for (const line of lines())
       expect(() => JSON.parse(line), line).not.toThrow()
-    expect(stderr).not.toContain('\u001B')
+    expect(server.output().stderr).not.toContain('\u001B')
   })
 
   it('S13: Node 20 gets one line naming Node.js 22.18', async () => {
@@ -100,17 +91,10 @@ describe('installed tarball', () => {
   })
 
   it('S15: build piped to a file writes plain lines and no home path', async () => {
-    const logFile = join(ctx.root, 's15-log.txt')
     const outDir = join(ctx.root, 's15-report')
-    const fd = openSync(logFile, 'w')
-    let result
-    try {
-      result = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', outDir], { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 's15')), stdio: ['ignore', fd, 'pipe'] })
-    }
-    finally {
-      closeSync(fd)
-    }
-    const log = await readFile(logFile, 'utf8')
+    // stdout is a pipe: like `> log.txt`, it is not a TTY.
+    const result = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', outDir], { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 's15')) })
+    const log = result.stdout
     expect(result.code, `${log}\n${result.stderr}`).toBe(0)
     expect(log).not.toContain('\u001B')
     expect(result.stderr).not.toContain('\u001B')

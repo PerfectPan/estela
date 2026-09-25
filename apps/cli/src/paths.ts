@@ -2,9 +2,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** `true` in `dist/cli.mjs` (rslib `source.define`); undeclared when Node runs `src/` directly. */
-declare const AGENT_TRACE_BUNDLE: boolean | undefined
+declare const AGENT_TRACE_BUNDLE: true
 
-const bundled = typeof AGENT_TRACE_BUNDLE !== 'undefined' && AGENT_TRACE_BUNDLE
+const bundled = typeof AGENT_TRACE_BUNDLE !== 'undefined'
 const here = dirname(fileURLToPath(import.meta.url))
 
 /** Built SPA: `dist/web/` in the package, `apps/web/dist` in the workspace. */

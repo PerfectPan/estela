@@ -32,7 +32,6 @@ const ALLOW = {
 }
 for (const host of HOSTS)
   ALLOW[host] = HOST_DEPS
-const NO_RUNTIME_DEPS = new Set(['@rivus/agent-trace-e2e'])
 
 const HELP = `Usage:
   node scripts/check-layers.mjs [--help]
@@ -56,7 +55,7 @@ for (const project of rush.projects) {
   if (manifest.name !== project.packageName) {
     violations.push(`check-layers: ${project.projectFolder} package.json name ${manifest.name} does not match rush.json ${project.packageName}`)
   }
-  if (NO_RUNTIME_DEPS.has(manifest.name) && Object.keys(manifest.dependencies ?? {}).length > 0)
+  if (manifest.name === '@rivus/agent-trace-e2e' && Object.keys(manifest.dependencies ?? {}).length > 0)
     violations.push(`check-layers: ${manifest.name} has runtime dependencies; it may only use devDependencies (test tooling)`)
   if (!Object.hasOwn(ALLOW, manifest.name))
     violations.push(`check-layers: ${manifest.name} has no allow-list entry`)
