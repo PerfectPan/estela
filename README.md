@@ -11,20 +11,20 @@ Local-first DevTool for coding-agent session logs.
 ```sh
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js test
-cd packages/devframe && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 ```
 
 Open `http://localhost:7392/__agent-trace/`.
 
-Default fixture: `fixtures/demo.trace.json`. Point `AGENT_TRACE_PATH` at a host session to inspect a real log.
+Default fixture: `fixtures/demo.trace.json`. Pass a path, or set `AGENT_TRACE_PATH`, to inspect a real log.
 
 | Host | Path | Status |
 |---|---|---|
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` | loads |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl` | loads |
-| OpenCode | `~/.local/share/opencode/opencode.db#<session-id>` | loads |
-| Claude Code | — | not supported |
-| dsh | — | not supported |
+| Claude Code | `~/.claude/projects/` | detect only |
+| OpenCode | `opencode.db#<session-id>` | package kept, not registered |
+| dsh | — | package kept, not registered |
 
 Rush monorepo. UI is Solid + Tailwind v4 + shadcn-solid. Lint is oxlint.
 

@@ -8,3 +8,4 @@ git diff --cached --check
 ./scripts/check-repository.sh --staged
 node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
+node scripts/check-layers.mjs

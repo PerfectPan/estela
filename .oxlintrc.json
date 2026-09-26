@@ -1,13 +1,47 @@
 {
-  "ignorePatterns": [
-    "**/dist/**",
-    "**/node_modules/**",
-    "common/temp/**",
-    "common/deploy/**"
-  ],
+  // host-opencode is excluded: plan section 7, "OpenCode needs SqliteIO".
+  "ignorePatterns": ["**/dist/**", "**/node_modules/**", "common/temp/**", "common/deploy/**"],
   "plugins": ["typescript", "unicorn"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "packages/schema/src/**/*.{ts,mts,cts,tsx}",
+        "packages/kernel/src/**/*.{ts,mts,cts,tsx}",
+        "packages/rpc/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-claude-code/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-codex/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-grok/src/**/*.{ts,mts,cts,tsx}",
+        "packages/host-dsh/src/**/*.{ts,mts,cts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "paths": [
+            "fs", "fs/promises",
+            "path", "path/promises",
+            "os", "os/promises",
+            "url", "url/promises",
+            "process", "process/promises",
+            "child_process", "child_process/promises",
+            "crypto", "crypto/promises",
+            "util", "util/promises",
+            "stream", "stream/promises",
+            "buffer", "buffer/promises"
+          ],
+          "patterns": ["node:*", "node:*/**"]
+        }],
+        "no-restricted-globals": ["error", "process", "Buffer"]
+      }
+    },
+    {
+      "files": ["**/*.test.{ts,mts,cts,tsx}"],
+      "rules": {
+        "no-restricted-imports": "off",
+        "no-restricted-globals": "off"
+      }
+    }
+  ]
 }

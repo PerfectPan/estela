@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent } from '@agent-trace/schema'
+import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 
 export interface TraceFold {
   /** True when any event has `parentId`. */

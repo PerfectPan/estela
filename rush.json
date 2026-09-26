@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush.schema.json",
   "rushVersion": "5.179.0",
   "pnpmVersion": "10.15.0",
-  "nodeSupportedVersionRange": ">=20.11.0 <25.0.0",
+  "nodeSupportedVersionRange": ">=22.18.0 <25.0.0",
   "projectFolderMinDepth": 2,
   "projectFolderMaxDepth": 2,
   "gitPolicy": {},
@@ -19,36 +19,48 @@
   },
   "projects": [
     {
-      "packageName": "@agent-trace/schema",
+      "packageName": "@rivus/agent-trace-schema",
       "projectFolder": "packages/schema"
     },
     {
-      "packageName": "@agent-trace/kernel",
+      "packageName": "@rivus/agent-trace-kernel",
       "projectFolder": "packages/kernel"
     },
     {
-      "packageName": "@agent-trace/adapter-dsh",
-      "projectFolder": "packages/adapter-dsh"
+      "packageName": "@rivus/agent-trace-host-dsh",
+      "projectFolder": "packages/host-dsh"
     },
     {
-      "packageName": "@agent-trace/adapter-claude-code",
-      "projectFolder": "packages/adapter-claude-code"
+      "packageName": "@rivus/agent-trace-host-claude-code",
+      "projectFolder": "packages/host-claude-code"
     },
     {
-      "packageName": "@agent-trace/adapter-codex",
-      "projectFolder": "packages/adapter-codex"
+      "packageName": "@rivus/agent-trace-host-codex",
+      "projectFolder": "packages/host-codex"
     },
     {
-      "packageName": "@agent-trace/adapter-opencode",
-      "projectFolder": "packages/adapter-opencode"
+      "packageName": "@rivus/agent-trace-host-opencode",
+      "projectFolder": "packages/host-opencode"
     },
     {
-      "packageName": "@agent-trace/adapter-grok",
-      "projectFolder": "packages/adapter-grok"
+      "packageName": "@rivus/agent-trace-host-grok",
+      "projectFolder": "packages/host-grok"
+    },
+    {
+      "packageName": "@rivus/agent-trace-runtime-node",
+      "projectFolder": "packages/runtime-node"
+    },
+    {
+      "packageName": "@rivus/agent-trace-rpc",
+      "projectFolder": "packages/rpc"
+    },
+    {
+      "packageName": "@rivus/agent-trace-web",
+      "projectFolder": "apps/web"
     },
     {
       "packageName": "@rivus/agent-trace",
-      "projectFolder": "packages/devframe",
+      "projectFolder": "apps/cli",
       "versionPolicyName": "agent-trace"
     }
   ]

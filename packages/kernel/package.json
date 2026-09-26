@@ -1,5 +1,5 @@
 {
-  "name": "@agent-trace/kernel",
+  "name": "@rivus/agent-trace-kernel",
   "type": "module",
   "version": "0.0.0",
   "license": "MIT",
@@ -9,17 +9,18 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "lint": "oxlint src",
+    "lint": "oxlint -c ../../.oxlintrc.json src",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agent-trace/schema": "workspace:*"
+    "@rivus/agent-trace-schema": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
     "oxlint": "^1.83.0",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
-  }
+  },
+  "private": true
 }
