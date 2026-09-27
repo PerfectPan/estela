@@ -1,4 +1,5 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import { isObjectLike } from 'lodash-es'
 
 const DEFAULT_MAX = 4096
 
@@ -15,9 +16,9 @@ function capValue(value: unknown, max: number, path: string, truncated: string[]
   if (Array.isArray(value)) {
     return value.map((item, index) => capValue(item, max, path ? `${path}.${index}` : String(index), truncated))
   }
-  if (value != null && typeof value === 'object') {
+  if (isObjectLike(value)) {
     const out: Record<string, unknown> = {}
-    for (const [key, item] of Object.entries(value)) {
+    for (const [key, item] of Object.entries(value as object)) {
       const next = path ? `${path}.${key}` : key
       out[key] = capValue(item, max, next, truncated)
     }

@@ -1,4 +1,5 @@
 import type { EventKind, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import { isPlainObject } from 'lodash-es'
 import { previewText, previewUnknown } from './preview.ts'
 
 export type LedgerKind =
@@ -84,7 +85,7 @@ function eventPreview(event: TraceEvent): string {
   }
   if (event.kind === 'request') {
     const usage = event.payload.usage
-    const record = usage != null && typeof usage === 'object' ? usage as Record<string, unknown> : undefined
+    const record = isPlainObject(usage) ? usage as Record<string, unknown> : undefined
     const model = asText(event.payload.model)
     const input = typeof record?.inputTokens === 'number' ? `in ${record.inputTokens}` : ''
     const output = typeof record?.outputTokens === 'number' ? `out ${record.outputTokens}` : ''

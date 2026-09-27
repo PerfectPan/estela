@@ -143,7 +143,7 @@ flowchart TB
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | 每个包对应一个 host：目录布局知识、解析、capability | `kernel`、`schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | 保留，本次发布中不注册 | `kernel`、`schema` |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | host 协议类型、`loadTrace`、`fold`、`reconstruct`、`redact`、`toView`、投影、一致性测试 | `schema` |
-| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型 | 无 |
+| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型及其 `zod` schema | 不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
 
 规则：
 
@@ -151,6 +151,7 @@ flowchart TB
 - `apps/cli` 是唯一的组合根。只有它知道注册了哪些 host，以及运行时是 Node。
 - 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel`、`rpc` 和每个 `host-*` 都不导入（D5）。
 - UI 组件留在 `apps/web` 内，直到出现第二个使用方。
+- “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，不依赖任何工作区包。
 - `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
 
 本计划中的“shell”指 `apps/cli` 加上 `packages/runtime-node`。

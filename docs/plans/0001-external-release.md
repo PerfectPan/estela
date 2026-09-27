@@ -141,7 +141,7 @@ flowchart TB
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | Host protocol types, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, projections, conformance suite | `schema` |
-| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types | nothing |
+| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types and their `zod` schemas | no workspace package; small browser-safe external libraries (`zod`) |
 
 Rules:
 
@@ -149,6 +149,7 @@ Rules:
 - `apps/cli` is the only composition root. It alone knows which hosts are registered and that the runtime is Node.
 - Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, `rpc`, and every `host-*` do not (D5).
 - UI components stay inside `apps/web` until a second consumer needs them.
+- The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod` and no workspace package.
 - `scripts/check-layers.mjs` checks every `package.json` against the "May depend on" column in CI.
 
 In this plan, "the shell" means `apps/cli` together with `packages/runtime-node`.

@@ -1,4 +1,5 @@
 import type { Trace } from '@rivus/agent-trace-schema'
+import { isObjectLike } from 'lodash-es'
 
 const SECRET = /(?:sk-|AKIA|ghp_|xox[baprs]-)[A-Za-z0-9_-]{8,}/g
 
@@ -59,7 +60,7 @@ function redactValue(
     return redactText(value, homeDir, pattern, encoded)
   if (Array.isArray(value))
     return value.map(item => redactValue(item, homeDir, pattern, encoded))
-  if (value != null && typeof value === 'object') {
+  if (isObjectLike(value)) {
     const out: Record<string, unknown> = {}
     for (const [key, item] of Object.entries(value as Record<string, unknown>))
       out[redactText(key, homeDir, pattern, encoded)] = redactValue(item, homeDir, pattern, encoded)

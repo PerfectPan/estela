@@ -13,7 +13,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | `TraceIO`, host protocol, `loadTrace`, `fold`, `reconstruct`, `redact`, conformance | `schema` |
-| `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy` | nothing |
+| `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy`, `zod` schemas | no workspace package (external: `zod`) |
 
 ## Rules
 

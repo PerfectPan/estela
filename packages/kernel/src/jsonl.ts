@@ -1,3 +1,5 @@
+import { isPlainObject } from 'lodash-es'
+
 export function splitSessionRef(path: string): { file: string, sessionId?: string } {
   const hash = path.lastIndexOf('#')
   if (hash <= 0)
@@ -6,9 +8,7 @@ export function splitSessionRef(path: string): { file: string, sessionId?: strin
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | undefined {
-  if (value != null && typeof value === 'object' && !Array.isArray(value))
-    return value as Record<string, unknown>
-  return undefined
+  return isPlainObject(value) ? value as Record<string, unknown> : undefined
 }
 
 export function asString(value: unknown): string | undefined {

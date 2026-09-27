@@ -1,6 +1,8 @@
+import * as z from 'zod/mini'
+
 export const TRACE_SCHEMA = 'agent-trace' as const
 
-/** Every event kind, in one place; `EventKind` and `isTrace` both read it. */
+/** Every event kind, in one place; `EventKind` and `traceSchema` both read it. */
 export const EVENT_KINDS = [
   'user',
   'assistant',
@@ -14,116 +16,141 @@ export const EVENT_KINDS = [
   'unknown',
 ] as const
 
-export type EventKind = typeof EVENT_KINDS[number]
+export const eventKindSchema = z.enum(EVENT_KINDS)
+export type EventKind = z.infer<typeof eventKindSchema>
 
 /** Fields a host records. A number whose capability is absent is `undefined`, never 0. */
-export type Capability =
-  | 'requests'
-  | 'usage'
-  | 'durations'
-  | 'thinking'
-  | 'compaction'
-  | 'compactionTokens'
-  | 'subagents'
-  | 'systemPrompt'
-  | 'toolSchemas'
-  | 'hooks'
+export const CAPABILITIES = [
+  'requests',
+  'usage',
+  'durations',
+  'thinking',
+  'compaction',
+  'compactionTokens',
+  'subagents',
+  'systemPrompt',
+  'toolSchemas',
+  'hooks',
+] as const
 
-export interface SourcePointer {
-  file: string
-  offset: number
-  length: number
-  line: number
-}
+export const capabilitySchema = z.enum(CAPABILITIES)
+export type Capability = z.infer<typeof capabilitySchema>
 
-export interface TraceEvent {
-  id: string
+export const sourcePointerSchema = z.object({
+  file: z.string(),
+  offset: z.number(),
+  length: z.number(),
+  line: z.number(),
+})
+export type SourcePointer = z.infer<typeof sourcePointerSchema>
+
+export const traceEventSchema = z.object({
+  id: z.string(),
   /** Order within the trace; ties in `ts` keep host order. */
-  seq: number
-  ts: number
-  kind: EventKind
-  agentId?: string
-  parentId?: string
+  seq: z.number(),
+  ts: z.number(),
+  kind: eventKindSchema,
+  agentId: z.optional(z.string()),
+  parentId: z.optional(z.string()),
   /** Groups events that belong to one model request. */
-  requestId?: string
-  shadowedBy?: string
-  payload: Record<string, unknown>
-  source: SourcePointer
+  requestId: z.optional(z.string()),
+  shadowedBy: z.optional(z.string()),
+  payload: z.record(z.string(), z.unknown()),
+  source: sourcePointerSchema,
   /** Present in memory and in `get-event`; absent in the view trace. */
-  original?: unknown
-}
+  original: z.optional(z.unknown()),
+})
+export type TraceEvent = z.infer<typeof traceEventSchema>
 
-export interface RequestPayload {
+export const requestPayloadSchema = z.object({
   /** gen_ai.request.model */
-  model?: string
+  model: z.optional(z.string()),
   /** gen_ai.response.id */
-  responseId?: string
-  usage?: {
+  responseId: z.optional(z.string()),
+  usage: z.optional(z.object({
     /** gen_ai.usage.input_tokens — total input, including cached tokens. cacheReadTokens and cacheWriteTokens are breakdowns. */
-    inputTokens?: number
+    inputTokens: z.optional(z.number()),
     /** gen_ai.usage.output_tokens */
-    outputTokens?: number
+    outputTokens: z.optional(z.number()),
     /** gen_ai.usage.cache_read.input_tokens */
-    cacheReadTokens?: number
+    cacheReadTokens: z.optional(z.number()),
     /** gen_ai.usage.cache_write.input_tokens */
-    cacheWriteTokens?: number
+    cacheWriteTokens: z.optional(z.number()),
     /** gen_ai.usage.reasoning.output_tokens */
-    reasoningTokens?: number
-  }
-  startedAt?: number
-  durationMs?: number
+    reasoningTokens: z.optional(z.number()),
+  })),
+  startedAt: z.optional(z.number()),
+  durationMs: z.optional(z.number()),
   /** gen_ai.response.finish_reasons[0] */
-  stopReason?: string
-}
+  stopReason: z.optional(z.string()),
+})
+export type RequestPayload = z.infer<typeof requestPayloadSchema>
 
-export interface CompactionPayload {
-  trigger?: 'auto' | 'manual'
-  preTokens?: number
-  postTokens?: number
-  summaryEventId?: string
-}
+export const compactionPayloadSchema = z.object({
+  trigger: z.optional(z.enum(['auto', 'manual'])),
+  preTokens: z.optional(z.number()),
+  postTokens: z.optional(z.number()),
+  summaryEventId: z.optional(z.string()),
+})
+export type CompactionPayload = z.infer<typeof compactionPayloadSchema>
 
 /** gen_ai.tool.call.id, gen_ai.tool.name */
-export interface ToolCallPayload {
-  callId: string
-  name: string
-  args?: unknown
-}
+export const toolCallPayloadSchema = z.object({
+  callId: z.string(),
+  name: z.string(),
+  args: z.optional(z.unknown()),
+})
+export type ToolCallPayload = z.infer<typeof toolCallPayloadSchema>
 
-export interface ToolResultPayload {
-  callId: string
-  output?: unknown
-  isError?: boolean
-  exitCode?: number
-  orphan?: boolean
-}
+export const toolResultPayloadSchema = z.object({
+  callId: z.string(),
+  output: z.optional(z.unknown()),
+  isError: z.optional(z.boolean()),
+  exitCode: z.optional(z.number()),
+  orphan: z.optional(z.boolean()),
+})
+export type ToolResultPayload = z.infer<typeof toolResultPayloadSchema>
 
-export interface AgentInfo {
-  id: string
-  parentId?: string
-  spawnEventId?: string
-  title?: string
-}
+export const agentInfoSchema = z.object({
+  id: z.string(),
+  parentId: z.optional(z.string()),
+  spawnEventId: z.optional(z.string()),
+  title: z.optional(z.string()),
+})
+export type AgentInfo = z.infer<typeof agentInfoSchema>
 
-export interface TraceSession {
-  id: string
-  title?: string
-  cwd?: string
-  startedAt?: number
-  endedAt?: number
-  systemPrompt?: string
-  tools?: unknown
-}
+export const traceSessionSchema = z.object({
+  id: z.string(),
+  title: z.optional(z.string()),
+  cwd: z.optional(z.string()),
+  startedAt: z.optional(z.number()),
+  endedAt: z.optional(z.number()),
+  systemPrompt: z.optional(z.string()),
+  tools: z.optional(z.unknown()),
+})
+export type TraceSession = z.infer<typeof traceSessionSchema>
 
-export interface Trace {
-  schema: typeof TRACE_SCHEMA
-  host: { id: string, version?: string }
-  session: TraceSession
-  capabilities: Capability[]
-  agents: AgentInfo[]
-  events: TraceEvent[]
-  skipped: { line: number, file: string, reason: string }[]
-}
+export const skippedEntrySchema = z.object({
+  line: z.number(),
+  file: z.string(),
+  reason: z.string(),
+})
+export type SkippedEntry = z.infer<typeof skippedEntrySchema>
+
+/**
+ * The canonical trace. Payloads stay loose records: their typed shapes above
+ * describe what hosts write, but a trace is not rejected for payload content.
+ */
+export const traceSchema = z.object({
+  schema: z.literal(TRACE_SCHEMA),
+  host: z.object({ id: z.string(), version: z.optional(z.string()) }),
+  session: traceSessionSchema,
+  capabilities: z.array(capabilitySchema),
+  agents: z.array(agentInfoSchema),
+  events: z.array(traceEventSchema),
+  skipped: z.array(skippedEntrySchema),
+})
+export type Trace = z.infer<typeof traceSchema>
 
 export interface ReconstructResult {
   eventId: string
