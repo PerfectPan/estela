@@ -1,147 +1,183 @@
-import type { Adapter, TraceIO } from '@rivus/agent-trace-kernel'
-import type { EventKind, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { asRecord, asString, basenamePath, dirnamePath, joinPath, parseTime, readJsonl } from '@rivus/agent-trace-kernel'
-import { TRACE_SCHEMA } from '@rivus/agent-trace-schema'
+import type { Capability, Trace } from '@rivus/agent-trace-schema'
+import type { DiscoverPreview, HostAdapter, ReadProgress, TraceIO } from '@rivus/agent-trace-kernel'
+import {
+  asRecord,
+  asString,
+  dirnamePath,
+  discoverSessions,
+  joinPath,
+  readJsonlRecords,
+  readProgress,
+  readTextCounted,
+  timeOf,
+  toTrace,
+  walkFiles,
+} from '@rivus/agent-trace-kernel'
+import { chunkText, isInjectedChunk, META_KEY, parseGrokRecords, summaryFields, type GrokSessionMeta } from './parse-session.ts'
+
+const CAPABILITIES: Capability[] = [
+  'requests',
+  'usage',
+  'durations',
+  'thinking',
+  'compaction',
+  'compactionTokens',
+  'subagents',
+  'hooks',
+  'systemPrompt',
+  'toolSchemas',
+]
 
 function sessionDir(path: string): string {
-  return basenamePath(path) === 'updates.jsonl' ? dirnamePath(path) : path
+  return path.endsWith('updates.jsonl') ? dirnamePath(path) : path
 }
 
-function chunkText(content: unknown): string {
-  const rec = asRecord(content)
-  if (asString(rec?.text))
-    return asString(rec?.text) ?? ''
-  if (typeof content === 'string')
-    return content
-  if (Array.isArray(content)) {
-    return content.map((part) => {
-      const inner = asRecord(part)
-      const nested = asRecord(inner?.content)
-      return asString(nested?.text) ?? asString(inner?.text) ?? ''
-    }).join('')
-  }
-  return ''
+function updatesPath(path: string): string {
+  return path.endsWith('updates.jsonl') ? path : joinPath(path, 'updates.jsonl')
 }
 
-export function parseGrokUpdates(rows: unknown[], extras?: {
-  sessionId?: string
-  cwd?: string
-  title?: string
-  systemPrompt?: string
-  tools?: unknown
-}): Trace {
-  const events: TraceEvent[] = []
-  let n = 0
-  const push = (kind: EventKind, ts: number, payload: Record<string, unknown>, original: unknown): void => {
-    events.push({ id: `e${n++}`, ts, kind, payload, original })
-  }
-
-  if (extras?.systemPrompt) {
-    const payload: Record<string, unknown> = { text: extras.systemPrompt }
-    if (extras.tools != null)
-      payload.tools = extras.tools
-    push('system', 0, payload, { type: 'system_prompt' })
-  }
-
-  let pending: { kind: EventKind, text: string, ts: number, originals: unknown[] } | undefined
-  const flush = (): void => {
-    if (!pending)
-      return
-    push(pending.kind, pending.ts, { text: pending.text }, pending.originals)
-    pending = undefined
-  }
-
-  for (const row of rows) {
-    const rec = asRecord(row)
-    const params = asRecord(rec?.params)
-    const update = asRecord(params?.update) ?? {}
-    const ts = parseTime(rec?.timestamp)
-    const kind = asString(update.sessionUpdate)
-
-    if (kind === 'user_message_chunk' || kind === 'agent_message_chunk' || kind === 'agent_thought_chunk') {
-      const mapped: EventKind = kind === 'user_message_chunk'
-        ? 'user'
-        : kind === 'agent_thought_chunk' ? 'thinking' : 'assistant'
-      const text = chunkText(update.content)
-      if (pending && pending.kind === mapped) {
-        pending.text += text
-        pending.originals.push(row)
-      }
-      else {
-        flush()
-        pending = { kind: mapped, text, ts, originals: [row] }
-      }
-      continue
-    }
-    flush()
-
-    if (kind === 'tool_call') {
-      push('tool_call', ts, {
-        name: asString(update.title),
-        callId: asString(update.toolCallId),
-        args: update.rawInput,
-      }, row)
-      continue
-    }
-    if (kind === 'tool_call_update' && asString(update.status) === 'completed') {
-      push('tool_result', ts, {
-        callId: asString(update.toolCallId),
-        text: chunkText(update.content),
-      }, row)
-      continue
-    }
-    if (kind === 'tool_call_update')
-      continue
-
-    push('unknown', ts, { type: kind ?? 'update' }, row)
-  }
-  flush()
-
-  return {
-    schema: TRACE_SCHEMA,
-    host: 'grok',
-    session: {
-      id: extras?.sessionId ?? 'unknown',
-      cwd: extras?.cwd,
-      title: extras?.title,
-    },
-    events,
-  }
+async function readOptional(io: TraceIO, path: string, progress: ReadProgress): Promise<string | undefined> {
+  if ((await io.stat(path))?.kind !== 'file')
+    return undefined
+  return readTextCounted(io, path, progress)
 }
 
-export const grokAdapter: Adapter = {
-  id: 'grok',
-  async detect(path: string, io: TraceIO): Promise<boolean> {
-    const dir = sessionDir(path)
+async function loadMeta(io: TraceIO, dir: string, progress: ReadProgress): Promise<GrokSessionMeta> {
+  const summaryPath = joinPath(dir, 'summary.json')
+  const summaryText = await readOptional(io, summaryPath, progress)
+  let meta: GrokSessionMeta = {}
+  if (summaryText !== undefined) {
+    let value: unknown
     try {
-      const st = await io.stat(joinPath(dir, 'summary.json'))
-      const up = await io.stat(joinPath(dir, 'updates.jsonl'))
-      return st?.kind === 'file' && up?.kind === 'file'
+      value = JSON.parse(summaryText) as unknown
+    }
+    catch {
+      throw new Error(`grok: ${summaryPath}:1: invalid JSON`)
+    }
+    meta = summaryFields(value, summaryPath)
+  }
+  const prompt = await readOptional(io, joinPath(dir, 'system_prompt.txt'), progress)
+  if (prompt && prompt.length > 0)
+    meta.systemPrompt = prompt
+  const toolsText = await readOptional(io, joinPath(dir, 'tool_definitions.json'), progress)
+  if (toolsText !== undefined) {
+    try {
+      meta.tools = JSON.parse(toolsText) as unknown
+    }
+    catch {
+      throw new Error(`grok: ${joinPath(dir, 'tool_definitions.json')}:1: invalid JSON`)
+    }
+  }
+  return meta
+}
+
+async function enrichAgents(io: TraceIO, dir: string, agents: Trace['agents'], progress: ReadProgress): Promise<void> {
+  const subDir = joinPath(dir, 'subagents')
+  if ((await io.stat(subDir))?.kind !== 'dir')
+    return
+  for (const entry of await io.list(subDir)) {
+    if (entry.kind !== 'dir')
+      continue
+    const text = await readOptional(io, joinPath(joinPath(subDir, entry.name), 'meta.json'), progress)
+    if (!text)
+      continue
+    let value: unknown
+    try {
+      value = JSON.parse(text) as unknown
+    }
+    catch {
+      continue
+    }
+    const meta = asRecord(value)
+    const id = asString(meta?.subagent_id) ?? entry.name
+    const title = asString(meta?.description)
+    const existing = agents.find(agent => agent.id === id)
+    if (existing) {
+      if (!existing.title && title)
+        existing.title = title
+      continue
+    }
+    agents.push({ id, parentId: 'main', ...(title ? { title } : {}) })
+  }
+}
+
+/** The first prompt skips injected chunks, the same rule as turns. */
+function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
+  const preview: DiscoverPreview = {}
+  for (const rec of records) {
+    const update = asRecord(asRecord(rec.params)?.update)
+    const ts = timeOf(rec.timestamp)
+    if (ts !== undefined) {
+      preview.startedAt ??= ts
+      preview.lastAt = ts
+    }
+    if (!preview.firstPrompt && update?.sessionUpdate === 'user_message_chunk') {
+      const text = chunkText(update.content)
+      if (text && !isInjectedChunk(asRecord(update[META_KEY]), text))
+        preview.firstPrompt = text.slice(0, 500)
+    }
+  }
+  return preview
+}
+
+export const grokAdapter: HostAdapter = {
+  id: 'grok',
+  displayName: 'Grok',
+  capabilities: CAPABILITIES,
+  roots(env) {
+    return [joinPath(env.homeDir, '.grok/sessions')]
+  },
+  discover(root, io, opts) {
+    return discoverSessions('grok', root, io, {
+      signal: opts.signal,
+      files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
+        match: name => name === 'updates.jsonl',
+        skipDir: name => name === 'subagents',
+        maxDepth: 8,
+        signal,
+      }),
+      preview: previewRecords,
+      decorate: async (path, head, fileIo) => {
+        const summaryPath = joinPath(dirnamePath(path), 'summary.json')
+        const summaryStat = await fileIo.stat(summaryPath)
+        if (summaryStat?.kind !== 'file' || summaryStat.size > 64 * 1024)
+          return
+        try {
+          const fields = summaryFields(JSON.parse(await fileIo.readText(summaryPath)) as unknown, summaryPath)
+          if (fields.id)
+            head.ref.sessionId = fields.id
+          if (fields.title)
+            head.title = fields.title
+          if (fields.cwd)
+            head.cwd = fields.cwd
+          if (fields.endedAt !== undefined)
+            head.lastActiveAt = fields.endedAt
+        }
+        catch {
+          // The head still lists the session. Load reports a summary parse error.
+        }
+      },
+    })
+  },
+  async detect(ref, io) {
+    const dir = sessionDir(ref.path)
+    try {
+      const summary = await io.stat(joinPath(dir, 'summary.json'))
+      const updates = await io.stat(updatesPath(ref.path))
+      return summary?.kind === 'file' && updates?.kind === 'file'
     }
     catch {
       return false
     }
   },
-  async load(path: string, io: TraceIO): Promise<Trace> {
-    const dir = sessionDir(path)
-    const summary = asRecord(JSON.parse(await io.readText(joinPath(dir, 'summary.json'))))
-    const info = asRecord(summary?.info)
-    let systemPrompt: string | undefined
-    let tools: unknown
-    try {
-      systemPrompt = await io.readText(joinPath(dir, 'system_prompt.txt'))
-    }
-    catch { /* optional */ }
-    try {
-      tools = JSON.parse(await io.readText(joinPath(dir, 'tool_definitions.json'))) as unknown
-    }
-    catch { /* optional */ }
-    return parseGrokUpdates(await readJsonl(joinPath(dir, 'updates.jsonl'), io), {
-      sessionId: asString(info?.id) ?? asString(summary?.id) ?? basenamePath(dir),
-      cwd: asString(info?.cwd),
-      title: asString(summary?.title) ?? asString(summary?.session_summary),
-      systemPrompt,
-      tools,
-    })
+  async load(ref, io, opts): Promise<Trace> {
+    const progress = readProgress(opts.onProgress)
+    const dir = sessionDir(ref.path)
+    const file = updatesPath(ref.path)
+    const meta = await loadMeta(io, dir, progress)
+    const records = await readJsonlRecords(file, io, 'grok', { signal: opts.signal, progress })
+    const parsed = parseGrokRecords(records, { ...meta, id: meta.id ?? ref.sessionId })
+    await enrichAgents(io, dir, parsed.agents, progress)
+    return toTrace('grok', CAPABILITIES, parsed)
   },
 }

@@ -1,133 +1,94 @@
-import type { Adapter, TraceIO } from '@rivus/agent-trace-kernel'
-import type { EventKind, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { asRecord, asString, basenamePath, parseTime, readJsonl } from '@rivus/agent-trace-kernel'
-import { TRACE_SCHEMA } from '@rivus/agent-trace-schema'
+import type { Capability, Trace } from '@rivus/agent-trace-schema'
+import type { DiscoverPreview, HostAdapter } from '@rivus/agent-trace-kernel'
+import {
+  asRecord,
+  asString,
+  basenamePath,
+  discoverSessions,
+  joinPath,
+  readEdges,
+  readJsonlRecords,
+  readProgress,
+  timeOf,
+  toTrace,
+  walkFiles,
+} from '@rivus/agent-trace-kernel'
+import { INJECTED_USER, textFrom } from './codex-items.ts'
+import { parseCodexRecords } from './parse-session.ts'
 
-const SKIP = new Set(['token_count', 'turn_context'])
+const CAPABILITIES: Capability[] = [
+  'requests',
+  'usage',
+  'durations',
+  'thinking',
+  'compaction',
+  'subagents',
+]
 
-function textFromContent(content: unknown): string | undefined {
-  if (typeof content === 'string')
-    return content
-  if (!Array.isArray(content))
-    return undefined
-  const parts: string[] = []
-  for (const part of content) {
-    const rec = asRecord(part)
-    const text = asString(rec?.text) ?? asString(rec?.output)
-    if (text)
-      parts.push(text)
+/** The first prompt skips injected user text, the same rule as turns. */
+function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
+  const preview: DiscoverPreview = {}
+  for (const rec of records) {
+    const payload = asRecord(rec.payload)
+    const ts = timeOf(rec.timestamp) ?? timeOf(payload?.timestamp)
+    if (ts !== undefined) {
+      preview.startedAt ??= ts
+      preview.lastAt = ts
+    }
+    if (rec.type === 'session_meta') {
+      preview.sessionId ??= asString(payload?.id) ?? asString(payload?.session_id)
+      preview.cwd ??= asString(payload?.cwd)
+    }
+    if (!preview.firstPrompt && rec.type === 'response_item' && payload?.type === 'message' && payload.role === 'user') {
+      const text = textFrom(payload.content)
+      if (text && !INJECTED_USER.test(text))
+        preview.firstPrompt = text.slice(0, 500)
+    }
   }
-  return parts.length ? parts.join('') : undefined
+  return preview
 }
 
-export function parseCodexRows(rows: unknown[]): Trace {
-  const events: TraceEvent[] = []
-  let sessionId = 'unknown'
-  let cwd: string | undefined
-  let title: string | undefined
-
-  rows.forEach((row, index) => {
-    const rec = asRecord(row)
-    if (!rec)
-      return
-    const envelopeType = asString(rec.type)
-    const payload = asRecord(rec.payload) ?? {}
-    const ts = parseTime(rec.timestamp ?? payload.timestamp)
-    const id = String(rec.ordinal ?? index)
-
-    if (envelopeType === 'session_meta') {
-      sessionId = asString(payload.session_id) ?? asString(payload.id) ?? sessionId
-      cwd = asString(payload.cwd) ?? cwd
-      return
-    }
-
-    if (envelopeType === 'turn_context')
-      return
-
-    if (envelopeType === 'event_msg') {
-      const inner = asString(payload.type)
-      if (!inner || SKIP.has(inner))
-        return
-      events.push({
-        id: `e${id}`,
-        ts,
-        kind: 'unknown',
-        payload: { type: inner },
-        original: rec,
-      })
-      return
-    }
-
-    if (envelopeType !== 'response_item') {
-      events.push({
-        id: `e${id}`,
-        ts,
-        kind: 'unknown',
-        payload: { type: envelopeType ?? 'unknown' },
-        original: rec,
-      })
-      return
-    }
-
-    const inner = asString(payload.type)
-    let kind: EventKind = 'unknown'
-    const body: Record<string, unknown> = {}
-
-    if (inner === 'message') {
-      const role = asString(payload.role)
-      kind = role === 'user' ? 'user' : role === 'assistant' ? 'assistant' : 'unknown'
-      const text = textFromContent(payload.content)
-      if (text)
-        body.text = text
-      if (!title && kind === 'user' && text)
-        title = text.slice(0, 80)
-    }
-    else if (inner === 'reasoning') {
-      kind = 'thinking'
-      const summary = payload.summary
-      if (Array.isArray(summary) && summary[0]) {
-        const first = asRecord(summary[0])
-        const text = asString(first?.text)
-        if (text)
-          body.text = text
-      }
-    }
-    else if (inner === 'function_call' || inner === 'custom_tool_call') {
-      kind = 'tool_call'
-      body.name = asString(payload.name)
-      body.callId = asString(payload.call_id)
-      body.args = payload.arguments ?? payload.input
-    }
-    else if (inner === 'function_call_output' || inner === 'custom_tool_call_output') {
-      kind = 'tool_result'
-      body.callId = asString(payload.call_id)
-      body.text = asString(payload.output) ?? textFromContent(payload.output)
-    }
-
-    events.push({ id: `e${id}`, ts, kind, payload: body, original: rec })
-  })
-
-  return {
-    schema: TRACE_SCHEMA,
-    host: 'codex',
-    session: { id: sessionId, cwd, title },
-    events,
-  }
-}
-
-export const codexAdapter: Adapter = {
+export const codexAdapter: HostAdapter = {
   id: 'codex',
-  async detect(path: string, io: TraceIO): Promise<boolean> {
-    const name = basenamePath(path)
+  displayName: 'Codex',
+  capabilities: CAPABILITIES,
+  roots(env) {
+    return [joinPath(env.homeDir, '.codex/sessions')]
+  },
+  discover(root, io, opts) {
+    return discoverSessions('codex', root, io, {
+      signal: opts.signal,
+      files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
+        match: name => name.startsWith('rollout-') && name.endsWith('.jsonl'),
+        maxDepth: 6,
+        signal,
+      }),
+      preview: previewRecords,
+    })
+  },
+  async detect(ref, io) {
+    const name = basenamePath(ref.path)
     if (name.startsWith('rollout-') && name.endsWith('.jsonl'))
       return true
-    if (!name.endsWith('.jsonl'))
+    try {
+      const edges = await readEdges(io, ref.path)
+      if (!edges)
+        return false
+      const head = edges.head.slice(0, 2000)
+      return head.includes('"session_meta"')
+    }
+    catch {
       return false
-    const rows = await readJsonl(path, io)
-    const first = asRecord(rows[0])
-    return asString(first?.type) === 'session_meta'
+    }
   },
-  async load(path: string, io: TraceIO): Promise<Trace> {
-    return parseCodexRows(await readJsonl(path, io))
+  async load(ref, io, opts): Promise<Trace> {
+    const progress = readProgress(opts.onProgress)
+    const records = await readJsonlRecords(ref.path, io, 'codex', { signal: opts.signal, progress })
+    const parsed = parseCodexRecords(records, { sessionId: ref.sessionId })
+    if (!ref.sessionId && parsed.session.id === 'unknown') {
+      const stem = basenamePath(ref.path).replace(/\.jsonl$/, '')
+      parsed.session.id = stem || 'unknown'
+    }
+    return toTrace('codex', CAPABILITIES, parsed)
   },
 }

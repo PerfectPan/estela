@@ -1,6 +1,8 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { SessionSummary } from './host.ts'
+import { asNumber, asRecord } from './jsonl.ts'
 
-export interface TraceFold {
+export interface TraceFold extends SessionSummary {
   /** True when any event has `parentId`. */
   hasTree: boolean
   /** True when any event is shadowed. */
@@ -9,10 +11,128 @@ export interface TraceFold {
   roots: TraceEvent[]
 }
 
+/** Copy of the summary fields. Undefined capabilities are omitted. */
+export function summaryOf(summary: SessionSummary): SessionSummary {
+  const out: SessionSummary = {}
+  if (summary.turns !== undefined)
+    out.turns = summary.turns
+  if (summary.requests !== undefined)
+    out.requests = summary.requests
+  if (summary.tokensIn !== undefined)
+    out.tokensIn = summary.tokensIn
+  if (summary.tokensOut !== undefined)
+    out.tokensOut = summary.tokensOut
+  if (summary.durationMs !== undefined)
+    out.durationMs = summary.durationMs
+  if (summary.compactions !== undefined)
+    out.compactions = summary.compactions
+  if (summary.subagents !== undefined)
+    out.subagents = summary.subagents
+  if (summary.failedTools !== undefined)
+    out.failedTools = summary.failedTools
+  if (summary.contextShape !== undefined)
+    out.contextShape = summary.contextShape
+  return out
+}
+
+export function downsample(values: number[], max = 120): number[] {
+  if (values.length <= max)
+    return values.slice()
+  const out: number[] = []
+  const last = values.length - 1
+  for (let index = 0; index < max; index++)
+    out.push(values[Math.round((index * last) / (max - 1))]!)
+  return out
+}
+
+function gated(declared: boolean, value: number | undefined): number | undefined {
+  if (!declared)
+    return undefined
+  return value
+}
+
+function usageSum(events: TraceEvent[], field: 'inputTokens' | 'outputTokens'): number | undefined {
+  let total = 0
+  let any = false
+  for (const event of events) {
+    if (event.kind !== 'request')
+      continue
+    const amount = asNumber(asRecord(event.payload.usage)?.[field])
+    if (amount === undefined)
+      continue
+    total += amount
+    any = true
+  }
+  return any ? total : undefined
+}
+
+function knownSum(values: (number | undefined)[]): number | undefined {
+  const known = values.filter((value): value is number => value !== undefined)
+  return known.length > 0 ? known.reduce((total, value) => total + value, 0) : undefined
+}
+
+/**
+ * Turn durations (`system` events with `type: 'turn_duration'`) when the host
+ * records them; otherwise the sum of per-call request `durationMs`.
+ */
+function durationSum(events: TraceEvent[]): number | undefined {
+  const turns = knownSum(events
+    .filter(event => event.kind === 'system' && event.payload.type === 'turn_duration')
+    .map(event => asNumber(event.payload.durationMs)))
+  if (turns !== undefined)
+    return turns
+  return knownSum(events.filter(event => event.kind === 'request').map(event => asNumber(event.payload.durationMs)))
+}
+
+/**
+ * A turn is one real user prompt: a main-lane user record that starts a turn.
+ * Several `user` events from one record (content blocks) count once. Not turns:
+ * meta records (`payload.meta`), compact summaries (`payload.compactSummary`),
+ * command wrappers (`payload.command`), host-injected environment or instruction
+ * messages (`payload.injected`), and later chunks of one prompt (`payload.continued`).
+ */
+function countTurns(trace: Trace): number {
+  const main = trace.agents.find(agent => agent.parentId == null)?.id
+  const records = new Set<string>()
+  for (const event of trace.events) {
+    if (event.kind !== 'user' || (event.agentId != null && event.agentId !== main))
+      continue
+    const payload = event.payload
+    if (payload.meta === true || payload.compactSummary === true || payload.command === true
+      || payload.injected === true || payload.continued === true)
+      continue
+    records.add(`${event.source.file}\0${event.source.line}`)
+  }
+  return records.size
+}
+
 export function fold(trace: Trace): TraceFold {
+  const capabilities = new Set(trace.capabilities)
+  const turns = countTurns(trace)
+  const requestEvents = trace.events.filter(event => event.kind === 'request')
+  const inputPoints = requestEvents.flatMap((event) => {
+    const input = asNumber(asRecord(event.payload.usage)?.inputTokens)
+    return input === undefined ? [] : [input]
+  })
+  const usage = capabilities.has('usage')
   return {
-    hasTree: trace.events.some(e => e.parentId != null),
-    hasShadowing: trace.events.some(e => e.shadowedBy != null),
-    roots: trace.events.filter(e => e.parentId == null),
+    hasTree: trace.events.some(event => event.parentId != null),
+    hasShadowing: trace.events.some(event => event.shadowedBy != null),
+    roots: trace.events.filter(event => event.parentId == null),
+    turns,
+    requests: gated(capabilities.has('requests'), requestEvents.length),
+    tokensIn: gated(usage, usageSum(trace.events, 'inputTokens')),
+    tokensOut: gated(usage, usageSum(trace.events, 'outputTokens')),
+    durationMs: gated(capabilities.has('durations'), durationSum(trace.events)),
+    compactions: gated(
+      capabilities.has('compaction'),
+      trace.events.filter(event => event.kind === 'compaction').length,
+    ),
+    subagents: gated(
+      capabilities.has('subagents'),
+      trace.agents.filter(agent => agent.parentId != null).length,
+    ),
+    failedTools: trace.events.filter(event => event.kind === 'tool_result' && event.payload.isError === true).length,
+    contextShape: usage && inputPoints.length > 0 ? downsample(inputPoints) : undefined,
   }
 }

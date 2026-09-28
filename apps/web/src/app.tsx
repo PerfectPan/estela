@@ -52,7 +52,7 @@ export function App() {
         <div class="flex h-full flex-col bg-background text-foreground">
           <div class="flex h-8 shrink-0 items-center gap-2 border-b border-border px-1.5" role="toolbar">
             <span class="px-1.5 text-[12px] font-medium">Trajectory</span>
-            <span class="rounded-sm bg-muted px-1.5 font-mono text-[11px] text-muted-foreground">{view().trace.host}</span>
+            <span class="rounded-sm bg-muted px-1.5 font-mono text-[11px] text-muted-foreground">{view().trace.host.id}</span>
             <span class="flex-1" />
             <input
               class="h-5 w-44 rounded-sm border border-border bg-background px-2 text-[12px] outline-none placeholder:text-muted-foreground"

@@ -42,10 +42,11 @@
 |---|---|---|---|
 | 位置 | `~/.claude/projects/<cwd>/<id>.jsonl`，subagent 位于 `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` 以及 `summary.json`、`system_prompt.txt`、`tool_definitions.json`、`subagents/` |
 | 请求边界、模型 | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
+| 请求单位 | 一次模型调用（`requestId`） | 一次模型调用（`token_usage_record`；在第一条之前用 `token_count.info.last_token_usage`） | 每轮一个 request：usage 只记录在 `turn_completed.usage` 中，是该轮所有调用的合计（`modelCalls`、`numTurns` 是计数，`modelUsage` 按模型分）。逐次调用的记录存在（`events.jsonl` 的 `loop_started` / `first_token`，`chat_history.jsonl` 的 assistant 条目），但不带 usage |
 | Token | `message.usage` | `token_usage_record` | `turn_completed.usage` |
-| 耗时 | 记录的 `timestamp`、`system/turn_duration` | `started_at_ms`, `completed_at_ms` | `turn_completed.elapsed_ms` |
+| 耗时 | 记录的 `timestamp`、`system/turn_duration` | 记录的 `timestamp`、每轮的 `task_complete.duration_ms`；`started_at_ms` / `completed_at_ms` 只出现在 `item_completed` 上 | 每轮的 `turn_completed.elapsed_ms` |
 | 压缩 | `system/compact_boundary`，带 `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
-| Subagent | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
+| Subagent | `isSidechain`, `subagents/*.jsonl` | `event_msg/item_completed`，其 `item.type` 为 `SubAgentActivity`（`agent_thread_id`）；`inter_agent_communication_metadata` 只带 `trigger_turn` | `subagent_spawned/finished`, `subagents/` |
 | System prompt、tool schema | 未记录 | 未记录（未对所有格式代际验证） | `system_prompt.txt`, `tool_definitions.json` |
 
 **本机日志量。**
@@ -142,7 +143,7 @@ flowchart TB
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | 每个包对应一个 host：目录布局知识、解析、capability | `kernel`、`schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | 保留，本次发布中不注册 | `kernel`、`schema` |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | host 协议类型、`loadTrace`、`fold`、`reconstruct`、`redact`、`toView`、投影、一致性测试 | `schema` |
-| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型 | 无 |
+| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型及其 `zod` schema | 不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
 
 规则：
 
@@ -150,6 +151,7 @@ flowchart TB
 - `apps/cli` 是唯一的组合根。只有它知道注册了哪些 host，以及运行时是 Node。
 - 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel`、`rpc` 和每个 `host-*` 都不导入（D5）。
 - UI 组件留在 `apps/web` 内，直到出现第二个使用方。
+- “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，不依赖任何工作区包。
 - `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
 
 本计划中的“shell”指 `apps/cli` 加上 `packages/runtime-node`。
@@ -339,13 +341,17 @@ export interface HostAdapter {
 
 1. `discover` 返回每个 fixture 会话，每个文件读取不超过 128 KB。
 2. `load` 两次得到相同的事件 id 和顺序。
-3. 输入记录数 = 事件数 + skipped 数，以 fixture 的记录数为准。
+3. 每条输入记录都被计入：它是一个或多个事件的来源，或者对应一条 `skipped`。
 4. 每个 `tool_result.callId` 都匹配同一 agent 中更早的 `tool_call.callId`，否则该 result 标记为 `orphan`。
-5. 每个 `shadowedBy` 都指向更早的 `compaction` 事件。
+5. 每个 `shadowedBy` 都指向同一 agent 更晚的 `compaction` 事件。
 6. 每个事件都有 source pointer，且能读回同一条记录。
 7. 每个已声明的 capability 在声明它的 fixture 中至少出现一次；未声明的从不出现。
 8. `summarize` 对该 fixture 等于 `fold(load())`。
 9. 从 adapter 入口不可达任何 `node:*` 导入。
+10. 事件 id 唯一。
+11. `seq` 等于事件下标，并且严格递增。
+12. 每个 `shadowedBy` 都留在同一个 agent 内。
+13. 对测试中生成的大于 128 KB 的会话，`discover` 从两端各读取不超过 64 KB，不读整个文件。
 
 ### 3.3 规范 trace
 
@@ -377,7 +383,7 @@ export interface RequestPayload {
   model?: string          // gen_ai.request.model
   responseId?: string     // gen_ai.response.id
   usage?: {
-    inputTokens?: number        // gen_ai.usage.input_tokens
+    inputTokens?: number        // total input, including cached tokens (OTel gen_ai.usage.input_tokens); cache_read/cache_write are breakdowns
     outputTokens?: number       // gen_ai.usage.output_tokens
     cacheReadTokens?: number    // gen_ai.usage.cache_read.input_tokens
     cacheWriteTokens?: number   // gen_ai.usage.cache_write.input_tokens
@@ -410,6 +416,8 @@ export interface Trace {
   skipped: { line: number, file: string, reason: string }[]
 }
 ```
+
+一个 `request` 事件是一次模型调用。只记录每轮合计的 host 每轮发出一个 request，并在 adapter 里说明。轮次耗时放在 `type: 'turn_duration'` 的 `system` 事件上，从不写进 request 的 `durationMs`。
 
 - `schema: 'agent-trace'` 标记一个规范 JSON 文件。demo fixture 改写为这一形状；不保留 MVP 形状的 reader。
 - payload 的键名按事件类型固定；每个字段旁的注释是其 OTel GenAI 属性。OTLP exporter 一对一映射它们。
@@ -601,6 +609,7 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 | 更多 UI 语言；本地化的 CLI 和 MCP 输出 | 后续工作 | 非英文、非中文用户 | 未确认 | 增加一个词典；类型检查会覆盖它 |
 | chrome-devtools-mcp 默认发送使用数据 | 风险 | 一次本地检查向 Google 发送统计数据 | 未确认 | 文档中给出的命令传入两个关闭上报的参数（D16） |
 | DevFrame 日志行忽略 `NO_COLOR` | 风险 | CI 日志中出现转义码 | 未确认 | 在 shell 中过滤（D14）；向 DevFrame 提出修复 |
+| Grok 逐次调用的 request | 后续工作 | Grok 的 request 按轮次，看不到逐次调用的上下文增长 | 未确认 | 把 `events.jsonl` 的 `loop_started` / `first_token` 与 `chat_history.jsonl` 的 assistant 条目对应到调用；除非 Grok 逐次记录 usage，usage 仍按轮次 |
 | 实时跟随、内容搜索、lane 视图切换 | 后续工作 | 查看器功能 | 未确认 | 单独的计划 |
 
 ## 8. 附录：测量数据

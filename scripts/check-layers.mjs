@@ -18,6 +18,7 @@ const HOSTS = [
   '@rivus/agent-trace-host-dsh',
 ]
 const HOST_DEPS = [KERNEL, SCHEMA]
+const RUNTIME = '@rivus/agent-trace-runtime-node'
 
 const ALLOW = {
   '@rivus/agent-trace': ['@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE, ...HOSTS],
@@ -51,13 +52,15 @@ for (const project of rush.projects) {
   if (manifest.name !== project.packageName) {
     violations.push(`check-layers: ${project.projectFolder} package.json name ${manifest.name} does not match rush.json ${project.packageName}`)
   }
-  const allowed = new Set(ALLOW[manifest.name] ?? [])
   if (!Object.hasOwn(ALLOW, manifest.name))
     violations.push(`check-layers: ${manifest.name} has no allow-list entry`)
   for (const field of FIELDS) {
     const deps = manifest[field]
     if (!deps)
       continue
+    const allowed = new Set(ALLOW[manifest.name] ?? [])
+    if (field === 'devDependencies' && HOSTS.includes(manifest.name))
+      allowed.add(RUNTIME)
     for (const name of Object.keys(deps)) {
       if (!name.startsWith('@rivus/'))
         continue

@@ -88,3 +88,35 @@ describe('installPlainFilter', () => {
     expect(seen[1]?.length).toBe(1)
   })
 })
+
+describe('DevFrame log lines', () => {
+  const users = '/Users'
+  const home = `${users}/alice`
+  const line = `\u001b[36m[devframe] copying SPA from ${home}/app/web/dist -> /tmp/out\u001b[39m\n`
+
+  it('replaces the home directory with ~ on a TTY and keeps colors', () => {
+    const seen: string[] = []
+    stdout.isTTY = true
+    stdout.write = ((chunk: string) => {
+      seen.push(chunk)
+      return true
+    }) as typeof stdout.write
+    installPlainFilter({ homeDir: home })
+    stdout.write(line)
+    stdout.write(`other ${home}\n`)
+    expect(seen[0]).toBe('\u001b[36m[devframe] copying SPA from ~/app/web/dist -> /tmp/out\u001b[39m\n')
+    expect(seen[1]).toBe(`other ${home}\n`)
+  })
+
+  it('replaces the home directory with ~ in plain output', () => {
+    const seen: string[] = []
+    stdout.isTTY = false
+    stdout.write = ((chunk: string) => {
+      seen.push(chunk)
+      return true
+    }) as typeof stdout.write
+    installPlainFilter({ homeDir: home })
+    stdout.write(Buffer.from(line))
+    expect(seen[0]).toBe('[devframe] copying SPA from ~/app/web/dist -> /tmp/out\n')
+  })
+})

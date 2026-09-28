@@ -1,4 +1,4 @@
-import type { Adapter } from '@rivus/agent-trace-kernel'
+import type { HostAdapter } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { basenamePath } from '@rivus/agent-trace-kernel'
 
@@ -7,14 +7,20 @@ import { basenamePath } from '@rivus/agent-trace-kernel'
  * Cold start: detect only. Load fails until format-catalog restore is wired.
  * Not registered in this release.
  */
-export const dshAdapter: Adapter = {
+export const dshAdapter: HostAdapter = {
   id: 'dsh',
-  async detect(path: string): Promise<boolean> {
-    const name = basenamePath(path)
+  displayName: 'dsh',
+  capabilities: [],
+  roots() {
+    return []
+  },
+  async *discover() {},
+  async detect(ref): Promise<boolean> {
+    const name = basenamePath(ref.path)
     return name.endsWith('.zip')
       || /^session(\.v\d+)?\.jsonl(\.zst)?$/.test(name)
   },
-  async load(path: string): Promise<Trace> {
-    throw new Error(`dsh adapter cannot load ${path} yet: wire session-format-catalog restore; do not parse a single generation by hand`)
+  async load(ref): Promise<Trace> {
+    throw new Error(`dsh adapter cannot load ${ref.path} yet: wire session-format-catalog restore; do not parse a single generation by hand`)
   },
 }

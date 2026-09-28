@@ -40,10 +40,11 @@ Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands an
 |---|---|---|---|
 | Location | `~/.claude/projects/<cwd>/<id>.jsonl`, subagents in `<id>/subagents/agent-*.jsonl` | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `~/.grok/sessions/<cwd>/<id>/updates.jsonl` plus `summary.json`, `system_prompt.txt`, `tool_definitions.json`, `subagents/` |
 | Request boundary, model | `requestId`, `message.model` | `response_id`, `turn_context` | `_meta.modelId`, `_meta.promptIndex` |
+| Request unit | one model call (`requestId`) | one model call (`token_usage_record`; before the first one, `token_count.info.last_token_usage`) | one request per turn: usage is recorded only in `turn_completed.usage`, summed over the turn's calls (`modelCalls`, `numTurns` are counts, `modelUsage` is per model). Per-call records exist (`events.jsonl` `loop_started` / `first_token`, `chat_history.jsonl` assistant entries) but carry no usage |
 | Tokens | `message.usage` | `token_usage_record` | `turn_completed.usage` |
-| Timing | record `timestamp`, `system/turn_duration` | `started_at_ms`, `completed_at_ms` | `turn_completed.elapsed_ms` |
+| Timing | record `timestamp`, `system/turn_duration` | record `timestamp`, `task_complete.duration_ms` per turn; `started_at_ms` / `completed_at_ms` only on `item_completed` | `turn_completed.elapsed_ms` per turn |
 | Compaction | `system/compact_boundary` with `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
-| Subagents | `isSidechain`, `subagents/*.jsonl` | `inter_agent_communication_metadata` | `subagent_spawned/finished`, `subagents/` |
+| Subagents | `isSidechain`, `subagents/*.jsonl` | `event_msg/item_completed` with `item.type: SubAgentActivity` (`agent_thread_id`); `inter_agent_communication_metadata` carries only `trigger_turn` | `subagent_spawned/finished`, `subagents/` |
 | System prompt, tool schemas | not recorded | not recorded (unverified for all generations) | `system_prompt.txt`, `tool_definitions.json` |
 
 **Log volume on this machine.**
@@ -140,7 +141,7 @@ flowchart TB
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | Host protocol types, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, projections, conformance suite | `schema` |
-| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types | nothing |
+| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types and their `zod` schemas | no workspace package; small browser-safe external libraries (`zod`) |
 
 Rules:
 
@@ -148,6 +149,7 @@ Rules:
 - `apps/cli` is the only composition root. It alone knows which hosts are registered and that the runtime is Node.
 - Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, `rpc`, and every `host-*` do not (D5).
 - UI components stay inside `apps/web` until a second consumer needs them.
+- The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod` and no workspace package.
 - `scripts/check-layers.mjs` checks every `package.json` against the "May depend on" column in CI.
 
 In this plan, "the shell" means `apps/cli` together with `packages/runtime-node`.
@@ -337,13 +339,17 @@ Rules:
 
 1. `discover` returns every fixture session and reads no more than 128 KB per file.
 2. `load` twice gives identical event ids and order.
-3. Records in = events + skipped, per the fixture's record count.
+3. Every input record is accounted for: it is the source of one or more events, or one `skipped` entry.
 4. Every `tool_result.callId` matches an earlier `tool_call.callId` in the same agent, or the result is flagged `orphan`.
-5. Every `shadowedBy` points to an earlier `compaction` event.
+5. Every `shadowedBy` points to a later `compaction` event of the same agent.
 6. Every event has a source pointer that reads back the same record.
 7. Each declared capability appears at least once in the fixture that claims it; an undeclared one never appears.
 8. `summarize` equals `fold(load())` for the fixture.
 9. No `node:*` import is reachable from the adapter entry.
+10. Event ids are unique.
+11. `seq` equals the event index and is strictly increasing.
+12. Every `shadowedBy` stays on the same agent.
+13. For a session larger than 128 KB, generated in the test, `discover` reads at most 64 KB from each end, not the whole file.
 
 ### 3.3 Canonical trace
 
@@ -375,7 +381,7 @@ export interface RequestPayload {
   model?: string          // gen_ai.request.model
   responseId?: string     // gen_ai.response.id
   usage?: {
-    inputTokens?: number        // gen_ai.usage.input_tokens
+    inputTokens?: number        // total input, including cached tokens (OTel gen_ai.usage.input_tokens); cache_read/cache_write are breakdowns
     outputTokens?: number       // gen_ai.usage.output_tokens
     cacheReadTokens?: number    // gen_ai.usage.cache_read.input_tokens
     cacheWriteTokens?: number   // gen_ai.usage.cache_write.input_tokens
@@ -408,6 +414,8 @@ export interface Trace {
   skipped: { line: number, file: string, reason: string }[]
 }
 ```
+
+A `request` event is one model call. A host that records only per-turn totals emits one request per turn and says so in its adapter. A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
 
 - `schema: 'agent-trace'` marks a canonical JSON file. The demo fixture is rewritten to this shape; no reader for the MVP shape is kept.
 - Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.
@@ -599,6 +607,7 @@ Basis: the M1 changes were each tried in a probe (section 8); M2 is dominated by
 | More UI languages; localized CLI and MCP output | follow-up | Non-English and non-Chinese users | unconfirmed | Add a dictionary; the type check covers it |
 | chrome-devtools-mcp sends usage data by default | risk | A local check sends statistics to Google | unconfirmed | The documented command passes both opt-out flags (D16) |
 | DevFrame log lines ignore `NO_COLOR` | risk | Escape codes in CI logs | unconfirmed | Filter in the shell (D14); propose the fix to DevFrame |
+| Grok per-call requests | follow-up | Grok requests are per turn, so per-call context growth is not shown | unconfirmed | Join `events.jsonl` `loop_started` / `first_token` and `chat_history.jsonl` assistant entries to calls; usage stays per turn unless Grok logs it per call |
 | Live follow, content search, lane view toggle | follow-up | Viewer features | unconfirmed | Separate plans |
 
 ## 8. Appendix: measurements

@@ -18,5 +18,14 @@ export default defineConfig({
   build: {
     outDir: join(clientRoot, '../dist'),
     emptyOutDir: true,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // zod places two `@__PURE__` comments where Rollup cannot read them; Rollup only drops the
+        // comments. Rush treats any build warning as a failure, so this one is filtered out.
+        if (warning.code === 'INVALID_ANNOTATION' && warning.id?.includes('/zod/'))
+          return
+        warn(warning)
+      },
+    },
   },
 })

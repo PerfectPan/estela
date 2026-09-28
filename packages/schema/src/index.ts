@@ -1,17 +1,23 @@
+import { traceSchema, type Trace } from './types.ts'
+
 export {
+  EVENT_KINDS,
   TRACE_SCHEMA,
+  type AgentInfo,
+  type Capability,
+  type CompactionPayload,
   type EventKind,
   type ReconstructResult,
+  type RequestPayload,
+  type SkippedEntry,
+  type SourcePointer,
+  type ToolCallPayload,
+  type ToolResultPayload,
   type Trace,
   type TraceEvent,
   type TraceSession,
 } from './types.ts'
 
-export function isTrace(value: unknown): value is import('./types.ts').Trace {
-  if (value == null || typeof value !== 'object')
-    return false
-  const v = value as Record<string, unknown>
-  return v.schema === 'agent-trace/v0'
-    && typeof v.host === 'string'
-    && Array.isArray(v.events)
+export function isTrace(value: unknown): value is Trace {
+  return traceSchema.safeParse(value).success
 }

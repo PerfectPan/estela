@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "lint": "oxlint -c ../../.oxlintrc.json src",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,9 +17,11 @@
     "@rivus/agent-trace-schema": "workspace:*"
   },
   "devDependencies": {
+    "@rivus/agent-trace-runtime-node": "workspace:*",
     "@types/node": "^24.5.2",
     "oxlint": "^1.83.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   },
   "private": true
 }
