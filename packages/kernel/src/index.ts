@@ -18,10 +18,13 @@ export {
   asString,
   splitSessionRef,
 } from './jsonl.ts'
-export { loadTrace, UnsupportedTraceError } from './load.ts'
+export { isCanonicalTraceFile, loadTrace, UnsupportedTraceError } from './load.ts'
+export { isPrompt, mainAgentId } from './lanes.ts'
+export { projectLanes, projectRequests, type Lane, type LaneMarker, type RequestEntry } from './project-timeline.ts'
+export { foldHookRuns, hiddenAfterCompaction, projectTurns, type Turn, type TurnRow, type TurnTotals } from './project-turns.ts'
 export { basenamePath, dirnamePath, joinPath } from './path.ts'
 export { reconstruct } from './reconstruct.ts'
-export { generationError, readJsonlRecords, readProgress, readTextCounted, sourceOf, type ReadProgress, type SourcedRecord } from './records.ts'
+export { generationError, readJsonlRecords, readOriginal, readProgress, readTextCounted, sourceOf, type ReadProgress, type SourcedRecord } from './records.ts'
 export { redact, redactText } from './redact.ts'
 export {
   baseEvent,
@@ -37,5 +40,5 @@ export {
 export { summarize, SUMMARY_VERSION } from './summarize.ts'
 export { timeOf } from './time.ts'
 export { usageFrom, type UsageParts } from './usage.ts'
-export { toView } from './view.ts'
+export { fitView, toView, VIEW_BUDGET_BYTES, type FittedView } from './view.ts'
 export { walkFiles } from './walk.ts'

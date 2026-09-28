@@ -1,8 +1,10 @@
+import type { ResolvedSession } from '@rivus/agent-trace-rpc'
+import type { Trace } from '@rivus/agent-trace-schema'
 import { resolve } from 'node:path'
 import process from 'node:process'
-import { splitSessionRef } from '@rivus/agent-trace-kernel'
-import { bindSessionService } from '@rivus/agent-trace-rpc'
-import { homeDir } from '@rivus/agent-trace-runtime-node'
+import { loadTrace, splitSessionRef } from '@rivus/agent-trace-kernel'
+import { bindSessionService, bindTraceStore } from '@rivus/agent-trace-rpc'
+import { homeDir, nodeIO } from '@rivus/agent-trace-runtime-node'
 import { createBuild } from 'devframe/adapters/build'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
@@ -11,7 +13,8 @@ import { SessionCatalog } from './catalog.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
 import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
-import { Session } from './session.ts'
+import { registeredHosts, Session } from './session.ts'
+import { createTraceStore } from './trace-store.ts'
 import { installPlainFilter, pickSession, sayBuild, sayError, sayReady, sayStart, sayWarning, startLoad } from './terminal.ts'
 import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
 
@@ -21,6 +24,13 @@ function normalizeSessionPath(input: string): string {
   const { file, sessionId } = splitSessionRef(input)
   const resolved = resolve(file)
   return sessionId === undefined ? resolved : `${resolved}#${sessionId}`
+}
+
+/** The `file#sessionId` form `Session` loads, for a catalog target. */
+function pathOf(target: ResolvedSession['path']): string {
+  if (typeof target === 'string')
+    return target
+  return target.sessionId ? `${target.path}#${target.sessionId}` : target.path
 }
 
 export async function main(): Promise<void> {
@@ -62,11 +72,15 @@ export async function main(): Promise<void> {
   }
 
   if (parsed.command === 'mcp' || parsed.command === 'build') {
+    // `build` and `mcp` always redact; only the local server honors `AGENT_TRACE_REDACT=0`.
     const sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
+    const current: ResolvedSession = { key: sessionPath, path: sessionPath }
     const session = new Session(sessionPath, true)
     bindSessionService(session)
+    const traces = createTraceStore({ adapters: registeredHosts, redacts: true })
+    bindTraceStore(traces.store)
     if (parsed.command === 'mcp') {
-      await loadOrExit(session, { mcp: true })
+      await traces.seed(current, await loadOrExit(session))
       await handle.parse(programArgv(parsed.userArgs))
       return
     }
@@ -75,6 +89,8 @@ export async function main(): Promise<void> {
       await sayBuild(pkg.version, {
         load: async () => {
           const trace = await session.load()
+          // One load per build: the store gets this trace, so no RPC reloads the file.
+          await traces.seed(current, trace)
           return `${trace.events.length} events`
         },
         redact: async () => {
@@ -95,25 +111,31 @@ export async function main(): Promise<void> {
   }
 
   sayStart(pkg.version)
+  const redacts = process.env.AGENT_TRACE_REDACT !== '0'
   const catalog = new SessionCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
-  bindSessionService(catalog)
+  const traces = createTraceStore({ adapters: registeredHosts, redacts, resolve: ref => catalog.resolve(ref) })
+  bindTraceStore(traces.store)
+  // `get-trace` (legacy, full trace) serves the launch session and loads it only if called.
+  let launch: Session | undefined
+  bindSessionService({
+    view: async () => {
+      if (!launch)
+        throw new Error('No session is open')
+      return launch.view()
+    },
+    listSessions: input => catalog.listSessions(input),
+  })
   readyHook = () => catalog.resumeSummaries()
   if (catalog.indexUnavailable)
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
 
   const direct = parsed.pick ? undefined : (parsed.path ?? process.env.AGENT_TRACE_PATH)
   if (direct) {
-    const loading = startLoad()
-    try {
-      readyRef = await catalog.openPath(normalizeSessionPath(direct))
-      const view = await catalog.view()
-      loading.stop(view.trace.events.length)
-    }
-    catch (error) {
-      loading.cancel()
-      sayError(`Could not load ${direct}: ${messageOf(error)}`, FIX)
-      process.exit(1)
-    }
+    const path = normalizeSessionPath(direct)
+    const trace = await loadLaunch(path, `Could not load ${direct}`)
+    readyRef = catalog.openPath(path, trace)
+    launch = new Session(path, redacts)
+    await traces.seed({ key: readyRef, path }, trace)
   }
 
   const indexing = startSessionIndex()
@@ -144,16 +166,10 @@ export async function main(): Promise<void> {
       process.exit(1)
     }
     readyRef = await pickSession(options)
-    const loading = startLoad()
-    try {
-      const view = await catalog.sessionTrace(readyRef)
-      loading.stop(view.trace.events.length)
-    }
-    catch (error) {
-      loading.cancel()
-      sayError(`Could not load the picked session: ${messageOf(error)}`, FIX)
-      process.exit(1)
-    }
+    const picked = catalog.resolve(readyRef)!
+    const trace = await loadLaunch(picked.path, 'Could not load the picked session')
+    launch = new Session(pathOf(picked.path), redacts)
+    await traces.seed(picked, trace)
   }
 
   // DevFrame opens `/__agent-trace/` and puts its one-time code in the fragment, so it
@@ -166,18 +182,28 @@ export async function main(): Promise<void> {
   await handle.parse(programArgv(userArgs))
 }
 
-async function loadOrExit(session: Session, options?: { mcp?: boolean, cancel?: () => void }) {
+/** The dev server's launch session, loaded once before it listens; it seeds the TraceStore. */
+async function loadLaunch(target: ResolvedSession['path'], failure: string): Promise<Trace> {
+  const loading = startLoad()
+  try {
+    const trace = await loadTrace(target, registeredHosts, nodeIO)
+    loading.stop(trace.events.length)
+    return trace
+  }
+  catch (error) {
+    loading.cancel()
+    sayError(`${failure}: ${messageOf(error)}`, FIX)
+    process.exit(1)
+  }
+}
+
+/** `mcp` writes only to stderr: stdout carries the protocol. */
+async function loadOrExit(session: Session): Promise<Trace> {
   try {
     return await session.load()
   }
   catch (error) {
-    options?.cancel?.()
-    const text = `Could not load ${session.path}: ${messageOf(error)}`
-    if (options?.mcp) {
-      process.stderr.write(`${text}\n${FIX}\n`)
-      process.exit(1)
-    }
-    sayError(text, FIX)
+    process.stderr.write(`Could not load ${session.path}: ${messageOf(error)}\n${FIX}\n`)
     process.exit(1)
   }
 }

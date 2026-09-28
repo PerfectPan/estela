@@ -32,9 +32,22 @@ function refLabel(ref: SessionRef | string): string {
   return ref.sessionId ? `${ref.path}#${ref.sessionId}` : ref.path
 }
 
-async function canonicalTrace(file: string, size: number, io: TraceIO, opts: LoadOptions): Promise<Trace | undefined> {
+async function hasCanonicalHead(file: string, size: number, io: TraceIO): Promise<boolean> {
   const head = new TextDecoder().decode(await io.readBytes(file, { start: 0, end: Math.min(size, 4096) }))
-  if (!/"schema"\s*:\s*"agent-trace"/.test(head.slice(0, 2000)))
+  return /"schema"\s*:\s*"agent-trace"/.test(head.slice(0, 2000))
+}
+
+/** True when `path` starts like a canonical agent-trace JSON file. Its events' originals live in the file, not at their source pointers. */
+export async function isCanonicalTraceFile(path: string, io: TraceIO): Promise<boolean> {
+  const file = splitSessionRef(path).file
+  const info = await io.stat(file)
+  if (info?.kind !== 'file')
+    return false
+  return hasCanonicalHead(file, info.size, io)
+}
+
+async function canonicalTrace(file: string, size: number, io: TraceIO, opts: LoadOptions): Promise<Trace | undefined> {
+  if (!await hasCanonicalHead(file, size, io))
     return undefined
   const text = await io.readText(file)
   opts.onProgress?.(new TextEncoder().encode(text).byteLength)

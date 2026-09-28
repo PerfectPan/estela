@@ -5,11 +5,14 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile }
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { loadTrace } from '@rivus/agent-trace-kernel'
+import { CURRENT_REF } from '@rivus/agent-trace-rpc'
+import { nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionCatalog } from './catalog.ts'
 import { registeredHosts } from './session.ts'
 import { oneLine } from './session-ref.ts'
+import { createTraceStore } from './trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 
@@ -177,10 +180,40 @@ describe('session catalog cache', () => {
     const path = join(dir, 'session.jsonl')
     await writeFile(path, await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')))
     const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: registeredHosts, noIndex: true, deferSummaries: true })
-    const opened = await catalog.openPath(path)
+    const trace = await loadTrace(path, registeredHosts, nodeIO)
+    const opened = catalog.openPath(path, trace)
     const listed = await catalog.listSessions()
     expect(listed.rows.map(row => row.ref)).toEqual([opened])
-    expect((await catalog.sessionTrace(opened)).trace.events.length).toBeGreaterThan(0)
+
+    // The TraceStore resolves list refs through the catalog; `current` shares the row's entry.
+    const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
+    await traces.seed({ key: opened, path }, trace)
+    const byRef = await traces.store.view(opened)
+    const byCurrent = await traces.store.view(CURRENT_REF)
+    expect(byRef.trace.events.length).toBe(trace.events.length)
+    expect(byCurrent.trace).toBe(byRef.trace)
+    expect(traces.store.cachedKeys()).toEqual([opened])
+    const first = trace.events[0]!
+    expect((await traces.store.event(opened, first.id)).original).toEqual(first.original)
+    await expect(traces.store.view('0'.repeat(24))).rejects.toThrow(/unknown session ref/)
+  })
+
+  it('resolves every list row for the TraceStore, loading it on first use', async () => {
+    const home = await tempHome()
+    const dir = join(home, '.claude/projects/app')
+    await mkdir(dir, { recursive: true })
+    const path = join(dir, 'session.jsonl')
+    await writeFile(path, await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')))
+    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: registeredHosts, noIndex: true, deferSummaries: true })
+    const [row] = (await catalog.listSessions()).rows
+    const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
+    const handle = await traces.store.open(row!.ref, {})
+    await handle.done
+    expect(handle.progress().bytesRead).toBe(handle.progress().totalBytes)
+    const view = await traces.store.view(row!.ref)
+    expect(view.trace.events.length).toBeGreaterThan(0)
+    expect(view.trace.events.every(event => !('original' in event))).toBe(true)
+    await expect(traces.store.view(CURRENT_REF)).rejects.toThrow(/unknown session ref/)
   })
 
   it('searches in memory with the index rule when there is no index', async () => {

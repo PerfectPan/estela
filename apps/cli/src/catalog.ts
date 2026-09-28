@@ -1,14 +1,14 @@
 import type { HostAdapter, HostEnv, SessionRef, TraceIO } from '@rivus/agent-trace-kernel'
 import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node'
-import type { HostListEntry, ListSessionsQuery, ListSessionsResult, SessionService, SessionView } from '@rivus/agent-trace-rpc'
+import type { HostListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
-import { loadTrace, redactText, splitSessionRef } from '@rivus/agent-trace-kernel'
+import { redactText, splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
 import { activityLabel, indexHeadOf, publicRow, rowFromIndex, sameRow, summarizeRow, type LiveRow, type Redactor } from './catalog-rows.ts'
 import { errorMessage, parseReadFailure } from './read-failure.ts'
-import { registeredHosts, Session } from './session.ts'
+import { registeredHosts } from './session.ts'
 import { oneLine, sessionRefId } from './session-ref.ts'
 import { SummaryQueue } from './summary-queue.ts'
 
@@ -19,8 +19,6 @@ const CONCURRENCY = 4
 const HEAVY_BYTES = 64 * 1024 * 1024
 /** Finished summaries are written to the index and announced to browsers at most this often. */
 const FLUSH_MS = 150
-/** Loaded traces kept in memory (plan 3.5). */
-const HELD_TRACES = 3
 
 export interface CatalogOptions {
   hosts?: readonly HostAdapter[]
@@ -33,10 +31,11 @@ export interface CatalogOptions {
 }
 
 /**
- * The shell's session service (plan 3.4): rows from the index and the latest `discover` pass,
- * summaries computed newest (or visible) first at 4 at a time, and ref → file resolution.
+ * The shell's session catalog (plan 3.4): rows from the index and the latest `discover` pass,
+ * summaries computed newest (or visible) first at 4 at a time, and ref → file resolution for
+ * the TraceStore, which loads and holds the traces.
  */
-export class SessionCatalog implements SessionService {
+export class SessionCatalog {
   private readonly hosts: readonly HostAdapter[]
   private readonly io: TraceIO
   private readonly env: HostEnv
@@ -48,13 +47,11 @@ export class SessionCatalog implements SessionService {
   private readonly targets = new Map<string, SessionRef | string>()
   /** Rows that disappeared in a re-read, by the revision they were removed at. */
   private readonly removed = new Map<string, number>()
-  private readonly held = new Map<string, Session>()
   private readonly queue: SummaryQueue<LiveRow>
   private readonly finished: IndexSummary[] = []
   private started: Promise<void> | undefined
   private discovery: Promise<void> | undefined
   private cachedStart = false
-  private current: string | undefined
   private revision = 0
   private flushTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -118,15 +115,22 @@ export class SessionCatalog implements SessionService {
     this.flush()
   }
 
-  /** Load a path given on the command line. Throws, before the server listens, when it cannot be read. */
-  async openPath(input: string): Promise<string> {
-    const trace = await loadTrace(input, this.hosts, this.io)
+  /**
+   * Register a path given on the command line, already loaded as `trace` (the shell loads it
+   * before the server listens). Returns its ref, which is the file's list row ref when it has one.
+   */
+  openPath(input: string, trace: Trace): string {
     const { file, sessionId } = splitSessionRef(input)
     // Same ref as the file's list row: the session id counts only in the `path#id` form.
     const ref = sessionRefId({ host: trace.host.id || 'agent-trace', path: file, ...(sessionId ? { sessionId } : {}) })
     this.targets.set(ref, input)
-    this.hold(ref, file, trace)
     return ref
+  }
+
+  /** The TraceStore's resolver: every list row and every opened path. The ref is the cache key. */
+  resolve(ref: string): ResolvedSession | undefined {
+    const target = this.targets.get(ref)
+    return target === undefined ? undefined : { key: ref, path: target }
   }
 
   pickChoices(): { value: string, label: string }[] {
@@ -138,27 +142,6 @@ export class SessionCatalog implements SessionService {
         .filter(part => part.length > 0)
         .join(' · '),
     }))
-  }
-
-  /** The session opened last, for `get-trace` and `reconstruct` without a ref. */
-  async view(): Promise<SessionView> {
-    if (!this.current)
-      throw new Error('No session is open')
-    return this.sessionTrace(this.current)
-  }
-
-  async sessionTrace(ref: string): Promise<SessionView> {
-    const existing = this.held.get(ref)
-    if (existing) {
-      this.touch(ref, existing)
-      return existing.view()
-    }
-    const target = this.targets.get(ref)
-    if (target === undefined)
-      throw new Error(`Unknown session ${ref}`)
-    const trace = await loadTrace(target, this.hosts, this.io)
-    const path = typeof target === 'string' ? splitSessionRef(target).file : target.path
-    return this.hold(ref, path, trace).view()
   }
 
   async listSessions(input: ListSessionsQuery = {}): Promise<ListSessionsResult> {
@@ -348,23 +331,5 @@ export class SessionCatalog implements SessionService {
   private bump(): number {
     this.revision += 1
     return this.revision
-  }
-
-  private hold(ref: string, path: string, trace: Trace): Session {
-    const session = new Session(path, false, trace)
-    this.touch(ref, session)
-    while (this.held.size > HELD_TRACES) {
-      const oldest = this.held.keys().next().value
-      if (oldest === undefined)
-        break
-      this.held.delete(oldest)
-    }
-    return session
-  }
-
-  private touch(ref: string, session: Session): void {
-    this.held.delete(ref)
-    this.held.set(ref, session)
-    this.current = ref
   }
 }

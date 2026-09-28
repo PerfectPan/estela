@@ -138,7 +138,7 @@ flowchart TB
 |---|---|---|---|
 | `apps/cli` | `@rivus/agent-trace` | 组合根：注册 host、提供 Node 运行时、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、`get-trace-view`、`get-event`、`reconstruct`）及其基于注入的会话服务的 server handler | `kernel`、`schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO`（基于 `node:fs` 的 `TraceIO`）、home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | 每个包对应一个 host：目录布局知识、解析、capability | `kernel`、`schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | 保留，本次发布中不注册 | `kernel`、`schema` |
@@ -172,14 +172,20 @@ sequenceDiagram
   S-->>B: rows from head/tail reads (cached numbers when present)
   S-->>B: summary updates as full reads finish
   U->>B: open a session
+  B->>S: load-trace(ref) (action)
+  S-->>B: loadId (progress stream id)
+  B->>S: subscribe load-progress(loadId)
+  S-->>B: progress chunks (bytes read of file size), then end
   B->>S: get-trace-view(ref)
-  S-->>B: progress, then view trace (no originals, text capped)
+  S-->>B: view trace (no originals, text capped to fit 12 MB)
   U->>B: select an event
   B->>S: get-event(ref, id)
   S-->>B: full payload + original record (read by byte offset)
 ```
 
 带路径参数时，CLI 在开始监听之前加载并检查该会话，然后打开该会话的工作区 URL。
+
+打开会话需要两次调用，因为 DevFrame 拒绝订阅尚不存在的 stream id（DF0030）：`load-trace` action 创建进度 stream 并返回其 id，浏览器订阅后，`get-trace-view` 在共享的加载完成时返回视图。
 
 ### 2.4 设计决策
 
@@ -199,14 +205,14 @@ Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已�
 `TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 `packages/runtime-node` 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。
 
 **D6. 浏览器接收视图版 trace，原始记录和完整文本按需加载。**
-这改变了 `AGENTS.md` 中的两条现行规则：“规范存储是 `events[]` 加 `original`”变为“每个事件都能返回其原始记录”，“`getTrace` 是一个 snapshot blob”变为“`get-trace-view` 是一个 snapshot blob；`get-event` 返回一个完整事件”。在 355 MB 的会话上测得：完整为 360 MB，去掉原始记录为 21.3 MB，字符串截断到 4 KB 为 9.5 MB（A.6）。备选方案：对事件分页（未采用：timeline 和 ledger 需要每个事件的结构，`reconstruct` 需要完整序列），以及压缩完整 blob（未采用：server 仍需占用 3.2 GB）。server 保存每个事件的 source pointer（文件、字节偏移、长度），在 `get-event` 请求时重新读取该行。`AGENTS.md` 在同一变更中更新。
+这改变了 `AGENTS.md` 中的两条现行规则：“规范存储是 `events[]` 加 `original`”变为“每个事件都能返回其原始记录”，“`getTrace` 是一个 snapshot blob”变为“`get-trace-view` 是一个 snapshot blob；`get-event` 返回一个完整事件”。在 355 MB 的会话上测得：完整为 360 MB，去掉原始记录为 37.9 MB，字符串截断到 4 KB 的视图为 14.0 MB，使用 `fitView` 选定的上限为 11.4 MB（A.6）。备选方案：对事件分页（未采用：timeline 和 ledger 需要每个事件的结构，`reconstruct` 需要完整序列），以及压缩完整 blob（未采用：server 仍需占用 3.2 GB）。server 保存每个事件的 source pointer（文件、字节偏移、长度），在 `get-event` 请求时重新读取该行。`AGENTS.md` 在同一变更中更新。
 
 **D7. 会话发现读取文件头尾，完整摘要延迟计算并存入 SQLite 索引。**
 启动时完整解析 11.6 GB 不可行。`discover` 列出文件，并读取每个文件首尾各 64 KB，以填充标题、项目、开始时间和最后活动时间以及大小。`summarize` 完整解析一个文件，得到 turn、请求、token、时长、标记和用户 prompt。shell 优先对可见行运行 `summarize`，并发上限为 4，结果通过内置的 `node:sqlite` 存入 `~/.cache/rivus-agent-trace/index.sqlite`，以路径、大小和 mtime 为键。一张使用 `trigram` tokenizer 的 FTS5 表为标题和用户 prompt 建立索引，因此搜索覆盖每一条 prompt，支持英文和中文，而不只是首条 prompt。实测（A.10）：带 `trigram` 的 FTS5 在 Node.js 22.18（SQLite 3.50.2）和 24.18（SQLite 3.53.1）上可用；插入 2,300 行耗时 13 ms，一次搜索耗时 0.1 ms。
 备选方案：JSON 缓存文件（不能搜索，每次整文件重写）；DuckDB（`@duckdb/node-api` 在 macOS arm64 上安装后占 115 MB，扫描全部 550 MB 的 Claude Code 日志耗时 252 ms，而 Node 逐行扫描耗时 1,176 ms，但它会在 adapter 之外用 SQL 重复表述每个 host 的解析规则）；`better-sqlite3`（每个平台一个原生 addon，而 `node:sqlite` 不需要）。Node.js 22 对 `node:sqlite` 打印一条 `ExperimentalWarning`；`dist/bin.mjs` 屏蔽这一条警告，在 M1 中验证。
 
 **D8. RPC 形态与静态报告。**
-查询：`list-sessions`（不是 snapshot）、`get-trace-view(ref)`、`get-event(ref, id)`、`reconstruct(ref, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数查询 `report-trace`，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
+查询：`list-sessions`（不是 snapshot）、`get-trace-view(ref)`、`get-event(ref, id)`、`reconstruct(ref, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。一个 action `load-trace(ref)` 启动或加入加载，并返回 `load-progress` stream 的 id（2.3）。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数查询 `report-trace`，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
 
 **D9. UI 技术栈与设计契约。**
 保留 Solid、Tailwind v4 和 shadcn-solid。token、调色板、字体和编码规则来自 `docs/design/README.md`，在 `styles.css` 中以 `data-theme="dark|light"` 下的 CSS 变量实现。ledger 使用 `@tanstack/solid-virtual` 3.13。timeline 和预览形状是根据 kernel 投影绘制的 SVG；不使用图表库。
@@ -405,7 +411,7 @@ export interface CompactionPayload {
 export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
 export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
 
-export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string }
+export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
   schema: 'agent-trace'
@@ -424,7 +430,7 @@ export interface Trace {
 - payload 的键名按事件类型固定；每个字段旁的注释是其 OTel GenAI 属性。OTLP exporter 一对一映射它们。
 - ATIF 也覆盖的每个规范字段列于第 8 节 A.8，因此 ATIF 导出这项后续工作是一次映射。
 
-**视图版 trace。** `toView(trace, { maxString: 4096 })` 去掉 `original`，把每个字符串截断到 4,096 个字符，并在被截短的事件上记录 `payload.$truncated = [paths]`。ledger 对这些事件显示“已截短”标记；inspector 调用 `get-event`。
+**视图版 trace。** `toView(trace, { maxString: 4096 })` 去掉 `original`，把每个字符串截断到 4,096 个字符，并在被截短的事件上记录 `payload.$truncated = [paths]`。ledger 对这些事件显示“已截短”标记；inspector 调用 `get-event`。为降低每个事件的开销，视图在 `sourceFiles` 中只列一次源文件，每个事件的 `source.file` 存其下标；`skipped` 按文件和原因合并并带计数。Codex 事件 id 为 `L<line>`，因为一个 Codex trace 只有一个文件。`get-trace-view` 调用 `fitView`：视图在 12 MB 预算（1.3）内时保持 4,096；否则上限按 0.75 倍逐步降低直到放得下，最低 256。视图在 `view.maxString` 中记录所用上限，UI 可据此说明文本被进一步截短。在 355 MB 的会话上上限为 2,304（A.6）。在 256 的下限时，一个 Codex 事件在视图中约占 466 字节，因此约可容纳 25,600 个事件；更大的会话会得到 `view.withinBudget: false`、一行 server 日志，以及 UI 中的提示。
 
 ### 3.4 会话索引
 
@@ -448,9 +454,11 @@ flowchart LR
 
 ### 3.5 会话加载
 
-- `get-trace-view` 通过 adapter 以 `onProgress` 加载，并在返回结果之前向浏览器流式发送进度（已读字节数 / 文件大小）。
-- server 在内存中保留最近 3 个已加载的 trace（不含原始记录）；`get-event` 通过 source pointer 读取原始记录。
-- 浏览器离开页面时加载被取消（`AbortSignal`）。
+- `load-trace(ref)` 通过 adapter 以 `onProgress` 启动或加入加载，并返回 stream id。浏览器立即（5 秒内）用它订阅 `load-progress`，接收已读字节数 / 文件大小，然后调用 `get-trace-view(ref)`，后者在加载完成时返回。
+- server 在内存中保留最近 3 个已加载的 trace（不含原始记录）；`get-event` 通过 source pointer 读取原始记录，当文件已变化且该处字节不再是那条记录时，返回 `originalUnavailable` 及原因。
+- 每个读取方都持有该加载，最后一次释放时中止它（`AbortSignal`）：浏览器离开页面、断开连接、从未订阅或打开另一个会话时取消 stream。另一个标签页或 MCP `reconstruct` 持有自己的 hold，因此不会因某个浏览器的跳转而被取消。
+- 错误信息在到达浏览器之前经过脱敏。
+- DevFrame 1.0.0 不暴露 stream 的订阅者，因此 5 秒检查读取的是发起调用的连接的订阅。WebSocket 重连后，浏览器再次调用 `load-trace`；新的调用会加入正在进行的加载，或拿到已缓存的 trace。
 
 ### 3.6 UI
 
@@ -475,7 +483,7 @@ flowchart LR
 - ledger 和会话列表的列宽按两种语言中较长的一种设定；M4 的设计评审包含两个界面的 `zh-CN` 截图。
 - 报告打包两份词典（几 KB），以导出时的 locale 打开，并保留切换。
 
-当 host 记录了相应数据时，`reconstruct` 增加每个 slot 的 token 数：请求的输入 token，以及当该请求是压缩后的第一个请求时压缩的 `postTokens`。它不根据文本长度估算 slot 大小。
+当 host 记录了相应数据时，`reconstruct` 增加每个 slot 的 token 数：请求的输入 token，以及当该请求是压缩后的第一个请求时压缩的 `postTokens`。它不根据文本长度估算 slot 大小。每个计数列出它共同覆盖的 slot，因为 host 记录的是总数，而非每个 slot 的大小。`reconstruct` 只在目标事件自己的 agent lane 上计算：一次模型调用只看到其所属 agent 的事件。
 
 ### 3.7 失败与恢复
 
@@ -685,6 +693,18 @@ full line scan of claude main files: 225062 lines in 2.35s
 codexAdapter.load, 26 MB file:  {"events":4970,"loadMs":101,"jsonMB":27.4,"rssMB":411}
 codexAdapter.load, 354 MB file: {"events":16652,"loadMs":1712,"jsonMB":359.7,"rssMB":3221}
 354 MB file, events JSON size:  {"full":359.7,"withoutOriginal":21.3,"withoutOriginalCapped4k":9.5}
+```
+
+```
+M4a, 2026-09-25, canonical trace from M2 (13,163 events, 355.0 MB file; MB = 10^6 bytes):
+without originals, no cap:             37.87 MB
+view at 4,096 (M2 ids, file per event): 18.57 MB
+view at 4,096 (files interned, skipped merged, short Codex ids): 14.04 MB
+view at 3,072:                           12.66 MB
+view at 2,304 (fitView choice):          11.45 MB; get-trace-view response 11.40 MB redacted
+load 896 ms, view build 245 ms, peak RSS 1,082 MiB, get-event 9 ms
+synthetic 360.5 MB Codex file (test-time generator): 10,976 events, view 11.77 MB at 4,096
+at the 256 floor: 6.14 MB for 13,163 events (466 B per event), so about 25,600 Codex events fit
 ```
 
 当前 UI 在一个 3,300 条记录的 Grok 会话上：渲染 2,258 行，14,066 个 DOM 节点，1,294 行为 `UNKNOWN`（hook 执行）。

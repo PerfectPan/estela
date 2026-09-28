@@ -1,6 +1,7 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { SessionSummary } from './host.ts'
 import { asNumber, asRecord } from './jsonl.ts'
+import { mainAgentId, promptStarts } from './lanes.ts'
 
 export interface TraceFold extends SessionSummary {
   /** True when any event has `parentId`. */
@@ -85,25 +86,11 @@ function durationSum(events: TraceEvent[]): number | undefined {
 }
 
 /**
- * A turn is one real user prompt: a main-lane user record that starts a turn.
- * Several `user` events from one record (content blocks) count once. Not turns:
- * meta records (`payload.meta`), compact summaries (`payload.compactSummary`),
- * command wrappers (`payload.command`), host-injected environment or instruction
- * messages (`payload.injected`), and later chunks of one prompt (`payload.continued`).
+ * A turn is one real user prompt on the main lane (`isPrompt`), counted once per
+ * host record: several `user` events from one record (content blocks) count once.
  */
 function countTurns(trace: Trace): number {
-  const main = trace.agents.find(agent => agent.parentId == null)?.id
-  const records = new Set<string>()
-  for (const event of trace.events) {
-    if (event.kind !== 'user' || (event.agentId != null && event.agentId !== main))
-      continue
-    const payload = event.payload
-    if (payload.meta === true || payload.compactSummary === true || payload.command === true
-      || payload.injected === true || payload.continued === true)
-      continue
-    records.add(`${event.source.file}\0${event.source.line}`)
-  }
-  return records.size
+  return promptStarts(trace, mainAgentId(trace)).length
 }
 
 export function fold(trace: Trace): TraceFold {

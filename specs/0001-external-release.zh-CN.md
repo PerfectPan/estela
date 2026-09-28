@@ -147,7 +147,7 @@ agent-trace 是一个本地 DevTools。一条命令即可在浏览器中打开�
 
 - Given Claude Code 会话中压缩之后的第一个请求
 - When 用户选中它并打开 "Model saw"
-- Then 组成中显示工具、摘要、消息和当前轮次及其 token 数，system prompt 槽位为 "unavailable"，并显示被该次压缩移除的事件列表
+- Then 组成中显示摘要、消息和当前轮次，并在 host 有记录时显示 token 数；system prompt 和工具槽位为 "unavailable"（Claude Code 两者都不记录）；并显示被该次压缩移除的事件列表
 
 ### S8：大型会话
 

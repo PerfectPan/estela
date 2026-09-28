@@ -87,6 +87,30 @@ describe('cli smoke', () => {
     }
   })
 
+  it('build reads the session file once', async () => {
+    await ensureWebDist()
+    const outDir = await mkdtemp(join(tmpdir(), 'at-m4a-build-'))
+    // Counts full reads (`readFile`) of the demo file in the child process.
+    const counter = [
+      `import fsp from 'node:fs/promises'`,
+      `import { syncBuiltinESMExports } from 'node:module'`,
+      `let reads = 0`,
+      `const readFile = fsp.readFile`,
+      `fsp.readFile = function (path, ...rest) { if (String(path).endsWith('demo.trace.json')) reads += 1; return readFile.call(this, path, ...rest) }`,
+      `syncBuiltinESMExports()`,
+      `process.on('exit', () => process.stderr.write('full-reads=' + reads + '\\n'))`,
+    ].join('\n')
+    try {
+      const preload = `data:text/javascript,${encodeURIComponent(counter)}`
+      const result = await run(process.execPath, ['--import', preload, 'bin.mjs', 'build', demo, '--out-dir', outDir], cliDir)
+      expect(result.code).toBe(0)
+      expect(result.stderr).toContain('full-reads=1\n')
+    }
+    finally {
+      await rm(outDir, { recursive: true, force: true })
+    }
+  })
+
   it('S10: mcp reconstruct returns completeness and stdout stays protocol', async () => {
     const request = [
       mcpMessage({

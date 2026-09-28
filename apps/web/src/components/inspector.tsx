@@ -1,7 +1,7 @@
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { LedgerRow } from '@/lib/ledger'
 import type { MessageKey } from '@/i18n/locale.ts'
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { For, Show, createMemo, createResource, createSignal } from 'solid-js'
 import { reconstruct } from '@rivus/agent-trace-kernel/reconstruct'
 import { KindTag } from '@/components/kind-tag'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,8 @@ function pretty(value: unknown): string {
 
 export function Inspector(props: {
   trace: Trace
+  /** Live view traces carry no originals: the Raw tab reads them through `get-event`. */
+  original?: (id: string) => Promise<unknown>
   row: LedgerRow | undefined
   onClose: () => void
 }) {
@@ -63,7 +65,17 @@ export function Inspector(props: {
       return ''
     return pretty(result.payload.output ?? result.payload.text ?? '')
   })
-  const rawText = createMemo(() => pretty(selectedEvents().map(event => event.original)))
+  const [originals] = createResource(
+    () => tab() === 'raw' && props.original ? selectedEvents() : undefined,
+    events => Promise.all(events.map(event => props.original!(event.id))),
+  )
+  const rawText = createMemo(() => {
+    if (!props.original)
+      return pretty(selectedEvents().map(event => event.original))
+    if (originals.state === 'errored')
+      return originals.error instanceof Error ? originals.error.message : String(originals.error)
+    return originals.state === 'ready' ? pretty(originals()) : t('common.loading')
+  })
   const body = createMemo(() => {
     switch (tab()) {
       case 'input': return inputText() || t('common.notAvailable')
