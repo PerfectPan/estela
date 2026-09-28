@@ -157,6 +157,15 @@ export function sayReady(url: string): void {
   }
 }
 
+/** One warning line; the run continues. */
+export function sayWarning(text: string): void {
+  if (isPlainOutput()) {
+    process.stderr.write(`${text}\n`)
+    return
+  }
+  log.warn(text)
+}
+
 export function sayError(cause: string, fix: string): void {
   const text = `${cause}\n${fix}`
   if (isPlainOutput()) {

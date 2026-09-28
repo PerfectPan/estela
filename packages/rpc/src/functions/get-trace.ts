@@ -1,32 +1,17 @@
 import type { ReconstructResult, Trace } from '@rivus/agent-trace-schema'
 import { fold, reconstruct } from '@rivus/agent-trace-kernel'
 import { defineRpcFunction } from 'devframe'
-
-export interface SessionView {
-  path: string
-  trace: Trace
-}
-
-export interface SessionService {
-  view: () => Promise<SessionView>
-}
-
-let service: SessionService | undefined
-
-export function bindSessionService(next: SessionService): void {
-  service = next
-}
-
-function requireService(): SessionService {
-  if (!service)
-    throw new Error('session service is not bound')
-  return service
-}
+import type { SessionView } from './service.ts'
+import { requireSessionService } from './service.ts'
 
 export interface TraceView {
   path: string
   trace: Trace
   fold: ReturnType<typeof fold>
+}
+
+export function traceView(view: SessionView): TraceView {
+  return { path: view.path, trace: view.trace, fold: fold(view.trace) }
 }
 
 export const getTrace = defineRpcFunction({
@@ -39,8 +24,7 @@ export const getTrace = defineRpcFunction({
   },
   setup: () => ({
     handler: async (): Promise<TraceView> => {
-      const view = await requireService().view()
-      return { path: view.path, trace: view.trace, fold: fold(view.trace) }
+      return traceView(await requireSessionService().view())
     },
   }),
 })
@@ -54,7 +38,7 @@ export const reconstructAt = defineRpcFunction({
   },
   setup: () => ({
     handler: async ({ eventId }: { eventId: string }): Promise<ReconstructResult> => {
-      const view = await requireService().view()
+      const view = await requireSessionService().view()
       return reconstruct(view.trace, eventId)
     },
   }),

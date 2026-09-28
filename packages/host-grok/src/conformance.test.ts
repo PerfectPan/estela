@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { fold } from '@rivus/agent-trace-kernel'
 import { describeHostConformance } from '@rivus/agent-trace-kernel/conformance'
 import { repoEvidence, writeOversized } from '@rivus/agent-trace-kernel/testing'
-import { nodeIO } from '@rivus/agent-trace-runtime-node'
+import { nodeIO } from '@rivus/agent-trace-runtime-node/io'
 import { afterAll, describe, expect, it } from 'vitest'
 import { grokAdapter } from './index.ts'
 

@@ -58,6 +58,7 @@ export const codexAdapter: HostAdapter = {
   discover(root, io, opts) {
     return discoverSessions('codex', root, io, {
       signal: opts.signal,
+      ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
       files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
         match: name => name.startsWith('rollout-') && name.endsWith('.jsonl'),
         maxDepth: 6,

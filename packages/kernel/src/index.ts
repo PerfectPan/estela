@@ -4,6 +4,7 @@ export { assignSeq, markOrphanToolResults } from './finalize.ts'
 export { downsample, fold, summaryOf, type TraceFold } from './fold.ts'
 export { edgeRecords, readEdges } from './head-tail.ts'
 export {
+  type DiscoverOptions,
   type HostAdapter,
   type LoadOptions,
   type SessionHead,
@@ -33,7 +34,7 @@ export {
   toTrace,
   type ParsedSession,
 } from './session-build.ts'
-export { summarize } from './summarize.ts'
+export { summarize, SUMMARY_VERSION } from './summarize.ts'
 export { timeOf } from './time.ts'
 export { usageFrom, type UsageParts } from './usage.ts'
 export { toView } from './view.ts'

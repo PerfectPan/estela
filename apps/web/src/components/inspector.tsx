@@ -1,18 +1,20 @@
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { LedgerRow } from '@/lib/ledger'
+import type { MessageKey } from '@/i18n/locale.ts'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { reconstruct } from '@rivus/agent-trace-kernel/reconstruct'
 import { KindTag } from '@/components/kind-tag'
 import { Button } from '@/components/ui/button'
+import { translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 
 type Tab = 'input' | 'output' | 'raw' | 'model'
 
-const TABS: { id: Tab, label: string }[] = [
-  { id: 'input', label: 'Input' },
-  { id: 'output', label: 'Output' },
-  { id: 'raw', label: 'Raw' },
-  { id: 'model', label: 'Model' },
+const TABS: { id: Tab, label: MessageKey }[] = [
+  { id: 'input', label: 'inspector.input' },
+  { id: 'output', label: 'inspector.output' },
+  { id: 'model', label: 'inspector.model' },
+  { id: 'raw', label: 'inspector.raw' },
 ]
 
 function eventsFor(trace: Trace, row: LedgerRow): TraceEvent[] {
@@ -64,23 +66,23 @@ export function Inspector(props: {
   const rawText = createMemo(() => pretty(selectedEvents().map(event => event.original)))
   const body = createMemo(() => {
     switch (tab()) {
-      case 'input': return inputText() || 'Not available'
-      case 'output': return outputText() || 'Not available'
-      case 'raw': return rawText() || 'Not available'
-      case 'model': return pretty(modelView()) || 'Not available'
+      case 'input': return inputText() || t('common.notAvailable')
+      case 'output': return outputText() || t('common.notAvailable')
+      case 'raw': return rawText() || t('common.notAvailable')
+      case 'model': return pretty(modelView()) || t('common.notAvailable')
     }
   })
 
   return (
     <aside class="flex w-[clamp(320px,38%,440px)] min-w-0 shrink-0 flex-col border-l border-border bg-background">
       <header class="flex h-[42px] items-center gap-2 border-b border-border px-3">
-        <Show when={props.row} fallback={<span class="text-xs text-muted-foreground">Select a record</span>}>
+        <Show when={props.row} fallback={<span class="text-xs text-muted-foreground">{t('workspace.selectRecord')}</span>}>
           {row => (
             <>
               <KindTag kind={row().kind} />
               <span class="min-w-0 truncate font-mono text-xs">{row().name ?? row().preview}</span>
               <span class="flex-1" />
-              <Button variant="ghost" size="icon" class="size-7" onClick={props.onClose} aria-label="Close inspector">
+              <Button variant="ghost" size="icon" class="size-7" onClick={props.onClose} aria-label={t('inspector.close')}>
                 ×
               </Button>
             </>
@@ -99,7 +101,7 @@ export function Inspector(props: {
                 )}
                 onClick={() => setTab(item.id)}
               >
-                {item.label}
+                {t(item.label)}
               </button>
             )}
           </For>

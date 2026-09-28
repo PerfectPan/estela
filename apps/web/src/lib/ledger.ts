@@ -13,18 +13,6 @@ export type LedgerKind =
   | 'hook'
   | 'unknown'
 
-export const KIND_LABEL: Record<LedgerKind, string> = {
-  system: 'SYSTEM',
-  user: 'USER',
-  assistant: 'ASSISTANT',
-  thinking: 'THINK',
-  tool: 'TOOL',
-  compacted: 'COMPACTED',
-  request: 'REQUEST',
-  hook: 'HOOK',
-  unknown: 'UNKNOWN',
-}
-
 export interface LedgerRow {
   id: string
   index: number

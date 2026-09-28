@@ -1,5 +1,6 @@
+import type { SessionsSignal } from '@rivus/agent-trace-rpc'
 import { defineDevframe } from 'devframe'
-import { NAMESPACE, serverFunctions } from '@rivus/agent-trace-rpc'
+import { bindSessionPublisher, emptySessionsSignal, NAMESPACE, serverFunctions, SESSIONS_STATE } from '@rivus/agent-trace-rpc'
 import pkg from '../package.json' with { type: 'json' }
 import { webDistDir } from './paths.ts'
 
@@ -21,11 +22,23 @@ export default defineDevframe({
     port: 7392,
     configure(cli) {
       cli.option('--pick', 'Pick a session in the terminal')
+      cli.option('--no-index', 'Do not read or write the session index')
     },
   },
   setup(ctx) {
     const scoped = ctx.scope(NAMESPACE)
     for (const fn of serverFunctions)
       scoped.rpc.register(fn)
+    // Push: a small shared state tells every browser that rows changed. The browser then
+    // asks `list-sessions({ since })` for only those rows (M3 report: push vs poll).
+    void scoped.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, { initialValue: emptySessionsSignal() })
+      .then((state) => {
+        bindSessionPublisher((next) => {
+          state.mutate((draft) => {
+            draft.revision = next.revision
+            draft.pending = next.pending
+          })
+        })
+      })
   },
 })

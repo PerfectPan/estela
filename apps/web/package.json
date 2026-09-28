@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource/instrument-sans": "5.2.8",
+    "@fontsource/jetbrains-mono": "5.2.8",
     "@kobalte/core": "^0.13.14",
+    "@solid-primitives/i18n": "2.2.1",
     "@rivus/agent-trace-kernel": "workspace:*",
     "@rivus/agent-trace-rpc": "workspace:*",
     "@rivus/agent-trace-schema": "workspace:*",
