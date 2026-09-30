@@ -1,28 +1,57 @@
 name: Review
+run-name: Review ${{ github.ref_name }} @ ${{ inputs.head_sha }} base ${{ inputs.base_sha }}
 
 on:
-  pull_request:
-    types: [opened, edited, reopened, synchronize, ready_for_review]
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact current branch head SHA (40 characters)
+        required: true
+        type: string
+      base_sha:
+        description: Current PR base SHA (40 characters)
+        required: true
+        type: string
+      pr_number:
+        description: Open same-repository PR number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: review-${{ github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   repository-checks:
     name: repository checks
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CI_HEAD_SHA: ${{ inputs.head_sha }}
+      CI_BASE_SHA: ${{ inputs.base_sha }}
+      CI_PR_NUMBER: ${{ inputs.pr_number }}
+      CI_BRANCH: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CI_HEAD_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - name: Verify current PR target and title
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-ci-target.mjs
       - run: ./scripts/check-repository.sh
       - run: node scripts/check-doc-translations.mjs
       - run: node scripts/check-conventions.mjs
       - run: node scripts/check-layers.mjs
-
-  pr-title:
-    name: conventional PR title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: ./scripts/check-pr-title.sh "$PR_TITLE"
+      - name: Reject a target changed during validation
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-ci-target.mjs

@@ -1,16 +1,90 @@
 name: CI
+run-name: CI ${{ github.head_ref || github.ref_name }} @ ${{ github.event.pull_request.head.sha || inputs.head_sha }} base ${{ github.event.pull_request.base.sha || inputs.base_sha }}
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [ready_for_review]
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact current branch head SHA (40 characters)
+        required: true
+        type: string
+      base_sha:
+        description: Current PR base SHA (40 characters)
+        required: true
+        type: string
+      pr_number:
+        description: Open same-repository PR number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+      CI_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+      CI_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      CI_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-      # Replace with project-specific setup and validation commands.
-      - run: echo "Configure CI for this project"
-
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CI_HEAD_SHA }}
+      - name: Verify current PR target and title
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-ci-target.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - name: Check repository and CI policy
+        run: |
+          ./scripts/check-repository.sh
+          node scripts/check-doc-translations.mjs
+          node scripts/check-conventions.mjs
+          node scripts/check-layers.mjs
+          node --test scripts/ci-target.test.mjs
+      - name: Cache dependency downloads
+        if: steps.target.outputs.gate == 'full'
+        uses: actions/cache@v4
+        with:
+          path: |
+            common/temp/pnpm-store
+            ~/.npm/_cacache
+          key: ${{ runner.os }}-dependency-downloads-${{ hashFiles('rush.json', 'common/config/rush/pnpm-lock.yaml', 'common/config/rush/pnpm-config.json') }}
+          restore-keys: ${{ runner.os }}-dependency-downloads-
+      - name: Install locked dependencies
+        if: steps.target.outputs.gate == 'full'
+        run: node common/scripts/install-run-rush.js install
+      - name: Release intent
+        if: steps.target.outputs.gate == 'full'
+        env:
+          CI_COMPARISON_BASE: ${{ steps.target.outputs.base_sha }}
+        run: |
+          node common/scripts/install-run-rush.js change --verify --no-fetch --target-branch "$CI_COMPARISON_BASE"
+          node scripts/release-intent.mjs check --base "$CI_COMPARISON_BASE"
+      - name: Run package gate without repeated typechecks
+        if: steps.target.outputs.gate == 'full'
+        run: |
+          node common/scripts/install-run-rush.js lint
+          node scripts/check-browser-bundle.mjs
+          node common/scripts/install-run-rush.js test
+          node common/scripts/install-run-rush.js typecheck
+          node common/scripts/install-run-rush.js build --only @rivus/agent-trace-web
+      - name: Reject a target changed during validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-ci-target.mjs
