@@ -1,15 +1,13 @@
 {
+  // A relative path, not the package name: TypeScript resolves `extends` from
+  // this file's folder, and Rush installs no root node_modules. See the note in
+  // .oxlintrc.json for why packages/schema.
+  "extends": "./packages/schema/node_modules/@perfectpan/lint-config/tsconfig/bundler.json",
   "compilerOptions": {
+    // Off by default from lint-config v0.3.2 on; drop this line when bumping to it.
+    "exactOptionalPropertyTypes": false,
     "target": "ESNext",
     "lib": ["ESNext"],
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "resolveJsonModule": true,
-    "types": ["node"],
-    "allowImportingTsExtensions": true,
-    "strict": true,
-    "noEmit": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true
+    "types": ["node"]
   }
 }

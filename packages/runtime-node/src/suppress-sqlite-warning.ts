@@ -19,4 +19,4 @@ const original = process.emitWarning.bind(process) as (...args: unknown[]) => vo
 process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
   if (!isSqliteExperimentalWarning(warning, rest[0]))
     original(warning, ...rest)
-}) as typeof process.emitWarning
+})

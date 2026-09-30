@@ -179,8 +179,9 @@ export function indexHeadOf(row: LiveRow): IndexHead {
   }
 }
 
+const same = (text: string): string => text
+
 /** Same content for the browser; used to keep a row's revision when a re-read changed nothing. */
 export function sameRow(a: LiveRow, b: LiveRow): boolean {
-  const same = (text: string) => text
   return JSON.stringify(publicRow(a, same)) === JSON.stringify(publicRow(b, same))
 }

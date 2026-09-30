@@ -188,14 +188,14 @@ class SqliteIndex implements SessionIndex {
     if (!text)
       return undefined
     try {
-      if ([...text].length < 3) {
+      if (Array.from(text).length < 3) {
         const pattern = `%${casefold(text).replace(/[\\%_]/g, match => `\\${match}`)}%`
         // Two plain `?` parameters: Node 22's node:sqlite cannot bind a positional argument to `?1`.
         const rows = this.sql(
           `SELECT ref FROM sessions WHERE casefold(title) LIKE ? ESCAPE '\\'
              OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ? ESCAPE '\\')
            ORDER BY last_active_at DESC`,
-        ).all(pattern, pattern) as { ref: string }[]
+        ).all(pattern, pattern) as { ref: unknown }[]
         return rows.map(row => String(row.ref))
       }
       // One quoted phrase: FTS5 operators in the query are plain text. `trigram` folds case itself.
@@ -203,7 +203,7 @@ class SqliteIndex implements SessionIndex {
       const rows = this.sql(
         `SELECT sessions.ref AS ref FROM search JOIN sessions ON sessions.id = search.rowid
          WHERE search MATCH ? ORDER BY sessions.last_active_at DESC`,
-      ).all(phrase) as { ref: string }[]
+      ).all(phrase) as { ref: unknown }[]
       return rows.map(row => String(row.ref))
     }
     catch (error) {
@@ -306,7 +306,7 @@ class SqliteIndex implements SessionIndex {
   }
 
   private promptsOf(ref: string): string[] {
-    const rows = this.sql('SELECT text FROM prompts WHERE ref = ? ORDER BY seq').all(ref) as { text: string }[]
+    const rows = this.sql('SELECT text FROM prompts WHERE ref = ? ORDER BY seq').all(ref) as { text: unknown }[]
     return rows.map(row => String(row.text))
   }
 

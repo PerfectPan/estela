@@ -322,7 +322,7 @@ export class TraceStore {
     const state = pending.state
     state.holders += 1
     let released = false
-    const done = pending.promise.then(() => {})
+    const done = pending.promise.then(() => undefined)
     // Marked handled: a released holder may never await it.
     done.catch(() => {})
     return {

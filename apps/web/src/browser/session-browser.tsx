@@ -104,14 +104,15 @@ export function SessionBrowser() {
     openRow(selected())
   }
 
-  onMount(() => {
-    // ⌘K / Ctrl+K is the one global shortcut.
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        searchBox?.focus()
-      }
+  // ⌘K / Ctrl+K is the one global shortcut.
+  const onKey = (event: KeyboardEvent) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault()
+      searchBox?.focus()
     }
+  }
+
+  onMount(() => {
     window.addEventListener('keydown', onKey)
     const clock = setInterval(() => setNow(Date.now()), 60_000)
     // Fallback when a push is missed: re-ask while summaries are pending.
