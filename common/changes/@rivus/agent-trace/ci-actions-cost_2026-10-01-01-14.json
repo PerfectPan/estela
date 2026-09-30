@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Consolidate duplicate CLI build smoke checks without changing shipped behavior.",
+      "type": "none"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

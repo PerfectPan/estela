@@ -70,24 +70,7 @@ function mcpMessage(message: unknown): string {
 }
 
 describe('cli smoke', () => {
-  it('S15: build piped with NO_COLOR unset has no escape sequences', async () => {
-    await ensureWebDist()
-    const outDir = await mkdtemp(join(tmpdir(), 'at-m1-build-'))
-    try {
-      const result = await run(process.execPath, ['bin.mjs', 'build', demo, '--out-dir', outDir], cliDir)
-      expect(result.code).toBe(0)
-      expect(result.stdout).not.toContain('\u001b')
-      expect(result.stdout).toContain('Load:')
-      expect(result.stdout).toContain('Write:')
-      expect(await treeContains(outDir, homedir())).toBe(false)
-      expect(await treeContains(outDir, repoRoot)).toBe(false)
-    }
-    finally {
-      await rm(outDir, { recursive: true, force: true })
-    }
-  })
-
-  it('build reads the session file once', async () => {
+  it('build reads the session once and writes portable output without escape sequences', async () => {
     await ensureWebDist()
     const outDir = await mkdtemp(join(tmpdir(), 'at-m4a-build-'))
     // Counts full reads (`readFile`) of the demo file in the child process.
@@ -105,6 +88,11 @@ describe('cli smoke', () => {
       const result = await run(process.execPath, ['--import', preload, 'bin.mjs', 'build', demo, '--out-dir', outDir], cliDir)
       expect(result.code).toBe(0)
       expect(result.stderr).toContain('full-reads=1\n')
+      expect(result.stdout).not.toContain('\u001b')
+      expect(result.stdout).toContain('Load:')
+      expect(result.stdout).toContain('Write:')
+      expect(await treeContains(outDir, homedir())).toBe(false)
+      expect(await treeContains(outDir, repoRoot)).toBe(false)
     }
     finally {
       await rm(outDir, { recursive: true, force: true })

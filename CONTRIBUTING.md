@@ -109,7 +109,7 @@ Why a script: Rush requires change files only for projects in a version policy a
 - Host packages under `packages/host-*` parse one host each. `host-opencode` and `host-dsh` are kept and not registered.
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
 - Fixtures live in `fixtures/` and next to host tests.
-- `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. The review workflow and the pre-commit hook run it.
+- `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. CI and the pre-commit hook run it.
 
 ## Runtime checks
 
@@ -122,36 +122,23 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 ## Pull Request Gates
 
-CI is explicit: create a Draft PR, finish local checks, then select Ready for review once for the final head/base.
-Ordinary pushes, opening a non-Draft PR, merges to main and metadata edits start no workflow. After a new commit
-or base update, update the branch and select Draft then Ready again, or dispatch CI for the new pair. Never merge
-using an earlier head's result. CI requires the head to include the current base and verifies checkout, live branch,
-open same-repository PR and title both before the gate and after it. Fork changes need a reviewed branch in this repository.
+CI runs when a Draft PR becomes Ready for review. Ordinary pushes, main merges and metadata edits do not start
+it. Finish local checks before requesting CI. After changing the head or base, update the branch and select Draft
+then Ready again; confirm that the current PR comparison passed before merging. The single `test` job includes
+repository checks, the PR title and release intent; there is no separate Review workflow. GitHub's PR checkout tests
+the merge result. A manual `workflow_dispatch` runs the selected branch as `manual checks` for diagnosis, without PR
+title or release intent checks, and does not satisfy the required PR `test` check. Do not retry account/billing-blocked
+runs until the blocker is resolved.
 
-The authoritative required check is `test`, including repository, title and release-intent validation. Review is
-optional dispatch-only early feedback and is not required before each CI request. Both workflows cancel superseded
-requests for the same branch. A failed or quota-blocked check leaves the PR awaiting validation; fix the cause before
-requesting a new run. Do not repeatedly dispatch billing-blocked workflows.
+CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
+The other ten package build commands currently repeat `tsc --noEmit`; if a package gains a distinct build command,
+add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
+the committed lockfile; use Rush update locally only when dependency inputs change.
 
-```bash
-gh pr view <PR> --json headRefName,headRefOid,baseRefOid
-gh workflow run ci.yml --ref <branch> \
-  -f pr_number=<PR> -f head_sha=<HEAD_SHA> -f base_sha=<BASE_SHA>
-# Optional early feedback uses review.yml with the same inputs.
-```
-
-Documentation-only comparisons are limited to Markdown under `docs/` and `specs/`, root AGENTS/CLAUDE/CONTRIBUTING/README,
-and package/app README variants. They run repository, translations, conventions, layer and CI-policy checks without
-installing dependencies. Everything else, including workflow/tooling/lockfile changes and source-to-document renames,
-runs lint, browser-bundle validation, tests, typecheck, the web build and release intent. The other ten build scripts
-repeat `tsc --noEmit`, already run by typecheck; a CI-policy test rejects new distinct build operations until CI is
-updated to run them. CI uses Rush install to keep the
-committed lockfile authoritative; use Rush update locally only when dependency inputs need updating.
-
-The pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at `~/.npm/_cacache` are cached, keyed by runner OS and Rush/lockfile
-configuration. A fallback cache can supply existing downloads, but every full run still executes Rush install and all
-checks. Installed workspace links, build outputs, credentials and CI success results are not cached. Cache misses use
-the same gate. Keep cache storage inside the included repository allowance.
+`actions/cache@v6` caches the pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at
+`~/.npm/_cacache`, keyed by runner OS and Rush/lockfile configuration. Every run still executes Rush install and the
+checks. Installed workspace links, build outputs, credentials and CI results are not cached. Cache misses use the
+same gate. Keep cache storage inside the included repository allowance.
 
 ## Pull Request Expectations
 

@@ -1,27 +1,12 @@
 name: CI
-run-name: CI ${{ github.head_ref || github.ref_name }} @ ${{ github.event.pull_request.head.sha || inputs.head_sha }} base ${{ github.event.pull_request.base.sha || inputs.base_sha }}
 
 on:
   pull_request:
     types: [ready_for_review]
   workflow_dispatch:
-    inputs:
-      head_sha:
-        description: Exact current branch head SHA (40 characters)
-        required: true
-        type: string
-      base_sha:
-        description: Current PR base SHA (40 characters)
-        required: true
-        type: string
-      pr_number:
-        description: Open same-repository PR number
-        required: true
-        type: string
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
@@ -29,62 +14,47 @@ concurrency:
 
 jobs:
   test:
-    name: test
+    name: ${{ github.event_name == 'pull_request' && 'test' || 'manual checks' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
-      CI_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-      CI_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-      CI_BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ env.CI_HEAD_SHA }}
-      - name: Verify current PR target and title
-        id: target
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/verify-ci-target.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
-      - name: Check repository and CI policy
+      - name: Repository checks
         run: |
           ./scripts/check-repository.sh
           node scripts/check-doc-translations.mjs
           node scripts/check-conventions.mjs
           node scripts/check-layers.mjs
-          node --test scripts/ci-target.test.mjs
+      - name: Conventional PR title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: ./scripts/check-pr-title.sh "$PR_TITLE"
       - name: Cache dependency downloads
-        if: steps.target.outputs.gate == 'full'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             common/temp/pnpm-store
             ~/.npm/_cacache
           key: ${{ runner.os }}-dependency-downloads-${{ hashFiles('rush.json', 'common/config/rush/pnpm-lock.yaml', 'common/config/rush/pnpm-config.json') }}
           restore-keys: ${{ runner.os }}-dependency-downloads-
-      - name: Install locked dependencies
-        if: steps.target.outputs.gate == 'full'
-        run: node common/scripts/install-run-rush.js install
+      - run: node common/scripts/install-run-rush.js install
       - name: Release intent
-        if: steps.target.outputs.gate == 'full'
+        if: github.event_name == 'pull_request'
         env:
-          CI_COMPARISON_BASE: ${{ steps.target.outputs.base_sha }}
+          PR_BASE_REF: ${{ github.base_ref }}
         run: |
-          node common/scripts/install-run-rush.js change --verify --no-fetch --target-branch "$CI_COMPARISON_BASE"
-          node scripts/release-intent.mjs check --base "$CI_COMPARISON_BASE"
-      - name: Run package gate without repeated typechecks
-        if: steps.target.outputs.gate == 'full'
-        run: |
-          node common/scripts/install-run-rush.js lint
-          node scripts/check-browser-bundle.mjs
-          node common/scripts/install-run-rush.js test
-          node common/scripts/install-run-rush.js typecheck
-          node common/scripts/install-run-rush.js build --only @rivus/agent-trace-web
-      - name: Reject a target changed during validation
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/verify-ci-target.mjs
+          base="$(git merge-base "origin/$PR_BASE_REF" HEAD)"
+          node common/scripts/install-run-rush.js change --verify --no-fetch --target-branch "$base"
+          node scripts/release-intent.mjs check --base "$base"
+      - run: node common/scripts/install-run-rush.js lint
+      - run: node scripts/check-browser-bundle.mjs
+      - name: Build Web once before CLI smoke tests
+        run: node common/scripts/install-run-rush.js build --only @rivus/agent-trace-web
+      - run: node common/scripts/install-run-rush.js test
+      - run: node common/scripts/install-run-rush.js typecheck
