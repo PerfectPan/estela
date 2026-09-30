@@ -13,6 +13,7 @@ node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 ./scripts/check-pr-title.sh "docs: add external release plan"
+./scripts/check-pr-body.sh pr-body.md
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
@@ -33,16 +34,17 @@ There is no formatter and no package publish command.
 6. Implement the change, keeping responsibilities separated and using existing project patterns.
 7. Add or update tests for behavior changes.
 8. Update `README.md`, `CHANGELOG.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
-9. Run repository checks, title checks, and the Rush lint, test, typecheck, and build gates.
+9. Run repository checks, title and description checks, and the Rush lint, test, typecheck, and build gates.
 10. Open a pull request with a conventional title, motivation, implementation notes, validation, evidence, skipped gates, and follow-up risks.
+11. Keep the PR description current after review feedback, rebases, validation reruns, or scope changes.
 
 Small typo corrections, narrow documentation fixes, and repository metadata updates do not need a separate Spec and Plan.
 
 ## SDD Workflow And Document Lifecycle
 
 1. Record the problem, affected users or maintainers, in-scope behavior, non-goals, and acceptance conditions.
-2. Choose artifacts with the [Change Design Gate](#change-design-gate). Product work defaults to one behavioral Spec and one detailed Plan for the same deliverable. The Spec states interactions and acceptance scenarios. The Plan owns technical design, component and interface changes, data flow, implementation order, and verification.
-3. Review the behavior and technical design before implementing the affected scope. The Plan must resolve implementation decisions rather than leave them to the implementer. New behavior revises the Spec. New implementation decisions revise the Plan.
+2. Choose artifacts with the [Change Design Gate](#change-design-gate). Product work defaults to one behavioral Spec and one detailed Plan for the same deliverable. The Spec states required behavior: interactions and acceptance scenarios. The Plan owns the technical decisions (design, component and interface changes, data flow) and the detailed execution plan (ordered tasks, tests, exit conditions, validation, and rollback).
+3. Review the behavior and technical design before implementing the affected scope. The Plan must resolve implementation decisions rather than leave them to the implementer; keep it blocked while a material decision is unresolved. New behavior revises the Spec. New implementation decisions revise the Plan.
 4. Implement inside that boundary. Add evidence for each acceptance condition, or say why existing evidence is enough. Update current-state docs in the same change.
 5. Before retiring a completed Spec or Plan, move still-valid behavior, invariants, and operational limits into current-state docs and tests. The final delivery PR may delete the completed files, together with their Chinese reading copies. Keep an unfinished Spec or Plan active.
 6. Git history and the delivery PR keep the retired decision. Do not copy completed Specs or Plans into a second archive.
@@ -57,13 +59,15 @@ Every change needs a requirement record. Use the smallest set of artifacts that 
 | Technical refactor without changed user behavior | Detailed Plan with compatibility and acceptance conditions |
 | Narrow maintenance, tests, or documentation | Requirement and PR checklist; a separate Plan only when useful |
 
-A Spec defines observable interactions, scope, failure behavior, and acceptance examples. Use stable scenario IDs and Given/When/Then where useful. Link scenarios to tests. A Spec does not prescribe components, interfaces, or execution order. Keep active Specs under [`specs/`](specs/). Split only when each slice has an independently demonstrable outcome.
+A Spec defines observable interactions, scope, failure behavior, and acceptance examples. Use stable scenario IDs and Given/When/Then where useful. Link scenarios to tests. A Spec does not prescribe components, interfaces, or execution order. Keep active Specs under [`specs/`](specs/). A small change may keep both sections in the PR description. Split only when each slice has an independently demonstrable outcome.
 
-Shared architecture, compatibility, security, and recovery decisions belong in a reviewed Plan. After implementation, move lasting constraints into current-state architecture or operations docs. This repository does not keep an RFC directory.
+A Plan records technical decisions and the detailed execution plan that implements them. Shared architecture, compatibility, security, and recovery decisions belong in a reviewed Plan. After implementation, move lasting constraints into current-state architecture or operations docs. This repository does not keep an RFC directory. Removing a proposal does not mark unimplemented ideas as delivered.
 
 ## Implementation Plans
 
-[`docs/plans/`](docs/plans/) contains active technical design documents. Copy [`0000-template.md`](docs/plans/0000-template.md) and keep only the sections that apply. A product plan links its paired Spec. Explain the current constraints, the decisions, the boundaries, the failure and rollback behavior, and how the change will be verified. A file list alone is not a design.
+[`docs/plans/`](docs/plans/) contains active Plans: technical decisions plus a detailed execution plan. Copy [`0000-template.md`](docs/plans/0000-template.md) and keep only the sections that apply. A product plan links its paired Spec. Explain the current constraints, the decisions, the boundaries, the failure and rollback behavior, and how the change will be verified. A file list alone is not a design.
+
+The execution plan tells the implementer exactly what to do: preconditions, a completion contract, ordered tasks with files, changes, tests, and exit conditions, a validation ledger, and rollback per batch. Keep the plan blocked while a decision that changes scope, interfaces, data, or rollout is unresolved.
 
 Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make feature-specific technical decisions, but it cannot silently override current architecture. At completion, migrate lasting constraints into current-state docs and tests, then delete the completed Spec and plan in the final delivery PR. Keep unfinished scope visible.
 
@@ -109,6 +113,7 @@ Why a script: Rush requires change files only for projects in a version policy a
 - Host packages under `packages/host-*` parse one host each. `host-opencode` and `host-dsh` are kept and not registered.
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
 - Fixtures live in `fixtures/` and next to host tests.
+- Shared oxlint and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. `.oxlintrc.json` and `tsconfig.base.json` extend them and keep only this repository's rules. Change a shared default upstream, not here.
 - `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. CI and the pre-commit hook run it.
 
 ## Runtime checks
@@ -142,9 +147,28 @@ same gate. Keep cache storage inside the included repository allowance.
 
 ## Pull Request Expectations
 
-Use a conventional title: `type(scope): summary`.
+Every PR should answer:
+
+- What changed?
+- Why is this change needed?
+- How was this tested?
+- Are there follow-up tasks or risks?
+- What evidence proves the behavior, packaging, or deployment claim?
+- Which validation gates were skipped, and why?
+
+Use a conventional title:
+
+```text
+type(scope): summary
+```
 
 Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+
+Titles are English; `scripts/check-pr-title.sh` rejects CJK characters. Bot-generated PRs follow the same rule, so configure release and dependency bots to emit titles such as `chore(release): version packages` or `chore(deps): bump <package> to <version>`.
+
+The description keeps every `##` section from the PR/MR template. Summary and Validation must contain real content, not template placeholders. Do not include agent attribution lines such as "Generated with <tool>"; the author is accountable for the content. `scripts/check-pr-body.sh` enforces these rules, and the `PR description` job runs it on every pull request event, including description edits. PRs opened by bot accounts skip the description check, because dependency and release bots write their own bodies; they still must pass the title check. A skipped job still satisfies the required status check.
+
+Update the description when review feedback, rebases, or follow-up commits change the scope or validation result. Reviewers should be able to understand the final state from the PR without reconstructing it from comments.
 
 ## Local Git Hooks
 
@@ -152,7 +176,9 @@ Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `buil
 ./scripts/install-git-hooks.sh
 ```
 
-The pre-commit hook runs `git diff --cached --check` and `./scripts/check-repository.sh --staged`. If `core.hooksPath` is already set, the installer fails instead of overwriting it.
+The pre-commit hook runs `git diff --cached --check`, `./scripts/check-repository.sh --staged`, `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, and `node scripts/check-layers.mjs`. Hooks are a local guardrail; CI and branch protection remain the authoritative enforcement because hooks can be missing or bypassed.
+
+If `core.hooksPath` is already set to another path, `scripts/install-git-hooks.sh` fails instead of overwriting it. Re-run with `--force` only after confirming the existing hooks can be replaced or moved into `.githooks`.
 
 ## Repository Setup
 
@@ -161,6 +187,8 @@ After the GitHub repository exists, preview branch protection with:
 ```bash
 ./scripts/configure-github-repository.sh --repo PerfectPan/agent-trace
 ```
+
+The script requires pull requests, one approving review (fresh after new pushes), linear history, resolved conversations, and the `Review` workflow checks named `repository checks`, `conventional PR title`, and `PR description`. A single maintainer cannot approve their own pull requests; pass `--approvals 0` to keep the other protections without a review requirement. Add the CI job with `--check test` so it is required too. If the repository already uses a ruleset, add these checks to the ruleset instead of layering classic branch protection on top.
 
 Apply it only when the repository plan allows branch protection. Do not treat a failed apply on a private repository as a product defect.
 

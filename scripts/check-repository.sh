@@ -55,26 +55,40 @@ required_files=(
   ".github/pull_request_template.md"
   ".github/ISSUE_TEMPLATE/bug_report.md"
   ".github/ISSUE_TEMPLATE/feature_request.md"
-  ".github/workflows/ci.yml"
-  ".github/workflows/ci.yml.example"
+  # Alternatives separated by "|": a project replaces the example with its real CI.
+  ".github/workflows/ci.yml|.github/workflows/ci.yml.example"
   ".gitlab/merge_request_templates/default.md"
   ".githooks/pre-commit"
+  "scripts/check-pr-body.sh"
   "scripts/check-pr-title.sh"
   "scripts/check-repository.sh"
   "scripts/install-git-hooks.sh"
   "scripts/configure-github-repository.sh"
+  "scripts/lib/review-sections.sh"
   "specs/0000-template.md"
   "docs/plans/0000-template.md"
 )
 
-missing=()
-for file in "${required_files[@]}"; do
+file_present() {
   if [[ "$staged" == true ]]; then
-    if ! git cat-file -e ":$file" 2>/dev/null; then
-      missing+=("$file")
+    git cat-file -e ":$1" 2>/dev/null
+  else
+    [[ -f "$1" ]]
+  fi
+}
+
+missing=()
+for entry in "${required_files[@]}"; do
+  found=false
+  IFS='|' read -r -a alternatives <<<"$entry"
+  for file in "${alternatives[@]}"; do
+    if file_present "$file"; then
+      found=true
+      break
     fi
-  elif [[ ! -f "$file" ]]; then
-    missing+=("$file")
+  done
+  if [[ "$found" == false ]]; then
+    missing+=("${entry//|/ or }")
   fi
 done
 
@@ -96,7 +110,7 @@ if [[ -n "$tracked_artifacts" ]]; then
 fi
 
 secret_pattern='AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{36,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
-private_path_pattern='(/Users/[^[:space:]`"'"'"'<>]+|/home/[^[:space:]`"'"'"'<>]+|C:\\Users\\)'
+private_path_pattern='(^|[[:space:]`"'"'"'(<>=])(/Users/[^[:space:]`"'"'"'<>]+|/home/[^[:space:]`"'"'"'<>]+|C:\\Users\\)'
 placeholder_pattern='private-token|internal-domain\.example|HOME_PATH_PLACEHOLDER'
 findings_file="$(mktemp "${TMPDIR:-/tmp}/check-repository-findings.XXXXXX")"
 trap 'rm -f "$findings_file"' EXIT
@@ -116,20 +130,18 @@ if git grep "${grep_args[@]}" -- . \
   exit 1
 fi
 
-required_review_sections=(
-  "Summary"
-  "Motivation"
-  "Implementation Notes"
-  "Validation"
-  "Evidence"
-  "Safety Checklist"
-  "Follow-up Risks"
-)
+if [[ "$staged" == true ]]; then
+  # Bash 3.2 cannot source process substitution, so eval the staged list.
+  eval "$(git show ":scripts/lib/review-sections.sh")"
+else
+  # shellcheck source=scripts/lib/review-sections.sh
+  source "scripts/lib/review-sections.sh"
+fi
 
 for template in ".github/pull_request_template.md" ".gitlab/merge_request_templates/default.md"; do
   for section in "${required_review_sections[@]}"; do
     if [[ "$staged" == true ]]; then
-      if ! git show ":$template" | grep -qE "^## ${section}$"; then
+      if ! git show ":$template" | grep -E "^## ${section}$" >/dev/null; then
         fail "$template is missing required section: $section"
       fi
     elif ! grep -qE "^## ${section}$" "$template"; then
