@@ -4,45 +4,23 @@ Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `buil
 
 ## Summary
 
--
-
-## Motivation
-
--
-
-## Implementation Notes
+<!-- What changed and why. Link the issue, Spec, or Plan when there is one. -->
 
 -
 
 ## Validation
 
+<!-- Commands you ran and their results; logs or screenshots for behavior claims. Name skipped checks and why. -->
+
 - [ ] Repository checks: `gh repo-checks repository`
-- [ ] MR title: `gh repo-checks pr-title "<title>"`
-- [ ] MR description: `gh repo-checks pr-body <body-file>`
-- [ ] Format:
-- [ ] Lint:
-- [ ] Test:
-- [ ] Build:
-- [ ] Package or release dry-run:
+- [ ] Docs, file conventions, layers: `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, `node scripts/check-layers.mjs`
+- [ ] MR title and description: `gh repo-checks pr-title "<title>"`, `gh repo-checks pr-body <body-file>`
+- [ ] Release intent: `node scripts/release-intent.mjs check --base <merge-base>`
+- [ ] Lint, test, typecheck, build: `node common/scripts/install-run-rush.js lint`, `test`, `typecheck`, `build`
+- [ ] Browser bundle: `node scripts/check-browser-bundle.mjs`
 
-Skipped gates and reasons:
+## Risks
 
--
-
-## Evidence
-
-- Requirement and paired Spec/Plan:
-- Logs, screenshots, package output, or deployed artifact:
-- Reviewer notes that changed the final scope:
-
-## Safety Checklist
-
-- [ ] No credentials, tokens, private hostnames, personal filesystem paths, or generated logs are included.
-- [ ] Local config, generated output, build artifacts, and temporary workspaces are not staged.
-- [ ] User-facing behavior, docs, release change files, migrations, or rollback notes are updated when relevant.
-- [ ] Completed Spec/Plan constraints are migrated to tests or current-state docs before retirement; unfinished scope remains active.
-- [ ] The branch is current enough for review, and the remote head matches the intended commit.
-
-## Follow-up Risks
+<!-- Optional: compatibility, rollout, rollback, or follow-up risks. Delete this section when there are none. -->
 
 -

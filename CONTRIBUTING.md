@@ -36,7 +36,7 @@ There is no formatter and no package publish command.
 7. Add or update tests for behavior changes.
 8. Update `README.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
 9. Run repository checks, title and description checks, and the Rush lint, test, typecheck, and build gates.
-10. Open a pull request with a conventional title, motivation, implementation notes, validation, evidence, skipped gates, and follow-up risks.
+10. Open a pull request with a conventional title, a summary of what changed and why, validation with skipped gates, and any risks.
 11. Keep the PR description current after review feedback, rebases, validation reruns, or scope changes.
 
 Small typo corrections, narrow documentation fixes, and repository metadata updates do not need a separate Spec and Plan.
@@ -155,14 +155,11 @@ same gate. Keep cache storage inside the included repository allowance.
 
 ## Pull Request Expectations
 
-Every PR should answer:
+The PR template has three sections:
 
-- What changed?
-- Why is this change needed?
-- How was this tested?
-- Are there follow-up tasks or risks?
-- What evidence proves the behavior, packaging, or deployment claim?
-- Which validation gates were skipped, and why?
+- **Summary**: what changed and why, with links to the issue, Spec, or Plan.
+- **Validation**: the commands you ran and their results, evidence for behavior or packaging claims, and skipped gates with reasons.
+- **Risks** (optional): compatibility, rollout, rollback, or follow-up risks. Delete it when there are none.
 
 Use a conventional title:
 
@@ -174,7 +171,7 @@ Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `buil
 
 Titles are English; `gh repo-checks pr-title` rejects CJK characters. Bot-generated PRs follow the same rule, so configure release and dependency bots to emit titles such as `chore(release): version packages` or `chore(deps): bump <package> to <version>`.
 
-The description keeps every `##` section from the PR/MR template. Summary and Validation must contain real content, not template placeholders. Do not include agent attribution lines such as "Generated with <tool>"; the author is accountable for the content. `gh repo-checks pr-body` enforces these rules, and the `test` job runs it as its `PR description` step. PRs opened by bot accounts skip that step, because dependency and release bots write their own bodies; they still must pass the title check.
+Summary and Validation must be present and contain real content, not template placeholders; other sections are optional. Do not include agent attribution lines such as "Generated with <tool>"; the author is accountable for the content. `gh repo-checks pr-body` enforces these rules, and the `test` job runs it as its `PR description` step. PRs opened by bot accounts skip that step, because dependency and release bots write their own bodies; they still must pass the title check.
 
 Update the description when review feedback, rebases, or follow-up commits change the scope or validation result. Reviewers should be able to understand the final state from the PR without reconstructing it from comments.
 
