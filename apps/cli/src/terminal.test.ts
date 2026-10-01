@@ -53,20 +53,29 @@ describe('sayReady', () => {
     expect(stripVTControlCharacters(chunks.join(''))).toContain('Ready')
   })
 
-  it('keeps every box line the same visible length and puts OSC 8 outside the box', () => {
+  it('puts the one URL inside the box as an OSC 8 link, every box line the same visible width', () => {
     process.env.TERM = 'xterm-256color'
     const chunks = capture(120)
     sayReady(url)
     const raw = chunks.join('')
-    expect(raw).toContain(`\u001b]8;;${url}`)
+    expect(raw.split(`\u001b]8;;${url}\u001b\\`)).toHaveLength(2)
     const visible = stripVTControlCharacters(raw).split('\n')
     const start = visible.findIndex(line => line.includes('┌'))
     const end = visible.findIndex((line, index) => index > start && line.includes('└') && line.includes('─'))
     const boxLines = visible.slice(start, end + 1)
-    expect(boxLines.length).toBeGreaterThan(1)
+    expect(boxLines).toHaveLength(3)
     expect(new Set(boxLines.map(line => line.length)).size).toBe(1)
-    const boxed = raw.split('\n').filter(line => line.includes('┌') || line.includes('└') || (line.includes('│') && line.includes(url)))
-    expect(boxed.some(line => line.includes('\u001b]8;;'))).toBe(false)
+    expect(boxLines[1]).toContain(url)
+    expect(visible.join('\n').split(url)).toHaveLength(2)
+  })
+
+  it('keeps the plain URL in the box when the terminal has no OSC 8', () => {
+    process.env.TERM = 'dumb'
+    const chunks = capture(120)
+    sayReady(url)
+    const raw = chunks.join('')
+    expect(raw).not.toContain('\u001b]8;;')
+    expect(stripVTControlCharacters(raw).split(url)).toHaveLength(2)
   })
 })
 

@@ -73,12 +73,13 @@ function osc8(url: string, text: string): string {
   return `\u001B]8;;${url}\u001B\\${text}\u001B]8;;\u001B\\`
 }
 
-/** Borders plus padding. `columns` of 0 is falsy; under 10 clack's box repeats a negative width. */
+/**
+ * Guide (2), borders (2), padding (4), and one column for clack rounding the box to an even
+ * width, so the URL never wraps (a wrapped OSC 8 link breaks). This also keeps clack's box away
+ * from 0 or very few columns, where it would repeat a negative width.
+ */
 function boxFits(url: string): boolean {
-  const columns = process.stdout.columns
-  if (!columns || columns < 10)
-    return false
-  return columns >= url.length + 8
+  return (process.stdout.columns ?? 0) >= url.length + 9
 }
 
 export function sayStart(version: string): void {
@@ -146,10 +147,9 @@ export function sayReady(url: string): void {
       outro('Ready')
       return
     }
-    // clack measures the whole string. OSC 8 bytes inside the box push the right border out.
-    box(url, 'Ready')
-    if (supportsOsc8())
-      process.stdout.write(`${osc8(url, url)}\n`)
+    // One URL, inside the box. clack 1.8 measures visible width (OSC 8 bytes count as 0), so the
+    // link does not push the right border out; `width: 'auto'` sizes the box to the URL.
+    box(supportsOsc8() ? osc8(url, url) : url, 'Ready', { width: 'auto' })
     outro('Ready')
   }
   catch {

@@ -8,21 +8,33 @@ Local-first DevTool for coding-agent session logs.
 
 ## Quick start
 
+Node.js 22.18 or later:
+
 ```sh
-node common/scripts/install-run-rush.js update
-node common/scripts/install-run-rush.js test
-cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+npx @rivus/agent-trace                  # session browser over this machine's sessions
+npx @rivus/agent-trace <session-path>   # one session's workspace
+npx @rivus/agent-trace --pick           # pick a session in the terminal
+npx @rivus/agent-trace build <session-path> --out-dir report
+npx @rivus/agent-trace mcp <session-path>
 ```
 
-Open `http://localhost:7392/__agent-trace/`.
+`@rivus/agent-trace` is not published yet. Until then, build and run it from this repository:
 
-Default fixture: `fixtures/demo.trace.json`. Pass a path, or set `AGENT_TRACE_PATH`, to inspect a real log.
+```sh
+node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js build
+cd apps/cli && node dist/bin.mjs --no-auth
+```
+
+For development, `cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth` runs the CLI from source. Open `http://localhost:7392/__agent-trace/`.
+
+`build` and `mcp` default to `fixtures/demo.trace.json` when no path is given. `AGENT_TRACE_PATH` sets the default session path.
 
 | Host | Path | Status |
 |---|---|---|
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` | loads |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl` | loads |
-| Claude Code | `~/.claude/projects/` | detect only |
+| Claude Code | `~/.claude/projects/` | loads |
 | OpenCode | `opencode.db#<session-id>` | package kept, not registered |
 | dsh | — | package kept, not registered |
 

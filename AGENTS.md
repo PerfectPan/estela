@@ -6,7 +6,8 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, embeds the web build | every package; web's build output |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, embeds the web build, rslib bundle (`dist/bin.mjs`, `dist/cli.mjs`, `dist/web/`) | every package; web's build output |
+| `apps/e2e` | `@rivus/agent-trace-e2e` | Private. CLI smoke tests on the packed tarball (`test:smoke`), synthetic fixture homes | nothing at runtime; test tooling only |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, tokens, dictionaries | `rpc` (types), `kernel`, `schema` |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, legacy `get-trace`), server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected I/O, resolver, and session service | `kernel`, `schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index (`node:sqlite`) | `kernel`, `schema` |
@@ -65,4 +66,7 @@ node common/scripts/install-run-rush.js build
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+cd apps/e2e && node ../../common/scripts/install-run-rushx.js test:smoke
 ```
+
+`test:smoke` builds `@rivus/agent-trace`, packs `apps/cli`, and installs the tarball. It is not part of `rush test`. Never run `npm publish` or `rush publish`.
