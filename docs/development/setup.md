@@ -10,7 +10,7 @@ gh extension install PerfectPan/gh-repo-checks
 node common/scripts/install-run-rush.js install
 ```
 
-Use Node.js 24. `rush.json` requires `>=24.0.0 <25`, and the CLI exits before loading when Node is older than 24.
+Use Node.js 24.x: `rush.json` requires `>=24.0.0 <25`. The built CLI runs on Node.js 24 or later and exits before loading when Node is older.
 
 ## Checks
 

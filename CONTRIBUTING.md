@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 24. `rush.json` requires `>=24.0.0 <25`, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older than 24. Rush installs its own pnpm. Do not run a root `pnpm install`.
+Use Node.js 24.x: `rush.json` requires `>=24.0.0 <25`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. Rush installs its own pnpm. Do not run a root `pnpm install`.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks
@@ -15,7 +15,7 @@ node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 gh repo-checks pr-title "docs: add external release plan"
 gh repo-checks pr-body pr-body.md
-node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js install
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
 node common/scripts/install-run-rush.js lint

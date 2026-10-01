@@ -60,7 +60,7 @@ node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
 gh repo-checks pr-title "<title>"
 gh repo-checks pr-body pr-body.md
-node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js install
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
 node common/scripts/install-run-rush.js lint

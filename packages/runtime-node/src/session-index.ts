@@ -211,7 +211,7 @@ class SqliteIndex implements SessionIndex {
     try {
       if (Array.from(text).length < 3) {
         const pattern = `%${casefold(text).replace(/[\\%_]/g, match => `\\${match}`)}%`
-        // Two plain `?` parameters: Node 22's node:sqlite cannot bind a positional argument to `?1`.
+        // Two plain `?` parameters: node:sqlite in early Node 24 releases (24.0) cannot bind a positional argument to `?1`.
         const rows = this.sql(
           `SELECT ref FROM sessions WHERE casefold(title) LIKE ? ESCAPE '\\'
              OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ? ESCAPE '\\')

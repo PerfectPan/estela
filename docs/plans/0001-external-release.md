@@ -508,7 +508,7 @@ Localization details (D13):
 - `AGENTS.md` updates its layer table to 2.2 in the layout-move PR.
 - No compatibility layer: nothing is released, so interfaces and file shapes change in place.
 - `AGENTS.md` rules on `original` and `getTrace` change as stated in D6, in the same PR as the code.
-- Node.js 20 and 22.0–22.17 are dropped; they never worked.
+- Node.js older than 24 is dropped: 20 and 22.0–22.17 never worked, and 22.18 and 23 went with the Node 24 requirement (#22).
 
 ### 3.9 Security and privacy
 
@@ -633,7 +633,7 @@ Implemented as planned, except for these choices made during delivery:
 | 2 s first screen on slower disks | risk | S1 budget missed | unconfirmed | Measure in M3; the first screen needs only `discover` and index reads |
 | OTel GenAI renames | risk | Mapping table goes stale | unconfirmed | Pin the schema version used (`gen-ai-dev/1.42.0-dev` at time of writing) in the mapping table |
 | Name overlap with Cursor Agent Trace | risk | Search confusion | unconfirmed | Keep the `@rivus` scope in docs and README title |
-| `node:sqlite` ExperimentalWarning on Node 22 | risk | Rush exits 1 on stderr; CLI prints one warning | unconfirmed | Already silenced in opencode tests on `main`; OpenCode is not registered in this release |
+| `node:sqlite` ExperimentalWarning on early Node 24 releases | risk | Rush exits 1 on stderr; CLI prints one warning | unconfirmed | Already silenced in opencode tests on `main`; OpenCode is not registered in this release |
 | DuckDB for cross-session analytics | follow-up | Faster bulk queries over raw logs | unconfirmed | Optional dependency if a feature needs it (A.10) |
 | ATIF export | follow-up | Interop with Harbor evaluation and datasets | unconfirmed | Next plan; mapping in A.8; validate with Harbor's validator |
 | npm publishing | follow-up | Users install from the registry | unconfirmed | Version Packages and publish workflows, after M5; reference `rivus-agent` |

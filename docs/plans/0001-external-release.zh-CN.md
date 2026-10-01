@@ -510,7 +510,7 @@ flowchart LR
 - `AGENTS.md` 在布局迁移 PR 中把其分层表更新为 2.2 的内容。
 - 没有兼容层：目前没有任何发布，因此接口和文件形状直接原地修改。
 - `AGENTS.md` 中关于 `original` 和 `getTrace` 的规则按 D6 所述改变，与代码在同一个 PR 中。
-- 放弃 Node.js 20 和 22.0–22.17；它们从未可用。
+- 放弃低于 24 的 Node.js：20 和 22.0–22.17 从未可用，22.18 和 23 随 Node 24 要求一起放弃（#22）。
 
 ### 3.9 安全与隐私
 
@@ -635,7 +635,7 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 | 较慢磁盘上的 2 s 首屏 | 风险 | 未达到 S1 预算 | 未确认 | 在 M3 中测量；首屏只需要 `discover` 和索引读取 |
 | OTel GenAI 重命名 | 风险 | 映射表过时 | 未确认 | 在映射表中固定所用的 schema 版本（撰写时为 `gen-ai-dev/1.42.0-dev`） |
 | 与 Cursor Agent Trace 名称重叠 | 风险 | 搜索混淆 | 未确认 | 在文档和 README 标题中保留 `@rivus` scope |
-| Node 22 上的 `node:sqlite` ExperimentalWarning | 风险 | Rush 因 stderr 以 1 退出；CLI 打印一条警告 | 未确认 | `main` 上的 opencode 测试中已屏蔽；本次发布不注册 OpenCode |
+| 早期 Node 24 上的 `node:sqlite` ExperimentalWarning | 风险 | Rush 因 stderr 以 1 退出；CLI 打印一条警告 | 未确认 | `main` 上的 opencode 测试中已屏蔽；本次发布不注册 OpenCode |
 | 用 DuckDB 做跨会话分析 | 后续工作 | 对原始日志更快的批量查询 | 未确认 | 如果某个功能需要，作为可选依赖（A.10） |
 | ATIF 导出 | 后续工作 | 与 Harbor 评测和数据集互通 | 未确认 | 下一份计划；映射见 A.8；用 Harbor 的 validator 验证 |
 | npm 发布 | 后续工作 | 用户从 registry 安装 | 未确认 | Version Packages 和发布 workflow，在 M5 之后；参考 `rivus-agent` |
