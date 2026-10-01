@@ -47,7 +47,7 @@
 | 耗时 | 记录的 `timestamp`、`system/turn_duration` | 记录的 `timestamp`、每轮的 `task_complete.duration_ms`；`started_at_ms` / `completed_at_ms` 只出现在 `item_completed` 上 | 每轮的 `turn_completed.elapsed_ms` |
 | 压缩 | `system/compact_boundary`，带 `compactMetadata.{trigger, preTokens, postTokens, durationMs, preservedSegment}` | `compacted` | `auto_compact_started/completed`, `compaction_checkpoint` |
 | Subagent | `isSidechain`, `subagents/*.jsonl` | `event_msg/item_completed`，其 `item.type` 为 `SubAgentActivity`（`agent_thread_id`）；`inter_agent_communication_metadata` 只带 `trigger_turn` | `subagent_spawned/finished`, `subagents/` |
-| System prompt、tool schema | 未记录 | 未记录（未对所有格式代际验证） | `system_prompt.txt`, `tool_definitions.json` |
+| System prompt、tool schema | `attachment.type: prompt_snapshot` 的 `attachment` 记录，每个文件一条或多条（主文件和子代理文件都有）。每条都有 `systemPrompt`（字符串数组）；部分还有 `tools`（`tools[].schema.input_schema`）和 `cliPrefix`。从 2.1.268 起可见；没有 snapshot 的文件两者都不记录（2026-09-25 重新测量：221 个主文件中 34 个、95 个子代理文件中 61 个有 snapshot，版本为 2.1.268 或更高的 36 个主文件中有 2 个没有） | System prompt：文件中第一条 `session_meta` 的 `session_meta.base_instructions.text`（2026-09-25，1,941 个 rollout 中 1,984 条 `session_meta` 记录里有 1,846 条；更早的 rollout 没有它）。Tool schema：未记录（`session_meta.dynamic_tools` 只列出动态工具） | `system_prompt.txt`, `tool_definitions.json`（可选；2026-09-25 分别为 66 个会话中 66 个和 10 个） |
 
 **本机日志量。**
 
@@ -342,6 +342,7 @@ export interface HostAdapter {
 
 - adapter 只通过 `TraceIO` 读取，不写入任何内容。
 - host 能够记录的字段在 `capabilities` 中声明。已声明的字段在某条记录中缺失时，该记录中为 `undefined`，从不为零。
+- `HostAdapter.capabilities` 列出 host 记录的数据种类。`Trace.capabilities` 对每个 trace 重复这些种类，但 `systemPrompt` 和 `toolSchemas` 除外：只有当 trace 的文件含有这些内容时（Claude Code 的 prompt snapshot、Codex 的 `base_instructions`、Grok 的 `system_prompt.txt` 或 `tool_definitions.json`）才列出它们。其他每个 capability 的含义都是“这个 host 记录这类数据”，而不是该会话一定含有这类数据。
 - `load` 必须覆盖每条输入记录：它要么成为一个或多个事件，要么成为一个带原因和行号的 `skipped` 条目。
 - 未知记录类型成为 `unknown` 事件，`payload.type` 设为 host 的类型名。未知的格式代际使 `load` 失败并给出行号。
 - 事件 id 在 host 有 id 时从 host id 派生，否则从文件和行派生，因此第二次加载得到相同的 id。
@@ -354,7 +355,7 @@ export interface HostAdapter {
 4. 每个 `tool_result.callId` 都匹配同一 agent 中更早的 `tool_call.callId`，否则该 result 标记为 `orphan`。
 5. 每个 `shadowedBy` 都指向同一 agent 更晚的 `compaction` 事件。
 6. 每个事件都有 source pointer，且能读回同一条记录。
-7. 每个已声明的 capability 在声明它的 fixture 中至少出现一次；未声明的从不出现。
+7. 每个已声明的 capability 在声明它的 fixture 中至少出现一次；未声明的从不出现。trace 只列出已声明的 capability，列出其 fixture 声明的每个 capability，并且从不出现它没有列出的 capability；它恰好在出现 `systemPrompt` 和 `toolSchemas` 时列出它们。
 8. `summarize` 对该 fixture 等于 `fold(load())`。
 9. 从 adapter 入口不可达任何 `node:*` 导入。
 10. 事件 id 唯一。
@@ -413,6 +414,8 @@ export interface CompactionPayload {
 export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
 export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
 
+export interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }  // on a `system` event
+
 export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
@@ -427,6 +430,8 @@ export interface Trace {
 ```
 
 一个 `request` 事件是一次模型调用。只记录每轮合计的 host 每轮发出一个 request，并在 adapter 里说明。轮次耗时放在 `type: 'turn_duration'` 的 `system` 事件上，从不写进 request 的 `durationMs`。
+
+在会话过程中记录 system prompt 或工具列表的 host，把每条这样的记录作为其泳道上 `type: 'prompt_snapshot'` 的 `system` 事件（`PromptSnapshotPayload`）发出；该事件保留 source pointer 和原始记录，上下文压缩不会遮蔽它。`reconstruct` 用该泳道上、位于该事件处或之前、记录了相应字段的最新 snapshot 填充 `system` 和 `tools` 槽位，并在 `slot.recordedBy` 中给出它；没有这样的 snapshot 的槽位为 `unavailable`，即使之后有 snapshot。`session.systemPrompt` 和 `session.tools` 保存主泳道最新的 snapshot，`AgentInfo.systemPrompt` 保存子代理泳道自己的。没有 snapshot 的 trace 对每个事件都使用这些会话和泳道字段。Claude Code 用一个空行连接记录的 `systemPrompt` 各块。视图版 trace 对每个不同的 snapshot system prompt 和非空工具列表只保留一份，放在第一个含有它的 snapshot 上；之后内容相同的 snapshot 带有指向该 snapshot 的 `systemPromptSameAs` / `toolsSameAs`，并在 `payload.$truncated` 中列出该字段，因此 `get-event` 返回完整内容，`reconstruct` 在视图上给出相同结果。记录为空的工具列表是 `empty` 槽位。
 
 - `schema: 'agent-trace'` 标记一个规范 JSON 文件。demo fixture 改写为这一形状；不保留 MVP 形状的 reader。
 - payload 的键名按事件类型固定；每个字段旁的注释是其 OTel GenAI 属性。OTLP exporter 一对一映射它们。
@@ -566,7 +571,7 @@ M2 之后 M3 和 M4 可以并行。
 | S4 | 格式代际未知的 fixture：“无法读取”行，带行号的错误 | 点击该行，读取错误面板 |
 | S5 | 压缩 fixture：带压缩前/后 token 的虚线分隔线 | timeline SVG 的 locator 及其标签 |
 | S6 | brush 筛选 ledger；显示事件数。brush 手柄可以获得焦点，并能用方向键移动 | 在获得焦点的手柄上使用 `page.keyboard`，以及鼠标拖动 |
-| S7 | Model saw：slot、带斜线填充的 system prompt、被移除的事件 | 选中该请求，读取 inspector |
+| S7 | Model saw：slot、有 prompt snapshot 时 system prompt 和工具为存在、没有时带斜线填充、被移除的事件 | 在两个 Claude Code 会话中选中该请求，读取 inspector |
 | S8 | 生成的 10,000 事件 trace：滚动时渲染的行保持在 100 以下，且滚动期间没有超过 200 ms 的长任务 | DOM 中的行数；页面内针对 `longtask` 的 `PerformanceObserver` |
 | S9 | 导出，从 `file://` 打开，在输出中 grep home 路径 | `page.goto('file://…')`；在 Node 中扫描文件 |
 | S11 | 模拟浅色配色方案，然后切换并重新加载 | `page.emulateMedia({ colorScheme })`，重新加载 |
@@ -610,6 +615,7 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 - 词典文件是 `apps/web/src/i18n/dictionary.en.ts` 和 `dictionary.zh-CN.ts`，而不是 `{en,zh-CN}.ts`。
 - “模型所见”列出 host 记录的每个 token 数，以及该数共同覆盖的槽位（请求的输入 token、上下文压缩的压缩后 token）；没有按槽位的计数。
 - `reconstruct` 作用于目标事件所在的泳道：子代理的请求只看到该子代理的事件。
+- System prompt 和工具：1.1 表格曾写 Claude Code 两者都不记录。Claude Code 写入 `prompt_snapshot` attachment（从 2.1.268 起可见），Codex rollout 带有 `session_meta.base_instructions.text`；adapter 现在读取它们（3.3），trace 只在文件记录了它们时才列出 `systemPrompt` / `toolSchemas`（3.2），“模型所见”根据该 trace 缺少的内容说明不可用的槽位，并把已记录的槽位链接到它的 snapshot。视图对每个不同的 snapshot 提示词和工具列表只保留一份（3.3）。
 - 报告内容：前面的事件以完整形式包含（规范化 payload 加原始记录），而不只是原始记录，因此这些事件的截短文本也是完整的。2,000 个事件和 20 MB 的上限按这些完整事件计算。`build` 不记录语言，因此它的报告按浏览器语言打开；导出会记录界面语言。
 - 导出：“导出报告”写入服务工作目录下一个新的 `agent-trace-report-<ref>-<time>/` 目录，并显示绝对路径，主目录显示为 `~`。导出一次只运行一个。DevFrame 的 build 模式跳过会话推送，因此在开发服务器内运行的 build 不会重新绑定正在使用的共享状态。
 - 旧的 `get-trace` 已删除。`mcp` 保留基于 TraceStore 的 `reconstruct`。“模型所见”在浏览器中基于视图版 trace 计算 `reconstruct`，开发服务器和报告中都是如此。

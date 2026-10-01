@@ -10,6 +10,7 @@ export {
   type ContextSlotName,
   type ContextTokens,
   type EventKind,
+  type PromptSnapshotPayload,
   type ReconstructResult,
   type RequestPayload,
   type SkippedRecord,

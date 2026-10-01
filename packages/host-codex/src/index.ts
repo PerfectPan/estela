@@ -16,7 +16,8 @@ import {
 import { INJECTED_USER, textFrom } from './codex-items.ts'
 import { parseCodexRecords } from './parse-session.ts'
 
-const CAPABILITIES: Capability[] = [
+/** Recorded by every rollout this adapter reads. */
+const BASE_CAPABILITIES: Capability[] = [
   'requests',
   'usage',
   'durations',
@@ -24,6 +25,13 @@ const CAPABILITIES: Capability[] = [
   'compaction',
   'subagents',
 ]
+
+/**
+ * Possible for the host: `systemPrompt` comes from `session_meta.base_instructions.text`,
+ * which older rollouts leave out. A trace lists it only when its file records it.
+ * Tool schemas are not recorded (`dynamic_tools` lists only the dynamic ones).
+ */
+const CAPABILITIES: Capability[] = [...BASE_CAPABILITIES, 'systemPrompt']
 
 /** The first prompt skips injected user text, the same rule as turns. */
 function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
@@ -90,6 +98,6 @@ export const codexAdapter: HostAdapter = {
       const stem = basenamePath(ref.path).replace(/\.jsonl$/, '')
       parsed.session.id = stem || 'unknown'
     }
-    return toTrace('codex', CAPABILITIES, parsed)
+    return toTrace('codex', [...BASE_CAPABILITIES, ...(parsed.session.systemPrompt ? ['systemPrompt' as const] : [])], parsed)
   },
 }

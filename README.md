@@ -3,7 +3,7 @@
 `@rivus/agent-trace` is a local DevTools for coding-agent session logs. One command opens it in the browser. You pick a session from Claude Code, Codex, or Grok and see, on one screen, what the agent did and what the model was shown at each request.
 
 - **Session browser**: every session found on this machine, newest first, grouped by day. Each row has the host, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by host, project, and flag; search covers titles and every user prompt. Selecting a row shows a preview with the context-over-time shape.
-- **Session workspace**: a header with the session's numbers; a timeline with one bar per model request (height is input tokens), a lane per subagent, markers for prompts and failed tool calls, and a dashed rule at each compaction; a ledger of events grouped by turn; and an inspector whose "Model saw" tab reconstructs the context at the selected request, with the slots the host does not record marked "unavailable".
+- **Session workspace**: a header with the session's numbers; a timeline with one bar per model request (height is input tokens), a lane per subagent, markers for prompts and failed tool calls, and a dashed rule at each compaction; a ledger of events grouped by turn; and an inspector whose "Model saw" tab reconstructs the context at the selected request, with the slots the session log does not record marked "unavailable".
 - **Report**: a redacted copy of one session's workspace as a single `index.html` that opens from disk.
 
 The screens are described in words here. Screenshots are not committed; the design mockups are in [`docs/design/`](docs/design/README.md).

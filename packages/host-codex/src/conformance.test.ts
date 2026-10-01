@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fold } from '@rivus/agent-trace-kernel'
+import { fold, reconstruct } from '@rivus/agent-trace-kernel'
 import { describeHostConformance } from '@rivus/agent-trace-kernel/conformance'
 import { repoEvidence, writeOversized } from '@rivus/agent-trace-kernel/testing'
 import { nodeIO } from '@rivus/agent-trace-runtime-node/io'
@@ -28,7 +28,7 @@ describeHostConformance(codexAdapter, {
     {
       path: join(root, 'rollout-plain.jsonl'),
       records: 14,
-      capabilities: ['requests', 'usage', 'durations', 'thinking'],
+      capabilities: ['requests', 'usage', 'durations', 'thinking', 'systemPrompt'],
     },
     {
       path: join(root, 'rollout-token-count.jsonl'),
@@ -56,6 +56,19 @@ describeHostConformance(codexAdapter, {
 const load = (name: string) => codexAdapter.load({ host: 'codex', path: join(root, name) }, nodeIO, {})
 
 describe('codex behavior', () => {
+  it('takes the system prompt from session_meta.base_instructions when the rollout records it', async () => {
+    const plain = await load('rollout-plain.jsonl')
+    expect(plain.session.systemPrompt).toBe('Be brief.')
+    expect(plain.capabilities).toContain('systemPrompt')
+    const request = plain.events.find(event => event.kind === 'request')!
+    expect(reconstruct(plain, request.id).slots?.slice(0, 2).map(slot => slot.status)).toEqual(['present', 'unavailable'])
+    const bare = await load('rollout-token-count.jsonl')
+    expect(bare.session.systemPrompt).toBeUndefined()
+    expect(bare.capabilities).not.toContain('systemPrompt')
+    const first = bare.events.find(event => event.kind === 'request')!
+    expect(reconstruct(bare, first.id).slots?.slice(0, 2).map(slot => slot.status)).toEqual(['unavailable', 'unavailable'])
+  })
+
   it('emits one request per token_usage_record before the call output', async () => {
     const trace = await load('rollout-plain.jsonl')
     expect(trace.session.id).toBe('cx-plain')

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { countingIO } from './counting-io.ts'
 import { fold, summaryOf } from './fold.ts'
 import { asNumber, asRecord } from './jsonl.ts'
+import { latestSnapshot, snapshotHasSystemPrompt, snapshotHasTools } from './prompt-snapshot.ts'
 import { summarize } from './summarize.ts'
 
 const ALL_CAPABILITIES: readonly Capability[] = [
@@ -19,6 +20,9 @@ const ALL_CAPABILITIES: readonly Capability[] = [
   'toolSchemas',
   'hooks',
 ]
+
+/** Capabilities a trace lists by the presence of content in its own files, not by host. */
+const PRESENCE_CAPABILITIES: readonly Capability[] = ['systemPrompt', 'toolSchemas']
 
 const DISCOVER_BUDGET = 128 * 1024
 const EDGE_BUDGET = 64 * 1024
@@ -94,9 +98,11 @@ function capabilitySeen(trace: Trace, capability: Capability): boolean {
     case 'subagents':
       return trace.agents.some(agent => agent.parentId != null)
     case 'systemPrompt':
-      return typeof trace.session.systemPrompt === 'string' && trace.session.systemPrompt.length > 0
+      return (typeof trace.session.systemPrompt === 'string' && trace.session.systemPrompt.length > 0)
+        || trace.agents.some(agent => typeof agent.systemPrompt === 'string' && agent.systemPrompt.length > 0)
+        || latestSnapshot(trace.events, snapshotHasSystemPrompt) !== undefined
     case 'toolSchemas':
-      return trace.session.tools != null
+      return trace.session.tools != null || latestSnapshot(trace.events, snapshotHasTools) !== undefined
     case 'hooks':
       return trace.events.some(event => event.kind === 'hook')
     default:
@@ -293,19 +299,29 @@ export function describeHostConformance(
     })
 
     it('shows each claimed capability and no undeclared one', async () => {
+      // A host declares what it can record; each trace lists what its own files
+      // record (a subset), and never shows a capability it does not list.
+      // `systemPrompt` and `toolSchemas` are listed exactly when present.
       const declared = new Set(adapter.capabilities)
       const claimed = new Set<Capability>()
       for (const session of fixtures.sessions) {
         const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
+        const listed = new Set(trace.capabilities)
+        for (const capability of listed)
+          expect(declared.has(capability), `${session.path} lists ${capability}`).toBe(true)
         for (const capability of session.capabilities) {
           claimed.add(capability)
           expect(declared.has(capability), capability).toBe(true)
+          expect(listed.has(capability), `${session.path} lists ${capability}`).toBe(true)
           expect(capabilitySeen(trace, capability), `${session.path} ${capability}`).toBe(true)
         }
         for (const capability of ALL_CAPABILITIES) {
-          if (!declared.has(capability))
-            expect(capabilitySeen(trace, capability), capability).toBe(false)
+          if (!declared.has(capability) || !listed.has(capability))
+            expect(capabilitySeen(trace, capability), `${session.path} ${capability}`).toBe(false)
         }
+        // Content capabilities: a trace lists one exactly when its files contain that content.
+        for (const capability of PRESENCE_CAPABILITIES)
+          expect(listed.has(capability), `${session.path} lists ${capability} iff it has one`).toBe(capabilitySeen(trace, capability))
       }
       for (const capability of adapter.capabilities)
         expect(claimed.has(capability), capability).toBe(true)

@@ -151,4 +151,39 @@ describe('reconstruct', () => {
     expect(result.slots?.find(item => item.name === 'messages')?.eventIds).toEqual(['a'])
     expect(result.slots?.find(item => item.name === 'currentTurn')?.status).toBe('empty')
   })
+  it('takes the system prompt and tools from the latest snapshot at or before the event on its lane', () => {
+    const source = { file: 'f', offset: 0, length: 1, line: 1 }
+    const snap = (id: string, seq: number, payload: Record<string, unknown>, agentId?: string): Trace['events'][number] =>
+      ({ id, seq, ts: seq, kind: 'system', ...(agentId ? { agentId } : {}), payload: { type: 'prompt_snapshot', ...payload }, source: { ...source, line: seq + 1 } })
+    const request = (id: string, seq: number, agentId?: string): Trace['events'][number] =>
+      ({ id, seq, ts: seq, kind: 'request', ...(agentId ? { agentId } : {}), payload: {}, source: { ...source, line: seq + 1 } })
+    const trace: Trace = {
+      schema: 'agent-trace',
+      host: { id: 'test' },
+      // Session fields hold the latest snapshot; they must not leak to earlier events.
+      session: { id: 's', systemPrompt: 'two', tools: [{ name: 'b' }] },
+      capabilities: ['systemPrompt', 'toolSchemas'],
+      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', systemPrompt: 'sub' }, { id: 'bare', parentId: 'main' }],
+      events: [
+        request('r0', 0),
+        snap('s1', 1, { systemPrompt: 'one' }),
+        request('r1', 2),
+        snap('s2', 3, { systemPrompt: 'one', tools: [{ name: 'a' }] }),
+        snap('u1', 4, { systemPrompt: 'sub' }, 'sub'),
+        request('ru', 5, 'sub'),
+        request('rb', 6, 'bare'),
+        snap('s3', 7, { systemPrompt: 'two', tools: [{ name: 'b' }] }),
+        request('r2', 8),
+      ],
+      skipped: [],
+    }
+    const prompt = (id: string) => (reconstruct(trace, id).slots ?? []).slice(0, 2).map(item => [item.status, item.recordedBy])
+    expect(prompt('r0')).toEqual([['unavailable', undefined], ['unavailable', undefined]])
+    expect(prompt('r1')).toEqual([['present', 's1'], ['unavailable', undefined]])
+    expect(prompt('s2')).toEqual([['present', 's2'], ['present', 's2']])
+    expect(prompt('r2')).toEqual([['present', 's3'], ['present', 's3']])
+    expect(prompt('ru')).toEqual([['present', 'u1'], ['unavailable', undefined]])
+    expect(prompt('rb')).toEqual([['unavailable', undefined], ['unavailable', undefined]])
+    expect(reconstruct(trace, 'r1').unavailable).toEqual(['tools', 'summary'])
+  })
 })

@@ -98,6 +98,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
   let cwd: string | undefined
   let title: string | undefined
   let version: string | undefined
+  /** `session_meta.base_instructions.text` of the file's own (first) `session_meta`: the instructions sent as the system prompt. */
+  let systemPrompt: string | undefined
+  let seenMeta = false
   let startedAt: number | undefined
   let endedAt: number | undefined
   let model: string | undefined
@@ -162,6 +165,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
       sessionId ??= asString(payload.id) ?? asString(payload.session_id)
       cwd ??= asString(payload.cwd)
       version ??= asString(payload.cli_version)
+      if (!seenMeta)
+        systemPrompt = asString(asRecord(payload.base_instructions)?.text) || undefined
+      seenMeta = true
       skipRecord(skipped, record, 'session-meta')
       continue
     }
@@ -265,6 +271,7 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
       ...(cwd ? { cwd } : {}),
       ...(startedAt !== undefined ? { startedAt } : {}),
       ...(endedAt !== undefined ? { endedAt } : {}),
+      ...(systemPrompt ? { systemPrompt } : {}),
     },
   }
 }
