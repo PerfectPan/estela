@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
-          node-version: '22.18'
+          node-version: '24'
       - name: Repository checks
         uses: PerfectPan/gh-repo-checks@v1
         with:
