@@ -4,7 +4,7 @@
 - Owner: unconfirmed
 - Reviewer: unconfirmed
 - Last updated: 2026-09-24
-- Paired Spec: [`specs/0001-external-release.md`](../../specs/0001-external-release.md)
+- Paired Spec: [`docs/specs/0001-external-release.md`](../specs/0001-external-release.md)
 - Visual design: [`docs/design/`](../design/README.md)
 
 This plan turns the MVP on `main` into `@rivus/agent-trace`: a local DevTools that `npx @rivus/agent-trace` opens in the browser. The user picks a session from Claude Code, Codex, or Grok and debugs it in one workspace. The plan defines the host protocol that those three hosts implement first, the canonical trace, how sessions are discovered and loaded at the sizes found on a real machine, the UI build against the chosen design in English and Simplified Chinese, and packaging into a tarball that installs and runs anywhere. Publishing to npm, ATIF export, OpenCode, and dsh are follow-ups. Nothing is released yet, so interfaces and formats change in place without version numbers or compatibility layers.

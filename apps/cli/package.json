@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
   "homepage": "https://devfra.me/",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "engines": {
     "node": ">=22.18.0"
   },
@@ -35,10 +35,12 @@
     "devframe": "1.0.0"
   },
   "devDependencies": {
+    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.1.0",
     "@rivus/agent-trace-web": "workspace:*",
     "@rslib/core": "1.0.2",
     "@types/node": "^24.5.2",
-    "oxlint": "^1.83.0",
+    "oxlint": "^1.86.0",
+    "oxlint-tsgolint": "^7.0.2003",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }

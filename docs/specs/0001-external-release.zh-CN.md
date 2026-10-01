@@ -1,4 +1,4 @@
-> 中文阅读版。以英文原文 specs/0001-external-release.md 为准。
+> 中文阅读版。以英文原文 docs/specs/0001-external-release.md 为准。
 
 # Spec 0001：agent-trace DevTools
 
@@ -6,9 +6,9 @@
 
 Draft
 
-配套 Plan：[`docs/plans/0001-external-release.md`](../docs/plans/0001-external-release.md)
+配套 Plan：[`docs/plans/0001-external-release.md`](../plans/0001-external-release.md)
 
-视觉设计：[`docs/design/`](../docs/design/README.md)
+视觉设计：[`docs/design/`](../design/README.md)
 
 ## 问题与范围
 

@@ -10,15 +10,16 @@ const THEME_LABEL: Record<ThemeMode, MessageKey> = {
   dark: 'common.themeDark',
 }
 
+const themeLabel = () => t('common.themeSwitch', {
+  mode: t(THEME_LABEL[themeMode()]),
+  next: t(THEME_LABEL[nextThemeMode(themeMode())]),
+})
+
 /**
  * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, and the
  * theme and language switches.
  */
 export function TopBar(props: { crumbs?: string[], onJump?: () => void }) {
-  const themeLabel = () => t('common.themeSwitch', {
-    mode: t(THEME_LABEL[themeMode()]),
-    next: t(THEME_LABEL[nextThemeMode(themeMode())]),
-  })
   const crumbs = () => props.crumbs ?? []
   return (
     <header class="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">

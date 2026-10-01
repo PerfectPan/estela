@@ -67,6 +67,8 @@ function withRebuildLock<T>(file: string, fn: () => T): T {
       if (age > STALE_LOCK_MS)
         rmSync(lock, { force: true })
       else if (Date.now() > deadline)
+        // EEXIST means another process holds the lock; the timeout, not EEXIST, is the failure.
+        // oxlint-disable-next-line preserve-caught-error
         throw new Error(`index rebuild is locked by another process (${lock})`)
       else
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)

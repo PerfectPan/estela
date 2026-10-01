@@ -34,17 +34,29 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 - Rush + pnpm. Do not use a root `pnpm-workspace.yaml`.
 - UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
 - Lint is oxlint. No formatter is configured.
-- A PR that changes shipped files under `apps/` or `packages/` carries a Rush change file; rules in `CONTRIBUTING.md#release-intent`.
-- Contribution workflow, Specs, and Plans live in `CONTRIBUTING.md` and `docs/plans/`. Do not copy the `technical-design-docs` skill into this repo.
+- A PR that changes shipped files under `apps/` or `packages/` carries a Rush change file; rules in `CONTRIBUTING.md#release-intent`. Do not edit generated changelogs or add a hand-written root `CHANGELOG.md`.
+- Contribution workflow, Specs, and Plans live in `CONTRIBUTING.md`, `docs/specs/`, and `docs/plans/`. Do not copy the `technical-design-docs` skill into this repo.
 - File and directory names are kebab-case, and a code file has at most 500 lines; rules in `CONTRIBUTING.md#file-conventions`.
 - Every Spec and Plan ships with a `.zh-CN.md` reading copy in the same PR; rules in `CONTRIBUTING.md#bilingual-specs-and-plans`.
+- Keep changes scoped to the task. Do not commit local config, credentials, generated logs, temporary workspaces, build artifacts, or machine-specific paths.
+
+## Review Evidence
+
+- PR titles must be English and follow `type(scope): summary`, including bot-generated release and dependency PRs such as `chore(release): version packages`; use `gh repo-checks pr-title` to verify them.
+- PR descriptions must have a Summary (what changed and why) and a Validation section (exact commands and results, skipped gates with reasons); add Risks when there are any. Do not add agent attribution lines such as "Generated with <tool>". Verify the body with `gh repo-checks pr-body` before opening or updating the PR. Bot-opened PRs are exempt from the description check, not the title check.
+- If a claim depends on logs, screenshots, package output, deployed behavior, or generated artifacts, attach or link the evidence in the PR.
+- Update the PR description after substantial code changes, review-driven revisions, rebases that change behavior, or validation reruns.
+- Keep the GitHub PR template and the GitLab MR template in sync.
 
 ## Commands
 
 ```sh
-./scripts/check-repository.sh
+gh extension install PerfectPan/gh-repo-checks
+gh repo-checks repository
 node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
+gh repo-checks pr-title "<title>"
+gh repo-checks pr-body pr-body.md
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test

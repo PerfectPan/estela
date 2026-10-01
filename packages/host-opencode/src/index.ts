@@ -151,7 +151,7 @@ export const opencodeAdapter: HostAdapter = {
         directory: string | null
         title: string | null
       }[]
-      const id = sessionId ?? (sessions.length === 1 ? sessions[0].id : undefined)
+      const id = sessionId ?? (sessions.length === 1 ? sessions[0]?.id : undefined)
       if (!id) {
         throw new Error(`opencode db has ${sessions.length} sessions; pass path#sessionId or AGENT_TRACE_SESSION`)
       }

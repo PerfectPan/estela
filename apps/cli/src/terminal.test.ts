@@ -33,7 +33,7 @@ function capture(columns: number): string[] {
   stdout.write = ((chunk: string | Uint8Array) => {
     chunks.push(String(chunk))
     return true
-  }) as typeof stdout.write
+  })
   return chunks
 }
 
@@ -78,7 +78,7 @@ describe('startSessionIndex', () => {
     stdout.write = ((chunk: string | Uint8Array) => {
       chunks.push(String(chunk))
       return true
-    }) as typeof stdout.write
+    })
     const index = startSessionIndex()
     index.tick([
       { name: 'Claude Code', read: 1, done: false },
@@ -101,7 +101,7 @@ describe('installPlainFilter', () => {
     stdout.write = ((chunk: unknown, ...rest: unknown[]) => {
       seen.push([chunk, ...rest])
       return true
-    }) as typeof stdout.write
+    })
     installPlainFilter()
     const plain = Buffer.from('hello')
     stdout.write(plain, () => {})
@@ -125,7 +125,7 @@ describe('DevFrame log lines', () => {
     stdout.write = ((chunk: string) => {
       seen.push(chunk)
       return true
-    }) as typeof stdout.write
+    })
     installPlainFilter({ homeDir: home })
     stdout.write(line)
     stdout.write(`other ${home}\n`)
@@ -139,7 +139,7 @@ describe('DevFrame log lines', () => {
     stdout.write = ((chunk: string) => {
       seen.push(chunk)
       return true
-    }) as typeof stdout.write
+    })
     installPlainFilter({ homeDir: home })
     stdout.write(Buffer.from(line))
     expect(seen[0]).toBe('[devframe] copying SPA from ~/app/web/dist -> /tmp/out\n')

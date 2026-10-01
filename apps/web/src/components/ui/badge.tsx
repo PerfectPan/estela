@@ -1,3 +1,4 @@
+// Adapted from shadcn-solid (MIT, copyright 2023 shadcn and hngngn). Notice: third-party-notices.md.
 import type { ComponentProps } from 'solid-js'
 import { splitProps } from 'solid-js'
 import type { VariantProps } from 'cva'

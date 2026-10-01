@@ -42,7 +42,7 @@ function callbackArg(rest: readonly unknown[]): [] | [(error?: Error | null) => 
 }
 
 function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string): void {
-  const write = stream.write.bind(stream) as typeof stream.write
+  const write = stream.write.bind(stream)
   const clean = (text: string): string => {
     const plain = strip ? stripVTControlCharacters(text) : text
     return tilde ? tilde(plain) : plain
@@ -184,5 +184,5 @@ export async function pickSession(options: { value: string, label: string }[]): 
     cancel('Cancelled')
     process.exit(1)
   }
-  return String(choice)
+  return choice
 }

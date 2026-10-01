@@ -1,10 +1,26 @@
 {
+  // JSON `extends` paths resolve relative to this file, and Rush installs no
+  // root node_modules. Every Rush project declares @perfectpan/lint-config at
+  // the same version; packages/schema is used because every project depends on
+  // it, so any install includes its node_modules.
+  "extends": ["./packages/schema/node_modules/@perfectpan/lint-config/oxlint.json"],
   // host-opencode is excluded: plan section 7, "OpenCode needs SqliteIO".
   "ignorePatterns": ["**/dist/**", "**/node_modules/**", "common/temp/**", "common/deploy/**"],
-  "plugins": ["typescript", "unicorn"],
   "categories": {
-    "correctness": "error",
     "suspicious": "warn"
+  },
+  "rules": {
+    // Casts sit at parse boundaries (JSONL records, SQLite rows, DevFrame payloads);
+    // replacing them needs runtime validation, which is a separate change.
+    "typescript/no-unsafe-type-assertion": "off",
+    // Declared return types already cover this, and the rule does not follow
+    // `never` calls such as `process.exit` or exhaustive switches.
+    "typescript/consistent-return": "off",
+    // Vitest's `expect(value, message)` takes a failure message.
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    // Fire-and-forget `.then` at the end of a chain has nothing to return.
+    "promise/always-return": ["warn", { "ignoreLastCallback": true }],
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }]
   },
   "overrides": [
     {

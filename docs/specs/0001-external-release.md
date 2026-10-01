@@ -4,9 +4,9 @@
 
 Draft
 
-Paired Plan: [`docs/plans/0001-external-release.md`](../docs/plans/0001-external-release.md)
+Paired Plan: [`docs/plans/0001-external-release.md`](../plans/0001-external-release.md)
 
-Visual design: [`docs/design/`](../docs/design/README.md)
+Visual design: [`docs/design/`](../design/README.md)
 
 ## Problem And Scope
 

@@ -144,7 +144,7 @@ describe('session index', () => {
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
     expect(index.search('auth')).toBeUndefined()
     expect(index.enabled).toBe(false)
-    expect(() => statSync(file)).toThrow()
+    expect(() => statSync(file)).toThrow(/ENOENT/)
     index.close()
   })
 
@@ -294,7 +294,7 @@ describe('session index', () => {
     expect(index.search('auth')).toEqual(['a'])
     expect(index.rows()).toHaveLength(1)
     expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
-    expect(() => index.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl' })])).toThrow()
+    expect(() => index.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl' })])).toThrow(/locked/)
     expect(performance.now() - started).toBeLessThan(1_000)
     index.close()
     holder.kill()

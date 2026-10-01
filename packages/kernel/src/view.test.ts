@@ -104,14 +104,14 @@ describe('toView', () => {
   })
 })
 
-describe('fitView', () => {
-  const big = (): Trace => {
-    const trace = traceOf({ text: 'x'.repeat(10_000) })
-    const base = trace.events[0]!
-    trace.events = Array.from({ length: 100 }, (_, index) => ({ ...base, id: `e${index}`, seq: index }))
-    return trace
-  }
+function big(): Trace {
+  const trace = traceOf({ text: 'x'.repeat(10_000) })
+  const base = trace.events[0]!
+  trace.events = Array.from({ length: 100 }, (_, index) => ({ ...base, id: `e${index}`, seq: index }))
+  return trace
+}
 
+describe('fitView', () => {
   it('keeps 4,096 when the view fits', () => {
     const fitted = fitView(big(), { maxBytes: 10_000_000 })
     expect(fitted.trace.view).toEqual({ maxString: 4096, budgetBytes: 10_000_000, withinBudget: true })

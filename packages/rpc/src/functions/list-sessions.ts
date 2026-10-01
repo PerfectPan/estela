@@ -37,7 +37,7 @@ export function checkQuery(input: unknown): ListSessionsQuery {
   if (first !== undefined) {
     if (!Array.isArray(first) || first.length > 500 || !first.every(ref => typeof ref === 'string'))
       throw new TypeError('list-sessions: first must be an array of at most 500 refs')
-    out.first = first as string[]
+    out.first = first
   }
   return out
 }

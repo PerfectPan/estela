@@ -32,6 +32,8 @@ function pretty(value: unknown): string {
     return JSON.stringify(value, null, 2)
   }
   catch {
+    // JSON.stringify threw (a BigInt or a cycle); String() is the last resort.
+    // oxlint-disable-next-line typescript/no-base-to-string
     return String(value)
   }
 }

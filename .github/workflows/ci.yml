@@ -18,23 +18,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - name: Repository checks
+        uses: PerfectPan/gh-repo-checks@v1
+        with:
+          check: repository
+      - name: Repository-specific checks
         run: |
-          ./scripts/check-repository.sh
           node scripts/check-doc-translations.mjs
           node scripts/check-conventions.mjs
           node scripts/check-layers.mjs
       - name: Conventional PR title
         if: github.event_name == 'pull_request'
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-        run: ./scripts/check-pr-title.sh "$PR_TITLE"
+        uses: PerfectPan/gh-repo-checks@v1
+        with:
+          check: pr-title
+      - name: PR description
+        # Bot PRs (dependency updates, release PRs) do not use the template; their titles are still checked.
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.type != 'Bot'
+        uses: PerfectPan/gh-repo-checks@v1
+        with:
+          check: pr-body
       - name: Cache dependency downloads
         uses: actions/cache@v6
         with:
