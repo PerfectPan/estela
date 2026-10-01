@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@clack/prompts": "1.8.1",
-    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.1.0",
+    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.3.2",
     "@rivus/agent-trace-host-claude-code": "workspace:*",
     "@rivus/agent-trace-host-codex": "workspace:*",
     "@rivus/agent-trace-host-grok": "workspace:*",
