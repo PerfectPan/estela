@@ -6,10 +6,10 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, embeds the web build, rslib bundle (`dist/bin.mjs`, `dist/cli.mjs`, `dist/web/`) | every package; web's build output |
-| `apps/e2e` | `@rivus/agent-trace-e2e` | Private. CLI smoke tests on the packed tarball (`test:smoke`), synthetic fixture homes | nothing at runtime; test tooling only |
-| `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, tokens, dictionaries | `rpc` (types), `kernel`, `schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, legacy `get-trace` for `build` and `mcp`), server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected I/O, resolver, and session service | `kernel`, `schema` |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, the report writer (`build` and `export-report` → one `index.html`), embeds the web build, rslib bundle (`dist/bin.mjs`, `dist/cli.mjs`, `dist/web/`) | every package; web's build output |
+| `apps/e2e` | `@rivus/agent-trace-e2e` | Private. CLI smoke (`test:smoke`) and Playwright (`test:e2e`) suites on the packed tarball, synthetic fixture homes | nothing at runtime; test tooling only |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, tokens, dictionaries | `rpc` (types), `kernel`, `schema` |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, `export-report`, and `report-trace` in build mode only), `buildReport`, server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected I/O, resolver, and session service | `kernel`, `schema` |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index (`node:sqlite`) | `kernel`, `schema` |
 | `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
 | `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
@@ -23,6 +23,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 - Compaction is `kind: 'compaction'` plus `shadowedBy` on hidden events.
 - `reconstruct(trace, eventId)` is the product. A ledger without it is a transcript browser.
 - `get-trace-view` is one snapshot blob (`toView`: no originals, strings capped, lowered only to fit the 12 MB budget); `get-event` returns one event in full. No paging RPC. DevFrame streaming carries load progress only (`load-progress`), never session follow.
+- A report (`build`, `export-report`) is always redacted, whatever `AGENT_TRACE_REDACT` says. It opens from `file://`, so everything it needs is inside its one `index.html`; the SPA enters report mode when it finds `<script id="report-trace">` and then calls no server.
 - RPC handlers take an opaque session `ref` and resolve it through the shell's resolver (the session catalog on the dev server; `current` is the launch session); paths never cross the wire as refs.
 - Adapters fail loud on unknown generations. Do not silently drop events.
 - The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, mtime, and `SUMMARY_VERSION`; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
@@ -67,6 +68,7 @@ node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 cd apps/e2e && node ../../common/scripts/install-run-rushx.js test:smoke
+cd apps/e2e && node ../../common/scripts/install-run-rushx.js test:e2e
 ```
 
-`test:smoke` builds `@rivus/agent-trace`, packs `apps/cli`, and installs the tarball. It is not part of `rush test`. Never run `npm publish` or `rush publish`.
+`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `rush test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Never run `npm publish` or `rush publish`.

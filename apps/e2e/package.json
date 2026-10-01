@@ -4,15 +4,17 @@
   "type": "module",
   "version": "0.0.0",
   "license": "GPL-3.0-only",
-  "description": "Smoke and end-to-end tests against the packed @rivus/agent-trace tarball.",
+  "description": "Smoke and browser end-to-end tests against the packed @rivus/agent-trace tarball.",
   "scripts": {
     "build": "tsc --noEmit",
-    "lint": "oxlint -c ../../.oxlintrc.json src vitest.config.ts",
+    "lint": "oxlint -c ../../.oxlintrc.json src vitest.config.ts playwright.config.ts",
     "typecheck": "tsc --noEmit",
-    "test:smoke": "vitest run --config vitest.config.ts"
+    "test:smoke": "vitest run --config vitest.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts"
   },
   "devDependencies": {
     "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.1.0",
+    "@playwright/test": "1.63.0",
     "@types/node": "^24.5.2",
     "node-pty": "1.2.0-beta.15",
     "oxlint": "^1.86.0",

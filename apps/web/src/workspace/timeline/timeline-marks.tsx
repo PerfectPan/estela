@@ -64,7 +64,7 @@ export function MainLane(props: { draw: LaneDraw, scale: TimeScale, top: number,
             when={bar.tokens !== undefined && props.top > 0}
             fallback={<rect x={bar.x - 1.5} y={LAYOUT.baseline - 10} width="3" height="10" rx="1" fill="none" stroke="var(--kind-request)" stroke-width="1" data-hollow="true" />}
           >
-            <rect x={bar.x - 1.5} y={LAYOUT.baseline - barHeight(bar.tokens!, props.top)} width="3" height={barHeight(bar.tokens!, props.top)} rx="1" fill="var(--kind-request)" />
+            <rect x={bar.x - 1.5} y={LAYOUT.baseline - barHeight(bar.tokens!, props.top)} width="3" height={barHeight(bar.tokens!, props.top)} rx="1" fill="var(--kind-request)" data-marker="request" />
           </Show>
         )}
       </For>

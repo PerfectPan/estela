@@ -4,7 +4,7 @@
 
 ## 状态
 
-Draft
+已实现
 
 配套 Plan：[`docs/plans/0001-external-release.md`](../plans/0001-external-release.md)
 

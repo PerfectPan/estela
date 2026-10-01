@@ -1,7 +1,7 @@
 import type { MessageKey } from '@/i18n/locale.ts'
 import type { ThemeMode } from '@/shell/theme.ts'
 import type { JSX } from 'solid-js'
-import { For, Match, Switch } from 'solid-js'
+import { For, Match, Show, Switch } from 'solid-js'
 import { chooseLocale, locale, translate as t } from '@/i18n/locale.ts'
 import { chooseTheme, nextThemeMode, themeMode } from '@/shell/theme.ts'
 
@@ -20,7 +20,7 @@ const themeLabel = () => t('common.themeSwitch', {
  * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, the
  * theme and language switches, and screen actions (the workspace's "Export report").
  */
-export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?: JSX.Element }) {
+export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?: JSX.Element, report?: boolean }) {
   const crumbs = () => props.crumbs ?? []
   return (
     <header class="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">
@@ -31,9 +31,12 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
         </a>
         <nav class="flex min-w-0 items-center gap-2.5 text-[13px]">
           <span class="text-subtle">/</span>
-          <a href="#/" class={crumbs().length > 0 ? 'text-muted-foreground hover:text-foreground' : 'text-foreground'}>
-            {t('common.sessions')}
-          </a>
+          {/* A report has no session list to go back to. */}
+          <Show when={!props.report} fallback={<span class="text-muted-foreground">{t('report.title')}</span>}>
+            <a href="#/" class={crumbs().length > 0 ? 'text-muted-foreground hover:text-foreground' : 'text-foreground'}>
+              {t('common.sessions')}
+            </a>
+          </Show>
           <For each={crumbs()}>
             {(crumb, index) => (
               <>

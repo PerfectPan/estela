@@ -8,7 +8,6 @@ export interface ParsedCommand {
   pick: boolean
   noIndex: boolean
   outDir?: string
-  pretty: boolean
   /** Arguments after the program name, without the session positional or `--pick`. */
   userArgs: string[]
   /** Set when more than one positional path was given. Names both paths. */
@@ -29,7 +28,6 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   let pick = false
   let noIndex = false
   let outDir: string | undefined
-  let pretty = false
   let options = true
   let error: string | undefined
 
@@ -48,12 +46,6 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       }
       if (arg === '--no-index') {
         noIndex = true
-        index += 1
-        continue
-      }
-      if (arg === '--pretty') {
-        pretty = true
-        userArgs.push(arg)
         index += 1
         continue
       }
@@ -99,7 +91,6 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     pick,
     noIndex,
     outDir,
-    pretty,
     userArgs,
     error: error ?? (positionals.length > 1
       ? `Two session paths were given: ${positionals[0]} and ${positionals[1]}`

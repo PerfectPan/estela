@@ -8,6 +8,8 @@ import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
 const CAPACITY = 3
 /** The 12 MB budget covers the whole response; keep 64 KB for `summary` and the envelope. */
 const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024
+/** Concurrent source-pointer reads in `withEvents`. */
+const READ_BATCH = 32
 
 /** What a `ref` resolves to. The shell's resolver (its session catalog) supplies it. */
 export interface ResolvedSession {
@@ -65,8 +67,10 @@ interface Entry {
   stamps: Map<string, FileStamp>
   prints: Uint32Array
   view?: FittedView
-  /** Canonical files only: the reload in flight, shared by concurrent `event` calls and dropped when it settles. */
+  /** Canonical files only: the reload in flight, shared by concurrent `event` calls and dropped when it settles (or when the last `withEvents` ends). */
   reload?: Promise<Trace>
+  /** Running `withEvents` calls: while above 0, a settled reload is kept. */
+  pinned: number
   /** Aborts the canonical reload when the entry is evicted. */
   evicted: AbortController
 }
@@ -205,6 +209,32 @@ export class TraceStore {
     })
   }
 
+  /**
+   * `run` reads several events in full, in the order asked (the report's first events). Source
+   * pointers are read a few at a time, so a long read never runs out of file handles. A canonical
+   * file is reloaded once for all of `run`'s reads and dropped when `run` ends.
+   */
+  async withEvents<T>(ref: string, run: (read: (ids: readonly string[]) => Promise<EventDetail[]>) => Promise<T>, owner?: object): Promise<T> {
+    const entry = await this.guard(() => this.entryFor(ref, owner))
+    entry.pinned += 1
+    const read = async (ids: readonly string[]): Promise<EventDetail[]> => {
+      if (entry.canonical)
+        return Promise.all(ids.map(id => this.event(ref, id, owner)))
+      const out: EventDetail[] = []
+      for (let start = 0; start < ids.length; start += READ_BATCH)
+        out.push(...await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(ref, id, owner))))
+      return out
+    }
+    try {
+      return await run(read)
+    }
+    finally {
+      entry.pinned -= 1
+      if (entry.pinned === 0)
+        entry.reload = undefined
+    }
+  }
+
   async reconstruct(ref: string, eventId: string, owner?: object): Promise<ReconstructResult> {
     return this.guard(async () => reconstruct((await this.entryFor(ref, owner)).trace, eventId))
   }
@@ -273,7 +303,7 @@ export class TraceStore {
     const byId = new Map<string, number>()
     trace.events.forEach((event, index) => byId.set(event.id, index))
     const stamps = loaded.canonical ? new Map<string, FileStamp>() : await stampFiles(trace, this.deps.io)
-    return { session, trace, canonical: loaded.canonical, byId, stamps, prints, evicted: new AbortController() }
+    return { session, trace, canonical: loaded.canonical, byId, stamps, prints, pinned: 0, evicted: new AbortController() }
   }
 
   private touch(key: string): Entry | undefined {
@@ -393,7 +423,7 @@ export class TraceStore {
       const reload = this.deps.load(entry.session, { signal: entry.evicted.signal, onProgress: () => {} }).then(loaded => loaded.trace)
       entry.reload = reload
       const clear = (): void => {
-        if (entry.reload === reload)
+        if (entry.reload === reload && entry.pinned === 0)
           entry.reload = undefined
       }
       reload.then(clear, clear)

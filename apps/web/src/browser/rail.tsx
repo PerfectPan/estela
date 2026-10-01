@@ -101,6 +101,7 @@ function FilterRow(props: {
     <button
       type="button"
       aria-pressed={props.active}
+      data-host={props.mark}
       class={`flex min-h-8 w-full shrink-0 items-center justify-between gap-2 rounded-[7px] px-2.5 text-left text-[13px] ${props.active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
       onClick={() => props.onClick()}
     >

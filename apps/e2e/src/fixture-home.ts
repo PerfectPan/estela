@@ -1,31 +1,103 @@
-import { cp, mkdir } from 'node:fs/promises'
+import { cp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-// Synthetic sessions only: every file is copied from the hosts' `fixtures/conformance` folders.
+// Synthetic sessions only: copied from the hosts' fixture folders, or written here.
 export interface FixtureHome {
   home: string
-  /** `XDG_CACHE_HOME` for the session index, inside the temp dir. */
-  cache: string
   claudePlain: string
+  /** With `browser`: a Claude Code session with three requests, a compaction, and two after it (S5, S7). */
+  claudeRising: string
+  /** With `browser`: the same session under the home directory, naming it in every form a log does (S9). */
+  claudeHomeCwd: string
+  /** Sessions per host. */
+  counts: Record<'claude-code' | 'codex' | 'grok', number>
+}
+
+export interface FixtureOptions {
+  /** Leave out `~/.codex` (S3). */
+  codex?: boolean
+  /** The browser suite's extra sessions: an unknown record type, an unknown generation (S4), and the two generated ones. */
+  browser?: boolean
 }
 
 const CLAUDE = ['plain', 'compaction', 'subagent']
 const CODEX = ['plain', 'compaction', 'token-count']
 const GROK = ['plain', 'compaction']
 
-/** Builds `<root>/home` with Claude Code, Codex, and Grok sessions in their default locations. */
-export async function buildFixtureHome(root: string, repo: string): Promise<FixtureHome> {
-  const home = join(root, 'home')
-  const cache = join(root, 'cache')
+function line(record: Record<string, unknown>): string {
+  return `${JSON.stringify({ sessionId: 's-rising', version: '2.0.0', ...record })}\n`
+}
+
+/**
+ * A Claude Code session whose input tokens rise over three requests, drop after an automatic
+ * compaction (pre 3,500, post 400), and rise again. `prompts` are extra user prompts at the end.
+ */
+export function risingSession(cwd: string, prompts: string[] = []): string {
+  let clock = 0
+  const at = () => new Date(Date.UTC(2026, 0, 1) + 1000 * clock++).toISOString()
+  const user = (uuid: string, content: string) => line({ type: 'user', uuid, timestamp: at(), cwd, message: { role: 'user', content } })
+  const reply = (n: number, input: number) => line({
+    type: 'assistant',
+    uuid: `r-a${n}`,
+    timestamp: at(),
+    cwd,
+    requestId: `req-r${n}`,
+    message: { role: 'assistant', model: 'claude-test', id: `msg-r${n}`, stop_reason: 'end_turn', usage: { input_tokens: input, output_tokens: 10 }, content: [{ type: 'text', text: `Reply ${n}` }] },
+  })
+  return [
+    user('r-u1', 'Start the task'),
+    reply(1, 1000),
+    user('r-u2', 'Keep going'),
+    reply(2, 2000),
+    user('r-u3', 'Keep this one'),
+    reply(3, 3000),
+    line({ type: 'system', subtype: 'compact_boundary', uuid: 'r-b1', timestamp: at(), compactMetadata: { trigger: 'auto', preTokens: 3500, postTokens: 400, durationMs: 50, preservedSegment: { headUuid: 'r-u3', anchorUuid: 'r-u3', tailUuid: 'r-a3' } } }),
+    line({ type: 'user', uuid: 'r-sum', parentUuid: 'r-b1', timestamp: at(), isCompactSummary: true, isVisibleInTranscriptOnly: true, message: { role: 'user', content: 'Summary of the earlier conversation.' } }),
+    user('r-u4', 'After the compaction'),
+    reply(4, 600),
+    user('r-u5', 'One more'),
+    reply(5, 900),
+    ...prompts.map((text, index) => user(`r-x${index}`, text)),
+  ].join('')
+}
+
+/** Builds `home` with Claude Code, Codex, and Grok sessions in their default locations. */
+export async function buildFixtureHome(home: string, repo: string, options: FixtureOptions = {}): Promise<FixtureHome> {
   const fixtures = (host: string) => join(repo, 'packages', `host-${host}`, 'fixtures/conformance')
-  for (const name of CLAUDE)
-    await cp(join(fixtures('claude-code'), name), join(home, '.claude/projects', `app-${name}`), { recursive: true })
-  const codex = join(home, '.codex/sessions/2026/01/01')
-  await mkdir(codex, { recursive: true })
-  for (const name of CODEX)
-    await cp(join(fixtures('codex'), `rollout-${name}.jsonl`), join(codex, `rollout-${name}.jsonl`))
+  const projects = join(home, '.claude/projects')
+  const claude = options.browser ? [...CLAUDE, 'unknown-type'] : CLAUDE
+  for (const name of claude)
+    await cp(join(fixtures('claude-code'), name), join(projects, `app-${name}`), { recursive: true })
+  const claudeRising = join(projects, 'app-rising/session.jsonl')
+  // Claude Code names a project folder after its cwd with every other character as `-`.
+  const homeCwd = `${home}/work/app`
+  const claudeHomeCwd = join(projects, homeCwd.replaceAll(/[^A-Za-z0-9]/g, '-'), 'session.jsonl')
+  if (options.browser) {
+    // S4: records of a format generation the adapter does not know.
+    await cp(join(repo, 'packages/host-claude-code/fixtures/unknown-generation'), join(projects, 'app-unknown-generation'), { recursive: true })
+    await mkdir(join(claudeRising, '..'), { recursive: true })
+    await writeFile(claudeRising, risingSession('/work/app'))
+    await mkdir(join(claudeHomeCwd, '..'), { recursive: true })
+    await writeFile(claudeHomeCwd, risingSession(homeCwd, [
+      `diff --git a${homeCwd}/src/a.ts b${homeCwd}/src/a.ts`,
+      `Read ${homeCwd.slice(1)}/notes.md, relative to /`,
+      `{"cwd":"${homeCwd.replaceAll('/', '\\/')}"}`,
+      `open ${homeCwd.replaceAll('/', '%2F')} and ${homeCwd.toUpperCase()}`,
+    ]))
+  }
+  if (options.codex !== false) {
+    const codex = join(home, '.codex/sessions/2026/01/01')
+    await mkdir(codex, { recursive: true })
+    for (const name of CODEX)
+      await cp(join(fixtures('codex'), `rollout-${name}.jsonl`), join(codex, `rollout-${name}.jsonl`))
+  }
   for (const name of GROK)
     await cp(join(fixtures('grok'), name), join(home, '.grok/sessions/work-app', name), { recursive: true })
-  await mkdir(cache, { recursive: true })
-  return { home, cache, claudePlain: join(home, '.claude/projects/app-plain/session.jsonl') }
+  return {
+    home,
+    claudePlain: join(projects, 'app-plain/session.jsonl'),
+    claudeRising,
+    claudeHomeCwd,
+    counts: { 'claude-code': claude.length + (options.browser ? 3 : 0), 'codex': options.codex === false ? 0 : CODEX.length, 'grok': GROK.length },
+  }
 }

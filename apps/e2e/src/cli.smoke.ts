@@ -103,6 +103,7 @@ describe('installed tarball', () => {
     expect(log).toContain(`Write: ${outDir}`)
     expect(await filesContaining(outDir, ctx.home)).toEqual([])
     expect(await filesContaining(outDir, homedir())).toEqual([])
-    expect((await readdir(outDir)).toSorted()).toEqual(expect.arrayContaining(['index.html', '__rpc-dump']))
+    // The report is one file that opens from disk (plan D8).
+    expect(await readdir(outDir)).toEqual(['index.html'])
   })
 })

@@ -1,5 +1,7 @@
 import { closeSync, mkdirSync, openSync, writeSync } from 'node:fs'
 import { join } from 'node:path'
+import process from 'node:process'
+import { pathToFileURL } from 'node:url'
 
 /**
  * Test helper for S12 (plan 5.2, 1.3): writes a synthetic Codex rollout of at
@@ -136,4 +138,15 @@ export function writeLargeCodexSession(directory: string, opts: { targetBytes: n
   }
   result.bytes = bytes
   return result
+}
+
+// Run by path (`node large-session.ts <directory> <bytes>`, as the browser suite does): writes the
+// file and prints the `LargeSession` as JSON.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const [directory, bytes] = process.argv.slice(2)
+  if (!directory || !Number(bytes)) {
+    process.stderr.write('usage: node large-session.ts <directory> <target bytes>\n')
+    process.exit(1)
+  }
+  process.stdout.write(`${JSON.stringify(writeLargeCodexSession(directory, { targetBytes: Number(bytes) }))}\n`)
 }

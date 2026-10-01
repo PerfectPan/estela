@@ -9,15 +9,26 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * The home directory as it appears in text. The root may sit inside a longer string (`a/<home>/x`
+ * in a git diff header, `file://<home>`), so nothing is required before it. A root that starts
+ * with `/` also matches without that slash when no name character precedes it (`Users/<name>/x`,
+ * a path relative to `/`), and with every `/` escaped as `\/` (JSON written into a string).
+ * After the root, a letter, number, `_`, `-`, or `.` plus a name character continues the segment
+ * (`<home>x`, `<home>.bak`), so those stay. `i` over-redacts mixed case; `u` so
+ * non-ASCII letters continue a segment.
+ */
 function homePattern(homeDir: string): RegExp | undefined {
   const root = homeRoot(homeDir)
   if (!root || root === '/')
     return undefined
-  const escaped = escapeRegExp(root)
-  // Continue a segment on a letter, number, "_", "-", or "." plus a name character (.bak).
-  // `i` over-redacts mixed case. `u` so non-ASCII letters continue a segment.
   const name = String.raw`\p{L}\p{N}_`
-  return new RegExp(`(?<![${name}])${escaped}(?![${name}-]|\\.[${name}])`, 'giu')
+  const forms = [escapeRegExp(root)]
+  if (root.startsWith('/')) {
+    forms.push(`(?<![${name}])${escapeRegExp(root.slice(1))}`)
+    forms.push(escapeRegExp(root.replaceAll('/', '\\/')))
+  }
+  return new RegExp(`(?:${forms.join('|')})(?![${name}-]|\\.[${name}])`, 'giu')
 }
 
 /**

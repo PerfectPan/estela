@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Redaction also replaces the home directory inside git diff headers (a/<home>/…), without its leading slash, and JSON-escaped, in the local server, reports, and MCP.",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

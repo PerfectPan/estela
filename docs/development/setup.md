@@ -38,6 +38,8 @@ Open `http://localhost:7392/__agent-trace/`.
 
 With no path the app opens the session browser over every registered host. A positional path (or `AGENT_TRACE_PATH`) is loaded before the server listens and opens `#/s/<ref>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
 
+`build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `agent-trace-report-<ref>-<time>/` directory under the server's working directory and shows the path.
+
 The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`, or `~/.cache/rivus-agent-trace/index.sqlite` when `XDG_CACHE_HOME` is unset. It is a cache: delete it at any time. `--no-index` runs without reading or writing it (search then covers titles and first prompts only). Point `HOME` at a directory with fixture sessions to run against synthetic data:
 
 ```bash
@@ -72,6 +74,21 @@ node ../../common/scripts/install-run-rushx.js test:smoke
 ```
 
 `TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs this job on Node.js 22.18 and 24.
+
+## Browser end-to-end on the installed tarball
+
+`test:e2e` in `apps/e2e` is the Playwright suite (plan 5.2), Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/agent-trace`, packs and installs it, builds synthetic homes from the host fixtures (one with all three hosts and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
+
+The test titles name the scenarios of plan 5.2 they check, and each test file groups one area: the session browser, the workspace, appearance, the report, and scale.
+
+```bash
+cd apps/e2e
+npx playwright install chromium                                   # once; CI adds --with-deps
+node ../../common/scripts/install-run-rushx.js test:e2e
+AGENT_TRACE_E2E_CHANNEL=chrome node ../../common/scripts/install-run-rushx.js test:e2e   # use the installed Google Chrome instead
+```
+
+S8 runs `scripts/generate-trace.mjs` and S12 runs `packages/host-codex/testing/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `tarball` job on Node.js 24 only.
 
 ## Check in a real browser
 

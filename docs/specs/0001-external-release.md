@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Implemented
 
 Paired Plan: [`docs/plans/0001-external-release.md`](../plans/0001-external-release.md)
 

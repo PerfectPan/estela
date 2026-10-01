@@ -314,11 +314,17 @@ describe('session index', () => {
       index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
     `)
-    const results = await Promise.all(Array.from({ length: 4 }, (_, n) => new Promise<number | null>((resolve) => {
-      const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], { stdio: 'ignore' })
-      proc.on('close', resolve)
+    const results = await Promise.all(Array.from({ length: 4 }, (_, n) => new Promise<string>((resolve) => {
+      const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], { stdio: ['ignore', 'ignore', 'pipe'] })
+      let stderr = ''
+      proc.stderr.setEncoding('utf8')
+      proc.stderr.on('data', (chunk: string) => {
+        stderr += chunk
+      })
+      // The exit code and, on failure, why: `index.unavailable` or a stack.
+      proc.on('close', code => resolve(code === 0 ? '0' : `${code}: ${stderr.trim()}`))
     })))
-    expect(results).toEqual([0, 0, 0, 0])
+    expect(results).toEqual(['0', '0', '0', '0'])
     const index = openSessionIndex({ file })
     expect(index.rows().map(row => row.ref).toSorted()).toEqual(['r0', 'r1', 'r2', 'r3'])
     index.close()

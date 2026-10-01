@@ -1,20 +1,23 @@
 import type { SessionSummary } from '@rivus/agent-trace-kernel'
-import type { EventDetail, LoadProgress, LoadTraceResult, TraceView, TraceViewResult } from '@rivus/agent-trace-rpc'
+import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
-import { fold, summaryOf } from '@rivus/agent-trace-kernel'
 import { createSignal, onCleanup } from 'solid-js'
+import { messageOf } from '@/lib/error-message.ts'
 import { devframeClient, scopedClient } from '@/shell/client.ts'
 
 /** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/agent-trace-rpc` (the web app imports only its types). */
 const LOAD_PROGRESS_CHANNEL = 'load-progress'
 
+/** A report holds the first events in full; any other event comes back as its view with `notInReport`. */
+export type SessionEvent = EventDetail & { notInReport?: true }
+
 export interface LoadedSession {
   ref: string
-  /** The view trace: strings capped, no originals (a static build keeps its originals). */
+  /** The view trace: strings capped, no originals. */
   trace: Trace
   summary: SessionSummary
-  /** One event in full with its original record: `get-event`, or the static trace. */
-  event: (id: string) => Promise<EventDetail>
+  /** One event in full with its original record: `get-event`, or the report's included events. */
+  event: (id: string) => Promise<SessionEvent>
 }
 
 /** A load failure split like the kernel's `host: <file>:<line>: <reason>` (plan 3.7). */
@@ -39,13 +42,6 @@ function parseFailure(message: string): LoadFailure {
   return { host: match[1], file: match[2], line: Number(match[3]), reason: match[4]! }
 }
 
-function messageOf(error: unknown): string {
-  if (error instanceof Error)
-    return error.message
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
-    return error.message
-  return String(error)
-}
 
 function isCancelled(error: unknown): boolean {
   return error instanceof Error && error.name === 'LoadCancelledError'
@@ -55,11 +51,9 @@ type ConnectionStatus = 'connecting' | 'connected' | 'unauthorized' | 'disconnec
 
 /** The part of the DevFrame client the load flow uses; tests pass a fake. */
 export interface LoadClient {
-  transport: string
   status: ConnectionStatus
   onStatus: (listener: (status: ConnectionStatus) => void) => () => void
   call: {
-    (method: 'get-trace'): Promise<TraceView>
     (method: 'load-trace', input: { ref: string }): Promise<LoadTraceResult>
     (method: 'get-trace-view', input: { ref: string }): Promise<TraceViewResult>
     (method: 'get-event', input: { ref: string, id: string }): Promise<EventDetail>
@@ -71,12 +65,11 @@ async function defaultClient(): Promise<LoadClient> {
   const base = await devframeClient()
   const ctx = await scopedClient()
   return {
-    transport: base.transport,
     get status() {
       return base.status
     },
     onStatus: listener => base.events.on('connection:status', status => listener(status)),
-    call: ((method: string, input?: unknown) => input === undefined ? ctx.rpc.call(method) : ctx.rpc.call(method, input)) as LoadClient['call'],
+    call: ((method: string, input: unknown) => ctx.rpc.call(method, input)) as LoadClient['call'],
     subscribe: (channel, id) => ctx.rpc.streaming.subscribe<LoadProgress>(channel, id),
   }
 }
@@ -118,25 +111,6 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       client = await connect()
       if (mine !== attempt || disposed)
         return
-      if (client.transport === 'static') {
-        const { trace } = await client.call('get-trace')
-        const byId = new Map(trace.events.map(event => [event.id, event]))
-        setState({
-          status: 'ready',
-          session: {
-            ref,
-            trace,
-            summary: summaryOf(fold(trace)),
-            event: async (id) => {
-              const found = byId.get(id)
-              if (!found)
-                throw new Error(`unknown event ${id}`)
-              return found
-            },
-          },
-        })
-        return
-      }
       offStatus?.()
       offStatus = client.onStatus((status) => {
         if ((status === 'disconnected' || status === 'error') && state().status === 'loading' && !disposed)
@@ -187,4 +161,24 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
   })
 
   return { state, retry: () => void run() }
+}
+
+/** Report mode: the baked `report-trace` is the whole session; nothing is loaded. */
+export function reportSession(report: ReportTrace): LoadedSession {
+  const full = new Map(report.events.map(event => [event.id, event]))
+  const view = new Map(report.trace.events.map(event => [event.id, event]))
+  return {
+    ref: '',
+    trace: report.trace,
+    summary: report.summary,
+    event: async (id) => {
+      const found = full.get(id)
+      if (found)
+        return found
+      const shown = view.get(id)
+      if (!shown)
+        throw new Error(`unknown event ${id}`)
+      return { ...shown, notInReport: true }
+    },
+  }
 }

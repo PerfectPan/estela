@@ -54,7 +54,7 @@ function RowFrame(props: {
       {props.marker}
       {props.status}
       <span class="w-[164px] shrink-0 truncate text-right font-mono text-[11.5px] text-muted-foreground">{props.metric ?? ''}</span>
-      <span class="w-[52px] shrink-0 text-right font-mono text-[11.5px] text-subtle">{props.time}</span>
+      <span class="w-[52px] shrink-0 text-right font-mono text-[11.5px] text-subtle" data-testid="row-time">{props.time}</span>
     </div>
   )
 }
