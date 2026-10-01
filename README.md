@@ -16,7 +16,7 @@ Node.js 24 or later:
 npx @rivus/agent-trace
 ```
 
-This starts a server on `localhost`, indexes the sessions of the supported hosts, and opens the session browser. `@rivus/agent-trace` is not published yet. Until then, build it from this repository and run the bundle:
+This starts a server on `localhost`, indexes the sessions of the supported hosts, and opens the session browser. `@rivus/agent-trace` is not published yet. Until then, build it from this repository and run the bundle. The build needs Node.js 24.x, because `rush.json` allows `>=24.0.0 <25`; the built CLI runs on Node.js 24 or later:
 
 ```sh
 node common/scripts/install-run-rush.js install

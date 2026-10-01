@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 24. `rush.json` requires `>=24.0.0 <25`, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older than 24. Rush installs its own pnpm. Do not run a root `pnpm install`.
+Use Node.js 24.x: `rush.json` requires `>=24.0.0 <25`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. Rush installs its own pnpm. Do not run a root `pnpm install`.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks
@@ -15,7 +15,7 @@ node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 gh repo-checks pr-title "docs: add external release plan"
 gh repo-checks pr-body pr-body.md
-node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js install
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
 node common/scripts/install-run-rush.js lint
@@ -151,7 +151,9 @@ CI runs all package typechecks and builds Web before the CLI smoke tests so the 
 The tarball smoke step then builds `@rivus/agent-trace` with rslib (`rush build --to @rivus/agent-trace`, which also
 runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
 a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
-the committed lockfile; use Rush update locally only when dependency inputs change.
+the committed lockfile; use Rush update locally only when dependency inputs change. pnpm rejects versions published
+less than a day ago (`minimumReleaseAgeMinutes` in `common/config/rush/pnpm-config.json`), so pick versions at least a
+day old when upgrading.
 
 `actions/cache@v6` caches the pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at
 `~/.npm/_cacache`, keyed by runner OS and Rush/lockfile configuration. Every run still executes Rush install and the

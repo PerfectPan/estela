@@ -5,6 +5,6 @@ export default defineConfig({
     environment: 'node',
     pool: 'forks',
     // trace-store-gc.test.ts calls `gc()` to prove evicted traces are collectable.
-    poolOptions: { forks: { execArgv: ['--expose-gc'] } },
+    execArgv: ['--expose-gc'],
   },
 })

@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Upgrade Rush, pnpm, and the npm dependencies to their latest releases; devframe and @devframes/agentic move to 1.1.0.",
+      "type": "none"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}
