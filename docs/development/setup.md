@@ -7,7 +7,7 @@ Audience: someone running or testing the viewer locally.
 ```bash
 gh extension install PerfectPan/gh-repo-checks
 ./scripts/install-git-hooks.sh
-node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js install
 ```
 
 Use Node.js 24. `rush.json` requires `>=24.0.0 <25`, and the CLI exits before loading when Node is older than 24.
