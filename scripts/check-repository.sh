@@ -55,7 +55,7 @@ required_files=(
   ".github/pull_request_template.md"
   ".github/ISSUE_TEMPLATE/bug_report.md"
   ".github/ISSUE_TEMPLATE/feature_request.md"
-  ".github/workflows/review.yml"
+  ".github/workflows/ci.yml"
   ".github/workflows/ci.yml.example"
   ".gitlab/merge_request_templates/default.md"
   ".githooks/pre-commit"

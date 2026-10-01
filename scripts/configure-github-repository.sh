@@ -73,8 +73,7 @@ payload="$(cat <<'JSON'
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "repository checks",
-      "conventional PR title"
+      "test"
     ]
   },
   "enforce_admins": true,
