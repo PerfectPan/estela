@@ -16,7 +16,13 @@ export {
   type ExportReportResult,
 } from './functions/report.ts'
 export { bindSessionService, type SessionService } from './functions/service.ts'
-export { bindTraceStore, CURRENT_REF, LOAD_PROGRESS_CHANNEL, SUBSCRIBE_GRACE_MS, type LoadTraceResult } from './functions/trace-view.ts'
+export {
+  bindTraceStore,
+  CURRENT_REF,
+  LOAD_PROGRESS_CHANNEL,
+  SUBSCRIBE_GRACE_MS,
+  type LoadTraceResult,
+} from './functions/trace-view.ts'
 export {
   emptySessionsSignal,
   SESSIONS_STATE,
@@ -43,6 +49,8 @@ export {
 } from './trace-store.ts'
 
 declare module 'devframe' {
-  interface DevframeRpcServerFunctions
-    extends RpcDefinitionsToFunctionsWithNamespace<typeof NAMESPACE, readonly [...typeof serverFunctions, ...typeof reportFunctions]> {}
+  interface DevframeRpcServerFunctions extends RpcDefinitionsToFunctionsWithNamespace<
+    typeof NAMESPACE,
+    readonly [...typeof serverFunctions, ...typeof reportFunctions]
+  > {}
 }

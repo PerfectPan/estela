@@ -31,17 +31,17 @@ export interface LoadFailure {
 }
 
 type LoadState =
-  | { status: 'loading', bytesRead: number, totalBytes: number }
-  | { status: 'ready', session: LoadedSession }
-  | { status: 'error', failure: LoadFailure }
+  | { status: 'loading'; bytesRead: number; totalBytes: number }
+  | { status: 'ready'; session: LoadedSession }
+  | { status: 'error'; failure: LoadFailure }
 
 function parseFailure(message: string): LoadFailure {
   const match = /^([\w.-]+): (.+?):(\d+): (.+)$/s.exec(message)
-  if (!match)
+  if (!match) {
     return { reason: message }
+  }
   return { host: match[1], file: match[2], line: Number(match[3]), reason: match[4]! }
 }
-
 
 function isCancelled(error: unknown): boolean {
   return error instanceof Error && error.name === 'LoadCancelledError'
@@ -56,7 +56,7 @@ export interface LoadClient {
   call: {
     (method: 'load-trace', input: { ref: string }): Promise<LoadTraceResult>
     (method: 'get-trace-view', input: { ref: string }): Promise<TraceViewResult>
-    (method: 'get-event', input: { ref: string, id: string }): Promise<EventDetail>
+    (method: 'get-event', input: { ref: string; id: string }): Promise<EventDetail>
   }
   subscribe: (channel: string, id: string) => AsyncIterable<LoadProgress> & { cancel: () => void }
 }
@@ -109,44 +109,51 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
     let client: LoadClient | undefined
     try {
       client = await connect()
-      if (mine !== attempt || disposed)
+      if (mine !== attempt || disposed) {
         return
+      }
       offStatus?.()
-      offStatus = client.onStatus((status) => {
-        if ((status === 'disconnected' || status === 'error') && state().status === 'loading' && !disposed)
+      offStatus = client.onStatus(status => {
+        if ((status === 'disconnected' || status === 'error') && state().status === 'loading' && !disposed) {
           fail(lostFailure())
+        }
       })
-      if (client.status === 'disconnected' || client.status === 'error')
+      if (client.status === 'disconnected' || client.status === 'error') {
         return fail(lostFailure())
+      }
       const started = await client.call('load-trace', { ref })
-      if (mine !== attempt || disposed)
+      if (mine !== attempt || disposed) {
         return
+      }
       const stream = client.subscribe(LOAD_PROGRESS_CHANNEL, started.loadId)
       reader = stream
       setState({ status: 'loading', bytesRead: 0, totalBytes: started.totalBytes })
       void (async () => {
         for await (const chunk of stream) {
-          if (mine !== attempt || disposed)
+          if (mine !== attempt || disposed) {
             break
-          setState(current => current.status === 'loading' ? { status: 'loading', ...chunk } : current)
+          }
+          setState(current => (current.status === 'loading' ? { status: 'loading', ...chunk } : current))
         }
       })().catch(() => {
         // The stream ends with the load's error; `get-trace-view` reports it.
       })
       const view = await client.call('get-trace-view', { ref })
-      if (mine !== attempt || disposed || state().status === 'error')
+      if (mine !== attempt || disposed || state().status === 'error') {
         return
+      }
       const live = client
       setState({
         status: 'ready',
         session: { ref, trace: view.trace, summary: view.summary, event: id => live.call('get-event', { ref, id }) },
       })
-    }
-    catch (error) {
-      if (mine !== attempt || disposed || isCancelled(error) || state().status === 'error')
+    } catch (error) {
+      if (mine !== attempt || disposed || isCancelled(error) || state().status === 'error') {
         return
-      if (client && (client.status === 'disconnected' || client.status === 'error'))
+      }
+      if (client && (client.status === 'disconnected' || client.status === 'error')) {
         return fail(lostFailure())
+      }
       fail(parseFailure(messageOf(error)))
     }
   }
@@ -171,13 +178,15 @@ export function reportSession(report: ReportTrace): LoadedSession {
     ref: '',
     trace: report.trace,
     summary: report.summary,
-    event: async (id) => {
+    event: async id => {
       const found = full.get(id)
-      if (found)
+      if (found) {
         return found
+      }
       const shown = view.get(id)
-      if (!shown)
+      if (!shown) {
         throw new Error(`unknown event ${id}`)
+      }
       return { ...shown, notInReport: true }
     },
   }

@@ -22,13 +22,13 @@ const TYPES = ['major', 'minor', 'patch', 'none']
 
 /** Files that end up in the published bundle or change its dependencies. */
 function ships(path) {
-  if (path === 'common/config/rush/pnpm-lock.yaml')
+  if (path === 'common/config/rush/pnpm-lock.yaml') {
     return true
-  if (!path.startsWith('packages/') && !path.startsWith('apps/'))
+  }
+  if (!path.startsWith('packages/') && !path.startsWith('apps/')) {
     return false
-  return !/\.test\.[cm]?[jt]sx?$/.test(path)
-    && !/(^|\/)fixtures\//.test(path)
-    && !path.endsWith('.md')
+  }
+  return !/\.test\.[cm]?[jt]sx?$/.test(path) && !/(^|\/)fixtures\//.test(path) && !path.endsWith('.md')
 }
 
 function git(...args) {
@@ -36,8 +36,9 @@ function git(...args) {
 }
 
 function check(base) {
-  if (!base)
+  if (!base) {
     fail('check needs --base <sha>')
+  }
   const changed = git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean)
   const shipped = changed.filter(ships)
   const intents = changed.filter(p => p.startsWith(`${CHANGE_DIR}/`) && p.endsWith('.json'))
@@ -46,28 +47,39 @@ function check(base) {
     return
   }
   if (intents.length > 0) {
-    console.log(`release-intent: ok (${intents.length} change file${intents.length === 1 ? '' : 's'} for ${shipped.length} shipped file${shipped.length === 1 ? '' : 's'})`)
+    console.log(
+      `release-intent: ok (${intents.length} change file${intents.length === 1 ? '' : 's'} for ${shipped.length} shipped file${shipped.length === 1 ? '' : 's'})`,
+    )
     return
   }
   console.error(`release-intent: ${shipped.length} shipped file(s) changed without a change file for ${PACKAGE}:`)
-  for (const p of shipped.slice(0, 20))
+  for (const p of shipped.slice(0, 20)) {
     console.error(`  - ${p}`)
-  if (shipped.length > 20)
+  }
+  if (shipped.length > 20) {
     console.error(`  … and ${shipped.length - 20} more`)
+  }
   console.error('Add one with: node common/scripts/install-run-rush.js change')
-  console.error(`If Rush reports nothing to do: node scripts/release-intent.mjs add --type <${TYPES.join('|')}> --message "<what changed for users>"`)
+  console.error(
+    `If Rush reports nothing to do: node scripts/release-intent.mjs add --type <${TYPES.join('|')}> --message "<what changed for users>"`,
+  )
   process.exit(1)
 }
 
+function pad(n) {
+  return String(n).padStart(2, '0')
+}
+
 function add(type, message) {
-  if (!TYPES.includes(type))
+  if (!TYPES.includes(type)) {
     fail(`--type must be one of ${TYPES.join(', ')}`)
-  if (type !== 'none' && !message?.trim())
+  }
+  if (type !== 'none' && !message?.trim()) {
     fail('--message is required unless --type none')
+  }
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD').replace(/[^\w.-]+/g, '-')
   const email = git('config', 'user.email')
   const d = new Date()
-  const pad = n => String(n).padStart(2, '0')
   const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}-${pad(d.getMinutes())}`
   const file = join(CHANGE_DIR, `${branch}_${stamp}.json`)
   const body = {
@@ -90,10 +102,14 @@ let parsed
 try {
   parsed = parseArgs({
     allowPositionals: true,
-    options: { base: { type: 'string' }, type: { type: 'string' }, message: { type: 'string' }, help: { type: 'boolean', short: 'h' } },
+    options: {
+      base: { type: 'string' },
+      type: { type: 'string' },
+      message: { type: 'string' },
+      help: { type: 'boolean', short: 'h' },
+    },
   })
-}
-catch (error) {
+} catch (error) {
   fail(`${error.message}\n${USAGE}`)
 }
 const { positionals, values } = parsed
@@ -101,9 +117,10 @@ if (values.help) {
   console.log(USAGE)
   process.exit(0)
 }
-if (positionals[0] === 'check')
+if (positionals[0] === 'check') {
   check(values.base)
-else if (positionals[0] === 'add')
+} else if (positionals[0] === 'add') {
   add(values.type, values.message)
-else
+} else {
   fail(USAGE)
+}

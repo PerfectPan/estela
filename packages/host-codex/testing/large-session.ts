@@ -20,10 +20,35 @@ export interface LargeSession {
   /** Tool outputs longer than 4,096 characters. */
   longOutputs: number
   /** Call id and exact length of the longest output, for `get-event` checks. */
-  longest: { callId: string, length: number }
+  longest: { callId: string; length: number }
 }
 
-const WORDS = ['alpha', 'build', 'cache', 'delta', 'error', 'field', 'graph', 'index', 'json', 'kernel', 'lane', 'model', 'node', 'offset', 'parse', 'query', 'range', 'slot', 'token', 'usage', 'value', 'width', 'yield', 'zero']
+const WORDS = [
+  'alpha',
+  'build',
+  'cache',
+  'delta',
+  'error',
+  'field',
+  'graph',
+  'index',
+  'json',
+  'kernel',
+  'lane',
+  'model',
+  'node',
+  'offset',
+  'parse',
+  'query',
+  'range',
+  'slot',
+  'token',
+  'usage',
+  'value',
+  'width',
+  'yield',
+  'zero',
+]
 const STEPS = 9
 const OUTPUT_SIZES = [900, 900, 18_000, 900, 900, 45_000, 900, 18_000, 900]
 
@@ -58,7 +83,14 @@ function stamp(ms: number): string {
 }
 
 function usage(input: number, output: number): Record<string, number> {
-  return { input_tokens: input, cached_input_tokens: Math.floor(input * 0.8), output_tokens: output, cache_write_input_tokens: 0, reasoning_output_tokens: 10, total_tokens: input + output }
+  return {
+    input_tokens: input,
+    cached_input_tokens: Math.floor(input * 0.8),
+    output_tokens: output,
+    cache_write_input_tokens: 0,
+    reasoning_output_tokens: 10,
+    total_tokens: input + output,
+  }
 }
 
 export function writeLargeCodexSession(directory: string, opts: { targetBytes: number }): LargeSession {
@@ -70,8 +102,9 @@ export function writeLargeCodexSession(directory: string, opts: { targetBytes: n
   let pending: string[] = []
   let pendingBytes = 0
   const flush = (): void => {
-    if (pending.length === 0)
+    if (pending.length === 0) {
       return
+    }
     bytes += writeSync(fd, pending.join(''))
     pending = []
     pendingBytes = 0
@@ -81,39 +114,105 @@ export function writeLargeCodexSession(directory: string, opts: { targetBytes: n
     const line = `${JSON.stringify({ timestamp: stamp(clock), type, payload })}\n`
     pending.push(line)
     pendingBytes += line.length
-    if (pendingBytes > 8 * 1024 * 1024)
+    if (pendingBytes > 8 * 1024 * 1024) {
       flush()
+    }
   }
   const result: LargeSession = { path, bytes: 0, turns: 0, longOutputs: 0, longest: { callId: '', length: 0 } }
   const history: Record<string, unknown>[] = []
   let context = 20_000
 
-  put('session_meta', { id: 'synthetic-large', session_id: 'synthetic-large', timestamp: stamp(0), cwd: '/work/app', originator: 'codex_cli', cli_version: '0.1.0', source: 'cli', model_provider: 'openai', base_instructions: { text: text(4000, 1) } })
+  put('session_meta', {
+    id: 'synthetic-large',
+    session_id: 'synthetic-large',
+    timestamp: stamp(0),
+    cwd: '/work/app',
+    originator: 'codex_cli',
+    cli_version: '0.1.0',
+    source: 'cli',
+    model_provider: 'openai',
+    base_instructions: { text: text(4000, 1) },
+  })
   try {
     for (let turn = 1; bytes + pendingBytes < opts.targetBytes; turn++) {
       const turnId = `turn-${turn}`
-      put('turn_context', { turn_id: turnId, cwd: '/work/app', approval_policy: 'never', sandbox_policy: { type: 'read-only' }, model: 'gpt-synthetic', effort: 'medium', summary: 'auto', user_instructions: text(2000, turn) })
+      put('turn_context', {
+        turn_id: turnId,
+        cwd: '/work/app',
+        approval_policy: 'never',
+        sandbox_policy: { type: 'read-only' },
+        model: 'gpt-synthetic',
+        effort: 'medium',
+        summary: 'auto',
+        user_instructions: text(2000, turn),
+      })
       put('event_msg', { type: 'task_started', turn_id: turnId, started_at: turn, model_context_window: 400_000 })
-      const prompt = { type: 'message', role: 'user', content: [{ type: 'input_text', text: `Task ${turn}: ${text(150, turn)}` }] }
+      const prompt = {
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: `Task ${turn}: ${text(150, turn)}` }],
+      }
       put('response_item', prompt)
       history.push(prompt)
       for (let step = 0; step < STEPS; step++) {
         const callId = `call-${turn}-${step}`
         context += 900
-        put('response_item', { type: 'reasoning', summary: [{ type: 'summary_text', text: text(200, turn + step) }], content: null, encrypted_content: text(1600, step) })
-        put('response_item', { type: 'custom_tool_call', status: 'completed', call_id: callId, name: 'apply_patch', input: text(1200, turn * step) })
-        put('token_usage_record', { session_id: 'synthetic-large', thread_id: 'synthetic-large', turn_id: turnId, root_turn_id: turnId, response_id: `resp-${turn}-${step}`, usage: usage(context, 300), turn_token_usage: usage(context, 300), thread_token_usage: usage(context * turn, 300 * turn) })
-        put('event_msg', { type: 'token_count', info: { total_token_usage: usage(context * turn, 300 * turn), last_token_usage: usage(context, 300), model_context_window: 400_000 }, rate_limits: null })
+        put('response_item', {
+          type: 'reasoning',
+          summary: [{ type: 'summary_text', text: text(200, turn + step) }],
+          content: null,
+          encrypted_content: text(1600, step),
+        })
+        put('response_item', {
+          type: 'custom_tool_call',
+          status: 'completed',
+          call_id: callId,
+          name: 'apply_patch',
+          input: text(1200, turn * step),
+        })
+        put('token_usage_record', {
+          session_id: 'synthetic-large',
+          thread_id: 'synthetic-large',
+          turn_id: turnId,
+          root_turn_id: turnId,
+          response_id: `resp-${turn}-${step}`,
+          usage: usage(context, 300),
+          turn_token_usage: usage(context, 300),
+          thread_token_usage: usage(context * turn, 300 * turn),
+        })
+        put('event_msg', {
+          type: 'token_count',
+          info: {
+            total_token_usage: usage(context * turn, 300 * turn),
+            last_token_usage: usage(context, 300),
+            model_context_window: 400_000,
+          },
+          rate_limits: null,
+        })
         const size = turn % 40 === 0 && step === 5 ? 2_000_000 : OUTPUT_SIZES[step]!
         const output = `Exit code: 0\nWall time: 0.4 seconds\nOutput:\n${text(size, turn + step)}`
-        if (output.length > 4096)
+        if (output.length > 4096) {
           result.longOutputs += 1
-        if (output.length > result.longest.length)
+        }
+        if (output.length > result.longest.length) {
           result.longest = { callId, length: output.length }
+        }
         put('response_item', { type: 'custom_tool_call_output', call_id: callId, output })
-        put('event_msg', { type: 'item_completed', thread_id: 'synthetic-large', turn_id: turnId, started_at_ms: clock, completed_at_ms: clock + 100, item: { type: 'CommandExecution', id: `item-${turn}-${step}`, aggregated_output: text(5000, step) } })
+        put('event_msg', {
+          type: 'item_completed',
+          thread_id: 'synthetic-large',
+          turn_id: turnId,
+          started_at_ms: clock,
+          completed_at_ms: clock + 100,
+          item: { type: 'CommandExecution', id: `item-${turn}-${step}`, aggregated_output: text(5000, step) },
+        })
       }
-      const reply = { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: text(1000, turn) }], phase: 'final' }
+      const reply = {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: text(1000, turn) }],
+        phase: 'final',
+      }
       put('response_item', reply)
       history.push(reply)
       put('event_msg', { type: 'task_complete', turn_id: turnId, last_agent_message: 'done', duration_ms: 30_000 })
@@ -122,7 +221,11 @@ export function writeLargeCodexSession(directory: string, opts: { targetBytes: n
         const chunks = Math.ceil(size / 50_000)
         const replacement = [
           ...history.slice(-4),
-          ...Array.from({ length: chunks }, (_, index) => ({ type: 'message', role: 'user', content: [{ type: 'input_text', text: text(50_000, turn + index) }] })),
+          ...Array.from({ length: chunks }, (_, index) => ({
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: text(50_000, turn + index) }],
+          })),
           { type: 'compaction', encrypted_content: text(2000, turn) },
         ]
         put('compacted', { message: text(3000, turn), replacement_history: replacement })
@@ -132,8 +235,7 @@ export function writeLargeCodexSession(directory: string, opts: { targetBytes: n
       flush()
     }
     flush()
-  }
-  finally {
+  } finally {
     closeSync(fd)
   }
   result.bytes = bytes

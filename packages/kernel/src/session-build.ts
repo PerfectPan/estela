@@ -35,7 +35,7 @@ export function baseEvent(
   record: SourcedRecord,
   kind: TraceEvent['kind'],
   payload: Record<string, unknown>,
-  fields?: { id?: string, ts?: number, agentId?: string, parentId?: string, requestId?: string },
+  fields?: { id?: string; ts?: number; agentId?: string; parentId?: string; requestId?: string },
 ): TraceEvent {
   const event: TraceEvent = {
     id: fields?.id ?? lineId(record),
@@ -46,12 +46,15 @@ export function baseEvent(
     source: sourceOf(record),
     original: record.value,
   }
-  if (fields?.agentId)
+  if (fields?.agentId) {
     event.agentId = fields.agentId
-  if (fields?.parentId)
+  }
+  if (fields?.parentId) {
     event.parentId = fields.parentId
-  if (fields?.requestId)
+  }
+  if (fields?.requestId) {
     event.requestId = fields.requestId
+  }
   return event
 }
 
@@ -60,15 +63,22 @@ export function skipRecord(skipped: Trace['skipped'], record: SourcedRecord, rea
 }
 
 /** Hide earlier events of the compaction's agent. `keep` returns true for events that stay visible. */
-export function shadowBefore(events: TraceEvent[], compaction: TraceEvent, keep?: (event: TraceEvent) => boolean): void {
+export function shadowBefore(
+  events: TraceEvent[],
+  compaction: TraceEvent,
+  keep?: (event: TraceEvent) => boolean,
+): void {
   const agent = compaction.agentId ?? ''
   for (const event of events) {
-    if (event === compaction)
+    if (event === compaction) {
       break
-    if ((event.agentId ?? '') !== agent || event.kind === 'compaction' || event.shadowedBy)
+    }
+    if ((event.agentId ?? '') !== agent || event.kind === 'compaction' || event.shadowedBy) {
       continue
-    if (keep?.(event))
+    }
+    if (keep?.(event)) {
       continue
+    }
     event.shadowedBy = compaction.id
   }
 }
@@ -90,13 +100,15 @@ export function placeRequest(events: TraceEvent[], from: number, request: TraceE
       break
     }
   }
-  if (at < events.length)
+  if (at < events.length) {
     request.ts = events[at]!.ts
+  }
   events.splice(at, 0, request)
   for (let index = from; index < events.length; index++) {
     const event = events[index]!
-    if (event !== request && !event.requestId && request.requestId)
+    if (event !== request && !event.requestId && request.requestId) {
       event.requestId = request.requestId
+    }
   }
   return events.length
 }
@@ -109,18 +121,20 @@ export function inheritTimes(records: readonly SourcedRecord[]): number[] {
   const times = records.map(record => timeOf(asRecord(record.value)?.timestamp))
   let last: number | undefined
   for (let index = 0; index < times.length; index++) {
-    if (times[index] === undefined)
+    if (times[index] === undefined) {
       times[index] = last
-    else
+    } else {
       last = times[index]
+    }
   }
   const known = times.find(value => value !== undefined)
   if (known !== undefined) {
     for (let index = 0; index < times.length; index++) {
-      if (times[index] === undefined)
+      if (times[index] === undefined) {
         times[index] = known
-      else
+      } else {
         break
+      }
     }
   }
   return times.map(value => value ?? known ?? 1)
@@ -133,20 +147,23 @@ export function inheritTimes(records: readonly SourcedRecord[]): number[] {
  * compact summary with an earlier time than the boundary it follows), and file
  * order wins over them.
  */
-export function mergeByTime(groups: SourcedRecord[][]): { record: SourcedRecord, ts: number }[] {
+export function mergeByTime(groups: SourcedRecord[][]): { record: SourcedRecord; ts: number }[] {
   const times = groups.map(group => inheritTimes(group))
   const cursor = groups.map(() => 0)
-  const out: { record: SourcedRecord, ts: number }[] = []
+  const out: { record: SourcedRecord; ts: number }[] = []
   for (;;) {
     let pick = -1
     for (let index = 0; index < groups.length; index++) {
-      if (cursor[index]! >= groups[index]!.length)
+      if (cursor[index]! >= groups[index]!.length) {
         continue
-      if (pick < 0 || times[index]![cursor[index]!]! < times[pick]![cursor[pick]!]!)
+      }
+      if (pick < 0 || times[index]![cursor[index]!]! < times[pick]![cursor[pick]!]!) {
         pick = index
+      }
     }
-    if (pick < 0)
+    if (pick < 0) {
       return out
+    }
     const at = cursor[pick]!
     out.push({ record: groups[pick]![at]!, ts: times[pick]![at]! })
     cursor[pick] = at + 1

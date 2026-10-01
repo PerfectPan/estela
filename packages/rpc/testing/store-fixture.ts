@@ -15,7 +15,7 @@ export function present<T>(value: T): T {
 export function fixture() {
   const files = new Map<string, Uint8Array>()
   const mtimes = new Map<string, number>()
-  const reads: { file: string, start: number, end: number }[] = []
+  const reads: { file: string; start: number; end: number }[] = []
   let clock = 1
   const put = (file: string, text: string): void => {
     files.set(file, encoder.encode(text))
@@ -32,7 +32,7 @@ export function fixture() {
     for (const text of new TextDecoder().decode(bytes).split('\n')) {
       const length = encoder.encode(text).byteLength
       if (text) {
-        const original = JSON.parse(text) as { id: string, kind: TraceEvent['kind'], text?: string }
+        const original = JSON.parse(text) as { id: string; kind: TraceEvent['kind']; text?: string }
         events.push({
           id: original.id,
           seq: events.length,
@@ -46,15 +46,25 @@ export function fixture() {
       offset += length + 1
       line += 1
     }
-    return { schema: 'agent-trace', host: { id: 'test' }, session: { id: file }, capabilities: ['requests'], agents: [{ id: 'main' }], events, skipped: [] }
+    return {
+      schema: 'agent-trace',
+      host: { id: 'test' },
+      session: { id: file },
+      capabilities: ['requests'],
+      agents: [{ id: 'main' }],
+      events,
+      skipped: [],
+    }
   }
   const io: TraceStoreDeps['io'] = {
     async readBytes(file, range) {
       const bytes = files.get(file)
-      if (!bytes)
+      if (!bytes) {
         throw new Error(`missing ${file}`)
-      if (!range)
+      }
+      if (!range) {
         return bytes
+      }
       reads.push({ file, ...range })
       return bytes.slice(range.start, range.end)
     },
@@ -66,29 +76,35 @@ export function fixture() {
   return { files, reads, write, put, parse, io }
 }
 
-export function deferred(): { promise: Promise<void>, resolve: () => void } {
+export function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void
-  const promise = new Promise<void>((done) => {
+  const promise = new Promise<void>(done => {
     resolve = done
   })
   return { promise, resolve }
 }
 
 /** A store over the fixture. `gates` holds a load open until resolved; `signals` records each load's signal. */
-export function storeOf(overrides: Partial<TraceStoreDeps> & { io: TraceStoreDeps['io'], parse: (file: string) => Trace }) {
+export function storeOf(
+  overrides: Partial<TraceStoreDeps> & { io: TraceStoreDeps['io']; parse: (file: string) => Trace },
+) {
   const loads: string[] = []
   const signals = new Map<string, AbortSignal>()
   const gates = new Map<string, ReturnType<typeof deferred>>()
   const { parse, ...deps } = overrides
   const store = new TraceStore({
-    resolve: ref => ref.startsWith('missing') ? undefined : { key: ref, path: `/logs/${ref}.jsonl` },
+    resolve: ref => (ref.startsWith('missing') ? undefined : { key: ref, path: `/logs/${ref}.jsonl` }),
     async load(session, opts): Promise<LoadedTrace> {
       loads.push(session.key)
       signals.set(session.key, opts.signal)
       opts.onProgress(10)
       const gate = gates.get(session.key)
-      if (gate)
-        await Promise.race([gate.promise, new Promise((_, reject) => opts.signal.addEventListener('abort', () => reject(opts.signal.reason)))])
+      if (gate) {
+        await Promise.race([
+          gate.promise,
+          new Promise((_, reject) => opts.signal.addEventListener('abort', () => reject(opts.signal.reason))),
+        ])
+      }
       opts.onProgress(1e9)
       return { trace: parse(session.path as string), canonical: false }
     },

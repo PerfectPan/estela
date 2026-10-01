@@ -8,7 +8,10 @@ const encoder = new TextEncoder()
 describe('TraceStore', () => {
   it('get-event reads the original back from the source pointer, not from memory', async () => {
     const f = fixture()
-    f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: 'hello' }, { id: 'r1', kind: 'request', text: 'AAAA' }])
+    f.write('/logs/a.jsonl', [
+      { id: 'u1', kind: 'user', text: 'hello' },
+      { id: 'r1', kind: 'request', text: 'AAAA' },
+    ])
     const { store } = storeOf({ io: f.io, parse: f.parse })
     const view = await store.view('a')
     expect(view.trace.events.every(event => !('original' in event))).toBe(true)
@@ -39,8 +42,9 @@ describe('TraceStore', () => {
 
   it('keeps the last 3 traces and evicts the least recently used', async () => {
     const f = fixture()
-    for (const name of ['a', 'b', 'c', 'd'])
+    for (const name of ['a', 'b', 'c', 'd']) {
       f.write(`/logs/${name}.jsonl`, [{ id: 'u1', kind: 'user' }])
+    }
     const { store, loads } = storeOf({ io: f.io, parse: f.parse })
     await store.view('a')
     await store.view('b')
@@ -123,7 +127,7 @@ describe('TraceStore', () => {
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     let loads = 0
     const store = new TraceStore({
-      resolve: ref => ref === 'a' ? { key: 'a', path: '/logs/a.jsonl' } : undefined,
+      resolve: ref => (ref === 'a' ? { key: 'a', path: '/logs/a.jsonl' } : undefined),
       io: f.io,
       async load(session) {
         loads += 1
@@ -158,7 +162,10 @@ describe('TraceStore', () => {
   })
   it('withEvents reads source pointers in the order asked', async () => {
     const f = fixture()
-    f.write('/logs/a.jsonl', Array.from({ length: 100 }, (_, index) => ({ id: `e${index}`, kind: 'user', text: `t${index}` })))
+    f.write(
+      '/logs/a.jsonl',
+      Array.from({ length: 100 }, (_, index) => ({ id: `e${index}`, kind: 'user', text: `t${index}` })),
+    )
     const { store } = storeOf({ io: f.io, parse: f.parse })
     await store.view('a')
     const before = f.reads.length
@@ -170,7 +177,10 @@ describe('TraceStore', () => {
 
   it('withEvents reloads a canonical file once for all of its reads', async () => {
     const f = fixture()
-    f.write('/logs/a.jsonl', Array.from({ length: 6 }, (_, index) => ({ id: `e${index}`, kind: 'user' })))
+    f.write(
+      '/logs/a.jsonl',
+      Array.from({ length: 6 }, (_, index) => ({ id: `e${index}`, kind: 'user' })),
+    )
     let loads = 0
     const { store } = storeOf({
       io: f.io,
@@ -181,7 +191,7 @@ describe('TraceStore', () => {
       },
     })
     await store.view('a')
-    const got = await store.withEvents('a', async (read) => {
+    const got = await store.withEvents('a', async read => {
       const first = await read(['e0', 'e1', 'e2'])
       const second = await read(['e3', 'e4', 'e5'])
       return [...first, ...second].map(event => (event.original as { id: string }).id)

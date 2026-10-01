@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { deferred, fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
 import { TraceStore } from './trace-store.ts'
 
-interface EntryShape { trace: Trace, reload?: unknown }
+interface EntryShape {
+  trace: Trace
+  reload?: unknown
+}
 
 function cachedEntry(store: TraceStore, key: string): EntryShape {
-  return ((store as unknown as { entries: Map<string, EntryShape> }).entries.get(key))!
+  return (store as unknown as { entries: Map<string, EntryShape> }).entries.get(key)!
 }
 
 function cachedTrace(store: TraceStore, key: string): Trace {
@@ -16,7 +19,10 @@ function cachedTrace(store: TraceStore, key: string): Trace {
 describe('TraceStore lifecycle', () => {
   it('keeps no originals in the cached entry', async () => {
     const f = fixture()
-    f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: 'x' }, { id: 'r1', kind: 'request' }])
+    f.write('/logs/a.jsonl', [
+      { id: 'u1', kind: 'user', text: 'x' },
+      { id: 'r1', kind: 'request' },
+    ])
     const { store } = storeOf({ io: f.io, parse: f.parse })
     await store.view('a')
     const trace = cachedTrace(store, 'a')
@@ -37,7 +43,9 @@ describe('TraceStore lifecycle', () => {
     const entry = cachedEntry(store, 'a')
     expect(entry.trace.events.some(event => 'original' in event)).toBe(false)
     expect(entry.reload).toBeUndefined()
-    expect(JSON.stringify(Object.values(entry as object).filter(value => !(value instanceof Map)))).not.toContain('"original"')
+    expect(JSON.stringify(Object.values(entry as object).filter(value => !(value instanceof Map)))).not.toContain(
+      '"original"',
+    )
   })
 
   it('the latest open from one connection wins even when an earlier open is slower', async () => {
@@ -48,8 +56,9 @@ describe('TraceStore lifecycle', () => {
     const io = {
       ...f.io,
       async stat(file: string) {
-        if (file === '/logs/a.jsonl' && !slowDone)
+        if (file === '/logs/a.jsonl' && !slowDone) {
           await slow.promise
+        }
         return f.io.stat(file)
       },
     }
@@ -97,7 +106,10 @@ describe('TraceStore lifecycle', () => {
         throw new Error(`codex: ${HOME}/logs/a.jsonl:3: invalid JSON`)
       },
     })
-    const failure = await store.view('a').then(() => undefined, (error: unknown) => error as Error)
+    const failure = await store.view('a').then(
+      () => undefined,
+      (error: unknown) => error as Error,
+    )
     expect(failure?.message).toBe('codex: ~/logs/a.jsonl:3: invalid JSON')
     const handle = await store.open('b', {})
     const done = await handle.done.catch((error: unknown) => error as Error)
@@ -136,7 +148,15 @@ describe('TraceStore lifecycle', () => {
       payload: { text: 'y'.repeat(200) },
       source: { file: '/logs/big.jsonl', offset: index, length: 1, line: index + 1 },
     }))
-    const trace: Trace = { schema: 'agent-trace', host: { id: 'test' }, session: { id: 'big' }, capabilities: [], agents: [], events, skipped: [] }
+    const trace: Trace = {
+      schema: 'agent-trace',
+      host: { id: 'test' },
+      session: { id: 'big' },
+      capabilities: [],
+      agents: [],
+      events,
+      skipped: [],
+    }
     const logs: string[] = []
     const store = new TraceStore({
       resolve: ref => ({ key: ref, path: '/logs/big.jsonl' }),

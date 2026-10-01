@@ -15,12 +15,14 @@ function readyBox(raw: string): string[] {
 
 /** The ref the CLI gives a session path, read from its plain `Ready:` line. */
 async function refOf(path: string): Promise<string> {
-  const server = start(process.execPath, [ctx.bin, path, '--no-open', '--port', '0'], { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 's16-ref')) })
+  const server = start(process.execPath, [ctx.bin, path, '--no-open', '--port', '0'], {
+    cwd: ctx.installDir,
+    env: smokeEnv(ctx, openLogPath(ctx, 's16-ref')),
+  })
   try {
     await waitFor('the Ready line', () => readyUrl(server.output().stdout) !== undefined)
     return readyUrl(server.output().stdout)!.ref
-  }
-  finally {
+  } finally {
     await server.stop()
   }
 }
@@ -38,7 +40,7 @@ describe('installed tarball in a terminal', () => {
       env: smokeEnv(ctx, log),
     })
     let screen = ''
-    term.onData((data) => {
+    term.onData(data => {
       screen += data
     })
     const exited = new Promise<void>(resolve => term.onExit(() => resolve()))
@@ -54,7 +56,10 @@ describe('installed tarball in a terminal', () => {
         return /Search: helper\S* \(1 match\)/.test(after) && after.includes('● Ask the helper')
       })
       term.write('\r')
-      await waitFor('the Ready box and the browser opener', () => readyUrl(screen) !== undefined && openedUrls(log).length > 0)
+      await waitFor(
+        'the Ready box and the browser opener',
+        () => readyUrl(screen) !== undefined && openedUrls(log).length > 0,
+      )
       const ready = readyUrl(screen)
       expect(ready!.ref).toBe(expected)
       const [opened] = openedUrls(log)
@@ -67,8 +72,7 @@ describe('installed tarball in a terminal', () => {
       expect(box[1]).toContain(`${ready!.base}#/s/${expected}`)
       expect(screen).toContain(`\u001B]8;;${ready!.base}#/s/${expected}\u001B\\`)
       expect(visible().split(`${ready!.base}#/s/${expected}`)).toHaveLength(2)
-    }
-    finally {
+    } finally {
       term.kill('SIGTERM')
       await exited
     }

@@ -18,19 +18,23 @@ export interface UsageParts {
 export function usageFrom(parts: UsageParts): RequestPayload['usage'] | undefined {
   const out: NonNullable<RequestPayload['usage']> = {}
   if (parts.includeCacheInInput) {
-    if (parts.input !== undefined || parts.cacheRead !== undefined || parts.cacheWrite !== undefined)
+    if (parts.input !== undefined || parts.cacheRead !== undefined || parts.cacheWrite !== undefined) {
       out.inputTokens = (parts.input ?? 0) + (parts.cacheRead ?? 0) + (parts.cacheWrite ?? 0)
-  }
-  else if (parts.input !== undefined) {
+    }
+  } else if (parts.input !== undefined) {
     out.inputTokens = parts.input
   }
-  if (parts.output !== undefined)
+  if (parts.output !== undefined) {
     out.outputTokens = parts.output
-  if (parts.cacheRead !== undefined)
+  }
+  if (parts.cacheRead !== undefined) {
     out.cacheReadTokens = parts.cacheRead
-  if (parts.cacheWrite !== undefined)
+  }
+  if (parts.cacheWrite !== undefined) {
     out.cacheWriteTokens = parts.cacheWrite
-  if (parts.reasoning !== undefined)
+  }
+  if (parts.reasoning !== undefined) {
     out.reasoningTokens = parts.reasoning
+  }
   return Object.keys(out).length > 0 ? out : undefined
 }

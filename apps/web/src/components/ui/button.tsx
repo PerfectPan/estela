@@ -34,9 +34,8 @@ export const buttonVariants = cva({
   },
 })
 
-export type ButtonProps<T extends ValidComponent = 'button'> = ComponentProps<
-  typeof ButtonPrimitive<T>
-> & VariantProps<typeof buttonVariants>
+export type ButtonProps<T extends ValidComponent = 'button'> = ComponentProps<typeof ButtonPrimitive<T>>
+  & VariantProps<typeof buttonVariants>
 
 export function Button<T extends ValidComponent = 'button'>(props: ButtonProps<T>) {
   const [, rest] = splitProps(props as ButtonProps, ['class', 'variant', 'size'])

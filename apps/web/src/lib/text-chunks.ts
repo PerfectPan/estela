@@ -12,19 +12,22 @@ const LINE_SLACK = 16 * 1024
  * else at `at` itself, moved back one unit if that would split a surrogate pair.
  */
 export function cutAt(text: string, at: number): number {
-  if (at >= text.length)
+  if (at >= text.length) {
     return text.length
+  }
   const newline = text.indexOf('\n', at)
-  if (newline >= 0 && newline - at <= LINE_SLACK)
+  if (newline >= 0 && newline - at <= LINE_SLACK) {
     return newline + 1
+  }
   const code = text.charCodeAt(at - 1)
-  return code >= 0xD800 && code <= 0xDBFF ? at - 1 : at
+  return code >= 0xd800 && code <= 0xdbff ? at - 1 : at
 }
 
 /** The first block and the rest, cut at line ends (never inside a surrogate pair). */
-export function textChunks(text: string, cap = TEXT_CAP, chunk = TEXT_CHUNK): { head: string, rest: string[] } {
-  if (text.length <= cap)
+export function textChunks(text: string, cap = TEXT_CAP, chunk = TEXT_CHUNK): { head: string; rest: string[] } {
+  if (text.length <= cap) {
     return { head: text, rest: [] }
+  }
   const headEnd = cutAt(text, cap)
   const rest: string[] = []
   for (let at = headEnd; at < text.length;) {

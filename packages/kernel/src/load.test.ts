@@ -32,22 +32,30 @@ function io(stat: IO['stat'], readText: IO['readText'] = async () => text): IO {
 describe('loadTrace session refs', () => {
   it('stats the file part of a # ref, not the raw path', async () => {
     const seen: string[] = []
-    const loaded = await loadTrace('/tmp/opencode.db#ses_x', [], io(
-      async (path) => {
+    const loaded = await loadTrace(
+      '/tmp/opencode.db#ses_x',
+      [],
+      io(async path => {
         seen.push(path)
         return path === '/tmp/opencode.db' ? { kind: 'file', size: bytes.length, mtimeMs: 0 } : null
-      },
-    ))
+      }),
+    )
     expect(seen).toEqual(['/tmp/opencode.db'])
     expect(loaded.session.id).toBe('s')
   })
 
   it('reports the ref missing when that file does not exist', async () => {
     const seen: string[] = []
-    await expect(loadTrace('/tmp/missing.db#ses_x', [], io(async (path) => {
-      seen.push(path)
-      return null
-    }))).rejects.toThrow('/tmp/missing.db#ses_x does not exist')
+    await expect(
+      loadTrace(
+        '/tmp/missing.db#ses_x',
+        [],
+        io(async path => {
+          seen.push(path)
+          return null
+        }),
+      ),
+    ).rejects.toThrow('/tmp/missing.db#ses_x does not exist')
     expect(seen).toEqual(['/tmp/missing.db'])
   })
 })

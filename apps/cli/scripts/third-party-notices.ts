@@ -14,7 +14,13 @@ interface PackageNotice {
   texts: string[]
 }
 
-function readManifest(dir: string): { name?: string, version?: string, license?: unknown, dependencies?: Record<string, string>, optionalDependencies?: Record<string, string> } {
+function readManifest(dir: string): {
+  name?: string
+  version?: string
+  license?: unknown
+  dependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
+} {
   return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
 }
 
@@ -41,8 +47,9 @@ function noticeOf(dir: string): PackageNotice {
 /** Package root of a file under `node_modules`, or undefined for workspace sources. */
 function packageRootOf(file: string): string | undefined {
   const at = file.lastIndexOf(NODE_MODULES)
-  if (at === -1)
+  if (at === -1) {
     return undefined
+  }
   const rest = file.slice(at + NODE_MODULES.length).split(sep)
   const depth = rest[0]?.startsWith('@') ? 2 : 1
   return join(file.slice(0, at + NODE_MODULES.length), ...rest.slice(0, depth))
@@ -52,10 +59,12 @@ function packageRootOf(file: string): string | undefined {
 function findPackage(name: string, dir: string): string | undefined {
   for (let at = dir; ; at = dirname(at)) {
     const candidate = join(at, 'node_modules', name)
-    if (existsSync(join(candidate, 'package.json')))
+    if (existsSync(join(candidate, 'package.json'))) {
       return realpathSync(candidate)
-    if (dirname(at) === at)
+    }
+    if (dirname(at) === at) {
       return undefined
+    }
   }
 }
 
@@ -66,8 +75,9 @@ function webPackages(root: string): string[] {
     const manifest = readManifest(dir)
     for (const name of Object.keys({ ...manifest.dependencies, ...manifest.optionalDependencies })) {
       const pkg = findPackage(name, dir)
-      if (!pkg || found.has(pkg))
+      if (!pkg || found.has(pkg)) {
         continue
+      }
       found.add(pkg)
       visit(pkg)
     }
@@ -75,8 +85,9 @@ function webPackages(root: string): string[] {
   visit(root)
   for (const name of WEB_BUILD_TOOLS) {
     const pkg = findPackage(name, root)
-    if (pkg)
+    if (pkg) {
       found.add(pkg)
+    }
   }
   return [...found]
 }
@@ -85,7 +96,12 @@ function render(title: string, notices: PackageNotice[]): string {
   const lines = [`== ${title} ==`, '']
   for (const notice of notices) {
     lines.push(`--- ${notice.name}@${notice.version} (${notice.license}) ---`, '')
-    lines.push(notice.texts.length > 0 ? notice.texts.join('\n\n') : `No license file in the package. package.json declares: ${notice.license}.`, '')
+    lines.push(
+      notice.texts.length > 0
+        ? notice.texts.join('\n\n')
+        : `No license file in the package. package.json declares: ${notice.license}.`,
+      '',
+    )
   }
   return lines.join('\n')
 }
@@ -94,8 +110,9 @@ function sorted(dirs: Iterable<string>): PackageNotice[] {
   const byId = new Map<string, PackageNotice>()
   for (const dir of dirs) {
     const notice = noticeOf(dir)
-    if (!notice.name.startsWith('@rivus/'))
+    if (!notice.name.startsWith('@rivus/')) {
       byId.set(`${notice.name}@${notice.version}`, notice)
+    }
   }
   return [...byId.values()].toSorted((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
 }
@@ -108,41 +125,45 @@ function sorted(dirs: Iterable<string>): PackageNotice[] {
  * External runtime dependencies are installed with their own license files and are not listed.
  */
 export class ThirdPartyNotices {
-  readonly options: { webPackage: string, sourceNotices: string }
+  readonly options: { webPackage: string; sourceNotices: string }
 
-  constructor(options: { webPackage: string, sourceNotices: string }) {
+  constructor(options: { webPackage: string; sourceNotices: string }) {
     this.options = options
   }
 
   apply(compiler: Rspack.Compiler): void {
     const { RawSource } = compiler.webpack.sources
-    compiler.hooks.thisCompilation.tap('ThirdPartyNotices', (compilation) => {
-      compilation.hooks.processAssets.tap({ name: 'ThirdPartyNotices', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT }, () => {
-        const bundled = new Set<string>()
-        for (const file of compilation.fileDependencies) {
-          const root = packageRootOf(file)
-          if (root && !file.endsWith(`${sep}package.json`))
-            bundled.add(root)
-        }
-        const web = webPackages(resolve(compiler.context, this.options.webPackage))
-        const adapted = readFileSync(resolve(compiler.context, this.options.sourceNotices), 'utf8').trim()
-        const text = [
-          'Third-party software in @rivus/agent-trace',
-          '',
-          'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section. dist/web/ is built from',
-          'the packages in the second section; it may list a package whose code was tree-shaken away.',
-          'devframe, @devframes/agentic, and cac are installed as dependencies with their own licenses.',
-          'The last section covers code adapted into the agent-trace sources themselves.',
-          '',
-          render('dist/cli.mjs', sorted(bundled)),
-          render('dist/web/', sorted(web)),
-          '== Adapted source code ==',
-          '',
-          adapted,
-          '',
-        ].join('\n')
-        compilation.emitAsset('THIRD-PARTY-NOTICES.txt', new RawSource(text))
-      })
+    compiler.hooks.thisCompilation.tap('ThirdPartyNotices', compilation => {
+      compilation.hooks.processAssets.tap(
+        { name: 'ThirdPartyNotices', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT },
+        () => {
+          const bundled = new Set<string>()
+          for (const file of compilation.fileDependencies) {
+            const root = packageRootOf(file)
+            if (root && !file.endsWith(`${sep}package.json`)) {
+              bundled.add(root)
+            }
+          }
+          const web = webPackages(resolve(compiler.context, this.options.webPackage))
+          const adapted = readFileSync(resolve(compiler.context, this.options.sourceNotices), 'utf8').trim()
+          const text = [
+            'Third-party software in @rivus/agent-trace',
+            '',
+            'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section. dist/web/ is built from',
+            'the packages in the second section; it may list a package whose code was tree-shaken away.',
+            'devframe, @devframes/agentic, and cac are installed as dependencies with their own licenses.',
+            'The last section covers code adapted into the agent-trace sources themselves.',
+            '',
+            render('dist/cli.mjs', sorted(bundled)),
+            render('dist/web/', sorted(web)),
+            '== Adapted source code ==',
+            '',
+            adapted,
+            '',
+          ].join('\n')
+          compilation.emitAsset('THIRD-PARTY-NOTICES.txt', new RawSource(text))
+        },
+      )
     })
   }
 }

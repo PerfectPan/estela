@@ -11,16 +11,17 @@ const THEME_LABEL: Record<ThemeMode, MessageKey> = {
   dark: 'common.themeDark',
 }
 
-const themeLabel = () => t('common.themeSwitch', {
-  mode: t(THEME_LABEL[themeMode()]),
-  next: t(THEME_LABEL[nextThemeMode(themeMode())]),
-})
+const themeLabel = () =>
+  t('common.themeSwitch', {
+    mode: t(THEME_LABEL[themeMode()]),
+    next: t(THEME_LABEL[nextThemeMode(themeMode())]),
+  })
 
 /**
  * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, the
  * theme and language switches, and screen actions (the workspace's "Export report").
  */
-export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?: JSX.Element, report?: boolean }) {
+export function TopBar(props: { crumbs?: string[]; onJump?: () => void; actions?: JSX.Element; report?: boolean }) {
   const crumbs = () => props.crumbs ?? []
   return (
     <header class="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">
@@ -33,7 +34,10 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
           <span class="text-subtle">/</span>
           {/* A report has no session list to go back to. */}
           <Show when={!props.report} fallback={<span class="text-muted-foreground">{t('report.title')}</span>}>
-            <a href="#/" class={crumbs().length > 0 ? 'text-muted-foreground hover:text-foreground' : 'text-foreground'}>
+            <a
+              href="#/"
+              class={crumbs().length > 0 ? 'text-muted-foreground hover:text-foreground' : 'text-foreground'}
+            >
               {t('common.sessions')}
             </a>
           </Show>
@@ -41,7 +45,11 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
             {(crumb, index) => (
               <>
                 <span class="text-subtle">/</span>
-                <span class={`truncate ${index() === crumbs().length - 1 ? 'text-foreground' : 'text-muted-foreground'}`}>{crumb}</span>
+                <span
+                  class={`truncate ${index() === crumbs().length - 1 ? 'text-foreground' : 'text-muted-foreground'}`}
+                >
+                  {crumb}
+                </span>
               </>
             )}
           </For>
@@ -67,9 +75,15 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
           onClick={() => chooseTheme(nextThemeMode(themeMode()))}
         >
           <Switch>
-            <Match when={themeMode() === 'system'}><SystemIcon /></Match>
-            <Match when={themeMode() === 'light'}><SunIcon /></Match>
-            <Match when={themeMode() === 'dark'}><MoonIcon /></Match>
+            <Match when={themeMode() === 'system'}>
+              <SystemIcon />
+            </Match>
+            <Match when={themeMode() === 'light'}>
+              <SunIcon />
+            </Match>
+            <Match when={themeMode() === 'dark'}>
+              <MoonIcon />
+            </Match>
           </Switch>
         </button>
         <button
@@ -91,7 +105,13 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?
 function Logo() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M3 17 L8.5 9 L13 14 L21 5" stroke="var(--foreground)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path
+        d="M3 17 L8.5 9 L13 14 L21 5"
+        stroke="var(--foreground)"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
       <circle cx="3" cy="17" r="2" fill="var(--background)" stroke="var(--kind-request)" stroke-width="1.6" />
       <circle cx="8.5" cy="9" r="2" fill="var(--background)" stroke="var(--foreground)" stroke-width="1.6" />
       <circle cx="13" cy="14" r="2" fill="var(--background)" stroke="var(--foreground)" stroke-width="1.6" />
@@ -100,9 +120,20 @@ function Logo() {
   )
 }
 
-export function SearchIcon(props: { size?: number, class?: string }) {
+export function SearchIcon(props: { size?: number; class?: string }) {
   return (
-    <svg width={props.size ?? 14} height={props.size ?? 14} class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      width={props.size ?? 14}
+      height={props.size ?? 14}
+      class={props.class}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="11" cy="11" r="6.5" />
       <path d="M16 16 L20.5 20.5" />
     </svg>
@@ -111,7 +142,17 @@ export function SearchIcon(props: { size?: number, class?: string }) {
 
 function SystemIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <rect x="3.5" y="4.5" width="17" height="12" rx="2" />
       <path d="M9 20 H15 M12 16.5 V20" />
     </svg>
@@ -120,7 +161,16 @@ function SystemIcon() {
 
 function SunIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="4" />
       <path d="M12 3 V5 M12 19 V21 M3 12 H5 M19 12 H21 M5.6 5.6 L7 7 M17 17 L18.4 18.4 M5.6 18.4 L7 17 M17 7 L18.4 5.6" />
     </svg>
@@ -129,7 +179,17 @@ function SunIcon() {
 
 function MoonIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <path d="M20 14.5 A8 8 0 1 1 9.5 4 A6.5 6.5 0 0 0 20 14.5 Z" />
     </svg>
   )

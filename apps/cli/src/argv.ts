@@ -59,8 +59,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       const inline = eq === -1 ? undefined : arg.slice(eq + 1)
       if (VALUE_FLAGS.has(flag)) {
         if (inline !== undefined) {
-          if (flag === '--out-dir')
+          if (flag === '--out-dir') {
             outDir = inline
+          }
           userArgs.push(arg)
           index += 1
           continue
@@ -71,8 +72,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
           index += 1
           continue
         }
-        if (flag === '--out-dir')
+        if (flag === '--out-dir') {
           outDir = next
+        }
         userArgs.push(flag, next)
         index += 2
         continue
@@ -92,9 +94,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     noIndex,
     outDir,
     userArgs,
-    error: error ?? (positionals.length > 1
-      ? `Two session paths were given: ${positionals[0]} and ${positionals[1]}`
-      : undefined),
+    error:
+      error
+      ?? (positionals.length > 1 ? `Two session paths were given: ${positionals[0]} and ${positionals[1]}` : undefined),
   }
 }
 
@@ -105,12 +107,14 @@ export function programArgv(userArgs: readonly string[]): string[] {
 export function wantsUsage(userArgs: readonly string[]): boolean {
   for (let i = 0; i < userArgs.length; i++) {
     const arg = userArgs[i]!
-    if (arg === '--help' || arg === '-h' || arg === '--version' || arg === '-v')
+    if (arg === '--help' || arg === '-h' || arg === '--version' || arg === '-v') {
       return true
+    }
     const eq = arg.indexOf('=')
     const flag = eq === -1 ? arg : arg.slice(0, eq)
-    if (eq === -1 && VALUE_FLAGS.has(flag))
+    if (eq === -1 && VALUE_FLAGS.has(flag)) {
       i += 1
+    }
   }
   return false
 }

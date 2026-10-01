@@ -45,12 +45,10 @@ export function parseOpenCodeSession(input: {
     if (type === 'text') {
       kind = msg?.role === 'user' ? 'user' : 'assistant'
       payload.text = asString(part.data.text)
-    }
-    else if (type === 'reasoning') {
+    } else if (type === 'reasoning') {
       kind = 'thinking'
       payload.text = asString(part.data.text)
-    }
-    else if (type === 'tool') {
+    } else if (type === 'tool') {
       const state = asRecord(part.data.state)
       const status = asString(state?.status)
       if (status === 'completed' || state?.output != null) {
@@ -58,26 +56,24 @@ export function parseOpenCodeSession(input: {
         payload.name = asString(part.data.tool)
         payload.callId = asString(part.data.callID)
         payload.output = state?.output
-      }
-      else {
+      } else {
         kind = 'tool_call'
         payload.name = asString(part.data.tool)
         payload.callId = asString(part.data.callID)
         payload.args = state?.input
       }
-    }
-    else if (type === 'compaction') {
+    } else if (type === 'compaction') {
       kind = 'compaction'
       payload.auto = part.data.auto
       payload.tailStartId = part.data.tail_start_id
-    }
-    else if (type === 'step-start' || type === 'step-finish' || type === 'patch') {
+    } else if (type === 'step-start' || type === 'step-finish' || type === 'patch') {
       kind = 'unknown'
       payload.type = type
     }
 
-    if (msg?.agent)
+    if (msg?.agent) {
       agentIds.add(msg.agent)
+    }
     const event: TraceEvent = {
       id: part.id,
       seq: index,
@@ -87,17 +83,20 @@ export function parseOpenCodeSession(input: {
       source: { file, offset: 0, length: 0, line: index + 1 },
       original: part.data,
     }
-    if (msg?.parentId)
+    if (msg?.parentId) {
       event.parentId = msg.parentId
-    if (msg?.agent)
+    }
+    if (msg?.agent) {
       event.agentId = msg.agent
+    }
     events.push(event)
   }
 
   const agents: AgentInfo[] = [{ id: 'main' }]
   for (const id of agentIds) {
-    if (id !== 'main')
+    if (id !== 'main') {
       agents.push({ id, parentId: 'main' })
+    }
   }
 
   return {
@@ -116,8 +115,9 @@ export function parseOpenCodeSession(input: {
 }
 
 function parseData(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string')
+  if (typeof raw === 'string') {
     return asRecord(JSON.parse(raw)) ?? {}
+  }
   return asRecord(raw) ?? {}
 }
 
@@ -131,13 +131,13 @@ export const opencodeAdapter: HostAdapter = {
   async *discover() {},
   async detect(ref, io: TraceIO): Promise<boolean> {
     const { file } = splitSessionRef(ref.path)
-    if (basenamePath(file) === 'opencode.db')
+    if (basenamePath(file) === 'opencode.db') {
       return true
+    }
     try {
       const buf = await io.readBytes(file, { start: 0, end: 16 })
       return new TextDecoder().decode(buf).startsWith('SQLite format 3')
-    }
-    catch {
+    } catch {
       return false
     }
   },
@@ -156,17 +156,18 @@ export const opencodeAdapter: HostAdapter = {
         throw new Error(`opencode db has ${sessions.length} sessions; pass path#sessionId or AGENT_TRACE_SESSION`)
       }
       const session = sessions.find(s => s.id === id)
-      if (!session)
+      if (!session) {
         throw new Error(`opencode session ${id} not in ${file}`)
+      }
 
-      const messageRows = db.prepare(
-        'SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created',
-      ).all(id) as { id: string, time_created: number, data: string }[]
-      const partRows = db.prepare(
-        'SELECT id, message_id, time_created, data FROM part WHERE session_id = ? ORDER BY time_created',
-      ).all(id) as { id: string, message_id: string, time_created: number, data: string }[]
+      const messageRows = db
+        .prepare('SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created')
+        .all(id) as { id: string; time_created: number; data: string }[]
+      const partRows = db
+        .prepare('SELECT id, message_id, time_created, data FROM part WHERE session_id = ? ORDER BY time_created')
+        .all(id) as { id: string; message_id: string; time_created: number; data: string }[]
 
-      const messages: OpenCodeMessage[] = messageRows.map((row) => {
+      const messages: OpenCodeMessage[] = messageRows.map(row => {
         const data = parseData(row.data)
         return {
           id: row.id,
@@ -192,8 +193,7 @@ export const opencodeAdapter: HostAdapter = {
         messages,
         parts,
       })
-    }
-    finally {
+    } finally {
       db.close()
     }
   },

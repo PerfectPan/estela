@@ -35,7 +35,8 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 - Rush + pnpm. Do not use a root `pnpm-workspace.yaml`.
 - UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
-- Lint is oxlint. No formatter is configured.
+- Lint is oxlint: `rush lint` per project, and `node scripts/lint-scripts.mjs` for the root `scripts/`. `curly: all` is on: every `if`, `else`, `for`, `while`, and `do` body is a braced block.
+- Format is oxfmt (`.oxfmtrc.json`; `apps/cli` owns the devDependency) over JS and TS under `apps/`, `packages/`, and `scripts/`. `node scripts/format.mjs` writes; `--check` verifies. Markdown, JSON, and fixtures are not formatted.
 - A PR that changes shipped files under `apps/` or `packages/` carries a Rush change file; rules in `CONTRIBUTING.md#release-intent`. Do not edit generated changelogs or add a hand-written root `CHANGELOG.md`.
 - Contribution workflow, Specs, and Plans live in `CONTRIBUTING.md`, `docs/specs/`, and `docs/plans/`. Do not copy the `technical-design-docs` skill into this repo.
 - File and directory names are kebab-case, and a code file has at most 500 lines; rules in `CONTRIBUTING.md#file-conventions`.
@@ -60,6 +61,8 @@ node scripts/check-conventions.mjs
 gh repo-checks pr-title "<title>"
 gh repo-checks pr-body pr-body.md
 node common/scripts/install-run-rush.js update
+node scripts/format.mjs --check
+node scripts/lint-scripts.mjs
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck

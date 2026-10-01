@@ -12,7 +12,8 @@ export function bindSessionService(next: SessionService): void {
 }
 
 export function requireSessionService(): SessionService {
-  if (!service)
+  if (!service) {
     throw new Error('session service is not bound')
+  }
   return service
 }

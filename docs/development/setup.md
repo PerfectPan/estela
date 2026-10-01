@@ -21,6 +21,7 @@ node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
+node scripts/format.mjs --check
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck

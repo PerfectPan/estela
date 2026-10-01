@@ -12,8 +12,9 @@ describe('reconstruct', () => {
   it('drops shadowed events after compaction, keeps them in the archive', async () => {
     const trace = JSON.parse(await readFile(fixturePath, 'utf8')) as unknown
     expect(isTrace(trace)).toBe(true)
-    if (!isTrace(trace))
+    if (!isTrace(trace)) {
       return
+    }
 
     const before = reconstruct(trace, 'e3')
     expect(before.visibleIds).toContain('e3')
@@ -26,7 +27,10 @@ describe('reconstruct', () => {
     expect(trace.events.map(e => e.id)).toContain('e3')
 
     const request = reconstruct(trace, 'e7')
-    expect(request.tokens?.map(count => [count.from, count.tokens])).toEqual([['request.inputTokens', 30], ['compaction.postTokens', 100]])
+    expect(request.tokens?.map(count => [count.from, count.tokens])).toEqual([
+      ['request.inputTokens', 30],
+      ['compaction.postTokens', 100],
+    ])
   })
 
   it('fills slots, recorded token counts, and the events compaction removed', async () => {
@@ -63,7 +67,15 @@ describe('reconstruct', () => {
       events: [
         { id: 'p', seq: 0, ts: 0, kind: 'user', payload: { text: 'go' }, source: { ...source, line: 1 } },
         { id: 'k', seq: 1, ts: 1, kind: 'compaction', payload: { postTokens: 5 }, source: { ...source, line: 2 } },
-        { id: 'sp', seq: 2, ts: 2, kind: 'user', agentId: 'sub', payload: { text: 'task' }, source: { ...source, line: 3 } },
+        {
+          id: 'sp',
+          seq: 2,
+          ts: 2,
+          kind: 'user',
+          agentId: 'sub',
+          payload: { text: 'task' },
+          source: { ...source, line: 3 },
+        },
         { id: 'sr', seq: 3, ts: 3, kind: 'request', agentId: 'sub', payload: {}, source: { ...source, line: 4 } },
         { id: 'mr', seq: 4, ts: 4, kind: 'request', payload: {}, source: { ...source, line: 5 } },
       ],
@@ -75,7 +87,9 @@ describe('reconstruct', () => {
     expect(sub.slots?.find(item => item.name === 'summary')?.status).toBe('unavailable')
     const main = reconstruct(trace, 'mr')
     expect(main.visibleIds).toEqual(['p', 'k', 'mr'])
-    expect(main.tokens).toEqual([{ slots: ['system', 'tools', 'summary', 'messages'], tokens: 5, from: 'compaction.postTokens' }])
+    expect(main.tokens).toEqual([
+      { slots: ['system', 'tools', 'summary', 'messages'], tokens: 5, from: 'compaction.postTokens' },
+    ])
   })
 
   it('reports system unavailable unless the host declares and recorded a system prompt', () => {
@@ -85,39 +99,65 @@ describe('reconstruct', () => {
       session: { id: 's' },
       capabilities: [] as Trace['capabilities'],
       agents: [],
-      events: [{ id: 's1', seq: 0, ts: 1, kind: 'system' as const, payload: { text: 'hint' }, source: { file: 'f', offset: 0, length: 1, line: 1 } }],
+      events: [
+        {
+          id: 's1',
+          seq: 0,
+          ts: 1,
+          kind: 'system' as const,
+          payload: { text: 'hint' },
+          source: { file: 'f', offset: 0, length: 1, line: 1 },
+        },
+      ],
       skipped: [],
     }
     expect(reconstruct(base, 's1').unavailable).toContain('system')
     expect(reconstruct({ ...base, session: { id: 's', systemPrompt: 'p' } }, 's1').unavailable).toContain('system')
-    expect(reconstruct({ ...base, capabilities: ['systemPrompt'], session: { id: 's', systemPrompt: 'p' } }, 's1').unavailable)
-      .not.toContain('system')
+    expect(
+      reconstruct({ ...base, capabilities: ['systemPrompt'], session: { id: 's', systemPrompt: 'p' } }, 's1')
+        .unavailable,
+    ).not.toContain('system')
   })
 
   it('does not invent a missing event', () => {
-    const result = reconstruct({
-      schema: 'agent-trace',
-      host: { id: 'test' },
-      session: { id: 's' },
-      capabilities: [],
-      agents: [],
-      events: [],
-      skipped: [],
-    }, 'missing')
+    const result = reconstruct(
+      {
+        schema: 'agent-trace',
+        host: { id: 'test' },
+        session: { id: 's' },
+        capabilities: [],
+        agents: [],
+        events: [],
+        skipped: [],
+      },
+      'missing',
+    )
     expect(result.completeness).toBe('unavailable')
     expect(result.unavailable).toContain('event')
   })
 
-  it('starts a subagent turn at the lane start and needs the lane\'s own system prompt', () => {
+  it("starts a subagent turn at the lane start and needs the lane's own system prompt", () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
       schema: 'agent-trace',
       host: { id: 'test' },
       session: { id: 's', systemPrompt: 'main prompt' },
       capabilities: ['systemPrompt'],
-      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main' }, { id: 'own', parentId: 'main', systemPrompt: 'sub prompt' }],
+      agents: [
+        { id: 'main' },
+        { id: 'sub', parentId: 'main' },
+        { id: 'own', parentId: 'main', systemPrompt: 'sub prompt' },
+      ],
       events: [
-        { id: 'st', seq: 0, ts: 0, kind: 'tool_call', agentId: 'sub', payload: { name: 'task' }, source: { ...source, line: 1 } },
+        {
+          id: 'st',
+          seq: 0,
+          ts: 0,
+          kind: 'tool_call',
+          agentId: 'sub',
+          payload: { name: 'task' },
+          source: { ...source, line: 1 },
+        },
         { id: 'sa', seq: 1, ts: 1, kind: 'assistant', agentId: 'sub', payload: {}, source: { ...source, line: 2 } },
         { id: 'sr', seq: 2, ts: 2, kind: 'request', agentId: 'sub', payload: {}, source: { ...source, line: 3 } },
         { id: 'or', seq: 3, ts: 3, kind: 'request', agentId: 'own', payload: {}, source: { ...source, line: 4 } },
@@ -153,10 +193,29 @@ describe('reconstruct', () => {
   })
   it('takes the system prompt and tools from the latest snapshot at or before the event on its lane', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
-    const snap = (id: string, seq: number, payload: Record<string, unknown>, agentId?: string): Trace['events'][number] =>
-      ({ id, seq, ts: seq, kind: 'system', ...(agentId ? { agentId } : {}), payload: { type: 'prompt_snapshot', ...payload }, source: { ...source, line: seq + 1 } })
-    const request = (id: string, seq: number, agentId?: string): Trace['events'][number] =>
-      ({ id, seq, ts: seq, kind: 'request', ...(agentId ? { agentId } : {}), payload: {}, source: { ...source, line: seq + 1 } })
+    const snap = (
+      id: string,
+      seq: number,
+      payload: Record<string, unknown>,
+      agentId?: string,
+    ): Trace['events'][number] => ({
+      id,
+      seq,
+      ts: seq,
+      kind: 'system',
+      ...(agentId ? { agentId } : {}),
+      payload: { type: 'prompt_snapshot', ...payload },
+      source: { ...source, line: seq + 1 },
+    })
+    const request = (id: string, seq: number, agentId?: string): Trace['events'][number] => ({
+      id,
+      seq,
+      ts: seq,
+      kind: 'request',
+      ...(agentId ? { agentId } : {}),
+      payload: {},
+      source: { ...source, line: seq + 1 },
+    })
     const trace: Trace = {
       schema: 'agent-trace',
       host: { id: 'test' },
@@ -177,13 +236,32 @@ describe('reconstruct', () => {
       ],
       skipped: [],
     }
-    const prompt = (id: string) => (reconstruct(trace, id).slots ?? []).slice(0, 2).map(item => [item.status, item.recordedBy])
-    expect(prompt('r0')).toEqual([['unavailable', undefined], ['unavailable', undefined]])
-    expect(prompt('r1')).toEqual([['present', 's1'], ['unavailable', undefined]])
-    expect(prompt('s2')).toEqual([['present', 's2'], ['present', 's2']])
-    expect(prompt('r2')).toEqual([['present', 's3'], ['present', 's3']])
-    expect(prompt('ru')).toEqual([['present', 'u1'], ['unavailable', undefined]])
-    expect(prompt('rb')).toEqual([['unavailable', undefined], ['unavailable', undefined]])
+    const prompt = (id: string) =>
+      (reconstruct(trace, id).slots ?? []).slice(0, 2).map(item => [item.status, item.recordedBy])
+    expect(prompt('r0')).toEqual([
+      ['unavailable', undefined],
+      ['unavailable', undefined],
+    ])
+    expect(prompt('r1')).toEqual([
+      ['present', 's1'],
+      ['unavailable', undefined],
+    ])
+    expect(prompt('s2')).toEqual([
+      ['present', 's2'],
+      ['present', 's2'],
+    ])
+    expect(prompt('r2')).toEqual([
+      ['present', 's3'],
+      ['present', 's3'],
+    ])
+    expect(prompt('ru')).toEqual([
+      ['present', 'u1'],
+      ['unavailable', undefined],
+    ])
+    expect(prompt('rb')).toEqual([
+      ['unavailable', undefined],
+      ['unavailable', undefined],
+    ])
     expect(reconstruct(trace, 'r1').unavailable).toEqual(['tools', 'summary'])
   })
 })

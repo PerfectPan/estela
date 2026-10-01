@@ -25,8 +25,7 @@ function shape(text) {
       if (open && open[1][0] === fence.marker[0] && open[1].length >= fence.marker.length && open[2].trim() === '') {
         fences.push(fence.body.join('\n'))
         fence = null
-      }
-      else {
+      } else {
         fence.body.push(line)
       }
       continue
@@ -36,8 +35,9 @@ function shape(text) {
       continue
     }
     const h = line.match(/^(#{1,6})\s/)
-    if (h)
+    if (h) {
       headings[h[1].length - 1]++
+    }
   }
   return { headings, fences }
 }
@@ -47,18 +47,21 @@ let pairs = 0
 
 for (const dir of dirs) {
   const abs = join(root, dir)
-  if (!existsSync(abs))
+  if (!existsSync(abs)) {
     continue
+  }
   const names = readdirSync(abs).filter(n => n.endsWith('.md'))
   for (const name of names) {
     if (name.endsWith(ZH)) {
       const english = name.slice(0, -ZH.length) + '.md'
-      if (!names.includes(english))
+      if (!names.includes(english)) {
         problems.push(`${dir}/${name}: no English source ${dir}/${english}`)
+      }
       continue
     }
-    if (skip.has(name))
+    if (skip.has(name)) {
       continue
+    }
     const en = `${dir}/${name}`
     const zh = `${dir}/${name.slice(0, -3)}${ZH}`
     if (!existsSync(join(root, zh))) {
@@ -69,28 +72,33 @@ for (const dir of dirs) {
     const enText = readFileSync(join(root, en), 'utf8')
     const zhText = readFileSync(join(root, zh), 'utf8')
     const first = zhText.split('\n').find(l => l.trim() !== '')
-    if (first !== banner(en))
+    if (first !== banner(en)) {
       problems.push(`${zh}: first line must be: ${banner(en)}`)
+    }
     const a = shape(enText)
     const b = shape(zhText)
     a.headings.forEach((count, i) => {
-      if (count !== b.headings[i])
+      if (count !== b.headings[i]) {
         problems.push(`${zh}: ${b.headings[i]} level-${i + 1} headings, English has ${count}`)
+      }
     })
-    if (a.fences.length !== b.fences.length)
+    if (a.fences.length !== b.fences.length) {
       problems.push(`${zh}: ${b.fences.length} code blocks, English has ${a.fences.length}`)
-    else
+    } else {
       a.fences.forEach((body, i) => {
-        if (body !== b.fences[i])
+        if (body !== b.fences[i]) {
           problems.push(`${zh}: code block ${i + 1} differs from English; code and diagrams are copied unchanged`)
+        }
       })
+    }
   }
 }
 
 if (problems.length) {
   console.error('check-doc-translations: failed')
-  for (const p of problems)
+  for (const p of problems) {
     console.error(`  - ${p}`)
+  }
   process.exit(1)
 }
 console.log(`check-doc-translations: ok (${pairs} pair${pairs === 1 ? '' : 's'})`)

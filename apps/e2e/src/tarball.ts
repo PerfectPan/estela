@@ -24,11 +24,15 @@ export interface Installed {
  */
 async function buildCli(repo: string): Promise<void> {
   try {
-    await exec(process.execPath, ['common/scripts/install-run-rush.js', 'build', '--to', '@rivus/agent-trace'], { cwd: repo, maxBuffer: 64 * 1024 * 1024 })
-  }
-  catch (error) {
-    const { stdout = '', stderr = '' } = error as { stdout?: string, stderr?: string }
-    throw new Error(`rush build --to @rivus/agent-trace failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`, { cause: error })
+    await exec(process.execPath, ['common/scripts/install-run-rush.js', 'build', '--to', '@rivus/agent-trace'], {
+      cwd: repo,
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  } catch (error) {
+    const { stdout = '', stderr = '' } = error as { stdout?: string; stderr?: string }
+    throw new Error(`rush build --to @rivus/agent-trace failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`, {
+      cause: error,
+    })
   }
 }
 
@@ -37,9 +41,10 @@ export async function packAndInstall(root: string, repo: string): Promise<Instal
   await buildCli(repo)
   const cliDir = join(repo, 'apps/cli')
   const { stdout } = await exec('npm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
-  const [packed] = JSON.parse(stdout) as { filename: string, size: number, files: { path: string }[] }[]
-  if (!packed)
+  const [packed] = JSON.parse(stdout) as { filename: string; size: number; files: { path: string }[] }[]
+  if (!packed) {
     throw new Error(`npm pack printed no package: ${stdout}`)
+  }
   const tarball = join(root, packed.filename)
   const installDir = join(root, 'install')
   await mkdir(installDir, { recursive: true })

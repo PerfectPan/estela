@@ -1,4 +1,11 @@
-import type { EventDetail, ExportReportInput, ExportReportResult, ReportLocale, ReportTrace, TraceStore } from '@rivus/agent-trace-rpc'
+import type {
+  EventDetail,
+  ExportReportInput,
+  ExportReportResult,
+  ReportLocale,
+  ReportTrace,
+  TraceStore,
+} from '@rivus/agent-trace-rpc'
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
@@ -14,7 +21,12 @@ import { packForFile } from './report-site.ts'
  * (`build` passes the trace it loaded, so the file is read once; the export reads through the
  * store). Always redacted (plan D10), whatever `AGENT_TRACE_REDACT` says.
  */
-export async function reportOf(store: TraceStore, ref: string, full: (ids: readonly string[]) => Promise<EventDetail[]>, locale?: ReportLocale): Promise<ReportTrace> {
+export async function reportOf(
+  store: TraceStore,
+  ref: string,
+  full: (ids: readonly string[]) => Promise<EventDetail[]>,
+  locale?: ReportLocale,
+): Promise<ReportTrace> {
   const home = homeDir()
   return buildReport({ view: await store.view(ref), full, redact: value => redact(value, { homeDir: home }), locale })
 }
@@ -54,10 +66,10 @@ async function reserveDir(base: string): Promise<string> {
     try {
       await mkdir(dir)
       return dir
-    }
-    catch (error) {
-      if ((error as { code?: unknown }).code !== 'EEXIST')
+    } catch (error) {
+      if ((error as { code?: unknown }).code !== 'EEXIST') {
         throw error
+      }
     }
   }
 }
@@ -66,19 +78,24 @@ async function reserveDir(base: string): Promise<string> {
  * The dev server's "Export report": a new `agent-trace-report-<ref>-<time>` directory in the
  * working directory. The error message reaches the browser, so it is redacted too.
  */
-export async function exportReport(store: TraceStore, input: ExportReportInput, now = new Date()): Promise<ExportReportResult> {
+export async function exportReport(
+  store: TraceStore,
+  input: ExportReportInput,
+  now = new Date(),
+): Promise<ExportReportResult> {
   const home = homeDir()
   try {
     const report = await store.withEvents(input.ref, read => reportOf(store, input.ref, read, input.locale))
     const outDir = await serialized(async () => {
-      const dir = await reserveDir(resolve(process.cwd(), `agent-trace-report-${input.ref.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`))
+      const dir = await reserveDir(
+        resolve(process.cwd(), `agent-trace-report-${input.ref.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`),
+      )
       await buildSite(dir, report)
       return dir
     })
     // Absolute, so the browser can say exactly where; the home directory shows as `~`.
     return { path: redactText(join(outDir, 'index.html'), home), included: report.events.length, total: report.total }
-  }
-  catch (error) {
+  } catch (error) {
     // No cause: it would carry the unredacted home path to the browser.
     // oxlint-disable-next-line preserve-caught-error
     throw new Error(redactText(error instanceof Error ? error.message : String(error), home))

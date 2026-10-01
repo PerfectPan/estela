@@ -26,12 +26,23 @@ function lineKey(record: SourcedRecord): string {
 }
 
 const HOST = 'codex'
-const BARE_ITEM = new Set(['message', 'reasoning', 'function_call', 'function_call_output', 'custom_tool_call', 'custom_tool_call_output', 'compaction', 'agent_message', 'web_search_call'])
+const BARE_ITEM = new Set([
+  'message',
+  'reasoning',
+  'function_call',
+  'function_call_output',
+  'custom_tool_call',
+  'custom_tool_call_output',
+  'compaction',
+  'agent_message',
+  'web_search_call',
+])
 
 /** Per-call numbers: `token_usage_record.usage` or `token_count.info.last_token_usage`. `input_tokens` already includes cached input. */
 function callUsage(raw: Record<string, unknown> | undefined) {
-  if (!raw)
+  if (!raw) {
     return undefined
+  }
   return usageFrom({
     input: asNumber(raw.input_tokens),
     output: asNumber(raw.output_tokens),
@@ -56,8 +67,9 @@ const HISTORY_KIND: Record<string, TraceEvent['kind']> = { user: 'user', assista
  */
 function keptBy(event: TraceEvent, item: Record<string, unknown>): boolean {
   const id = asString(item.id) ?? asString(item.call_id)
-  if (id && hostIds(event).includes(id))
+  if (id && hostIds(event).includes(id)) {
     return true
+  }
   const role = asString(item.role)
   const text = textFrom(item.content)
   return role !== undefined && text !== undefined && event.kind === HISTORY_KIND[role] && event.payload.text === text
@@ -66,8 +78,9 @@ function keptBy(event: TraceEvent, item: Record<string, unknown>): boolean {
 /** `compacted` hides earlier events of its agent that `replacement_history` does not keep. */
 function shadowCompaction(events: TraceEvent[]): void {
   for (const compaction of events) {
-    if (compaction.kind !== 'compaction')
+    if (compaction.kind !== 'compaction') {
       continue
+    }
     const items = asRecord(asRecord(compaction.original)?.payload)?.replacement_history
     const kept = Array.isArray(items)
       ? items.map(item => asRecord(item)).filter((item): item is Record<string, unknown> => item !== undefined)
@@ -112,18 +125,18 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
     const record = records[index]!
     const ts = times[index]!
     const rec = asRecord(record.value)
-    if (!rec || 'formatVersion' in rec)
+    if (!rec || 'formatVersion' in rec) {
       throw generationError(HOST, record.file, record.line)
+    }
     const envelope = asString(rec.type)
     if (!envelope) {
       const recordType = asString(rec.record_type)
-      if (recordType)
+      if (recordType) {
         skipRecord(skipped, record, `record-${recordType}`)
-      else if ('timestamp' in rec && 'id' in rec) {
+      } else if ('timestamp' in rec && 'id' in rec) {
         sessionId ??= asString(rec.id)
         skipRecord(skipped, record, 'legacy-header')
-      }
-      else {
+      } else {
         throw generationError(HOST, record.file, record.line)
       }
       continue
@@ -135,29 +148,38 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
 
     const emit = (kind: TraceEvent['kind'], body: Record<string, unknown>, id?: string): TraceEvent => {
       let eventId = id ?? asString(payload.id) ?? lineKey(record)
-      if (usedIds.has(eventId))
+      if (usedIds.has(eventId)) {
         eventId = lineKey(record)
+      }
       usedIds.add(eventId)
       const event = baseEvent(record, kind, body, { id: eventId, ts })
       events.push(event)
       return event
     }
 
-    const request = (usage: Record<string, unknown> | undefined, responseId: string | undefined, turnId: string | undefined): void => {
+    const request = (
+      usage: Record<string, unknown> | undefined,
+      responseId: string | undefined,
+      turnId: string | undefined,
+    ): void => {
       const key = responseId ?? lineKey(record)
       const body: Record<string, unknown> = {}
-      if (model)
+      if (model) {
         body.model = model
-      if (responseId)
+      }
+      if (responseId) {
         body.responseId = responseId
+      }
       const mapped = callUsage(usage)
-      if (mapped)
+      if (mapped) {
         body.usage = mapped
+      }
       const event = baseEvent(record, 'request', body, { id: `request:${key}`, ts, requestId: key })
       usedIds.add(event.id)
       segment = placeRequest(events, segment, event)
-      if (turnId)
+      if (turnId) {
         byTurn.set(turnId, [...(byTurn.get(turnId) ?? []), event])
+      }
     }
 
     if (envelope === 'session_meta') {
@@ -165,8 +187,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
       sessionId ??= asString(payload.id) ?? asString(payload.session_id)
       cwd ??= asString(payload.cwd)
       version ??= asString(payload.cli_version)
-      if (!seenMeta)
+      if (!seenMeta) {
         systemPrompt = asString(asRecord(payload.base_instructions)?.text) || undefined
+      }
       seenMeta = true
       skipRecord(skipped, record, 'session-meta')
       continue
@@ -187,14 +210,21 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
         skipRecord(skipped, record, 'duplicate-usage')
         continue
       }
-      if (responseId)
+      if (responseId) {
         responses.add(responseId)
+      }
       request(asRecord(payload.usage), responseId, asString(payload.turn_id))
       continue
     }
     if (envelope === 'event_msg' && payload.type === 'token_count') {
       const info = asRecord(payload.info)
-      const reason = usageRecords ? 'other-usage-source' : !info ? 'empty-usage' : totalsKey(info) === previousTotals ? 'unchanged-usage' : undefined
+      const reason = usageRecords
+        ? 'other-usage-source'
+        : !info
+          ? 'empty-usage'
+          : totalsKey(info) === previousTotals
+            ? 'unchanged-usage'
+            : undefined
       if (reason || !info) {
         skipRecord(skipped, record, reason ?? 'empty-usage')
         continue
@@ -203,7 +233,11 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
       request(asRecord(info.last_token_usage), undefined, undefined)
       continue
     }
-    if (envelope === 'compacted' || (bare && envelope === 'compaction') || (envelope === 'response_item' && payload.type === 'compaction')) {
+    if (
+      envelope === 'compacted'
+      || (bare && envelope === 'compaction')
+      || (envelope === 'response_item' && payload.type === 'compaction')
+    ) {
       emit('compaction', {})
       continue
     }
@@ -217,8 +251,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
           skipRecord(skipped, record, 'item-completed')
           continue
         }
-        if (!agents.some(agent => agent.id === agentId))
+        if (!agents.some(agent => agent.id === agentId)) {
           agents.push({ id: agentId, parentId: 'main' })
+        }
         const kind = asString(item.kind)
         const event = emit('system', { type: 'subagent', agentId, ...(kind ? { kind } : {}) }, asString(item.id))
         event.agentId = agentId
@@ -227,8 +262,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
       if (inner === 'task_complete' || inner === 'turn_aborted') {
         const turnId = asString(payload.turn_id)
         if (inner === 'turn_aborted') {
-          for (const call of byTurn.get(turnId ?? '') ?? [])
+          for (const call of byTurn.get(turnId ?? '') ?? []) {
             call.payload.stopReason ??= asString(payload.reason) ?? 'interrupted'
+          }
         }
         const durationMs = asNumber(payload.duration_ms)
         if (durationMs === undefined) {
@@ -236,14 +272,26 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
           continue
         }
         // Turn duration. It stays on the turn marker, never on a request.
-        emit('system', { type: 'turn_duration', durationMs, ...(inner === 'turn_aborted' ? { aborted: true } : {}) }, lineKey(record))
+        emit(
+          'system',
+          { type: 'turn_duration', durationMs, ...(inner === 'turn_aborted' ? { aborted: true } : {}) },
+          lineKey(record),
+        )
         continue
       }
-      const reason = inner === 'task_started' ? 'task-marker' : inner === 'thread_settings_applied' ? 'thread-settings' : inner === 'thread_goal_updated' ? 'thread-goal' : undefined
-      if (reason)
+      const reason =
+        inner === 'task_started'
+          ? 'task-marker'
+          : inner === 'thread_settings_applied'
+            ? 'thread-settings'
+            : inner === 'thread_goal_updated'
+              ? 'thread-goal'
+              : undefined
+      if (reason) {
         skipRecord(skipped, record, reason)
-      else
+      } else {
         emit('unknown', { type: inner }, lineKey(record))
+      }
       continue
     }
 
@@ -253,8 +301,9 @@ export function parseCodexRecords(records: SourcedRecord[], options?: { sessionI
     }
     const inner = bare ? envelope : (asString(payload.type) ?? 'response_item')
     const event = emitInner(inner, payload, emit)
-    if (event?.kind === 'user' && !event.payload.injected && !title)
+    if (event?.kind === 'user' && !event.payload.injected && !title) {
       title = asString(event.payload.text)?.slice(0, 80)
+    }
   }
 
   shadowCompaction(events)

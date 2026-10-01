@@ -9,7 +9,10 @@ function isEnoent(error: unknown): boolean {
   return typeof error === 'object' && error != null && 'code' in error && error.code === 'ENOENT'
 }
 
-async function* readLines(path: string, opts?: { signal?: AbortSignal }): AsyncIterable<{ text: string, offset: number, length: number, line: number }> {
+async function* readLines(
+  path: string,
+  opts?: { signal?: AbortSignal },
+): AsyncIterable<{ text: string; offset: number; length: number; line: number }> {
   const handle = await open(path, 'r')
   const decoder = new TextDecoder('utf-8')
   const chunk = Buffer.alloc(CHUNK)
@@ -21,8 +24,9 @@ async function* readLines(path: string, opts?: { signal?: AbortSignal }): AsyncI
     while (true) {
       opts?.signal?.throwIfAborted()
       const { bytesRead } = await handle.read(chunk, 0, chunk.length)
-      if (bytesRead === 0)
+      if (bytesRead === 0) {
         break
+      }
       let from = 0
       while (from < bytesRead) {
         const nl = chunk.indexOf(0x0a, from)
@@ -38,8 +42,7 @@ async function* readLines(path: string, opts?: { signal?: AbortSignal }): AsyncI
         if (end > from && chunk[end - 1] === 0x0d) {
           end -= 1
           newline = 2
-        }
-        else if (end === from && pendingBytes > 0) {
+        } else if (end === from && pendingBytes > 0) {
           const last = pending[pending.length - 1]!
           if (last.length > 0 && last[last.length - 1] === 0x0d) {
             pending[pending.length - 1] = last.subarray(0, -1)
@@ -48,9 +51,10 @@ async function* readLines(path: string, opts?: { signal?: AbortSignal }): AsyncI
           }
         }
         const tail = chunk.subarray(from, end)
-        const text = pending.length === 0
-          ? tail
-          : Buffer.concat(tail.length > 0 ? [...pending, tail] : pending, pendingBytes + tail.length)
+        const text =
+          pending.length === 0
+            ? tail
+            : Buffer.concat(tail.length > 0 ? [...pending, tail] : pending, pendingBytes + tail.length)
         yield { text: decoder.decode(text), offset: lineStart, length: text.length, line }
         line += 1
         lineStart += text.length + newline
@@ -63,8 +67,7 @@ async function* readLines(path: string, opts?: { signal?: AbortSignal }): AsyncI
       const text = Buffer.concat(pending, pendingBytes)
       yield { text: decoder.decode(text), offset: lineStart, length: text.length, line }
     }
-  }
-  finally {
+  } finally {
     await handle.close()
   }
 }
@@ -75,18 +78,19 @@ export const nodeIO: TraceIO = {
   },
 
   async readBytes(path, range) {
-    if (!range)
+    if (!range) {
       return new Uint8Array(await readFile(path))
+    }
     const length = range.end - range.start
-    if (length <= 0)
+    if (length <= 0) {
       return new Uint8Array()
+    }
     const handle = await open(path, 'r')
     try {
       const buf = Buffer.alloc(length)
       const { bytesRead } = await handle.read(buf, 0, length, range.start)
       return new Uint8Array(buf.subarray(0, bytesRead))
-    }
-    finally {
+    } finally {
       await handle.close()
     }
   },
@@ -95,7 +99,7 @@ export const nodeIO: TraceIO = {
     const entries = await readdir(dir, { withFileTypes: true })
     return entries.map(entry => ({
       name: entry.name,
-      kind: entry.isDirectory() ? 'dir' as const : 'file' as const,
+      kind: entry.isDirectory() ? ('dir' as const) : ('file' as const),
     }))
   },
 
@@ -103,14 +107,14 @@ export const nodeIO: TraceIO = {
     try {
       const info = await stat(path)
       return {
-        kind: info.isDirectory() ? 'dir' as const : 'file' as const,
+        kind: info.isDirectory() ? ('dir' as const) : ('file' as const),
         size: info.size,
         mtimeMs: info.mtimeMs,
       }
-    }
-    catch (error) {
-      if (isEnoent(error))
+    } catch (error) {
+      if (isEnoent(error)) {
         return null
+      }
       throw error
     }
   },

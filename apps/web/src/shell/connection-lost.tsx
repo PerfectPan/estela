@@ -4,9 +4,11 @@ import { translate as t } from '@/i18n/locale.ts'
 export function ConnectionLost(props: { compact?: boolean }) {
   return (
     <div
-      class={props.compact
-        ? 'flex shrink-0 items-center gap-3 border-b border-border bg-secondary px-5 py-2 text-[13px]'
-        : 'flex flex-col items-start gap-3 text-[13px]'}
+      class={
+        props.compact
+          ? 'flex shrink-0 items-center gap-3 border-b border-border bg-secondary px-5 py-2 text-[13px]'
+          : 'flex flex-col items-start gap-3 text-[13px]'
+      }
       role="alert"
       data-testid="connection-lost"
     >

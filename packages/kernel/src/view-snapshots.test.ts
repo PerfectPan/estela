@@ -4,8 +4,21 @@ import { reconstruct } from './reconstruct.ts'
 import { toView } from './view.ts'
 
 const source = { file: 'f', offset: 0, length: 1, line: 1 }
-const event = (id: string, seq: number, kind: TraceEvent['kind'], payload: Record<string, unknown>, agentId?: string): TraceEvent =>
-  ({ id, seq, ts: seq, kind, ...(agentId ? { agentId } : {}), payload, source: { ...source, line: seq + 1 } })
+const event = (
+  id: string,
+  seq: number,
+  kind: TraceEvent['kind'],
+  payload: Record<string, unknown>,
+  agentId?: string,
+): TraceEvent => ({
+  id,
+  seq,
+  ts: seq,
+  kind,
+  ...(agentId ? { agentId } : {}),
+  payload,
+  source: { ...source, line: seq + 1 },
+})
 const snap = (id: string, seq: number, payload: Record<string, unknown>, agentId?: string) =>
   event(id, seq, 'system', { type: 'prompt_snapshot', ...payload }, agentId)
 
@@ -40,20 +53,37 @@ describe('toView prompt snapshots', () => {
     const view = toView(trace())
     const payload = (id: string) => view.events.find(item => item.id === id)!.payload
     expect(payload('p1')).toEqual({ type: 'prompt_snapshot', systemPrompt: 'one' })
-    expect(payload('p2')).toEqual({ type: 'prompt_snapshot', systemPromptSameAs: 'p1', tools: toolsA, cliPrefix: 'x', $truncated: [['systemPrompt']] })
+    expect(payload('p2')).toEqual({
+      type: 'prompt_snapshot',
+      systemPromptSameAs: 'p1',
+      tools: toolsA,
+      cliPrefix: 'x',
+      $truncated: [['systemPrompt']],
+    })
     // Another lane with the same prompt refers to the first holder too.
     expect(payload('s1')).toEqual({ type: 'prompt_snapshot', systemPromptSameAs: 'p1', $truncated: [['systemPrompt']] })
-    expect(payload('p3')).toEqual({ type: 'prompt_snapshot', systemPromptSameAs: 'p1', toolsSameAs: 'p2', $truncated: [['systemPrompt'], ['tools']] })
+    expect(payload('p3')).toEqual({
+      type: 'prompt_snapshot',
+      systemPromptSameAs: 'p1',
+      toolsSameAs: 'p2',
+      $truncated: [['systemPrompt'], ['tools']],
+    })
     expect(payload('p4')).toEqual({ type: 'prompt_snapshot', systemPrompt: 'two', tools: toolsB })
     // An empty list is kept as is.
-    expect(payload('p5')).toEqual({ type: 'prompt_snapshot', systemPromptSameAs: 'p4', tools: [], $truncated: [['systemPrompt']] })
+    expect(payload('p5')).toEqual({
+      type: 'prompt_snapshot',
+      systemPromptSameAs: 'p4',
+      tools: [],
+      $truncated: [['systemPrompt']],
+    })
   })
 
   it('reconstructs the same result from the full trace and the view', () => {
     const full = trace()
     const view = toView(full)
-    for (const item of full.events)
+    for (const item of full.events) {
       expect(reconstruct(view, item.id), item.id).toEqual(reconstruct(full, item.id))
+    }
   })
 
   it('treats a recorded empty tool list as empty, not present', () => {

@@ -22,11 +22,5 @@ export type BadgeProps = ComponentProps<'span'> & VariantProps<typeof badgeVaria
 
 export function Badge(props: BadgeProps) {
   const [, rest] = splitProps(props, ['class', 'variant'])
-  return (
-    <span
-      data-slot="badge"
-      class={badgeVariants({ variant: props.variant, class: props.class })}
-      {...rest}
-    />
-  )
+  return <span data-slot="badge" class={badgeVariants({ variant: props.variant, class: props.class })} {...rest} />
 }

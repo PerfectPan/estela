@@ -15,7 +15,10 @@ function homeForms(home: string): string[] {
   return [
     home,
     home.replaceAll(/[^A-Za-z0-9]/g, '-'),
-    home.split('/').map(segment => encodeURIComponent(segment)).join('%2F'),
+    home
+      .split('/')
+      .map(segment => encodeURIComponent(segment))
+      .join('%2F'),
     home.slice(1),
     home.replaceAll('/', '\\/'),
   ].map(form => form.toLowerCase())
@@ -27,7 +30,10 @@ function homesIn(text: string): string[] {
   return [...homeForms(ctx.homes.main.home), ...homeForms(homedir())].filter(form => lower.includes(form))
 }
 
-test('S9: Export report writes a redacted report that opens from file:// without a server, in the export language', async ({ page, launch }) => {
+test('S9: Export report writes a redacted report that opens from file:// without a server, in the export language', async ({
+  page,
+  launch,
+}) => {
   const home = ctx.homes.main.home
   // Redaction off on the local server: the workspace shows the home path, the report never does.
   // The session names the home in a git diff header, relative to /, JSON-escaped, %2F-encoded, and in capitals.
@@ -83,18 +89,20 @@ test('build writes a report that names its truncation and marks events without a
   const out = join(dir, 'report')
   try {
     const trace = await generateTrace(dir, 10000)
-    await exec(process.execPath, [ctx.bin, 'build', trace, '--out-dir', out], { cwd: dir, env: { ...process.env, HOME: ctx.homes.main.home } })
+    await exec(process.execPath, [ctx.bin, 'build', trace, '--out-dir', out], {
+      cwd: dir,
+      env: { ...process.env, HOME: ctx.homes.main.home },
+    })
     await page.goto(pathToFileURL(join(out, 'index.html')).href)
     await expect(page.getByTestId('ledger')).toBeVisible()
     await expect(page.getByTestId('report-truncated')).toHaveText(/first 2,000 of 10,\d{3} events/)
-    await page.getByTestId('ledger').evaluate((element) => {
+    await page.getByTestId('ledger').evaluate(element => {
       element.scrollTop = element.scrollHeight
     })
     await page.locator('[data-row-type=event]').last().click()
     await page.getByRole('tab', { name: 'Raw' }).click()
     await expect(activePanel(page)).toContainText('not included in this report')
-  }
-  finally {
+  } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })

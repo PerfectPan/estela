@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { axisTicks, bucketBars, edgeTo, isFullRange, makeScale, niceStep, normalizeRange, stepEdge, tokenGrid, tsOf, xOf } from './timeline-scale.ts'
+import {
+  axisTicks,
+  bucketBars,
+  edgeTo,
+  isFullRange,
+  makeScale,
+  niceStep,
+  normalizeRange,
+  stepEdge,
+  tokenGrid,
+  tsOf,
+  xOf,
+} from './timeline-scale.ts'
 
 const MINUTE = 60_000
 const scale = makeScale(0, 72 * MINUTE, 148, 1404)
@@ -53,7 +65,10 @@ describe('brush range', () => {
     const small = 72 * MINUTE * 0.01
     expect(stepEdge(range, 'from', 1, false, scale)).toEqual({ from: 30 * MINUTE + small, to: 46 * MINUTE })
     expect(stepEdge(range, 'to', -1, true, scale).to).toBeCloseTo(46 * MINUTE - 7.2 * MINUTE)
-    expect(stepEdge({ from: 45 * MINUTE, to: 46 * MINUTE }, 'from', 1, true, scale)).toEqual({ from: 46 * MINUTE, to: 46 * MINUTE })
+    expect(stepEdge({ from: 45 * MINUTE, to: 46 * MINUTE }, 'from', 1, true, scale)).toEqual({
+      from: 46 * MINUTE,
+      to: 46 * MINUTE,
+    })
     expect(stepEdge({ from: 0, to: 46 * MINUTE }, 'from', -1, false, scale).from).toBe(0)
     expect(stepEdge({ from: 0, to: 72 * MINUTE }, 'to', 1, true, scale).to).toBe(72 * MINUTE)
   })
@@ -68,16 +83,30 @@ describe('brush range', () => {
 
 describe('bars', () => {
   it('keeps one bar per request when they are far apart', () => {
-    const bars = bucketBars([{ ts: 0, tokens: 5, id: 'a' }, { ts: 36 * MINUTE, id: 'b' }], scale, 3)
-    expect(bars).toEqual([{ x: 148, tokens: 5, id: 'a', count: 1 }, { x: 776, id: 'b', count: 1 }])
+    const bars = bucketBars(
+      [
+        { ts: 0, tokens: 5, id: 'a' },
+        { ts: 36 * MINUTE, id: 'b' },
+      ],
+      scale,
+      3,
+    )
+    expect(bars).toEqual([
+      { x: 148, tokens: 5, id: 'a', count: 1 },
+      { x: 776, id: 'b', count: 1 },
+    ])
   })
 
   it('merges requests closer than the gap and keeps the largest recorded value', () => {
-    const bars = bucketBars([
-      { ts: 0, id: 'a' },
-      { ts: 1000, tokens: 7, id: 'b' },
-      { ts: 2000, tokens: 3, id: 'c' },
-    ], scale, 3)
+    const bars = bucketBars(
+      [
+        { ts: 0, id: 'a' },
+        { ts: 1000, tokens: 7, id: 'b' },
+        { ts: 2000, tokens: 3, id: 'c' },
+      ],
+      scale,
+      3,
+    )
     expect(bars).toEqual([{ x: 148, tokens: 7, id: 'b', count: 3 }])
   })
 })

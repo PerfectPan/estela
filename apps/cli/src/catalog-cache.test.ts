@@ -48,7 +48,13 @@ function fakeHost(home: string, loads: string[]): HostAdapter {
           continue
         }
         const title = await readFile(path, 'utf8')
-        yield { ref: { host: 'fake', path }, title, firstPrompt: title, lastActiveAt: (await stat(path)).mtimeMs, sizeBytes: 1 }
+        yield {
+          ref: { host: 'fake', path },
+          title,
+          firstPrompt: title,
+          lastActiveAt: (await stat(path)).mtimeMs,
+          sizeBytes: 1,
+        }
       }
     },
     async detect() {
@@ -103,7 +109,12 @@ describe('session catalog cache', () => {
     second.close()
 
     await writeFile(changed, 'Beta, edited')
-    const third = new SessionCatalog({ env, hosts: [fakeHost(home, loads)], index: openSessionIndex({ file }), deferSummaries: true })
+    const third = new SessionCatalog({
+      env,
+      hosts: [fakeHost(home, loads)],
+      index: openSessionIndex({ file }),
+      deferSummaries: true,
+    })
     const before = await third.listSessions()
     await third.discovered()
     const after = await third.listSessions({ since: before.revision })
@@ -117,7 +128,11 @@ describe('session catalog cache', () => {
     const file = join(home, 'index.sqlite')
     const env = { homeDir: home, env: {} }
     const loads: string[] = []
-    const old = new SessionCatalog({ env, hosts: [fakeHost(home, loads)], index: openSessionIndex({ file, summaryVersion: 0 }) })
+    const old = new SessionCatalog({
+      env,
+      hosts: [fakeHost(home, loads)],
+      index: openSessionIndex({ file, summaryVersion: 0 }),
+    })
     await old.whenIdle()
     old.close()
     const current = new SessionCatalog({ env, hosts: [fakeHost(home, loads)], index: openSessionIndex({ file }) })
@@ -131,7 +146,11 @@ describe('session catalog cache', () => {
 
   it('redacts titles and prompts in the list and the picker unless AGENT_TRACE_REDACT=0', async () => {
     const home = await tempHome()
-    await session(home, 'a.jsonl', `Read ${join('HOME', 'notes')} with sk-abcdefghijklmnop\nthen stop`.replace('HOME', home))
+    await session(
+      home,
+      'a.jsonl',
+      `Read ${join('HOME', 'notes')} with sk-abcdefghijklmnop\nthen stop`.replace('HOME', home),
+    )
     const hosts = [fakeHost(home, [])]
     const redacted = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts, noIndex: true, deferSummaries: true })
     const row = (await redacted.listSessions()).rows[0]!
@@ -139,7 +158,12 @@ describe('session catalog cache', () => {
     expect(row.firstPrompt).toBe(row.title)
     expect(JSON.stringify(await redacted.listSessions())).not.toContain(home)
     expect(redacted.pickChoices()[0]?.label).toMatch(/^Read ~\/notes with \[redacted\] then stop · Fake · /)
-    const raw = new SessionCatalog({ env: { homeDir: home, env: { AGENT_TRACE_REDACT: '0' } }, hosts, noIndex: true, deferSummaries: true })
+    const raw = new SessionCatalog({
+      env: { homeDir: home, env: { AGENT_TRACE_REDACT: '0' } },
+      hosts,
+      noIndex: true,
+      deferSummaries: true,
+    })
     expect((await raw.listSessions()).rows[0]?.title).toContain(home)
   })
 
@@ -159,7 +183,10 @@ describe('session catalog cache', () => {
     await mkdir(cache)
     await chmod(cache, 0o500)
     try {
-      const catalog = new SessionCatalog({ env: { homeDir: home, env: { XDG_CACHE_HOME: cache } }, hosts: [fakeHost(home, [])] })
+      const catalog = new SessionCatalog({
+        env: { homeDir: home, env: { XDG_CACHE_HOME: cache } },
+        hosts: [fakeHost(home, [])],
+      })
       expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
       expect(catalog.indexUnavailable).not.toContain(home)
       expect(catalog.indexUnavailable).toContain('~/cache')
@@ -167,8 +194,7 @@ describe('session catalog cache', () => {
       const listed = await catalog.listSessions({ query: 'Alp' })
       expect(listed.rows[0]?.requests).toBe(1)
       expect(listed.matches).toHaveLength(1)
-    }
-    finally {
+    } finally {
       await chmod(cache, 0o700)
     }
   })
@@ -178,8 +204,16 @@ describe('session catalog cache', () => {
     const dir = join(home, '.claude/projects/app')
     await mkdir(dir, { recursive: true })
     const path = join(dir, 'session.jsonl')
-    await writeFile(path, await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')))
-    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: registeredHosts, noIndex: true, deferSummaries: true })
+    await writeFile(
+      path,
+      await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
+    )
+    const catalog = new SessionCatalog({
+      env: { homeDir: home, env: {} },
+      hosts: registeredHosts,
+      noIndex: true,
+      deferSummaries: true,
+    })
     const trace = await loadTrace(path, registeredHosts, nodeIO)
     const opened = catalog.openPath(path, trace)
     const listed = await catalog.listSessions()
@@ -203,8 +237,16 @@ describe('session catalog cache', () => {
     const dir = join(home, '.claude/projects/app')
     await mkdir(dir, { recursive: true })
     const path = join(dir, 'session.jsonl')
-    await writeFile(path, await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')))
-    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: registeredHosts, noIndex: true, deferSummaries: true })
+    await writeFile(
+      path,
+      await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
+    )
+    const catalog = new SessionCatalog({
+      env: { homeDir: home, env: {} },
+      hosts: registeredHosts,
+      noIndex: true,
+      deferSummaries: true,
+    })
     const [row] = (await catalog.listSessions()).rows
     const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
     const handle = await traces.store.open(row!.ref, {})
@@ -220,7 +262,12 @@ describe('session catalog cache', () => {
     const home = await tempHome()
     await session(home, 'a.jsonl', 'Über die Tests')
     await session(home, 'b.jsonl', 'Plain session')
-    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: [fakeHost(home, [])], noIndex: true, deferSummaries: true })
+    const catalog = new SessionCatalog({
+      env: { homeDir: home, env: {} },
+      hosts: [fakeHost(home, [])],
+      noIndex: true,
+      deferSummaries: true,
+    })
     const titles = async (query: string) => {
       const listed = await catalog.listSessions({ query })
       return listed.matches?.map(ref => listed.rows.find(row => row.ref === ref)?.title)
@@ -240,14 +287,22 @@ describe('session catalog cache', () => {
     await first.whenIdle()
     first.close()
     await session(home, 'b.jsonl', 'Beta')
-    const holder = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '-e', `
+    const holder = spawn(
+      process.execPath,
+      [
+        '--disable-warning=ExperimentalWarning',
+        '-e',
+        `
       const { DatabaseSync } = require('node:sqlite')
       const db = new DatabaseSync(${JSON.stringify(file)})
       db.exec('BEGIN EXCLUSIVE')
       db.exec("UPDATE sessions SET title = 'held'")
       process.stdout.write('locked\\n')
       setTimeout(() => { db.exec('ROLLBACK'); db.close() }, 5000)
-    `], { stdio: ['ignore', 'pipe', 'inherit'] })
+    `,
+      ],
+      { stdio: ['ignore', 'pipe', 'inherit'] },
+    )
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     try {
       const started = performance.now()
@@ -257,11 +312,13 @@ describe('session catalog cache', () => {
       expect(listed.matches).toHaveLength(1)
       await second.whenIdle()
       const after = await second.listSessions()
-      expect(after.rows.map(row => [row.title, row.pending])).toEqual([['Beta', false], ['Alpha', false]])
+      expect(after.rows.map(row => [row.title, row.pending])).toEqual([
+        ['Beta', false],
+        ['Alpha', false],
+      ])
       expect(performance.now() - started).toBeLessThan(2_000)
       second.close()
-    }
-    finally {
+    } finally {
       holder.kill()
     }
   })

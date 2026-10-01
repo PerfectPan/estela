@@ -18,24 +18,25 @@ function startOfWeek(ts: number): number {
   return date.getTime()
 }
 
-export type DayBucket =
-  | { kind: 'today' | 'yesterday' | 'week' }
-  | { kind: 'day', day: number }
+export type DayBucket = { kind: 'today' | 'yesterday' | 'week' } | { kind: 'day'; day: number }
 
 /** Session list groups: today, yesterday, earlier this week, then one group per calendar day. */
 export function dayBucket(ts: number, now = Date.now()): DayBucket {
   const day = startOfDay(ts)
   const today = startOfDay(now)
-  if (day >= today)
+  if (day >= today) {
     return { kind: 'today' }
+  }
   // `setDate` rather than 24 h, so a daylight-saving change does not shift the boundary.
   const yesterdayDate = new Date(today)
   yesterdayDate.setDate(yesterdayDate.getDate() - 1)
   const yesterday = yesterdayDate.getTime()
-  if (day === yesterday)
+  if (day === yesterday) {
     return { kind: 'yesterday' }
-  if (day >= startOfWeek(now))
+  }
+  if (day >= startOfWeek(now)) {
     return { kind: 'week' }
+  }
   return { kind: 'day', day }
 }
 
@@ -60,11 +61,13 @@ export function formatNumber(value: number, locale: string): string {
 export function formatTokens(value: number): string {
   const sign = value < 0 ? '-' : ''
   const abs = Math.abs(value)
-  if (abs >= 999_950)
+  if (abs >= 999_950) {
     return `${sign}${(abs / 1_000_000).toFixed(2)}M`
+  }
   // 999.5 rounds to 1000: show it as 1k, not 1000.
-  if (abs >= 999.5)
+  if (abs >= 999.5) {
     return `${sign}${(abs / 1_000).toFixed(1).replace(/\.0$/, '')}k`
+  }
   return `${sign}${Math.round(abs)}`
 }
 
@@ -78,26 +81,32 @@ function formatWeekday(ts: number, locale: string): string {
 
 export function formatDate(ts: number, locale: string, now = Date.now()): string {
   const sameYear = new Date(ts).getFullYear() === new Date(now).getFullYear()
-  return new Intl.DateTimeFormat(locale, sameYear
-    ? { month: 'short', day: 'numeric' }
-    : { year: 'numeric', month: 'short', day: 'numeric' }).format(ts)
+  return new Intl.DateTimeFormat(
+    locale,
+    sameYear ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' },
+  ).format(ts)
 }
 
 /** A day group header for a calendar day: `Mon, Sep 15` / `9月15日周一`. */
 export function formatDayHeading(ts: number, locale: string, now = Date.now()): string {
   const sameYear = new Date(ts).getFullYear() === new Date(now).getFullYear()
-  return new Intl.DateTimeFormat(locale, sameYear
-    ? { weekday: 'short', month: 'short', day: 'numeric' }
-    : { year: 'numeric', month: 'short', day: 'numeric' }).format(ts)
+  return new Intl.DateTimeFormat(
+    locale,
+    sameYear
+      ? { weekday: 'short', month: 'short', day: 'numeric' }
+      : { year: 'numeric', month: 'short', day: 'numeric' },
+  ).format(ts)
 }
 
 /** The "Active" column: a clock time today and yesterday, the weekday this week, a date before. */
 export function formatActive(ts: number, locale: string, now = Date.now()): string {
   const bucket = dayBucket(ts, now)
-  if (bucket.kind === 'today' || bucket.kind === 'yesterday')
+  if (bucket.kind === 'today' || bucket.kind === 'yesterday') {
     return formatClock(ts, locale)
-  if (bucket.kind === 'week')
+  }
+  if (bucket.kind === 'week') {
     return formatWeekday(ts, locale)
+  }
   return formatDate(ts, locale, now)
 }
 
@@ -121,12 +130,15 @@ export function formatDuration(ms: number, locale: string): string {
   const zh = locale.toLowerCase().startsWith('zh')
   const n = (value: number) => formatNumber(value, locale)
   const parts: string[] = []
-  if (hours > 0)
+  if (hours > 0) {
     parts.push(zh ? `${n(hours)}小时` : `${n(hours)}h`)
-  if (minutes > 0 || (hours > 0 && !zh))
+  }
+  if (minutes > 0 || (hours > 0 && !zh)) {
     parts.push(zh ? `${n(minutes)}分` : `${hours > 0 ? String(minutes).padStart(2, '0') : n(minutes)}m`)
-  if (hours === 0 && minutes === 0)
+  }
+  if (hours === 0 && minutes === 0) {
     parts.push(zh ? `${n(seconds)}秒` : `${n(seconds)}s`)
+  }
   return (ms < 0 ? '-' : '') + parts.join(zh ? '' : ' ')
 }
 
@@ -134,7 +146,6 @@ export function formatDuration(ms: number, locale: string): string {
 export function formatOptional(value: number | undefined, text: (value: number) => string, dash: string): string {
   return value === undefined ? dash : text(value)
 }
-
 
 /** Ledger time column: elapsed since the session start, `36:10` or `1:02:05`. Locale-independent. */
 export function formatElapsed(ms: number): string {
@@ -161,8 +172,15 @@ export function formatStart(ts: number, locale: string, now = Date.now()): strin
 
 /** Load progress: `12.3 MB`, `845 kB` (decimal units, as file managers show them). */
 export function formatBytes(bytes: number, locale: string): string {
-  const [unit, divisor] = bytes >= 1e9 ? ['gigabyte', 1e9] as const : bytes >= 1e6 ? ['megabyte', 1e6] as const : ['kilobyte', 1e3] as const
-  return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: 1 }).format(bytes / divisor)
+  const [unit, divisor] =
+    bytes >= 1e9
+      ? (['gigabyte', 1e9] as const)
+      : bytes >= 1e6
+        ? (['megabyte', 1e6] as const)
+        : (['kilobyte', 1e3] as const)
+  return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: 1 }).format(
+    bytes / divisor,
+  )
 }
 
 /** The ledger time column for an event: elapsed since `start`, or empty when the event has no time. */
@@ -172,7 +190,8 @@ export function elapsedFrom(ts: number | undefined, start: number): string {
 
 /** `2.41M / 61k`; one dash when neither side was recorded. */
 export function formatInOut(input: number | undefined, output: number | undefined, dash: string): string {
-  if (input === undefined && output === undefined)
+  if (input === undefined && output === undefined) {
     return dash
+  }
   return `${formatOptional(input, formatTokens, dash)} / ${formatOptional(output, formatTokens, dash)}`
 }

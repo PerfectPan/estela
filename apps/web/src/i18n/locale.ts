@@ -5,12 +5,14 @@ import { zhCN } from './dictionary.zh-CN.ts'
 
 export type Locale = 'en' | 'zh-CN'
 type FlatDictionary = Flatten<Dictionary>
-export type MessageKey = { [K in keyof FlatDictionary]: FlatDictionary[K] extends string ? K : never }[keyof FlatDictionary]
+export type MessageKey = {
+  [K in keyof FlatDictionary]: FlatDictionary[K] extends string ? K : never
+}[keyof FlatDictionary]
 
 const STORAGE_KEY = 'agent-trace-locale'
 
 const dictionaries: Record<Locale, FlatDictionary> = {
-  'en': flatten(en),
+  en: flatten(en),
   'zh-CN': flatten(zhCN),
 }
 
@@ -23,8 +25,7 @@ function stored(): Locale | undefined {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
     return value === 'en' || value === 'zh-CN' ? value : undefined
-  }
-  catch {
+  } catch {
     return undefined
   }
 }
@@ -32,8 +33,9 @@ function stored(): Locale | undefined {
 /** `zh*` in `navigator.languages` selects `zh-CN`; anything else is `en`. A manual choice wins. */
 export function preferredLocale(languages: readonly string[] = navigator.languages ?? [navigator.language]): Locale {
   const manual = stored()
-  if (manual)
+  if (manual) {
     return manual
+  }
   const first = languages.find(language => language.length > 0) ?? 'en'
   return first.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
@@ -48,8 +50,7 @@ export function applyLocale(next: Locale = preferredLocale()): void {
 export function chooseLocale(next: Locale): void {
   try {
     localStorage.setItem(STORAGE_KEY, next)
-  }
-  catch {
+  } catch {
     // Private mode: the choice lasts for this page only.
   }
   applyLocale(next)

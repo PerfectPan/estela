@@ -18,7 +18,9 @@ const SLOT_CAPABILITY: Partial<Record<ContextSlotName, Capability>> = {
 
 function phraseList(slots: readonly ContextSlot[]): string {
   const phrases = slots.map(slot => t(SLOT_PHRASE[slot.name]))
-  return phrases.length > 1 ? `${phrases.slice(0, -1).join(t('inspector.listSeparator'))}${t('inspector.listJoin')}${phrases.at(-1)}` : phrases[0]!
+  return phrases.length > 1
+    ? `${phrases.slice(0, -1).join(t('inspector.listSeparator'))}${t('inspector.listJoin')}${phrases.at(-1)}`
+    : phrases[0]!
 }
 
 /**
@@ -26,7 +28,10 @@ function phraseList(slots: readonly ContextSlot[]): string {
  * slot its log never records, or one it records only after this event or on
  * another lane (its capability is listed, but no record precedes the event).
  */
-export function unavailableNote(capabilities: readonly Capability[], slots: readonly ContextSlot[]): string | undefined {
+export function unavailableNote(
+  capabilities: readonly Capability[],
+  slots: readonly ContextSlot[],
+): string | undefined {
   const unavailable = slots.filter(slot => slot.status === 'unavailable')
   const elsewhere = (slot: ContextSlot) => {
     const capability = SLOT_CAPABILITY[slot.name]

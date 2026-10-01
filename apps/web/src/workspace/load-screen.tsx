@@ -6,8 +6,8 @@ import { hostName } from '@/lib/host-names.ts'
 import { ConnectionLost } from '@/shell/connection-lost.tsx'
 
 /** Bytes read out of the file size while `load-trace` runs (3.5, S12). */
-export function LoadingPanel(props: { bytesRead: number, totalBytes: number }) {
-  const ratio = () => props.totalBytes > 0 ? Math.min(1, props.bytesRead / props.totalBytes) : 0
+export function LoadingPanel(props: { bytesRead: number; totalBytes: number }) {
+  const ratio = () => (props.totalBytes > 0 ? Math.min(1, props.bytesRead / props.totalBytes) : 0)
   const done = () => props.totalBytes > 0 && props.bytesRead >= props.totalBytes
   return (
     <div class="grid flex-1 place-items-center px-6" data-testid="loading">
@@ -21,13 +21,19 @@ export function LoadingPanel(props: { bytesRead: number, totalBytes: number }) {
           aria-valuemax={100}
           aria-valuenow={Math.round(ratio() * 100)}
         >
-          <div class="h-full rounded-full bg-kind-request transition-[width] duration-150" style={{ width: `${ratio() * 100}%` }} />
+          <div
+            class="h-full rounded-full bg-kind-request transition-[width] duration-150"
+            style={{ width: `${ratio() * 100}%` }}
+          />
         </div>
         <span class="font-mono text-[12px] text-muted-foreground">
           <Show when={props.totalBytes > 0} fallback={t('common.loading')}>
             {done()
               ? t('workspace.preparing')
-              : t('workspace.bytesOf', { read: formatBytes(props.bytesRead, locale()), total: formatBytes(props.totalBytes, locale()) })}
+              : t('workspace.bytesOf', {
+                  read: formatBytes(props.bytesRead, locale()),
+                  total: formatBytes(props.totalBytes, locale()),
+                })}
           </Show>
         </span>
       </div>
@@ -36,7 +42,7 @@ export function LoadingPanel(props: { bytesRead: number, totalBytes: number }) {
 }
 
 /** A failed load: host, file, and line when the message carries them, and a way back (3.7). */
-export function ErrorPanel(props: { failure: LoadFailure, onRetry: () => void }) {
+export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void }) {
   if (props.failure.lost) {
     return (
       <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
@@ -73,8 +79,12 @@ export function ErrorPanel(props: { failure: LoadFailure, onRetry: () => void })
         <dd class="m-0 break-words whitespace-pre-wrap text-muted-foreground">{props.failure.reason}</dd>
       </dl>
       <div class="flex items-center gap-4 text-[13px]">
-        <a href="#/" class="text-link hover:underline">{t('workspace.back')}</a>
-        <button type="button" class="text-muted-foreground hover:text-foreground" onClick={() => props.onRetry()}>{t('workspace.retry')}</button>
+        <a href="#/" class="text-link hover:underline">
+          {t('workspace.back')}
+        </a>
+        <button type="button" class="text-muted-foreground hover:text-foreground" onClick={() => props.onRetry()}>
+          {t('workspace.retry')}
+        </button>
       </div>
     </div>
   )

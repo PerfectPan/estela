@@ -19,7 +19,12 @@ function measureLabel(text: string): number {
 }
 
 /** Pointer capture on `target` until the button is released or the pointer is lost. */
-function trackDrag(target: Element, event: PointerEvent, onMove: (move: PointerEvent) => void, onEnd: () => void): void {
+function trackDrag(
+  target: Element,
+  event: PointerEvent,
+  onMove: (move: PointerEvent) => void,
+  onEnd: () => void,
+): void {
   target.setPointerCapture(event.pointerId)
   const end = () => {
     target.removeEventListener('pointermove', onMove as EventListener)
@@ -55,24 +60,30 @@ export function Timeline(props: {
   const [width, setWidth] = createSignal(1440)
   onMount(() => {
     const observer = new ResizeObserver(entries => setWidth(Math.max(480, Math.round(entries[0]!.contentRect.width))))
-    if (host)
+    if (host) {
       observer.observe(host)
+    }
     onCleanup(() => observer.disconnect())
   })
 
   const subs = createMemo(() => props.data.subs.slice(0, LAYOUT.maxSubLanes))
   /** The label column grows for long lane titles, up to `maxX0`; longer titles are cut with an ellipsis. */
   const plotStart = createMemo(() => {
-    const widest = Math.max(measureLabel(t('timeline.mainAgent')), ...subs().map(draw => measureLabel(draw.lane.title ?? draw.lane.id)))
+    const widest = Math.max(
+      measureLabel(t('timeline.mainAgent')),
+      ...subs().map(draw => measureLabel(draw.lane.title ?? draw.lane.id)),
+    )
     return Math.min(LAYOUT.maxX0, Math.max(LAYOUT.x0, LAYOUT.labelX + widest + 16))
   })
   const scale = createMemo(() => makeScale(props.data.start, props.data.end, plotStart(), width() - LAYOUT.right))
   const extra = () => props.data.subs.length - subs().length
   const bottom = createMemo(() => axisTop(subs().length, extra() > 0))
   const height = () => bottom() + 22
-  const range = () => isFullRange(props.range, scale()) ? undefined : props.range
+  const range = () => (isFullRange(props.range, scale()) ? undefined : props.range)
   const edges = () => range() ?? { from: scale().start, to: scale().end }
-  const compactions = createMemo(() => [props.data.main, ...props.data.subs].flatMap(draw => draw.compactions).toSorted((a, b) => a.ts - b.ts))
+  const compactions = createMemo(() =>
+    [props.data.main, ...props.data.subs].flatMap(draw => draw.compactions).toSorted((a, b) => a.ts - b.ts),
+  )
 
   function localX(event: PointerEvent): number {
     const box = svg!.getBoundingClientRect()
@@ -84,71 +95,92 @@ export function Timeline(props: {
   }
 
   function nearestRequest(x: number): string | undefined {
-    let best: { id: string, gap: number } | undefined
+    let best: { id: string; gap: number } | undefined
     for (const bar of props.data.main.bars) {
       const gap = Math.abs(xOf(scale(), bar.ts) - x)
-      if (gap <= 4 && (!best || gap < best.gap))
+      if (gap <= 4 && (!best || gap < best.gap)) {
         best = { id: bar.id, gap }
+      }
     }
     return best?.id
   }
 
   function onPlotDown(event: PointerEvent): void {
-    if (event.button !== 0)
+    if (event.button !== 0) {
       return
+    }
     const startX = localX(event)
     const anchor = tsOf(scale(), startX)
     let moved = false
-    trackDrag(event.currentTarget as Element, event, (next) => {
-      if (!moved && Math.abs(localX(next) - startX) < CLICK_PX)
-        return
-      moved = true
-      commit(normalizeRange(anchor, tsOf(scale(), localX(next)), scale().start, scale().end))
-    }, () => {
-      if (moved)
-        return
-      const id = nearestRequest(startX)
-      if (id)
-        props.onSelect(id)
-      // A click outside the selected range clears it; inside it keeps the range.
-      else if (!inRange(anchor, range()))
-        props.onRange(undefined)
-    })
+    trackDrag(
+      event.currentTarget as Element,
+      event,
+      next => {
+        if (!moved && Math.abs(localX(next) - startX) < CLICK_PX) {
+          return
+        }
+        moved = true
+        commit(normalizeRange(anchor, tsOf(scale(), localX(next)), scale().start, scale().end))
+      },
+      () => {
+        if (moved) {
+          return
+        }
+        const id = nearestRequest(startX)
+        if (id) {
+          props.onSelect(id)
+        }
+        // A click outside the selected range clears it; inside it keeps the range.
+        else if (!inRange(anchor, range())) {
+          props.onRange(undefined)
+        }
+      },
+    )
   }
 
   function onHandleDown(edge: Edge, event: PointerEvent): void {
-    if (event.button !== 0)
+    if (event.button !== 0) {
       return
+    }
     event.stopPropagation()
     const target = event.currentTarget as SVGRectElement
     target.focus()
-    trackDrag(target, event, (next) => {
-      const at = tsOf(scale(), localX(next))
-      const current = edges()
-      commit(edge === 'from'
-        ? { from: Math.min(at, current.to), to: current.to }
-        : { from: current.from, to: Math.max(at, current.from) })
-    }, () => {})
+    trackDrag(
+      target,
+      event,
+      next => {
+        const at = tsOf(scale(), localX(next))
+        const current = edges()
+        commit(
+          edge === 'from'
+            ? { from: Math.min(at, current.to), to: current.to }
+            : { from: current.from, to: Math.max(at, current.from) },
+        )
+      },
+      () => {},
+    )
   }
 
   function onHandleKey(edge: Edge, event: KeyboardEvent): void {
     const current = edges()
     let next: TimeRange | undefined
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown')
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
       next = stepEdge(current, edge, -1, event.shiftKey, scale())
-    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp')
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
       next = stepEdge(current, edge, 1, event.shiftKey, scale())
-    else if (event.key === 'Home')
+    } else if (event.key === 'Home') {
       next = edgeTo(current, edge, 'start', scale())
-    else if (event.key === 'End')
+    } else if (event.key === 'End') {
       next = edgeTo(current, edge, 'end', scale())
-    else if (event.key === 'Escape')
+    } else if (event.key === 'Escape') {
       props.onRange(undefined)
-    else
+    } else {
       return
+    }
     event.preventDefault()
-    if (next)
+    if (next) {
       commit(next)
+    }
   }
 
   const elapsed = (ts: number) => ts - scale().start
@@ -159,9 +191,29 @@ export function Timeline(props: {
 
   return (
     <section class="shrink-0 border-b border-border bg-background" aria-label={t('timeline.title')}>
-      <TimelineHeader range={header()} duration={scale().end - scale().start} count={props.count} onClear={() => props.onRange(undefined)} />
-      <div ref={(element) => { host = element }} class="w-full">
-        <svg ref={(element) => { svg = element }} width={width()} height={height()} viewBox={`0 0 ${width()} ${height()}`} class="block select-none" role="group" aria-label={t('timeline.label')}>
+      <TimelineHeader
+        range={header()}
+        duration={scale().end - scale().start}
+        count={props.count}
+        onClear={() => props.onRange(undefined)}
+      />
+      <div
+        ref={element => {
+          host = element
+        }}
+        class="w-full"
+      >
+        <svg
+          ref={element => {
+            svg = element
+          }}
+          width={width()}
+          height={height()}
+          viewBox={`0 0 ${width()} ${height()}`}
+          class="block select-none"
+          role="group"
+          aria-label={t('timeline.label')}
+        >
           <Show when={range()}>
             {current => (
               <rect
@@ -176,10 +228,23 @@ export function Timeline(props: {
           </Show>
           <MainLane draw={props.data.main} scale={scale()} top={props.data.top} selectedId={props.selectedId} />
           <For each={subs()}>
-            {(draw, index) => <SubLane draw={draw} index={index()} scale={scale()} fit={(text, room) => fitMeasured(text, room, measureLabel)} />}
+            {(draw, index) => (
+              <SubLane
+                draw={draw}
+                index={index()}
+                scale={scale()}
+                fit={(text, room) => fitMeasured(text, room, measureLabel)}
+              />
+            )}
           </For>
           <Show when={extra() > 0}>
-            <text x={LAYOUT.labelX} y={LAYOUT.firstLane + LAYOUT.laneStep * subs().length + 4} class="font-sans" font-size="12" fill="var(--subtle-foreground)">
+            <text
+              x={LAYOUT.labelX}
+              y={LAYOUT.firstLane + LAYOUT.laneStep * subs().length + 4}
+              class="font-sans"
+              font-size="12"
+              fill="var(--subtle-foreground)"
+            >
               {t('timeline.moreLanes', { count: extra() })}
             </text>
           </Show>
@@ -230,7 +295,15 @@ function Handle(props: {
   return (
     <g class="brush-handle" data-idle={props.active ? 'false' : 'true'}>
       <Show when={props.active}>
-        <line x1={props.x} y1="10" x2={props.x} y2={props.bottom} stroke="var(--kind-request)" stroke-width="1" stroke-opacity="0.7" />
+        <line
+          x1={props.x}
+          y1="10"
+          x2={props.x}
+          y2={props.bottom}
+          stroke="var(--kind-request)"
+          stroke-width="1"
+          stroke-opacity="0.7"
+        />
       </Show>
       <rect
         x={props.x - 3}

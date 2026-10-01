@@ -10,8 +10,7 @@ function stored(): 'light' | 'dark' | undefined {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
     return value === 'dark' || value === 'light' ? value : undefined
-  }
-  catch {
+  } catch {
     return undefined
   }
 }
@@ -32,20 +31,21 @@ export function initTheme(): void {
   setMode(stored() ?? 'system')
   apply()
   media().addEventListener('change', () => {
-    if (mode() === 'system')
+    if (mode() === 'system') {
       apply()
+    }
   })
 }
 
 /** `system` clears the stored choice; `light` and `dark` persist it. */
 export function chooseTheme(next: ThemeMode): void {
   try {
-    if (next === 'system')
+    if (next === 'system') {
       localStorage.removeItem(STORAGE_KEY)
-    else
+    } else {
       localStorage.setItem(STORAGE_KEY, next)
-  }
-  catch {
+    }
+  } catch {
     // Private mode: the choice lasts for this page only.
   }
   setMode(next)

@@ -20,8 +20,9 @@ function escapeRegExp(value: string): string {
  */
 function homePattern(homeDir: string): RegExp | undefined {
   const root = homeRoot(homeDir)
-  if (!root || root === '/')
+  if (!root || root === '/') {
     return undefined
+  }
   const name = String.raw`\p{L}\p{N}_`
   const forms = [escapeRegExp(root)]
   if (root.startsWith('/')) {
@@ -38,10 +39,16 @@ function homePattern(homeDir: string): RegExp | undefined {
  */
 function encodedHomePattern(homeDir: string): RegExp | undefined {
   const root = homeRoot(homeDir)
-  if (!root || root === '/')
+  if (!root || root === '/') {
     return undefined
+  }
   const dash = escapeRegExp(root.replace(/[^A-Za-z0-9]/g, '-'))
-  const encoded = escapeRegExp(root.split('/').map(segment => encodeURIComponent(segment)).join('%2F'))
+  const encoded = escapeRegExp(
+    root
+      .split('/')
+      .map(segment => encodeURIComponent(segment))
+      .join('%2F'),
+  )
   const name = String.raw`\p{L}\p{N}_`
   return new RegExp(`(?<![${name}%])(?:${encoded}|${dash})(?![${name}])`, 'giu')
 }
@@ -65,14 +72,17 @@ function redactValue(
   pattern: RegExp | undefined,
   encoded: RegExp | undefined,
 ): unknown {
-  if (typeof value === 'string')
+  if (typeof value === 'string') {
     return redactText(value, homeDir, pattern, encoded)
-  if (Array.isArray(value))
+  }
+  if (Array.isArray(value)) {
     return value.map(item => redactValue(item, homeDir, pattern, encoded))
+  }
   if (isObjectLike(value)) {
     const out: Record<string, unknown> = {}
-    for (const [key, item] of Object.entries(value as Record<string, unknown>))
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
       out[redactText(key, homeDir, pattern, encoded)] = redactValue(item, homeDir, pattern, encoded)
+    }
     return out
   }
   return value

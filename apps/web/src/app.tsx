@@ -13,9 +13,7 @@ export function App(props: { report?: ReportTrace }) {
   }
   return (
     <Switch>
-      <Match when={props.report}>
-        {report => <Workspace sessionRef="" report={report()} />}
-      </Match>
+      <Match when={props.report}>{report => <Workspace sessionRef="" report={report()} />}</Match>
       <Match when={workspaceRef()} keyed>
         {ref => <Workspace sessionRef={ref} />}
       </Match>

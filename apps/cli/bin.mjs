@@ -12,8 +12,8 @@ if (message) {
 
 await import('@rivus/agent-trace-runtime-node/sqlite-warning')
 const { main } = typeof AGENT_TRACE_BUNDLE !== 'undefined' ? await import('./cli.mjs') : await import('./src/main.ts')
-main().catch((error) => {
-  const text = error instanceof Error ? error.stack ?? error.message : String(error)
+main().catch(error => {
+  const text = error instanceof Error ? (error.stack ?? error.message) : String(error)
   process.stderr.write(`${text}\n`)
   process.exit(1)
 })

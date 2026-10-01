@@ -2,15 +2,18 @@ import type { PromptSnapshotPayload, TraceEvent } from '@rivus/agent-trace-schem
 
 /** The payload of a prompt snapshot event (`system`, `type: 'prompt_snapshot'`), else `undefined`. */
 export function promptSnapshot(event: TraceEvent): PromptSnapshotPayload | undefined {
-  if (event.kind !== 'system' || event.payload.type !== 'prompt_snapshot')
+  if (event.kind !== 'system' || event.payload.type !== 'prompt_snapshot') {
     return undefined
+  }
   return event.payload as unknown as PromptSnapshotPayload
 }
 
 /** A recorded, non-empty system prompt: the text, or in a view trace a reference to the snapshot that holds it. */
 export function snapshotHasSystemPrompt(snapshot: PromptSnapshotPayload | undefined): boolean {
-  return (typeof snapshot?.systemPrompt === 'string' && snapshot.systemPrompt.length > 0)
+  return (
+    (typeof snapshot?.systemPrompt === 'string' && snapshot.systemPrompt.length > 0)
     || typeof snapshot?.systemPromptSameAs === 'string'
+  )
 }
 
 /** A recorded tool list, possibly empty; in a view trace a repeated non-empty list is a reference. */
@@ -30,8 +33,9 @@ export function latestSnapshot(
 ): TraceEvent | undefined {
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]!
-    if (test(promptSnapshot(event)))
+    if (test(promptSnapshot(event))) {
       return event
+    }
   }
   return undefined
 }

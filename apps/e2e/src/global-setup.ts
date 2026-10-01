@@ -19,13 +19,14 @@ declare module 'vitest' {
 }
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const { context, cleanup } = await prepareRun('smoke', 'AGENT_TRACE_SMOKE_KEEP', async (root) => {
+  const { context, cleanup } = await prepareRun('smoke', 'AGENT_TRACE_SMOKE_KEEP', async root => {
     const cache = join(root, 'cache')
     await mkdir(cache, { recursive: true })
-    return { cache, ...await buildFixtureHome(join(root, 'home'), repo) }
+    return { cache, ...(await buildFixtureHome(join(root, 'home'), repo)) }
   })
-  for (const file of context.files)
+  for (const file of context.files) {
     process.stdout.write(`  ${file}\n`)
+  }
   project.provide('smoke', context)
   return cleanup
 }

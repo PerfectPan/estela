@@ -1,4 +1,10 @@
-import type { HostListEntry, ListSessionsQuery, ListSessionsResult, SessionListRow, SessionsSignal } from '@rivus/agent-trace-rpc'
+import type {
+  HostListEntry,
+  ListSessionsQuery,
+  ListSessionsResult,
+  SessionListRow,
+  SessionsSignal,
+} from '@rivus/agent-trace-rpc'
 import { batch, createSignal, onCleanup } from 'solid-js'
 import { scopedClient } from '@/shell/client.ts'
 
@@ -41,15 +47,17 @@ export function createSessionStore() {
       setPending(result.pending)
       if (result.complete) {
         setRows(result.rows)
-      }
-      else if (result.rows.length > 0 || (result.removed?.length ?? 0) > 0) {
+      } else if (result.rows.length > 0 || (result.removed?.length ?? 0) > 0) {
         const changed = new Map(result.rows.map(row => [row.ref, row]))
         const gone = new Set(result.removed ?? [])
-        const next = rows().filter(row => !gone.has(row.ref)).map(row => changed.get(row.ref) ?? row)
+        const next = rows()
+          .filter(row => !gone.has(row.ref))
+          .map(row => changed.get(row.ref) ?? row)
         const known = new Set(next.map(row => row.ref))
         for (const row of result.rows) {
-          if (!known.has(row.ref))
+          if (!known.has(row.ref)) {
             next.push(row)
+          }
         }
         next.sort((a, b) => b.lastActiveAt - a.lastActiveAt)
         setRows(next)
@@ -71,19 +79,20 @@ export function createSessionStore() {
       const first = wanted
       wanted = []
       const request: ListSessionsQuery = revision === undefined ? {} : { since: revision }
-      if (first.length > 0)
+      if (first.length > 0) {
         request.first = first
+      }
       const result = await listSessions(request)
-      if (!disposed)
+      if (!disposed) {
         apply(result)
+      }
       // New titles and prompts may match the active search.
-      if (query && revision !== before)
+      if (query && revision !== before) {
         void runSearch()
-    }
-    catch (reason) {
+      }
+    } catch (reason) {
       fail(reason)
-    }
-    finally {
+    } finally {
       inflight = false
       if (again && !disposed) {
         again = false
@@ -97,12 +106,12 @@ export function createSessionStore() {
     const text = query
     try {
       const result = await listSessions(revision === undefined ? { query: text } : { query: text, since: revision })
-      if (seq !== searchSeq || disposed || text !== query)
+      if (seq !== searchSeq || disposed || text !== query) {
         return
+      }
       apply(result)
       setMatches(new Set(result.matches ?? []))
-    }
-    catch (reason) {
+    } catch (reason) {
       fail(reason)
     }
   }
@@ -128,28 +137,32 @@ export function createSessionStore() {
   void (async () => {
     try {
       const ctx = await scopedClient()
-      const state = await ctx.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, { initialValue: { revision: 0, pending: 0 } })
+      const state = await ctx.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, {
+        initialValue: { revision: 0, pending: 0 },
+      })
       const changed = (signal: SessionsSignal) => {
-        if (revision === undefined || signal.revision > revision)
+        if (revision === undefined || signal.revision > revision) {
           void refresh()
+        }
       }
       const off = state.on('updated', changed)
       // A change between the first response and the subscription would otherwise be missed.
       changed(state.value())
-      if (disposed)
+      if (disposed) {
         off()
-      else
+      } else {
         cleanups.push(off)
-    }
-    catch {
+      }
+    } catch {
       // Without push the pending poll still fills the rows in.
     }
   })()
 
   onCleanup(() => {
     disposed = true
-    for (const fn of cleanups.splice(0))
+    for (const fn of cleanups.splice(0)) {
       fn()
+    }
   })
 
   return { hosts, rows, pending, loaded, error, matches, search, prioritize, refresh }

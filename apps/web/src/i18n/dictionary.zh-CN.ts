@@ -234,7 +234,8 @@ export const zhCN = {
     fromPost: '压缩后 Token',
     allSlots: '全部槽位',
     unavailableNote: '这个会话的日志没有记录{{ slots }}，所以这些槽位显示为不可用，而不是猜测。',
-    unavailableHereNote: '这个会话的日志只在此事件之后或其他泳道上记录了{{ slots }}，所以这些槽位在此处显示为不可用，而不是猜测。',
+    unavailableHereNote:
+      '这个会话的日志只在此事件之后或其他泳道上记录了{{ slots }}，所以这些槽位在此处显示为不可用，而不是猜测。',
     listSeparator: '、',
     listJoin: '和',
     dropped: '被上下文压缩移除',
@@ -254,7 +255,8 @@ export const zhCN = {
     title: '报告',
     export: '导出报告',
     dialogTitle: '导出此会话的报告',
-    dialogBody: '报告是一个 index.html 文件，无需服务即可在浏览器中打开。报告已脱敏：主目录显示为 ~，已知的密钥格式会被替换。',
+    dialogBody:
+      '报告是一个 index.html 文件，无需服务即可在浏览器中打开。报告已脱敏：主目录显示为 ~，已知的密钥格式会被替换。',
     dialogKeeps: '会话文本和文件内容仍保留在报告中。分享前请先阅读。',
     dialogLimit: '报告包含此处显示的全部事件，以及前 {{ events }} 个事件或 {{ size }}（取较小者）的原始记录。',
     cancel: '取消',

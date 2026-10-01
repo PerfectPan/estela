@@ -10,20 +10,34 @@ export function isShortened(event: TraceEvent | undefined): boolean {
 }
 
 /** Argument keys that name what a tool call acts on, in the order they are tried. */
-const TARGET_KEYS = ['command', 'cmd', 'file_path', 'filePath', 'path', 'pattern', 'query', 'url', 'description', 'prompt']
+const TARGET_KEYS = [
+  'command',
+  'cmd',
+  'file_path',
+  'filePath',
+  'path',
+  'pattern',
+  'query',
+  'url',
+  'description',
+  'prompt',
+]
 
 /** The one argument that says what a tool call acts on (a path, a command), or a JSON preview. Already a preview. */
 export function toolTarget(args: unknown): string {
-  if (typeof args === 'string')
+  if (typeof args === 'string') {
     return previewText(args)
+  }
   const record = asRecord(args)
   if (record) {
     for (const key of TARGET_KEYS) {
       const value = record[key]
-      if (typeof value === 'string' && value.trim())
+      if (typeof value === 'string' && value.trim()) {
         return previewText(value)
-      if (Array.isArray(value) && value.every(item => typeof item === 'string'))
+      }
+      if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
         return previewText(value.join(' '))
+      }
     }
   }
   return previewUnknown(args)
@@ -54,7 +68,11 @@ export function rowText(event: TraceEvent): RowText {
     case 'request': {
       const model = asString(payload.model) ?? ''
       const stop = asString(payload.stopReason)
-      return { text: [escapeBidi(model), stop ? t('common.stop', { reason: escapeBidi(stop) }) : ''].filter(Boolean).join(' · ') }
+      return {
+        text: [escapeBidi(model), stop ? t('common.stop', { reason: escapeBidi(stop) }) : '']
+          .filter(Boolean)
+          .join(' · '),
+      }
     }
     case 'thinking':
       return { text: previewText(asString(payload.text) ?? ''), muted: true }
@@ -81,14 +99,15 @@ export function numberField(event: TraceEvent | undefined, key: string): number 
 
 /** The text an inspector tab shows for a value: strings as recorded, anything else as indented JSON. */
 export function pretty(value: unknown): string {
-  if (value == null)
+  if (value == null) {
     return ''
-  if (typeof value === 'string')
-    return value
-  try {
-    return JSON.stringify(value, (key, inner: unknown) => key === '$truncated' ? undefined : inner, 2)
   }
-  catch {
+  if (typeof value === 'string') {
+    return value
+  }
+  try {
+    return JSON.stringify(value, (key, inner: unknown) => (key === '$truncated' ? undefined : inner), 2)
+  } catch {
     // JSON.stringify threw (a BigInt or a cycle); String() is the last resort.
     // oxlint-disable-next-line typescript/no-base-to-string
     return String(value)

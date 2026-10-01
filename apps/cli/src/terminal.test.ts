@@ -18,10 +18,11 @@ afterEach(() => {
   stdout.columns = original.columns
   stdout.write = original.write
   stderr.write = original.stderrWrite
-  if (original.term === undefined)
+  if (original.term === undefined) {
     delete process.env.TERM
-  else
+  } else {
     process.env.TERM = original.term
+  }
   delete process.env.NO_COLOR
 })
 
@@ -30,10 +31,10 @@ function capture(columns: number): string[] {
   stdout.isTTY = true
   stdout.columns = columns
   delete process.env.NO_COLOR
-  stdout.write = ((chunk: string | Uint8Array) => {
+  stdout.write = (chunk: string | Uint8Array) => {
     chunks.push(String(chunk))
     return true
-  })
+  }
   return chunks
 }
 
@@ -84,10 +85,10 @@ describe('startSessionIndex', () => {
     const chunks: string[] = []
     stdout.isTTY = false
     delete process.env.NO_COLOR
-    stdout.write = ((chunk: string | Uint8Array) => {
+    stdout.write = (chunk: string | Uint8Array) => {
       chunks.push(String(chunk))
       return true
-    })
+    }
     const index = startSessionIndex()
     index.tick([
       { name: 'Claude Code', read: 1, done: false },
@@ -107,10 +108,10 @@ describe('installPlainFilter', () => {
   it('passes buffer chunks through unless they contain ESC', () => {
     const seen: unknown[][] = []
     stdout.isTTY = false
-    stdout.write = ((chunk: unknown, ...rest: unknown[]) => {
+    stdout.write = (chunk: unknown, ...rest: unknown[]) => {
       seen.push([chunk, ...rest])
       return true
-    })
+    }
     installPlainFilter()
     const plain = Buffer.from('hello')
     stdout.write(plain, () => {})
@@ -131,10 +132,10 @@ describe('DevFrame log lines', () => {
   it('replaces the home directory with ~ on a TTY and keeps colors', () => {
     const seen: string[] = []
     stdout.isTTY = true
-    stdout.write = ((chunk: string) => {
+    stdout.write = (chunk: string) => {
       seen.push(chunk)
       return true
-    })
+    }
     installPlainFilter({ homeDir: home })
     stdout.write(line)
     stdout.write(`other ${home}\n`)
@@ -145,10 +146,10 @@ describe('DevFrame log lines', () => {
   it('replaces the home directory with ~ in plain output', () => {
     const seen: string[] = []
     stdout.isTTY = false
-    stdout.write = ((chunk: string) => {
+    stdout.write = (chunk: string) => {
       seen.push(chunk)
       return true
-    })
+    }
     installPlainFilter({ homeDir: home })
     stdout.write(Buffer.from(line))
     expect(seen[0]).toBe('[devframe] copying SPA from ~/app/web/dist -> /tmp/out\n')

@@ -14,14 +14,22 @@ interface DumpEntry {
 
 /** The output DevFrame baked for `report-trace`: its fallback record, else its only record. */
 async function bakedReport(outDir: string): Promise<unknown> {
-  const manifest = JSON.parse(await readFile(join(outDir, '__rpc-dump/index.json'), 'utf8')) as Record<string, DumpEntry>
+  const manifest = JSON.parse(await readFile(join(outDir, '__rpc-dump/index.json'), 'utf8')) as Record<
+    string,
+    DumpEntry
+  >
   const entry = manifest[METHOD]
   const path = entry?.fallback ?? Object.values(entry?.records ?? {})[0]
-  if (!path)
+  if (!path) {
     throw new Error(`the static dump has no ${METHOD} record`)
-  const record = JSON.parse(await readFile(join(outDir, path), 'utf8')) as { output?: unknown, error?: { message?: string } }
-  if (record.error)
+  }
+  const record = JSON.parse(await readFile(join(outDir, path), 'utf8')) as {
+    output?: unknown
+    error?: { message?: string }
+  }
+  if (record.error) {
     throw new Error(`${METHOD} failed while baking: ${record.error.message ?? 'unknown error'}`)
+  }
   return record.output
 }
 
@@ -65,12 +73,14 @@ export async function packForFile(outDir: string): Promise<void> {
 
   const script = /<script type="module" crossorigin src="\.\/assets\/([^"]+\.js)"><\/script>/.exec(html)
   const style = /<link rel="stylesheet" crossorigin href="\.\/assets\/([^"]+\.css)">/.exec(html)
-  if (!script || !style)
+  if (!script || !style) {
     throw new Error('the web build has no module script or stylesheet in index.html')
+  }
   // Only the entry is inlined; any other script would be dropped and fail to load from disk.
   const extra = (await readdir(assets)).filter(name => name.endsWith('.js') && name !== script[1])
-  if (extra.length > 0)
+  if (extra.length > 0) {
     throw new Error(`the web build has scripts besides its entry (${extra.join(', ')}); build it as one chunk`)
+  }
   const code = await readFile(join(assets, script[1]!), 'utf8')
   const css = await inlineFonts(await readFile(join(assets, style[1]!), 'utf8'), assets)
   const data = `<script type="application/json" id="${REPORT_ELEMENT_ID}">${jsonSafe(report)}</script>`
@@ -80,6 +90,7 @@ export async function packForFile(outDir: string): Promise<void> {
     .replace(script[0], () => `${data}\n    <script type="module">${scriptSafe(code)}</script>`)
   await writeFile(indexPath, html)
 
-  for (const name of ['assets', '__rpc-dump', '__connection.json'])
+  for (const name of ['assets', '__rpc-dump', '__connection.json']) {
     await rm(join(outDir, name), { recursive: true, force: true })
+  }
 }

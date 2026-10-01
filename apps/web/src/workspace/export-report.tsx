@@ -13,8 +13,8 @@ const MAX_BYTES = 20 * 1000 * 1000
 type ExportState =
   | { status: 'idle' }
   | { status: 'writing' }
-  | { status: 'done', result: ExportReportResult }
-  | { status: 'error', reason: string }
+  | { status: 'done'; result: ExportReportResult }
+  | { status: 'error'; reason: string }
 
 /**
  * "Export report" and its dialog (plan 3.9): what the report holds and what stays in it, then
@@ -28,8 +28,9 @@ export function ExportReport(props: { sessionRef: string }) {
   let dialog: HTMLDivElement | undefined
 
   function show(): void {
-    if (state().status !== 'writing')
+    if (state().status !== 'writing') {
       setState({ status: 'idle' })
+    }
     setOpen(true)
     queueMicrotask(() => confirm?.focus())
   }
@@ -45,8 +46,7 @@ export function ExportReport(props: { sessionRef: string }) {
       setState({ status: 'done', result })
       // The Export button is gone now; keep focus in the dialog.
       dialog?.querySelector<HTMLElement>('button')?.focus()
-    }
-    catch (error) {
+    } catch (error) {
       setState({ status: 'error', reason: messageOf(error) })
       confirm?.focus()
     }
@@ -59,19 +59,22 @@ export function ExportReport(props: { sessionRef: string }) {
       hide()
       return
     }
-    if (event.key !== 'Tab' || !dialog)
+    if (event.key !== 'Tab' || !dialog) {
       return
-    const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')]
-    if (focusable.length === 0)
+    }
+    const focusable = [
+      ...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'),
+    ]
+    if (focusable.length === 0) {
       return
+    }
     const first = focusable[0]!
     const last = focusable.at(-1)!
     const inside = focusable.includes(document.activeElement as HTMLElement)
     if (event.shiftKey && (document.activeElement === first || !inside)) {
       event.preventDefault()
       last.focus()
-    }
-    else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+    } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
       event.preventDefault()
       first.focus()
     }
@@ -89,7 +92,7 @@ export function ExportReport(props: { sessionRef: string }) {
   return (
     <>
       <button
-        ref={(element) => {
+        ref={element => {
           trigger = element
         }}
         type="button"
@@ -102,9 +105,12 @@ export function ExportReport(props: { sessionRef: string }) {
         {t('report.export')}
       </button>
       <Show when={open()}>
-        <div class="fixed inset-0 z-50 grid place-items-center bg-background/80 px-6" onClick={event => event.target === event.currentTarget && hide()}>
+        <div
+          class="fixed inset-0 z-50 grid place-items-center bg-background/80 px-6"
+          onClick={event => event.target === event.currentTarget && hide()}
+        >
           <div
-            ref={(element) => {
+            ref={element => {
               dialog = element
             }}
             role="dialog"
@@ -114,29 +120,45 @@ export function ExportReport(props: { sessionRef: string }) {
             data-testid="export-dialog"
             onKeyDown={onKey}
           >
-            <h2 id="export-title" class="m-0 text-[15px] font-semibold text-foreground">{t('report.dialogTitle')}</h2>
+            <h2 id="export-title" class="m-0 text-[15px] font-semibold text-foreground">
+              {t('report.dialogTitle')}
+            </h2>
             <p class="m-0 text-muted-foreground">{t('report.dialogBody')}</p>
             <p class="m-0 font-medium text-foreground">{t('report.dialogKeeps')}</p>
             <p class="m-0 text-muted-foreground">
-              {t('report.dialogLimit', { events: formatNumber(MAX_EVENTS, locale()), size: formatBytes(MAX_BYTES, locale()) })}
+              {t('report.dialogLimit', {
+                events: formatNumber(MAX_EVENTS, locale()),
+                size: formatBytes(MAX_BYTES, locale()),
+              })}
             </p>
             <Switch>
               <Match when={state().status === 'writing'}>
-                <p class="m-0 text-muted-foreground" role="status">{t('report.writing')}</p>
+                <p class="m-0 text-muted-foreground" role="status">
+                  {t('report.writing')}
+                </p>
               </Match>
               <Match when={written()}>
                 {result => (
                   <div class="flex flex-col gap-1" role="status" data-testid="export-written">
                     <span class="text-foreground">{t('report.written')}</span>
-                    <code class="font-mono text-[12px] break-all text-foreground select-all" data-testid="export-path">{result().path}</code>
+                    <code class="font-mono text-[12px] break-all text-foreground select-all" data-testid="export-path">
+                      {result().path}
+                    </code>
                     <span class="text-muted-foreground">
-                      {t('report.writtenDetail', { included: formatNumber(result().included, locale()), total: formatNumber(result().total, locale()) })}
+                      {t('report.writtenDetail', {
+                        included: formatNumber(result().included, locale()),
+                        total: formatNumber(result().total, locale()),
+                      })}
                     </span>
                   </div>
                 )}
               </Match>
               <Match when={failed()}>
-                {reason => <p class="m-0 text-destructive" role="alert">{t('report.failed', { reason: reason() })}</p>}
+                {reason => (
+                  <p class="m-0 text-destructive" role="alert">
+                    {t('report.failed', { reason: reason() })}
+                  </p>
+                )}
               </Match>
             </Switch>
             <div class="flex justify-end gap-2 pt-1">
@@ -145,7 +167,7 @@ export function ExportReport(props: { sessionRef: string }) {
               </button>
               <Show when={state().status !== 'done'}>
                 <button
-                  ref={(element) => {
+                  ref={element => {
                     confirm = element
                   }}
                   type="button"

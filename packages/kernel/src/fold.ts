@@ -15,40 +15,52 @@ export interface TraceFold extends SessionSummary {
 /** Copy of the summary fields. Undefined capabilities are omitted. */
 export function summaryOf(summary: SessionSummary): SessionSummary {
   const out: SessionSummary = {}
-  if (summary.turns !== undefined)
+  if (summary.turns !== undefined) {
     out.turns = summary.turns
-  if (summary.requests !== undefined)
+  }
+  if (summary.requests !== undefined) {
     out.requests = summary.requests
-  if (summary.tokensIn !== undefined)
+  }
+  if (summary.tokensIn !== undefined) {
     out.tokensIn = summary.tokensIn
-  if (summary.tokensOut !== undefined)
+  }
+  if (summary.tokensOut !== undefined) {
     out.tokensOut = summary.tokensOut
-  if (summary.durationMs !== undefined)
+  }
+  if (summary.durationMs !== undefined) {
     out.durationMs = summary.durationMs
-  if (summary.compactions !== undefined)
+  }
+  if (summary.compactions !== undefined) {
     out.compactions = summary.compactions
-  if (summary.subagents !== undefined)
+  }
+  if (summary.subagents !== undefined) {
     out.subagents = summary.subagents
-  if (summary.failedTools !== undefined)
+  }
+  if (summary.failedTools !== undefined) {
     out.failedTools = summary.failedTools
-  if (summary.contextShape !== undefined)
+  }
+  if (summary.contextShape !== undefined) {
     out.contextShape = summary.contextShape
+  }
   return out
 }
 
 export function downsample(values: number[], max = 120): number[] {
-  if (values.length <= max)
+  if (values.length <= max) {
     return values.slice()
+  }
   const out: number[] = []
   const last = values.length - 1
-  for (let index = 0; index < max; index++)
+  for (let index = 0; index < max; index++) {
     out.push(values[Math.round((index * last) / (max - 1))]!)
+  }
   return out
 }
 
 function gated(declared: boolean, value: number | undefined): number | undefined {
-  if (!declared)
+  if (!declared) {
     return undefined
+  }
   return value
 }
 
@@ -56,11 +68,13 @@ function usageSum(events: TraceEvent[], field: 'inputTokens' | 'outputTokens'): 
   let total = 0
   let any = false
   for (const event of events) {
-    if (event.kind !== 'request')
+    if (event.kind !== 'request') {
       continue
+    }
     const amount = asNumber(asRecord(event.payload.usage)?.[field])
-    if (amount === undefined)
+    if (amount === undefined) {
       continue
+    }
     total += amount
     any = true
   }
@@ -77,11 +91,14 @@ function knownSum(values: (number | undefined)[]): number | undefined {
  * records them; otherwise the sum of per-call request `durationMs`.
  */
 function durationSum(events: TraceEvent[]): number | undefined {
-  const turns = knownSum(events
-    .filter(event => event.kind === 'system' && event.payload.type === 'turn_duration')
-    .map(event => asNumber(event.payload.durationMs)))
-  if (turns !== undefined)
+  const turns = knownSum(
+    events
+      .filter(event => event.kind === 'system' && event.payload.type === 'turn_duration')
+      .map(event => asNumber(event.payload.durationMs)),
+  )
+  if (turns !== undefined) {
     return turns
+  }
   return knownSum(events.filter(event => event.kind === 'request').map(event => asNumber(event.payload.durationMs)))
 }
 
@@ -97,7 +114,7 @@ export function fold(trace: Trace): TraceFold {
   const capabilities = new Set(trace.capabilities)
   const turns = countTurns(trace)
   const requestEvents = trace.events.filter(event => event.kind === 'request')
-  const inputPoints = requestEvents.flatMap((event) => {
+  const inputPoints = requestEvents.flatMap(event => {
     const input = asNumber(asRecord(event.payload.usage)?.inputTokens)
     return input === undefined ? [] : [input]
   })
@@ -115,10 +132,7 @@ export function fold(trace: Trace): TraceFold {
       capabilities.has('compaction'),
       trace.events.filter(event => event.kind === 'compaction').length,
     ),
-    subagents: gated(
-      capabilities.has('subagents'),
-      trace.agents.filter(agent => agent.parentId != null).length,
-    ),
+    subagents: gated(capabilities.has('subagents'), trace.agents.filter(agent => agent.parentId != null).length),
     failedTools: trace.events.filter(event => event.kind === 'tool_result' && event.payload.isError === true).length,
     contextShape: usage && inputPoints.length > 0 ? downsample(inputPoints) : undefined,
   }

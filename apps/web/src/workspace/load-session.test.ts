@@ -7,7 +7,15 @@ import { createSessionLoad, reportSession } from './load-session.ts'
 
 type Status = LoadClient['status']
 
-const trace: Trace = { schema: 'agent-trace', host: { id: 'claude-code' }, session: { id: 's' }, capabilities: [], agents: [], events: [], skipped: [] }
+const trace: Trace = {
+  schema: 'agent-trace',
+  host: { id: 'claude-code' },
+  session: { id: 's' },
+  capabilities: [],
+  agents: [],
+  events: [],
+  skipped: [],
+}
 
 /** A fake DevFrame client: `get-trace-view` resolves when `finish` is called, or fails with `reject`. */
 function fakeClient(options: { viewError?: string } = {}) {
@@ -15,19 +23,21 @@ function fakeClient(options: { viewError?: string } = {}) {
   let finish: (() => void) | undefined
   let rejectView: ((error: Error) => void) | undefined
   let cancelled = 0
-  const chunks: { bytesRead: number, totalBytes: number }[] = []
+  const chunks: { bytesRead: number; totalBytes: number }[] = []
   const client: LoadClient = {
     status: 'connected',
-    onStatus: (listener) => {
+    onStatus: listener => {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
     call: (async (method: string): Promise<unknown> => {
-      if (method === 'load-trace')
+      if (method === 'load-trace') {
         return { loadId: 'id-1', cached: false, totalBytes: 100 }
+      }
       if (method === 'get-trace-view') {
-        if (options.viewError)
+        if (options.viewError) {
           throw new Error(options.viewError)
+        }
         await new Promise<void>((resolve, reject) => {
           finish = resolve
           rejectView = reject
@@ -40,9 +50,10 @@ function fakeClient(options: { viewError?: string } = {}) {
       cancel: () => {
         cancelled += 1
       },
-      async* [Symbol.asyncIterator]() {
-        for (const chunk of chunks)
+      async *[Symbol.asyncIterator]() {
+        for (const chunk of chunks) {
           yield chunk
+        }
       },
     }),
   }
@@ -52,8 +63,9 @@ function fakeClient(options: { viewError?: string } = {}) {
     finish: () => finish?.(),
     drop: (status: Status) => {
       client.status = status
-      for (const listener of listeners)
+      for (const listener of listeners) {
         listener(status)
+      }
       rejectView?.(new Error('socket closed'))
     },
     cancelled: () => cancelled,
@@ -61,7 +73,14 @@ function fakeClient(options: { viewError?: string } = {}) {
 }
 
 function event(id: string, text: string) {
-  return { id, seq: 0, ts: 0, kind: 'user' as const, payload: { text }, source: { file: '0', offset: 0, length: 1, line: 1 } }
+  return {
+    id,
+    seq: 0,
+    ts: 0,
+    kind: 'user' as const,
+    payload: { text },
+    source: { file: '0', offset: 0, length: 1, line: 1 },
+  }
 }
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
@@ -70,7 +89,10 @@ describe('createSessionLoad', () => {
   it('shows progress, then the view', async () => {
     const fake = fakeClient()
     fake.chunks.push({ bytesRead: 40, totalBytes: 100 })
-    const { load, dispose } = createRoot(stop => ({ load: createSessionLoad('r', async () => fake.client), dispose: stop }))
+    const { load, dispose } = createRoot(stop => ({
+      load: createSessionLoad('r', async () => fake.client),
+      dispose: stop,
+    }))
     await tick()
     expect(load.state()).toEqual({ status: 'loading', bytesRead: 40, totalBytes: 100 })
     fake.finish()
@@ -88,7 +110,12 @@ describe('createSessionLoad', () => {
     await tick()
     expect(load.state()).toEqual({
       status: 'error',
-      failure: { host: 'claude-code', file: '~/.claude/projects/a/s.jsonl', line: 3, reason: 'unknown format generation' },
+      failure: {
+        host: 'claude-code',
+        file: '~/.claude/projects/a/s.jsonl',
+        line: 3,
+        reason: 'unknown format generation',
+      },
     })
   })
 
@@ -118,7 +145,7 @@ describe('createSessionLoad', () => {
     expect(load.state()).toEqual({ status: 'error', failure: { reason: 'connection lost', lost: true } })
   })
 
-  it('serves a report\'s included events in full and marks the rest', async () => {
+  it("serves a report's included events in full and marks the rest", async () => {
     const report: ReportTrace = {
       trace: { ...trace, events: [event('a', 'short'), event('b', 'short')] },
       summary: {},

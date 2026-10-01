@@ -1,7 +1,7 @@
 const LETTER: Record<string, string> = {
   'claude-code': 'C',
-  'codex': 'X',
-  'grok': 'G',
+  codex: 'X',
+  grok: 'G',
 }
 
 function hostLetter(id: string): string {

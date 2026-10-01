@@ -2,15 +2,23 @@ import type { LedgerFilter, LedgerModel } from '@/lib/ledger-model.ts'
 import type { TimeRange } from '@/lib/timeline-scale.ts'
 import type { LoadedSession } from './load-session.ts'
 import { batch, createMemo, createSignal } from 'solid-js'
-import { buildLedgerModel, countEvents, entryEventIds, entryMatches, flattenLedger, isFailedResult } from '@/lib/ledger-model.ts'
+import {
+  buildLedgerModel,
+  countEvents,
+  entryEventIds,
+  entryMatches,
+  flattenLedger,
+  isFailedResult,
+} from '@/lib/ledger-model.ts'
 import { timelineData } from './timeline/timeline-data.ts'
 
 function toggled(set: ReadonlySet<string>, id: string): Set<string> {
   const next = new Set(set)
-  if (next.has(id))
+  if (next.has(id)) {
     next.delete(id)
-  else
+  } else {
     next.add(id)
+  }
   return next
 }
 
@@ -26,12 +34,14 @@ export function createWorkspaceState(session: LoadedSession) {
   /** Key of the selected ledger row (an entry id or a turn id). */
   const [selectedKey, setSelectedKey] = createSignal<string>()
 
-  const rows = createMemo(() => flattenLedger(model, {
-    collapsed: collapsed(),
-    expanded: expanded(),
-    filter: filter(),
-    range: range(),
-  }))
+  const rows = createMemo(() =>
+    flattenLedger(model, {
+      collapsed: collapsed(),
+      expanded: expanded(),
+      filter: filter(),
+      range: range(),
+    }),
+  )
   const eventCount = createMemo(() => countEvents(session.trace, range()))
   // The header's number (fold) and the chip use one rule: every failed tool result.
   const failures = session.summary.failedTools ?? session.trace.events.filter(isFailedResult).length
@@ -47,17 +57,28 @@ export function createWorkspaceState(session: LoadedSession) {
   /** Select an event from outside the ledger (a timeline bar): open what hides it, and drop filters that exclude it. */
   function reveal(eventId: string): void {
     const place = model.locate.get(eventId)
-    if (!place)
+    if (!place) {
       return
+    }
     batch(() => {
-      if (collapsed().has(place.turnId))
+      if (collapsed().has(place.turnId)) {
         setCollapsed(toggled(collapsed(), place.turnId))
+      }
       const open = new Set(expanded())
-      for (const parent of place.parents)
+      for (const parent of place.parents) {
         open.add(parent)
+      }
       setExpanded(open)
       const entry = model.entries.get(place.entryId)
-      if (entry && !entryMatches(entry, model, { collapsed: collapsed(), expanded: expanded(), filter: filter(), range: range() })) {
+      if (
+        entry
+        && !entryMatches(entry, model, {
+          collapsed: collapsed(),
+          expanded: expanded(),
+          filter: filter(),
+          range: range(),
+        })
+      ) {
         setFilter('all')
         setRange(undefined)
       }

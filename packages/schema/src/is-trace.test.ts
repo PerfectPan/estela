@@ -27,21 +27,29 @@ describe('isTrace', () => {
   })
 
   it('accepts a populated trace with optional fields', () => {
-    expect(isTrace(trace({
-      host: { id: 'demo', version: '1.0.0' },
-      session: { id: 's', title: 't', cwd: '/w', startedAt: 1, endedAt: 2 },
-      capabilities: ['requests', 'usage'],
-      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'e', title: 'x' }],
-      events: [event({ agentId: 'main', requestId: 'r', shadowedBy: 'c', original: { raw: true } })],
-      skipped: [{ line: 3, file: 'f', reason: 'bad json' }],
-    }))).toBe(true)
+    expect(
+      isTrace(
+        trace({
+          host: { id: 'demo', version: '1.0.0' },
+          session: { id: 's', title: 't', cwd: '/w', startedAt: 1, endedAt: 2 },
+          capabilities: ['requests', 'usage'],
+          agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'e', title: 'x' }],
+          events: [event({ agentId: 'main', requestId: 'r', shadowedBy: 'c', original: { raw: true } })],
+          skipped: [{ line: 3, file: 'f', reason: 'bad json' }],
+        }),
+      ),
+    ).toBe(true)
   })
 
   it('allows extra payload keys and extra top-level keys', () => {
-    expect(isTrace(trace({
-      events: [event({ kind: 'request', payload: { model: 'm', anything: [1, { deep: true }] } })],
-      extra: 'ignored',
-    }))).toBe(true)
+    expect(
+      isTrace(
+        trace({
+          events: [event({ kind: 'request', payload: { model: 'm', anything: [1, { deep: true }] } })],
+          extra: 'ignored',
+        }),
+      ),
+    ).toBe(true)
   })
 
   it('rejects non-objects and a wrong schema marker', () => {

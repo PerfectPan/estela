@@ -20,7 +20,10 @@
     "vitest/valid-expect": ["error", { "maxArgs": 2 }],
     // Fire-and-forget `.then` at the end of a chain has nothing to return.
     "promise/always-return": ["warn", { "ignoreLastCallback": true }],
-    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }]
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
+    // Every if, else, for, while, and do body is a braced block. lint-config v0.2.0
+    // has this rule; drop the line when bumping to it.
+    "curly": ["error", "all"]
   },
   "overrides": [
     {

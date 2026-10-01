@@ -12,16 +12,21 @@ let watching = false
 export function connectionLost(): boolean {
   if (!watching) {
     watching = true
-    void devframeClient().then((client) => {
-      if (client.transport === 'static')
-        return
-      if (client.status === 'disconnected' || client.status === 'error')
-        setLost(true)
-      client.events.on('connection:status', (status) => {
-        if (status === 'disconnected' || status === 'error')
+    void devframeClient()
+      .then(client => {
+        if (client.transport === 'static') {
+          return
+        }
+        if (client.status === 'disconnected' || client.status === 'error') {
           setLost(true)
+        }
+        client.events.on('connection:status', status => {
+          if (status === 'disconnected' || status === 'error') {
+            setLost(true)
+          }
+        })
       })
-    }).catch(() => setLost(true))
+      .catch(() => setLost(true))
   }
   return lost()
 }

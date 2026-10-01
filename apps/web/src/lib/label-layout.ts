@@ -12,8 +12,9 @@ export interface LabelBox {
 
 /** Where one label box goes: right of its rule, or left of it when it would pass `right`. */
 export function placeLabel(x: number, width: number, right: number): LabelBox {
-  if (x + OFFSET + width <= right)
+  if (x + OFFSET + width <= right) {
     return { x: x + OFFSET, width, flipped: false }
+  }
   return { x: Math.max(0, x - OFFSET - width), width, flipped: true }
 }
 
@@ -30,7 +31,7 @@ export interface LabelSlot {
  * including a box flipped to the left at the right edge; a rule whose box would overlap is
  * left unboxed and counted on the box before it. Every rule keeps its own hover/focus label.
  */
-export function layoutLabels(rules: readonly { x: number, width: number }[], right: number): LabelSlot[] {
+export function layoutLabels(rules: readonly { x: number; width: number }[], right: number): LabelSlot[] {
   const slots: LabelSlot[] = []
   let lastRight = Number.NEGATIVE_INFINITY
   let lastBoxed = -1
@@ -45,8 +46,9 @@ export function layoutLabels(rules: readonly { x: number, width: number }[], rig
       return
     }
     slots.push({ more: 0, ...(lastBoxed >= 0 ? { clusterOf: lastBoxed } : {}) })
-    if (lastBoxed >= 0)
+    if (lastBoxed >= 0) {
       slots[lastBoxed]!.more += 1
+    }
   })
   return slots
 }
@@ -58,21 +60,26 @@ export const LABEL_ROW = { y: 4, height: 18 } as const
  * The hover and focus target of one rule: 8 px wide and only as tall as the label row, so a
  * drag or click on the plot next to a rule still reaches the brush.
  */
-export function ruleTarget(x: number): { x: number, y: number, width: number, height: number } {
+export function ruleTarget(x: number): { x: number; y: number; width: number; height: number } {
   return { x: x - 4, y: LABEL_ROW.y, width: 8, height: LABEL_ROW.height }
 }
 
 /** Roving focus over the rules: arrows move by one, Home / End jump; other keys give `undefined`. */
 export function rovingIndex(current: number, key: string, count: number): number | undefined {
-  if (count === 0)
+  if (count === 0) {
     return undefined
-  if (key === 'ArrowRight' || key === 'ArrowDown')
+  }
+  if (key === 'ArrowRight' || key === 'ArrowDown') {
     return Math.min(count - 1, current + 1)
-  if (key === 'ArrowLeft' || key === 'ArrowUp')
+  }
+  if (key === 'ArrowLeft' || key === 'ArrowUp') {
     return Math.max(0, current - 1)
-  if (key === 'Home')
+  }
+  if (key === 'Home') {
     return 0
-  if (key === 'End')
+  }
+  if (key === 'End') {
     return count - 1
+  }
   return undefined
 }

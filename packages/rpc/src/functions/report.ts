@@ -38,8 +38,9 @@ export const reportTrace = defineRpcFunction({
   snapshot: true,
   setup: () => ({
     handler: async (): Promise<ReportTrace> => {
-      if (!source)
+      if (!source) {
         throw new Error('report-trace is bound only while build writes a report')
+      }
       return source()
     },
   }),
@@ -47,8 +48,9 @@ export const reportTrace = defineRpcFunction({
 
 function checkInput(input: unknown): ExportReportInput {
   const value = (input ?? {}) as Record<string, unknown>
-  if (typeof value.ref !== 'string' || value.ref.length === 0)
+  if (typeof value.ref !== 'string' || value.ref.length === 0) {
     throw new Error('export-report needs a session ref')
+  }
   const locale = value.locale === 'en' || value.locale === 'zh-CN' ? value.locale : undefined
   return { ref: value.ref, locale }
 }
@@ -60,8 +62,9 @@ export const exportReport = defineRpcFunction({
   jsonSerializable: true,
   setup: () => ({
     handler: async (input: ExportReportInput): Promise<ExportReportResult> => {
-      if (!exporter)
+      if (!exporter) {
         throw new Error('export-report is available only on the dev server')
+      }
       return exporter(checkInput(input))
     },
   }),

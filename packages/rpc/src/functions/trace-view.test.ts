@@ -4,7 +4,14 @@ import type { LoadProgress } from '../trace-store.ts'
 import { createStreamSink } from 'devframe/utils/streaming-channel'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TraceStore } from '../trace-store.ts'
-import { bindTraceStore, CURRENT_REF, getTraceView, loadTrace, reconstructAt, SUBSCRIBE_GRACE_MS } from './trace-view.ts'
+import {
+  bindTraceStore,
+  CURRENT_REF,
+  getTraceView,
+  loadTrace,
+  reconstructAt,
+  SUBSCRIBE_GRACE_MS,
+} from './trace-view.ts'
 
 const SIZE = 1000
 
@@ -15,7 +22,16 @@ function emptyTrace(id: string): Trace {
     session: { id },
     capabilities: [],
     agents: [],
-    events: [{ id: 'u1', seq: 0, ts: 0, kind: 'user', payload: { text: id }, source: { file: id, offset: 0, length: 1, line: 1 } }],
+    events: [
+      {
+        id: 'u1',
+        seq: 0,
+        ts: 0,
+        kind: 'user',
+        payload: { text: id },
+        source: { file: id, offset: 0, length: 1, line: 1 },
+      },
+    ],
     skipped: [],
   }
 }
@@ -30,12 +46,13 @@ function harness() {
       readBytes: async () => new Uint8Array(),
       stat: async () => ({ kind: 'file', size: SIZE, mtimeMs: 0 }),
     },
-    load: (session, opts) => new Promise((resolve, reject) => {
-      signals.set(session.key, opts.signal)
-      progress.set(session.key, opts.onProgress)
-      releases.set(session.key, () => resolve({ trace: emptyTrace(session.key), canonical: false }))
-      opts.signal.addEventListener('abort', () => reject(opts.signal.reason))
-    }),
+    load: (session, opts) =>
+      new Promise((resolve, reject) => {
+        signals.set(session.key, opts.signal)
+        progress.set(session.key, opts.onProgress)
+        releases.set(session.key, () => resolve({ trace: emptyTrace(session.key), canonical: false }))
+        opts.signal.addEventListener('abort', () => reject(opts.signal.reason))
+      }),
   })
   bindTraceStore(store)
   const sinks: StreamSink<LoadProgress>[] = []
@@ -62,9 +79,15 @@ function harness() {
 }
 
 async function handlers(ctx: unknown) {
-  const setup = loadTrace.setup as (context: unknown) => Promise<{ handler: (args: { ref: string }) => Promise<{ loadId: string, totalBytes: number, cached: boolean }> }>
-  const view = getTraceView.setup as (context: unknown) => Promise<{ handler: (args: { ref: string }) => Promise<{ ref: string, trace: Trace }> }>
-  const rebuild = reconstructAt.setup as (context: unknown) => Promise<{ handler: (args: { ref?: string, eventId: string }) => Promise<{ visibleIds: string[] }> }>
+  const setup = loadTrace.setup as (
+    context: unknown,
+  ) => Promise<{ handler: (args: { ref: string }) => Promise<{ loadId: string; totalBytes: number; cached: boolean }> }>
+  const view = getTraceView.setup as (
+    context: unknown,
+  ) => Promise<{ handler: (args: { ref: string }) => Promise<{ ref: string; trace: Trace }> }>
+  const rebuild = reconstructAt.setup as (
+    context: unknown,
+  ) => Promise<{ handler: (args: { ref?: string; eventId: string }) => Promise<{ visibleIds: string[] }> }>
   return {
     load: (await setup(ctx)).handler,
     view: (await view(ctx)).handler,

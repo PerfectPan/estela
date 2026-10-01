@@ -33,17 +33,24 @@ const PREVIEW_DROPPED = 3
 const MAX_DROPPED = 300
 
 function covers(names: ContextSlotName[]): string {
-  return names.length === 5 ? t('inspector.allSlots') : names.map(name => t(SLOT_LABEL[name])).join(t('inspector.listSeparator'))
+  return names.length === 5
+    ? t('inspector.allSlots')
+    : names.map(name => t(SLOT_LABEL[name])).join(t('inspector.listSeparator'))
 }
 
 function Pill(props: { children: string }) {
-  return <span class="rounded-full border border-input px-[9px] py-px text-[12px] whitespace-nowrap text-muted-foreground">{props.children}</span>
+  return (
+    <span class="rounded-full border border-input px-[9px] py-px text-[12px] whitespace-nowrap text-muted-foreground">
+      {props.children}
+    </span>
+  )
 }
 
 /** Hatched when the host does not record the slot, outlined when it is empty, else the slot color. */
 function slotClass(slot: ContextSlot, small = false): string {
-  if (slot.status === 'unavailable')
+  if (slot.status === 'unavailable') {
     return small ? 'hatched hatched-small' : 'hatched'
+  }
   return slot.status === 'empty' ? 'border border-input' : SLOT_FILL[slot.name]
 }
 
@@ -52,7 +59,12 @@ function slotClass(slot: ContextSlot, small = false): string {
  * counts the host recorded (each with the slots it covers; never split or estimated), and
  * the events a compaction removed before it. An unrecorded slot is hatched and "unavailable".
  */
-export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: string, onSelectEvent: (id: string) => void }) {
+export function ModelSaw(props: {
+  trace: Trace
+  model: LedgerModel
+  eventId: string
+  onSelectEvent: (id: string) => void
+}) {
   const result = createMemo((): ReconstructResult => reconstruct(props.trace, props.eventId))
   const event = () => props.model.byId.get(props.eventId)
   const isRequest = () => event()?.kind === 'request'
@@ -67,19 +79,24 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
   }
   const completeness = () => {
     const missing = unavailable().length
-    if (result().completeness === 'unavailable')
+    if (result().completeness === 'unavailable') {
       return t('inspector.notReconstructable')
-    if (missing === 0)
+    }
+    if (missing === 0) {
       return t('inspector.complete')
+    }
     return missing === 1 ? t('inspector.partialOne') : t('inspector.partialMany', { count: missing })
   }
   const note = () => unavailableNote(props.trace.capabilities, slots())
   const [showAll, setShowAll] = createSignal(false)
   const removed = () => result().removedIds ?? []
-  const shownRemoved = () => showAll() ? removed().slice(0, MAX_DROPPED) : removed().slice(0, PREVIEW_DROPPED)
+  const shownRemoved = () => (showAll() ? removed().slice(0, MAX_DROPPED) : removed().slice(0, PREVIEW_DROPPED))
   const summaryText = createMemo(() => {
     const summary = slots().find(slot => slot.name === 'summary')
-    const texts = (summary?.eventIds ?? []).map(id => props.model.byId.get(id)).map(found => found ? rowText(found).text ?? '' : '').filter(Boolean)
+    const texts = (summary?.eventIds ?? [])
+      .map(id => props.model.byId.get(id))
+      .map(found => (found ? (rowText(found).text ?? '') : ''))
+      .filter(Boolean)
     return texts.join(' ')
   })
 
@@ -87,39 +104,40 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
     <div class="flex flex-col gap-[18px]" data-testid="model-saw">
       <div class="flex flex-col gap-3">
         <div class="flex items-baseline justify-between gap-3">
-          <h3 class="section-label m-0 text-muted-foreground">{isRequest() ? t('inspector.contextAtRequest') : t('inspector.contextAtEvent')}</h3>
+          <h3 class="section-label m-0 text-muted-foreground">
+            {isRequest() ? t('inspector.contextAtRequest') : t('inspector.contextAtEvent')}
+          </h3>
           <Pill>{completeness()}</Pill>
         </div>
-        <Show
-          when={headline()}
-          fallback={<p class="m-0 text-[13px] text-subtle">{t('inspector.noTokens')}</p>}
-        >
+        <Show when={headline()} fallback={<p class="m-0 text-[13px] text-subtle">{t('inspector.noTokens')}</p>}>
           {group => (
             <div class="font-mono text-[26px] font-medium tracking-[-0.02em]">
-              {formatTokens(group().tokens)}
-              {' '}
+              {formatTokens(group().tokens)}{' '}
               <span class="text-[13px] font-normal tracking-normal text-subtle">
                 {t('inspector.tokens')}
-                <Show when={earlier()}>{value => ` · ${t('inspector.wasEarlier', { value: formatTokens(value()) })}`}</Show>
+                <Show when={earlier()}>
+                  {value => ` · ${t('inspector.wasEarlier', { value: formatTokens(value()) })}`}
+                </Show>
               </span>
             </div>
           )}
         </Show>
         <div class="flex gap-0.5" aria-hidden="true">
-          <For each={slots()}>
-            {slot => (
-              <div
-                class={cx('box-border h-3 flex-1 rounded-[3px]', slotClass(slot))}
-              />
-            )}
-          </For>
+          <For each={slots()}>{slot => <div class={cx('box-border h-3 flex-1 rounded-[3px]', slotClass(slot))} />}</For>
         </div>
         <ul class="m-0 flex list-none flex-col p-0">
           <For each={slots()}>
             {slot => (
-              <li class="flex h-[27px] items-center justify-between border-b border-border" data-slot={slot.name} data-status={slot.status}>
+              <li
+                class="flex h-[27px] items-center justify-between border-b border-border"
+                data-slot={slot.name}
+                data-status={slot.status}
+              >
                 <span class="flex items-center gap-[9px] text-[13px] text-foreground">
-                  <span class={cx('box-border size-[9px] shrink-0 rounded-[2px]', slotClass(slot, true))} aria-hidden="true" />
+                  <span
+                    class={cx('box-border size-[9px] shrink-0 rounded-[2px]', slotClass(slot, true))}
+                    aria-hidden="true"
+                  />
                   {t(SLOT_LABEL[slot.name])}
                 </span>
                 <span class="flex items-baseline gap-2.5">
@@ -131,16 +149,30 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
                         data-testid="slot-source"
                         onClick={() => props.onSelectEvent(id())}
                       >
-                        {props.model.ordinals.get(id()) ? t('inspector.slotRecordedAt', { ordinal: props.model.ordinals.get(id())! }) : t('inspector.slotRecorded')}
+                        {props.model.ordinals.get(id())
+                          ? t('inspector.slotRecordedAt', { ordinal: props.model.ordinals.get(id())! })
+                          : t('inspector.slotRecorded')}
                       </button>
                     )}
                   </Show>
-                  <span class={cx('font-mono text-[12px]', slot.status === 'present' ? 'text-muted-foreground' : 'text-subtle')}>
-                  {slot.status === 'unavailable'
-                    ? t('inspector.slotUnavailable')
-                    : slot.status === 'empty'
-                      ? t('inspector.slotEmpty')
-                      : slot.eventIds.length > 0 ? plural(slot.eventIds.length, 'inspector.slotEventsOne', 'inspector.slotEvents', formatNumber(slot.eventIds.length, locale())) : ''}
+                  <span
+                    class={cx(
+                      'font-mono text-[12px]',
+                      slot.status === 'present' ? 'text-muted-foreground' : 'text-subtle',
+                    )}
+                  >
+                    {slot.status === 'unavailable'
+                      ? t('inspector.slotUnavailable')
+                      : slot.status === 'empty'
+                        ? t('inspector.slotEmpty')
+                        : slot.eventIds.length > 0
+                          ? plural(
+                              slot.eventIds.length,
+                              'inspector.slotEventsOne',
+                              'inspector.slotEvents',
+                              formatNumber(slot.eventIds.length, locale()),
+                            )
+                          : ''}
                   </span>
                 </span>
               </li>
@@ -152,7 +184,12 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
             <span class="text-[12px] text-subtle">{t('inspector.recordedCounts')}</span>
             <For each={result().tokens}>
               {group => (
-                <div class="flex items-baseline gap-2.5 text-[12.5px]" data-from={group.from} data-tokens={group.tokens} data-slots={group.slots.join(' ')}>
+                <div
+                  class="flex items-baseline gap-2.5 text-[12.5px]"
+                  data-from={group.from}
+                  data-tokens={group.tokens}
+                  data-slots={group.slots.join(' ')}
+                >
                   <span class="w-[52px] shrink-0 font-mono text-foreground">{formatTokens(group.tokens)}</span>
                   <span class="text-muted-foreground">
                     {group.from === 'request.inputTokens' ? t('inspector.fromInput') : t('inspector.fromPost')}
@@ -164,19 +201,27 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
             </For>
           </div>
         </Show>
-        <Show when={note()}>
-          {text => <p class="m-0 text-[12px] leading-normal text-subtle">{text()}</p>}
-        </Show>
+        <Show when={note()}>{text => <p class="m-0 text-[12px] leading-normal text-subtle">{text()}</p>}</Show>
       </div>
       <div class="flex flex-col gap-2">
         <div class="flex items-baseline justify-between">
           <h3 class="section-label m-0 text-muted-foreground">{t('inspector.dropped')}</h3>
-          <span class="font-mono text-[12px] text-muted-foreground">{plural(removed().length, 'inspector.droppedCountOne', 'inspector.droppedCount', formatNumber(removed().length, locale()))}</span>
+          <span class="font-mono text-[12px] text-muted-foreground">
+            {plural(
+              removed().length,
+              'inspector.droppedCountOne',
+              'inspector.droppedCount',
+              formatNumber(removed().length, locale()),
+            )}
+          </span>
         </div>
-        <Show when={removed().length > 0} fallback={<p class="m-0 text-[12.5px] text-subtle">{t('inspector.noneDropped')}</p>}>
+        <Show
+          when={removed().length > 0}
+          fallback={<p class="m-0 text-[12.5px] text-subtle">{t('inspector.noneDropped')}</p>}
+        >
           <ul class="m-0 flex list-none flex-col p-0" data-testid="dropped">
             <For each={shownRemoved()}>
-              {(id) => {
+              {id => {
                 const found = () => props.model.byId.get(id)
                 const text = () => {
                   const current = found()
@@ -184,9 +229,20 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
                 }
                 return (
                   <li>
-                    <button type="button" class="flex h-[26px] w-full min-w-0 items-center gap-2.5 text-left" onClick={() => props.onSelectEvent(id)}>
-                      <span class="w-[34px] shrink-0 font-mono text-[11px] text-subtle">{props.model.ordinals.get(id) ? `#${props.model.ordinals.get(id)}` : ''}</span>
-                      <span class="min-w-0 truncate text-[12.5px] text-subtle line-through decoration-hatch-edge [unicode-bidi:isolate]" dir="auto">{text()}</span>
+                    <button
+                      type="button"
+                      class="flex h-[26px] w-full min-w-0 items-center gap-2.5 text-left"
+                      onClick={() => props.onSelectEvent(id)}
+                    >
+                      <span class="w-[34px] shrink-0 font-mono text-[11px] text-subtle">
+                        {props.model.ordinals.get(id) ? `#${props.model.ordinals.get(id)}` : ''}
+                      </span>
+                      <span
+                        class="min-w-0 truncate text-[12.5px] text-subtle line-through decoration-hatch-edge [unicode-bidi:isolate]"
+                        dir="auto"
+                      >
+                        {text()}
+                      </span>
                     </button>
                   </li>
                 )
@@ -194,15 +250,32 @@ export function ModelSaw(props: { trace: Trace, model: LedgerModel, eventId: str
             </For>
           </ul>
           <Show when={showAll() && removed().length > MAX_DROPPED}>
-            <span class="text-[12px] text-subtle">{t('inspector.andMore', { count: formatNumber(removed().length - MAX_DROPPED, locale()) })}</span>
+            <span class="text-[12px] text-subtle">
+              {t('inspector.andMore', { count: formatNumber(removed().length - MAX_DROPPED, locale()) })}
+            </span>
           </Show>
           <Show when={showAll() && summaryText()}>
-            {text => <p class="m-0 rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-normal text-muted-foreground [unicode-bidi:isolate]" dir="auto">{text()}</p>}
+            {text => (
+              <p
+                class="m-0 rounded-md border border-border bg-background p-2.5 text-[12.5px] leading-normal text-muted-foreground [unicode-bidi:isolate]"
+                dir="auto"
+              >
+                {text()}
+              </p>
+            )}
           </Show>
           <Show when={removed().length > PREVIEW_DROPPED || summaryText()}>
-            <button type="button" class="flex items-center gap-1.5 self-start text-[12.5px] text-link hover:underline" onClick={() => setShowAll(!showAll())}>
-              {showAll() ? t('inspector.showFewer') : t('inspector.showAll', { count: formatNumber(removed().length, locale()) })}
-              <Show when={!showAll()}><ArrowRightIcon size={13} /></Show>
+            <button
+              type="button"
+              class="flex items-center gap-1.5 self-start text-[12.5px] text-link hover:underline"
+              onClick={() => setShowAll(!showAll())}
+            >
+              {showAll()
+                ? t('inspector.showFewer')
+                : t('inspector.showAll', { count: formatNumber(removed().length, locale()) })}
+              <Show when={!showAll()}>
+                <ArrowRightIcon size={13} />
+              </Show>
             </button>
           </Show>
         </Show>

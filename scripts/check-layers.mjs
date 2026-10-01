@@ -30,8 +30,9 @@ const ALLOW = {
   [KERNEL]: [SCHEMA],
   [SCHEMA]: [],
 }
-for (const host of HOSTS)
+for (const host of HOSTS) {
   ALLOW[host] = HOST_DEPS
+}
 
 const HELP = `Usage:
   node scripts/check-layers.mjs [--help]
@@ -53,31 +54,42 @@ const violations = []
 for (const project of rush.projects) {
   const manifest = JSON.parse(readFileSync(join(project.projectFolder, 'package.json'), 'utf8'))
   if (manifest.name !== project.packageName) {
-    violations.push(`check-layers: ${project.projectFolder} package.json name ${manifest.name} does not match rush.json ${project.packageName}`)
+    violations.push(
+      `check-layers: ${project.projectFolder} package.json name ${manifest.name} does not match rush.json ${project.packageName}`,
+    )
   }
-  if (manifest.name === '@rivus/agent-trace-e2e' && Object.keys(manifest.dependencies ?? {}).length > 0)
-    violations.push(`check-layers: ${manifest.name} has runtime dependencies; it may only use devDependencies (test tooling)`)
-  if (!Object.hasOwn(ALLOW, manifest.name))
+  if (manifest.name === '@rivus/agent-trace-e2e' && Object.keys(manifest.dependencies ?? {}).length > 0) {
+    violations.push(
+      `check-layers: ${manifest.name} has runtime dependencies; it may only use devDependencies (test tooling)`,
+    )
+  }
+  if (!Object.hasOwn(ALLOW, manifest.name)) {
     violations.push(`check-layers: ${manifest.name} has no allow-list entry`)
+  }
   for (const field of FIELDS) {
     const deps = manifest[field]
-    if (!deps)
+    if (!deps) {
       continue
+    }
     const allowed = new Set(ALLOW[manifest.name] ?? [])
-    if (field === 'devDependencies' && HOSTS.includes(manifest.name))
+    if (field === 'devDependencies' && HOSTS.includes(manifest.name)) {
       allowed.add(RUNTIME)
+    }
     for (const name of Object.keys(deps)) {
-      if (!name.startsWith('@rivus/'))
+      if (!name.startsWith('@rivus/')) {
         continue
-      if (!allowed.has(name))
+      }
+      if (!allowed.has(name)) {
         violations.push(`check-layers: ${manifest.name} depends on ${name} (${field}), which 2.2 does not allow`)
+      }
     }
   }
 }
 
 if (violations.length > 0) {
-  for (const line of violations)
+  for (const line of violations) {
     console.error(line)
+  }
   process.exit(1)
 }
 

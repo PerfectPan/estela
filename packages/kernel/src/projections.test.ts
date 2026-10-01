@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { projectLanes, projectRequests } from './project-timeline.ts'
 import { foldHookRuns, hiddenAfterCompaction, projectTurns } from './project-turns.ts'
 
-type Spec = [id: string, kind: TraceEvent['kind'], payload?: Record<string, unknown>, extra?: Partial<TraceEvent> & { line?: number }]
+type Spec = [
+  id: string,
+  kind: TraceEvent['kind'],
+  payload?: Record<string, unknown>,
+  extra?: Partial<TraceEvent> & { line?: number },
+]
 
 function synthetic(specs: Spec[]): Trace {
   const events = specs.map(([id, kind, payload = {}, extra = {}], seq): TraceEvent => {
@@ -53,7 +58,16 @@ describe('projectRequests', () => {
   it('lists every request with recorded numbers only and its member events', () => {
     const requests = projectRequests(trace)
     expect(requests.map(entry => entry.id)).toEqual(['r1', 'r2', 'r3'])
-    expect(requests[0]).toEqual({ id: 'r1', seq: 3, ts: 30, agentId: 'main', model: 'm', inputTokens: 100, outputTokens: 10, eventIds: ['a1', 't1'] })
+    expect(requests[0]).toEqual({
+      id: 'r1',
+      seq: 3,
+      ts: 30,
+      agentId: 'main',
+      model: 'm',
+      inputTokens: 100,
+      outputTokens: 10,
+      eventIds: ['a1', 't1'],
+    })
     expect(requests[1]).toEqual({ id: 'r2', seq: 10, ts: 100, agentId: 'sub', model: 'm', eventIds: [] })
     expect(requests[1]).not.toHaveProperty('inputTokens')
     expect(requests[2]).toMatchObject({ agentId: 'main', inputTokens: 40, durationMs: 7 })
@@ -64,7 +78,10 @@ describe('projectRequests', () => {
 describe('projectLanes', () => {
   it('draws the main lane and one lane per subagent with requests and markers', () => {
     const lanes = projectLanes(trace)
-    expect(lanes.map(lane => [lane.id, lane.depth])).toEqual([['main', 0], ['sub', 1]])
+    expect(lanes.map(lane => [lane.id, lane.depth])).toEqual([
+      ['main', 0],
+      ['sub', 1],
+    ])
     const [main, sub] = lanes
     expect(sub).toMatchObject({ parentId: 'main', spawnEventId: 't1', title: 'Helper' })
     expect(main!.requests.map(entry => entry.id)).toEqual(['r1', 'r3'])
@@ -80,7 +97,10 @@ describe('projectLanes', () => {
 
   it('omits compaction tokens the host did not record and adds lanes seen only on events', () => {
     const lanes = projectLanes({
-      ...synthetic([['k', 'compaction', {}], ['o', 'assistant', {}, { agentId: 'orphan' }]]),
+      ...synthetic([
+        ['k', 'compaction', {}],
+        ['o', 'assistant', {}, { agentId: 'orphan' }],
+      ]),
       agents: [],
     })
     expect(lanes.map(lane => lane.id)).toEqual(['main', 'orphan'])
@@ -92,7 +112,11 @@ describe('projectLanes', () => {
 describe('projectTurns', () => {
   it('groups by main-lane prompt, folds hook runs, and totals each turn', () => {
     const turns = projectTurns(trace)
-    expect(turns.map(turn => [turn.index, turn.promptEventId])).toEqual([[0, undefined], [1, 'p1'], [2, 'p2']])
+    expect(turns.map(turn => [turn.index, turn.promptEventId])).toEqual([
+      [0, undefined],
+      [1, 'p1'],
+      [2, 'p2'],
+    ])
     expect(turns[0]!.eventIds).toEqual(['pre'])
     const turn = turns[1]!
     expect(turn.eventIds[0]).toBe('p1')
@@ -118,13 +142,24 @@ describe('projectTurns', () => {
   })
 
   it('falls back to request durations and returns no turns for an empty trace', () => {
-    const turns = projectTurns(synthetic([['p', 'user', {}], ['r', 'request', { durationMs: 3 }], ['r2', 'request', { durationMs: 4 }]]))
+    const turns = projectTurns(
+      synthetic([
+        ['p', 'user', {}],
+        ['r', 'request', { durationMs: 3 }],
+        ['r2', 'request', { durationMs: 4 }],
+      ]),
+    )
     expect(turns[0]!.totals.durationMs).toBe(7)
     expect(projectTurns(synthetic([]))).toEqual([])
   })
 
   it('folds consecutive hooks only', () => {
-    const events = synthetic([['a', 'hook'], ['b', 'hook'], ['c', 'user'], ['d', 'hook']]).events
+    const events = synthetic([
+      ['a', 'hook'],
+      ['b', 'hook'],
+      ['c', 'user'],
+      ['d', 'hook'],
+    ]).events
     expect(foldHookRuns(events)).toEqual([
       { type: 'hooks', eventIds: ['a', 'b'], count: 2 },
       { type: 'event', eventId: 'c' },

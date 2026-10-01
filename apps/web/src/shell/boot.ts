@@ -9,8 +9,7 @@ export async function bootLocation(): Promise<void> {
   const pending = new URLSearchParams(location.search).get('s')
   try {
     await trustedClient()
-  }
-  catch {
+  } catch {
     // The screen renders and shows the connection error.
   }
   if (pending) {
@@ -20,6 +19,7 @@ export async function bootLocation(): Promise<void> {
     history.replaceState(null, '', url.href)
     return
   }
-  if (!location.hash.startsWith('#/'))
+  if (!location.hash.startsWith('#/')) {
     history.replaceState(null, '', `${location.pathname}${location.search}#/`)
+  }
 }

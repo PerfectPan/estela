@@ -16,8 +16,9 @@ import {
   toTrace,
   walkFiles,
 } from '@rivus/agent-trace-kernel'
-import { isPrompt, parseClaudeRecords, recordText, userFlags, type AgentMeta } from './parse-session.ts'
+import { parseClaudeRecords, type AgentMeta } from './parse-session.ts'
 import { snapshotCapabilities } from './prompt-snapshot.ts'
+import { isPrompt, recordText, userFlags } from './user-flags.ts'
 
 /** Recorded by every session this adapter reads. */
 const BASE_CAPABILITIES: Capability[] = [
@@ -53,8 +54,9 @@ function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
     if (!preview.firstPrompt && rec.type === 'user' && rec.isSidechain !== true) {
       const content = asRecord(rec.message)?.content
       const text = recordText(content)
-      if (text && isPrompt(userFlags(rec, content)))
+      if (text && isPrompt(userFlags(rec, content))) {
         preview.firstPrompt = text.slice(0, 500)
+      }
     }
   }
   return preview
@@ -63,8 +65,9 @@ function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
 function agentFromFile(name: string, records: { value: unknown }[]): string {
   for (const record of records) {
     const id = asString(asRecord(record.value)?.agentId)
-    if (id)
+    if (id) {
       return id
+    }
   }
   const base = name.replace(/\.jsonl$/, '')
   return base.startsWith('agent-') ? base.slice('agent-'.length) : base
@@ -81,28 +84,30 @@ export const claudeCodeAdapter: HostAdapter = {
     return discoverSessions('claude-code', root, io, {
       signal: opts.signal,
       ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
-      files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
-        match: name => name.endsWith('.jsonl'),
-        skipDir: name => name === 'subagents',
-        maxDepth: 6,
-        signal,
-      }),
+      files: (fileIo, dir, signal) =>
+        walkFiles(fileIo, dir, {
+          match: name => name.endsWith('.jsonl'),
+          skipDir: name => name === 'subagents',
+          maxDepth: 6,
+          signal,
+        }),
       preview: previewRecords,
     })
   },
   async detect(ref, io) {
-    if (ref.path.includes('/.claude/projects/'))
+    if (ref.path.includes('/.claude/projects/')) {
       return true
+    }
     try {
       const edges = await readEdges(io, ref.path)
-      if (!edges)
+      if (!edges) {
         return false
+      }
       const head = edges.head.slice(0, 4000)
       const user = head.includes('"type":"user"') || head.includes('"type": "user"')
       const assistant = head.includes('"type":"assistant"') || head.includes('"type": "assistant"')
       return (user || assistant) && head.includes('"sessionId"')
-    }
-    catch {
+    } catch {
       return false
     }
   },
@@ -117,8 +122,9 @@ export const claudeCodeAdapter: HostAdapter = {
       agentMeta: nested.metas,
     })
     parsed.skipped.push(...nested.skipped)
-    if (parsed.session.id === 'unknown')
+    if (parsed.session.id === 'unknown') {
       parsed.session.id = stem || 'unknown'
+    }
     return toTrace('claude-code', [...BASE_CAPABILITIES, ...snapshotCapabilities(parsed.events)], parsed)
   },
 }
@@ -134,11 +140,22 @@ async function nestedSubagents(
   stem: string,
   signal: AbortSignal | undefined,
   progress: ReadProgress,
-): Promise<{ groups: SourcedRecord[][], agentForFile: Map<string, string>, metas: Map<string, AgentMeta>, skipped: Trace['skipped'] }> {
-  const out = { groups: [] as SourcedRecord[][], agentForFile: new Map<string, string>(), metas: new Map<string, AgentMeta>(), skipped: [] as Trace['skipped'] }
+): Promise<{
+  groups: SourcedRecord[][]
+  agentForFile: Map<string, string>
+  metas: Map<string, AgentMeta>
+  skipped: Trace['skipped']
+}> {
+  const out = {
+    groups: [] as SourcedRecord[][],
+    agentForFile: new Map<string, string>(),
+    metas: new Map<string, AgentMeta>(),
+    skipped: [] as Trace['skipped'],
+  }
   const subDir = joinPath(joinPath(dirnamePath(sessionPath), stem), 'subagents')
-  if ((await io.stat(subDir))?.kind !== 'dir')
+  if ((await io.stat(subDir))?.kind !== 'dir') {
     return out
+  }
   const files = await walkFiles(io, subDir, { match: () => true, maxDepth: 8, signal })
   const metaFiles = new Map<string, string>()
   for (const path of files) {
@@ -159,8 +176,9 @@ async function nestedSubagents(
   }
   for (const [path, agentId] of out.agentForFile) {
     const metaPath = metaFiles.get(path.slice(0, -'.jsonl'.length))
-    if (metaPath)
+    if (metaPath) {
       out.metas.set(agentId, await agentMeta(io, metaPath, progress))
+    }
   }
   return out
 }
@@ -170,8 +188,7 @@ async function agentMeta(io: TraceIO, path: string, progress: ReadProgress): Pro
   let value: unknown
   try {
     value = JSON.parse(text) as unknown
-  }
-  catch {
+  } catch {
     throw new Error(`claude-code: ${path}:1: invalid JSON`)
   }
   const meta = asRecord(value)
@@ -179,11 +196,14 @@ async function agentMeta(io: TraceIO, path: string, progress: ReadProgress): Pro
   const title = asString(meta?.description)
   const toolUseId = asString(meta?.toolUseId)
   const parentAgentId = asString(meta?.parentAgentId)
-  if (title)
+  if (title) {
     out.title = title
-  if (toolUseId)
+  }
+  if (toolUseId) {
     out.toolUseId = toolUseId
-  if (parentAgentId)
+  }
+  if (parentAgentId) {
     out.parentAgentId = parentAgentId
+  }
   return out
 }

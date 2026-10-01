@@ -10,8 +10,7 @@ export async function openBrowser(base: string, ref: string, auth: boolean): Pro
   const target = `${base}?s=${encodeURIComponent(ref)}`
   try {
     await open(auth ? buildOtpAuthUrl(target) : target)
-  }
-  catch {
+  } catch {
     // The terminal already printed the URL.
   }
 }
