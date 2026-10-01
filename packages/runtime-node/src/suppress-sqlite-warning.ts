@@ -1,5 +1,6 @@
 /**
- * Side-effect module. Node.js 22 prints one `ExperimentalWarning` when `node:sqlite` loads (D7).
+ * Side-effect module. Early Node.js 24 releases print one `ExperimentalWarning` when `node:sqlite` loads
+ * (D7): 24.0 does, 24.18 does not.
  * A `warning` listener does not stop Node's default printer, so this wraps `process.emitWarning`
  * and drops that one warning (matched by type and message). Every other warning is unchanged.
  *

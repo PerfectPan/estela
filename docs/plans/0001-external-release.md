@@ -500,7 +500,7 @@ Localization details (D13):
 | Session load fails | Workspace shows the error with host, file, and line; back to the list |
 | Browser closes during a load | Load aborted |
 | Cache corrupt | Discarded and rebuilt |
-| Node.js < 22.18 | One-line message, exit 1 |
+| Node.js < 24 | One-line message, exit 1 |
 
 ### 3.8 Compatibility and migration
 
@@ -580,7 +580,7 @@ The M4 design review is local verification (D16), not part of this suite.
 
 ### 5.3 CLI smoke
 
-S2, S10, S13, S15 on the installed tarball, on Node.js 22.18 and 24; S13 also on Node.js 20. S16 runs in a pseudo-terminal (`node-pty`, test harness only).
+S2, S10, S13, S15 on the installed tarball, on Node.js 24; S13 also on Node.js 22. S16 runs in a pseudo-terminal (`node-pty`, test harness only).
 
 ### 5.4 Real sessions and design review
 

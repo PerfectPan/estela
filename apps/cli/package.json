@@ -14,7 +14,7 @@
   },
   "license": "GPL-3.0-only",
   "engines": {
-    "node": "^22.18.0 || >=23.6.0"
+    "node": ">=24"
   },
   "bin": {
     "agent-trace": "./dist/bin.mjs"

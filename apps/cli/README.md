@@ -2,7 +2,7 @@
 
 Local DevTools for coding-agent session logs (Claude Code, Codex, Grok). It lists the sessions on this machine, opens one in a workspace in the browser, and reconstructs what the model saw at any event.
 
-Requires Node.js 22.18 or later (not 23.0 to 23.5).
+Requires Node.js 24 or later.
 
 ```sh
 npx @rivus/agent-trace                         # session browser in the default browser

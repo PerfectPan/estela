@@ -10,7 +10,7 @@ The screens are described in words here. Screenshots are not committed; the desi
 
 ## Quick start
 
-Node.js 22.18 or later (not 23.0–23.5):
+Node.js 24 or later:
 
 ```sh
 npx @rivus/agent-trace

@@ -43,7 +43,7 @@ Out of scope:
 - `npx @rivus/agent-trace` must start a server on `localhost` and open the session browser in the default browser. `--no-open` must skip opening the browser and print the URL.
 - `npx @rivus/agent-trace <path>` must open the session workspace for that session directly.
 - A path that does not exist or that no supported host accepts must exit 1 before the server listens, with a message that names the path.
-- On Node.js older than 22.18, the command must exit with a message that names the required version.
+- On Node.js older than 24, the command must exit with a message that names the required version.
 
 ### Terminal output
 
@@ -107,7 +107,7 @@ Out of scope:
 
 ### S1: Open the DevTools
 
-- Given Node.js 22.18 and Claude Code, Codex, and Grok sessions in their default locations
+- Given Node.js 24 and Claude Code, Codex, and Grok sessions in their default locations
 - When the user runs `npx @rivus/agent-trace`
 - Then the browser opens the session browser, and it lists sessions from all three hosts with per-host counts
 
@@ -179,9 +179,9 @@ Out of scope:
 
 ### S13: Old Node.js
 
-- Given Node.js 20
+- Given Node.js 22
 - When the user runs `npx @rivus/agent-trace`
-- Then the user sees a message that names Node.js 22.18, not a module-loader stack trace
+- Then the user sees a message that names Node.js 24, not a module-loader stack trace
 
 ### S14: Language
 
