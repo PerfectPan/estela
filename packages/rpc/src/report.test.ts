@@ -6,7 +6,10 @@ import { buildReport } from './report.ts'
 /** A report of `count` user events; no `present`, so the store serves unredacted text, as with `AGENT_TRACE_REDACT=0`. */
 async function reportOf(count: number, text: (index: number) => string, options: Partial<ReportInput> = {}) {
   const f = fixture()
-  f.write('/logs/a.jsonl', Array.from({ length: count }, (_, index) => ({ id: `e${index}`, kind: 'user', text: text(index) })))
+  f.write(
+    '/logs/a.jsonl',
+    Array.from({ length: count }, (_, index) => ({ id: `e${index}`, kind: 'user', text: text(index) })),
+  )
   const { store } = storeOf({ io: f.io, parse: f.parse })
   const view = await store.view('a')
   const report = await store.withEvents('a', read => buildReport({ view, full: read, redact: present, ...options }))

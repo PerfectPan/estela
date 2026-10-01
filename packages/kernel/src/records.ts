@@ -24,8 +24,7 @@ export async function readOriginal(io: Pick<TraceIO, 'readBytes'>, source: Sourc
   const text = new TextDecoder().decode(bytes)
   try {
     return JSON.parse(text) as unknown
-  }
-  catch {
+  } catch {
     throw new Error(`${source.file}:${source.line}: the record at this source pointer is not JSON`)
   }
 }
@@ -57,7 +56,7 @@ export async function readJsonlRecords(
   file: string,
   io: TraceIO,
   host: string,
-  opts?: { signal?: AbortSignal, progress?: ReadProgress },
+  opts?: { signal?: AbortSignal; progress?: ReadProgress },
 ): Promise<SourcedRecord[]> {
   const records: SourcedRecord[] = []
   for await (const line of io.lines(file, { signal: opts?.signal })) {
@@ -66,13 +65,13 @@ export async function readJsonlRecords(
       opts.progress.total += line.length
       opts.progress.onProgress?.(opts.progress.total)
     }
-    if (!line.text.trim())
+    if (!line.text.trim()) {
       continue
+    }
     let value: unknown
     try {
       value = JSON.parse(line.text) as unknown
-    }
-    catch {
+    } catch {
       throw new Error(`${host}: ${file}:${line.line}: invalid JSON`)
     }
     records.push({

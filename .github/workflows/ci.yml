@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
-          node-version: '22.18'
+          node-version: '24'
       - name: Repository checks
         uses: PerfectPan/gh-repo-checks@v1
         with:
@@ -62,6 +62,9 @@ jobs:
           node common/scripts/install-run-rush.js change --verify --no-fetch --target-branch "$base"
           node scripts/release-intent.mjs check --base "$base"
       - run: node common/scripts/install-run-rush.js lint
+      # oxfmt and oxlint come from apps/cli's devDependencies, so both run after the install.
+      - run: node scripts/format.mjs --check
+      - run: node scripts/lint-scripts.mjs
       - run: node scripts/check-browser-bundle.mjs
       - name: Build Web once before CLI smoke tests
         run: node common/scripts/install-run-rush.js build --only @rivus/agent-trace-web

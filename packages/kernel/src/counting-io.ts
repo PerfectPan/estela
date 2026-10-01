@@ -18,8 +18,9 @@ export function countingIO(inner: TraceIO): CountingIO {
   const reads = new Map<string, ReadRange[]>()
   const add = (path: string, range: ReadRange): void => {
     const bytes = range.end - range.start
-    if (bytes <= 0)
+    if (bytes <= 0) {
       return
+    }
     counts.set(path, (counts.get(path) ?? 0) + bytes)
     reads.set(path, [...(reads.get(path) ?? []), range])
   }
@@ -52,10 +53,10 @@ export function countingIO(inner: TraceIO): CountingIO {
           end = line.offset + line.length
           yield line
         }
-      }
-      finally {
-        if (start !== undefined)
+      } finally {
+        if (start !== undefined) {
           add(path, { start, end })
+        }
       }
     },
   }

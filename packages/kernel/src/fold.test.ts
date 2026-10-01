@@ -27,14 +27,16 @@ function trace(partial: Partial<Trace> & Pick<Trace, 'events' | 'capabilities'>)
 
 describe('fold', () => {
   it('leaves undeclared capability numbers undefined', () => {
-    const summary = fold(trace({
-      capabilities: [],
-      events: [
-        event({ id: 'u', kind: 'user' }),
-        event({ id: 'r', kind: 'request', payload: { usage: { inputTokens: 3, outputTokens: 1 }, durationMs: 5 } }),
-        event({ id: 't', kind: 'tool_result', payload: { callId: 'c', isError: true } }),
-      ],
-    }))
+    const summary = fold(
+      trace({
+        capabilities: [],
+        events: [
+          event({ id: 'u', kind: 'user' }),
+          event({ id: 'r', kind: 'request', payload: { usage: { inputTokens: 3, outputTokens: 1 }, durationMs: 5 } }),
+          event({ id: 't', kind: 'tool_result', payload: { callId: 'c', isError: true } }),
+        ],
+      }),
+    )
     expect(summary.turns).toBe(1)
     expect(summary.failedTools).toBe(1)
     expect(summary.requests).toBeUndefined()
@@ -45,21 +47,23 @@ describe('fold', () => {
   })
 
   it('counts a turn only for a real main-lane user prompt', () => {
-    const summary = fold(trace({
-      capabilities: [],
-      agents: [{ id: 'main' }, { id: 'child', parentId: 'main' }],
-      events: [
-        event({ id: 'u', kind: 'user' }),
-        event({ id: 'm', kind: 'user', payload: { meta: true } }),
-        event({ id: 'c', kind: 'user', payload: { compactSummary: true } }),
-        event({ id: 'k', kind: 'user', payload: { command: true } }),
-        event({ id: 'i', kind: 'user', payload: { injected: true } }),
-        event({ id: 's', kind: 'user', agentId: 'child' }),
-        event({ id: 'u-block', kind: 'user' }),
-        event({ id: 'n', kind: 'user', payload: { continued: true }, source: { ...source, line: 3 } }),
-        event({ id: 'v', kind: 'user', source: { ...source, line: 2 } }),
-      ],
-    }))
+    const summary = fold(
+      trace({
+        capabilities: [],
+        agents: [{ id: 'main' }, { id: 'child', parentId: 'main' }],
+        events: [
+          event({ id: 'u', kind: 'user' }),
+          event({ id: 'm', kind: 'user', payload: { meta: true } }),
+          event({ id: 'c', kind: 'user', payload: { compactSummary: true } }),
+          event({ id: 'k', kind: 'user', payload: { command: true } }),
+          event({ id: 'i', kind: 'user', payload: { injected: true } }),
+          event({ id: 's', kind: 'user', agentId: 'child' }),
+          event({ id: 'u-block', kind: 'user' }),
+          event({ id: 'n', kind: 'user', payload: { continued: true }, source: { ...source, line: 3 } }),
+          event({ id: 'v', kind: 'user', source: { ...source, line: 2 } }),
+        ],
+      }),
+    )
     expect(summary.turns).toBe(2)
   })
 
@@ -71,11 +75,13 @@ describe('fold', () => {
   })
 
   it('sums declared usage and downsamples the context shape', () => {
-    const events = Array.from({ length: 121 }, (_, index) => event({
-      id: `r${index}`,
-      kind: 'request',
-      payload: { usage: { inputTokens: index, outputTokens: 1 } },
-    }))
+    const events = Array.from({ length: 121 }, (_, index) =>
+      event({
+        id: `r${index}`,
+        kind: 'request',
+        payload: { usage: { inputTokens: index, outputTokens: 1 } },
+      }),
+    )
     const summary = fold(trace({ capabilities: ['requests', 'usage'], events }))
     expect(summary.requests).toBe(121)
     expect(summary.tokensIn).toBe((120 * 121) / 2)

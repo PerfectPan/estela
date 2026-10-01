@@ -6,7 +6,7 @@ import { locale, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { formatNumber } from '@/lib/format.ts'
 
-const CHIPS: { id: LedgerFilter, label: MessageKey }[] = [
+const CHIPS: { id: LedgerFilter; label: MessageKey }[] = [
   { id: 'all', label: 'ledger.all' },
   { id: 'requests', label: 'ledger.requests' },
   { id: 'tools', label: 'ledger.tools' },
@@ -51,7 +51,9 @@ export function LedgerToolbar(props: {
         aria-pressed={props.dim}
         class={cx(
           'flex items-center gap-2 rounded-[7px] border px-2 py-1 text-[12.5px] whitespace-nowrap',
-          props.dim ? 'border-input bg-muted text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+          props.dim
+            ? 'border-input bg-muted text-foreground'
+            : 'border-transparent text-muted-foreground hover:text-foreground',
         )}
         data-testid="dim-hidden"
         onClick={() => props.onDim(!props.dim)}

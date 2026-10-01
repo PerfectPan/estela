@@ -1,6 +1,14 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vitest'
-import { anchorIndex, buildLedgerModel, countEvents, flattenLedger, moveSelection, ROW_SIZE, type LedgerView } from './ledger-model.ts'
+import {
+  anchorIndex,
+  buildLedgerModel,
+  countEvents,
+  flattenLedger,
+  moveSelection,
+  ROW_SIZE,
+  type LedgerView,
+} from './ledger-model.ts'
 
 let seq = 0
 function event(partial: Partial<TraceEvent> & Pick<TraceEvent, 'id' | 'kind'>): TraceEvent {
@@ -35,18 +43,28 @@ function sample(): Trace {
   }
 }
 
-const view = (partial: Partial<LedgerView> = {}): LedgerView => ({ collapsed: new Set(), expanded: new Set(), filter: 'all', ...partial })
+const view = (partial: Partial<LedgerView> = {}): LedgerView => ({
+  collapsed: new Set(),
+  expanded: new Set(),
+  filter: 'all',
+  ...partial,
+})
 
 describe('buildLedgerModel', () => {
   it('pairs results with calls, folds hooks, and turns the spawn call into a subagent row', () => {
     const model = buildLedgerModel(sample())
     expect(model.turns.map(turn => turn.id)).toEqual(['t0', 't1'])
-    const types = model.turns[0]!.entries.map(entry => entry.type === 'event' ? `${entry.kind}:${entry.eventId}` : entry.type)
+    const types = model.turns[0]!.entries.map(entry =>
+      entry.type === 'event' ? `${entry.kind}:${entry.eventId}` : entry.type,
+    )
     expect(types).toEqual(['user:p1', 'request:r1', 'tool:c1', 'hooks', 'subagent', 'compaction'])
     const tool = model.turns[0]!.entries[2]!
     expect(tool.type === 'event' && tool.resultId).toBe('o1')
     const sub = model.turns[0]!.entries[4]!
-    expect(sub.type === 'subagent' && sub.children.map(child => child.type === 'event' && child.eventId)).toEqual(['s1', 's2'])
+    expect(sub.type === 'subagent' && sub.children.map(child => child.type === 'event' && child.eventId)).toEqual([
+      's1',
+      's2',
+    ])
     expect(sub.type === 'subagent' && sub.resultId).toBe('spawn-out')
   })
 
@@ -144,8 +162,14 @@ describe('keyboard and counts', () => {
       { id: 'orphan', kind: 'tool_result' as const, payload: { callId: 'none', isError: true } },
       { id: 'again', kind: 'tool_result' as const, payload: { callId: 'x1', isError: true } },
     ]
-    for (const item of extra)
-      trace.events.push({ ...item, seq: trace.events.length, ts: 1000 * trace.events.length, source: { file: '0', offset: 0, length: 1, line: trace.events.length + 1 } })
+    for (const item of extra) {
+      trace.events.push({
+        ...item,
+        seq: trace.events.length,
+        ts: 1000 * trace.events.length,
+        source: { file: '0', offset: 0, length: 1, line: trace.events.length + 1 },
+      })
+    }
     const model = buildLedgerModel(trace)
     const failed = trace.events.filter(item => item.kind === 'tool_result' && item.payload.isError === true).length
     const rows = flattenLedger(model, view({ filter: 'failures' })).filter(row => row.type === 'entry')

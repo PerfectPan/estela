@@ -6,10 +6,11 @@ function flat(value: unknown, prefix = ''): Map<string, string> {
   const out = new Map<string, string>()
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
     const path = prefix ? `${prefix}.${key}` : key
-    if (typeof item === 'string')
+    if (typeof item === 'string') {
       out.set(path, item)
-    else
+    } else {
       flat(item, path).forEach((text, nested) => out.set(nested, text))
+    }
   }
   return out
 }
@@ -23,7 +24,8 @@ describe('dictionaries', () => {
     const english = flat(en)
     const chinese = flat(zhCN)
     expect([...chinese.keys()].toSorted()).toEqual([...english.keys()].toSorted())
-    for (const [key, text] of english)
+    for (const [key, text] of english) {
       expect({ key, names: placeholders(chinese.get(key)!) }).toEqual({ key, names: placeholders(text) })
+    }
   })
 })

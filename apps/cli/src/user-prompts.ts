@@ -6,17 +6,21 @@ export function userPrompts(trace: Trace): string[] {
   const main = trace.agents.find(agent => agent.parentId == null)?.id
   const prompts: string[] = []
   for (const event of trace.events) {
-    if (event.kind !== 'user' || (event.agentId != null && event.agentId !== main))
+    if (event.kind !== 'user' || (event.agentId != null && event.agentId !== main)) {
       continue
+    }
     const text = event.payload.text
-    if (typeof text !== 'string')
+    if (typeof text !== 'string') {
       continue
+    }
     const trimmed = text.trim()
-    if (!trimmed)
+    if (!trimmed) {
       continue
+    }
     prompts.push(trimmed.slice(0, PROMPT_CHARS))
-    if (prompts.length >= PROMPT_LIMIT)
+    if (prompts.length >= PROMPT_LIMIT) {
       break
+    }
   }
   return prompts
 }

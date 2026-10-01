@@ -23,11 +23,16 @@ const OPENER = '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "$AGENT_TRACE_SMOKE_OPEN_LOG
  * installed tarball, the fake opener, then `extra(root)` (the synthetic homes). On failure the
  * root is removed and the error rethrown.
  */
-export async function prepareRun<T>(name: string, keepVariable: string, extra: (root: string) => Promise<T>): Promise<{ context: Run & T, cleanup: () => Promise<void> }> {
+export async function prepareRun<T>(
+  name: string,
+  keepVariable: string,
+  extra: (root: string) => Promise<T>,
+): Promise<{ context: Run & T; cleanup: () => Promise<void> }> {
   const root = await mkdtemp(join(tmpdir(), `agent-trace-${name}-`))
   const cleanup = async () => {
-    if (process.env[keepVariable] !== '1')
+    if (process.env[keepVariable] !== '1') {
       await rm(root, { recursive: true, force: true })
+    }
   }
   try {
     const installed = await packAndInstall(root, repo)
@@ -38,10 +43,11 @@ export async function prepareRun<T>(name: string, keepVariable: string, extra: (
       await chmod(join(fakeBin, opener), 0o755)
     }
     const more = await extra(root)
-    process.stdout.write(`node: ${process.version}\ntarball: ${installed.tarball} (${installed.tarballBytes} bytes, ${installed.files.length} files)\n`)
+    process.stdout.write(
+      `node: ${process.version}\ntarball: ${installed.tarball} (${installed.tarballBytes} bytes, ${installed.files.length} files)\n`,
+    )
     return { context: { root, fakeBin, ...installed, ...more }, cleanup }
-  }
-  catch (error) {
+  } catch (error) {
     await cleanup()
     throw error
   }

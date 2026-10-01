@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { SummaryQueue } from './summary-queue.ts'
 
-interface Job { id: string, rank: number, heavy?: boolean }
+interface Job {
+  id: string
+  rank: number
+  heavy?: boolean
+}
 
 function tick(ms = 5): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -25,7 +29,13 @@ describe('SummaryQueue', () => {
         active -= 1
       },
     })
-    queue.add([{ id: 'a', rank: 1 }, { id: 'b', rank: 3 }, { id: 'c', rank: 2 }, { id: 'd', rank: 0 }, { id: 'e', rank: 5 }])
+    queue.add([
+      { id: 'a', rank: 1 },
+      { id: 'b', rank: 3 },
+      { id: 'c', rank: 2 },
+      { id: 'd', rank: 0 },
+      { id: 'e', rank: 5 },
+    ])
     queue.prioritize(['d'])
     await queue.whenIdle()
     expect(max).toBe(2)
@@ -44,13 +54,19 @@ describe('SummaryQueue', () => {
       heavy: job => job.heavy === true,
       async run(job) {
         running.add(job.id)
-        if (running.size > 1 && [...running].some(id => id === 'big'))
+        if (running.size > 1 && [...running].some(id => id === 'big')) {
           overlap.push([...running].join(','))
+        }
         await tick()
         running.delete(job.id)
       },
     })
-    queue.add([{ id: 'x', rank: 4 }, { id: 'big', rank: 3, heavy: true }, { id: 'y', rank: 2 }, { id: 'z', rank: 1 }])
+    queue.add([
+      { id: 'x', rank: 4 },
+      { id: 'big', rank: 3, heavy: true },
+      { id: 'y', rank: 2 },
+      { id: 'z', rank: 1 },
+    ])
     await queue.whenIdle()
     expect(overlap).toEqual([])
   })

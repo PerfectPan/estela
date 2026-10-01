@@ -1,7 +1,20 @@
-import type { ContextSlot, ContextSlotName, ContextTokens, ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type {
+  ContextSlot,
+  ContextSlotName,
+  ContextTokens,
+  ReconstructResult,
+  Trace,
+  TraceEvent,
+} from '@rivus/agent-trace-schema'
 import { asNumber, asString } from './jsonl.ts'
 import { isPrompt, laneOf, mainAgentId, recordKey, requestUsage, shadowedIn } from './lanes.ts'
-import { latestSnapshot, promptSnapshot, snapshotHasSystemPrompt, snapshotHasTools, snapshotToolsEmpty } from './prompt-snapshot.ts'
+import {
+  latestSnapshot,
+  promptSnapshot,
+  snapshotHasSystemPrompt,
+  snapshotHasTools,
+  snapshotToolsEmpty,
+} from './prompt-snapshot.ts'
 
 const MESSAGE_KINDS = new Set<TraceEvent['kind']>(['user', 'assistant', 'thinking', 'tool_call', 'tool_result'])
 const ALL_SLOTS: ContextSlotName[] = ['system', 'tools', 'summary', 'messages', 'currentTurn']
@@ -10,12 +23,15 @@ const ALL_SLOTS: ContextSlotName[] = ['system', 'tools', 'summary', 'messages', 
 function compactionBefore(events: TraceEvent[], index: number, lane: string, mainId: string): TraceEvent | undefined {
   for (let cursor = index - 1; cursor >= 0; cursor--) {
     const event = events[cursor]!
-    if (laneOf(event, mainId) !== lane)
+    if (laneOf(event, mainId) !== lane) {
       continue
-    if (event.kind === 'request')
+    }
+    if (event.kind === 'request') {
       return undefined
-    if (event.kind === 'compaction')
+    }
+    if (event.kind === 'compaction') {
       return event
+    }
   }
   return undefined
 }
@@ -26,10 +42,10 @@ function summaryIds(prefix: TraceEvent[]): Set<string> {
     if (event.kind === 'compaction') {
       ids.add(event.id)
       const summary = asString(event.payload.summaryEventId)
-      if (summary)
+      if (summary) {
         ids.add(summary)
-    }
-    else if (event.kind === 'user' && event.payload.compactSummary === true) {
+      }
+    } else if (event.kind === 'user' && event.payload.compactSummary === true) {
       ids.add(event.id)
     }
   }
@@ -45,17 +61,24 @@ function summaryIds(prefix: TraceEvent[]): Set<string> {
 function turnStart(visible: TraceEvent[], mainLane: boolean): number {
   for (let cursor = visible.length - 1; cursor >= 0; cursor--) {
     const event = visible[cursor]!
-    if (!isPrompt(event))
+    if (!isPrompt(event)) {
       continue
+    }
     let first = cursor
-    while (first > 0 && isPrompt(visible[first - 1]!) && recordKey(visible[first - 1]!) === recordKey(event))
+    while (first > 0 && isPrompt(visible[first - 1]!) && recordKey(visible[first - 1]!) === recordKey(event)) {
       first -= 1
+    }
     return first
   }
   return mainLane ? -1 : 0
 }
 
-function slot(name: ContextSlotName, recorded: boolean, eventIds: string[], present = eventIds.length > 0): ContextSlot {
+function slot(
+  name: ContextSlotName,
+  recorded: boolean,
+  eventIds: string[],
+  present = eventIds.length > 0,
+): ContextSlot {
   return { name, status: recorded ? (present ? 'present' : 'empty') : 'unavailable', eventIds }
 }
 
@@ -63,10 +86,16 @@ function slot(name: ContextSlotName, recorded: boolean, eventIds: string[], pres
  * `system` or `tools` slot: present when recorded (empty for a recorded list with nothing in it),
  * else unavailable; `recordedBy` names the snapshot it comes from.
  */
-function recordedSlot(name: 'system' | 'tools', recorded: boolean, snapshot: TraceEvent | undefined, empty = false): ContextSlot {
+function recordedSlot(
+  name: 'system' | 'tools',
+  recorded: boolean,
+  snapshot: TraceEvent | undefined,
+  empty = false,
+): ContextSlot {
   const out = slot(name, recorded, [], !empty)
-  if (snapshot)
+  if (snapshot) {
     out.recordedBy = snapshot.id
+  }
   return out
 }
 
@@ -75,10 +104,12 @@ function recordedSlot(name: 'system' | 'tools', recorded: boolean, snapshot: Tra
  * system prompt belongs to the main lane; a subagent lane needs its own.
  */
 function systemRecorded(trace: Trace, lane: string, mainId: string): boolean {
-  if (!trace.capabilities.includes('systemPrompt'))
+  if (!trace.capabilities.includes('systemPrompt')) {
     return false
-  if (lane === mainId)
+  }
+  if (lane === mainId) {
     return Boolean(trace.session.systemPrompt)
+  }
   return Boolean(trace.agents.find(agent => agent.id === lane)?.systemPrompt)
 }
 
@@ -93,7 +124,12 @@ function promptSlots(trace: Trace, lane: string, mainId: string, prefix: TraceEv
     const tools = latestSnapshot(prefix, snapshotHasTools)
     return [
       recordedSlot('system', system !== undefined, system),
-      recordedSlot('tools', tools !== undefined, tools, tools !== undefined && snapshotToolsEmpty(promptSnapshot(tools))),
+      recordedSlot(
+        'tools',
+        tools !== undefined,
+        tools,
+        tools !== undefined && snapshotToolsEmpty(promptSnapshot(tools)),
+      ),
     ]
   }
   const tools = trace.session.tools
@@ -103,8 +139,15 @@ function promptSlots(trace: Trace, lane: string, mainId: string, prefix: TraceEv
   ]
 }
 
-function slotsOf(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[], visible: TraceEvent[]): ContextSlot[] {
-  const recordsCompaction = trace.capabilities.includes('compaction') || prefix.some(event => event.kind === 'compaction')
+function slotsOf(
+  trace: Trace,
+  lane: string,
+  mainId: string,
+  prefix: TraceEvent[],
+  visible: TraceEvent[],
+): ContextSlot[] {
+  const recordsCompaction =
+    trace.capabilities.includes('compaction') || prefix.some(event => event.kind === 'compaction')
   const summaries = summaryIds(prefix)
   const summary: string[] = []
   const messages: string[] = []
@@ -115,12 +158,14 @@ function slotsOf(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[
       summary.push(event.id)
       return
     }
-    if (!MESSAGE_KINDS.has(event.kind))
+    if (!MESSAGE_KINDS.has(event.kind)) {
       return
-    if (start >= 0 && position >= start)
+    }
+    if (start >= 0 && position >= start) {
       current.push(event.id)
-    else
+    } else {
       messages.push(event.id)
+    }
   })
   return [
     ...promptSlots(trace, lane, mainId, prefix),
@@ -132,14 +177,21 @@ function slotsOf(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[
 
 function tokensOf(target: TraceEvent, compaction: TraceEvent | undefined): ContextTokens[] {
   const tokens: ContextTokens[] = []
-  if (target.kind !== 'request')
+  if (target.kind !== 'request') {
     return tokens
+  }
   const { inputTokens } = requestUsage(target)
-  if (inputTokens !== undefined)
+  if (inputTokens !== undefined) {
     tokens.push({ slots: [...ALL_SLOTS], tokens: inputTokens, from: 'request.inputTokens' })
+  }
   const postTokens = asNumber(compaction?.payload.postTokens)
-  if (postTokens !== undefined)
-    tokens.push({ slots: ['system', 'tools', 'summary', 'messages'], tokens: postTokens, from: 'compaction.postTokens' })
+  if (postTokens !== undefined) {
+    tokens.push({
+      slots: ['system', 'tools', 'summary', 'messages'],
+      tokens: postTokens,
+      from: 'compaction.postTokens',
+    })
+  }
   return tokens
 }
 

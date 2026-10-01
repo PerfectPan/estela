@@ -1,7 +1,7 @@
 import type { JSX } from 'solid-js'
 
 /** Stroke icons from the design mockups (24 px grid, 1.8 stroke, `currentColor`). */
-function Icon(props: { size?: number, class?: string, children: JSX.Element }) {
+function Icon(props: { size?: number; class?: string; children: JSX.Element }) {
   return (
     <svg
       width={props.size ?? 14}
@@ -20,14 +20,22 @@ function Icon(props: { size?: number, class?: string, children: JSX.Element }) {
   )
 }
 
-type IconProps = { size?: number, class?: string }
+type IconProps = { size?: number; class?: string }
 
 export function ChevronRightIcon(props: IconProps) {
-  return <Icon {...props}><path d="M9 6 L15 12 L9 18" /></Icon>
+  return (
+    <Icon {...props}>
+      <path d="M9 6 L15 12 L9 18" />
+    </Icon>
+  )
 }
 
 export function ChevronDownIcon(props: IconProps) {
-  return <Icon {...props}><path d="M6 9 L12 15 L18 9" /></Icon>
+  return (
+    <Icon {...props}>
+      <path d="M6 9 L12 15 L18 9" />
+    </Icon>
+  )
 }
 
 /** Failed tool calls only: the one place the error color appears. */
@@ -51,7 +59,11 @@ export function EyeIcon(props: IconProps) {
 }
 
 export function CheckIcon(props: IconProps) {
-  return <Icon {...props}><path d="M5 12.5 L10 17 L19 7" /></Icon>
+  return (
+    <Icon {...props}>
+      <path d="M5 12.5 L10 17 L19 7" />
+    </Icon>
+  )
 }
 
 export function ExportIcon(props: IconProps) {
@@ -65,11 +77,19 @@ export function ExportIcon(props: IconProps) {
 }
 
 export function CloseIcon(props: IconProps) {
-  return <Icon {...props}><path d="M7 7 L17 17 M17 7 L7 17" /></Icon>
+  return (
+    <Icon {...props}>
+      <path d="M7 7 L17 17 M17 7 L7 17" />
+    </Icon>
+  )
 }
 
 export function HooksIcon(props: IconProps) {
-  return <Icon {...props}><path d="M5 9 H19 M5 15 H19" /></Icon>
+  return (
+    <Icon {...props}>
+      <path d="M5 9 H19 M5 15 H19" />
+    </Icon>
+  )
 }
 
 export function CompactIcon(props: IconProps) {
@@ -82,5 +102,9 @@ export function CompactIcon(props: IconProps) {
 }
 
 export function ArrowRightIcon(props: IconProps) {
-  return <Icon {...props}><path d="M5 12 H19 M13 6 L19 12 L13 18" /></Icon>
+  return (
+    <Icon {...props}>
+      <path d="M5 12 H19 M13 6 L19 12 L13 18" />
+    </Icon>
+  )
 }

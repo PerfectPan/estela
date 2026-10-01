@@ -46,10 +46,15 @@ const MARK: Record<RowKind, string> = {
   unknown: 'border border-subtle border-dashed',
 }
 
-export function KindSquare(props: { kind: RowKind, size?: 'row' | 'title', class?: string }) {
+export function KindSquare(props: { kind: RowKind; size?: 'row' | 'title'; class?: string }) {
   return (
     <span
-      class={cx('box-border shrink-0 rounded-[2px]', props.size === 'title' ? 'size-[9px]' : 'size-[7px]', MARK[props.kind], props.class)}
+      class={cx(
+        'box-border shrink-0 rounded-[2px]',
+        props.size === 'title' ? 'size-[9px]' : 'size-[7px]',
+        MARK[props.kind],
+        props.class,
+      )}
       aria-hidden="true"
     />
   )

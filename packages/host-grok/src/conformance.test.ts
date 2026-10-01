@@ -20,33 +20,37 @@ const overFile = writeOversized(
 
 afterAll(() => rmSync(overRoot, { recursive: true, force: true }))
 
-describeHostConformance(grokAdapter, {
-  root,
-  io: nodeIO,
-  oversized: { root: overRoot, file: overFile },
-  sessions: [
-    {
-      path: join(root, 'plain/updates.jsonl'),
-      records: 9,
-      capabilities: ['requests', 'usage', 'durations', 'thinking', 'hooks', 'systemPrompt', 'toolSchemas'],
-    },
-    {
-      path: join(root, 'compaction/updates.jsonl'),
-      records: 4,
-      capabilities: ['compaction', 'compactionTokens'],
-    },
-    {
-      path: join(root, 'subagent/updates.jsonl'),
-      records: 6,
-      capabilities: ['subagents'],
-    },
-    {
-      path: join(root, 'unknown-type/updates.jsonl'),
-      records: 1,
-      capabilities: [],
-    },
-  ],
-}, repoEvidence())
+describeHostConformance(
+  grokAdapter,
+  {
+    root,
+    io: nodeIO,
+    oversized: { root: overRoot, file: overFile },
+    sessions: [
+      {
+        path: join(root, 'plain/updates.jsonl'),
+        records: 9,
+        capabilities: ['requests', 'usage', 'durations', 'thinking', 'hooks', 'systemPrompt', 'toolSchemas'],
+      },
+      {
+        path: join(root, 'compaction/updates.jsonl'),
+        records: 4,
+        capabilities: ['compaction', 'compactionTokens'],
+      },
+      {
+        path: join(root, 'subagent/updates.jsonl'),
+        records: 6,
+        capabilities: ['subagents'],
+      },
+      {
+        path: join(root, 'unknown-type/updates.jsonl'),
+        records: 1,
+        capabilities: [],
+      },
+    ],
+  },
+  repoEvidence(),
+)
 
 const load = (name: string) => grokAdapter.load({ host: 'grok', path: join(root, name) }, nodeIO, {})
 
@@ -67,8 +71,20 @@ describe('grok behavior', () => {
   it('maps one request per turn before its output, keeps turn duration on a marker, and stores hook runs', async () => {
     const trace = await load('plain/updates.jsonl')
     expect(trace.session.systemPrompt).toContain('test agent')
-    expect(trace.session.tools).toEqual([{ type: 'function', function: { name: 'shell', description: 'Run a command' } }])
-    expect(trace.events.map(event => event.kind)).toEqual(['user', 'user', 'request', 'thinking', 'tool_call', 'tool_result', 'hook', 'assistant', 'system'])
+    expect(trace.session.tools).toEqual([
+      { type: 'function', function: { name: 'shell', description: 'Run a command' } },
+    ])
+    expect(trace.events.map(event => event.kind)).toEqual([
+      'user',
+      'user',
+      'request',
+      'thinking',
+      'tool_call',
+      'tool_result',
+      'hook',
+      'assistant',
+      'system',
+    ])
     expect(trace.events.filter(event => event.kind === 'user').map(event => event.payload)).toEqual([
       { text: 'Run the tests' },
       { continued: true, text: 'now' },
@@ -80,7 +96,9 @@ describe('grok behavior', () => {
       usage: { inputTokens: 15, outputTokens: 4, cacheReadTokens: 3, cacheWriteTokens: 1, reasoningTokens: 2 },
     })
     expect(request?.requestId).toBe('0')
-    expect(trace.events.every(event => event.kind === 'request' || event.requestId === '0' || event.kind === 'system')).toBe(true)
+    expect(
+      trace.events.every(event => event.kind === 'request' || event.requestId === '0' || event.kind === 'system'),
+    ).toBe(true)
     expect(trace.events.at(-1)?.payload).toEqual({ type: 'turn_duration', durationMs: 25 })
     expect(trace.events.find(event => event.kind === 'tool_result')?.payload.isError).toBe(true)
     expect(trace.events.find(event => event.kind === 'hook')?.payload).toEqual({
@@ -93,8 +111,9 @@ describe('grok behavior', () => {
     const summary = fold(trace)
     expect(summary.turns).toBe(1)
     expect(summary.durationMs).toBe(25)
-    for (let index = 1; index < trace.events.length; index++)
+    for (let index = 1; index < trace.events.length; index++) {
       expect(trace.events[index]!.ts).toBeGreaterThanOrEqual(trace.events[index - 1]!.ts)
+    }
   })
 
   it('shadows events before an automatic compaction', async () => {
@@ -110,9 +129,18 @@ describe('grok behavior', () => {
 
   it('records a subagent lane from the spawn event and maps status updates', async () => {
     const trace = await load('subagent/updates.jsonl')
-    expect(trace.agents).toContainEqual({ id: 'child-1', parentId: 'main', title: 'Look around', spawnEventId: 'updates.jsonl:3' })
-    expect(trace.events.filter(event => event.kind === 'system').map(event => event.payload.type))
-      .toEqual(['subagent_spawned', 'subagent_finished', 'goal_updated', 'memory_dream_started'])
+    expect(trace.agents).toContainEqual({
+      id: 'child-1',
+      parentId: 'main',
+      title: 'Look around',
+      spawnEventId: 'updates.jsonl:3',
+    })
+    expect(trace.events.filter(event => event.kind === 'system').map(event => event.payload.type)).toEqual([
+      'subagent_spawned',
+      'subagent_finished',
+      'goal_updated',
+      'memory_dream_started',
+    ])
     expect(trace.events.every(event => event.kind !== 'unknown')).toBe(true)
   })
 
@@ -121,8 +149,9 @@ describe('grok behavior', () => {
     expect(trace.events[0]?.payload.injected).toBe(true)
     expect(fold(trace).turns).toBe(1)
     const heads = []
-    for await (const head of grokAdapter.discover(join(root, 'subagent'), nodeIO, {}))
+    for await (const head of grokAdapter.discover(join(root, 'subagent'), nodeIO, {})) {
       heads.push(head)
+    }
     expect(heads).toMatchObject([{ firstPrompt: 'Delegate' }])
   })
 
@@ -130,7 +159,8 @@ describe('grok behavior', () => {
     const trace = await load('unknown-type/updates.jsonl')
     expect(trace.events[0]?.payload.type).toBe('widget')
     const bad = join(here, '../fixtures/unknown-generation/updates.jsonl')
-    await expect(grokAdapter.load({ host: 'grok', path: bad }, nodeIO, {}))
-      .rejects.toThrow(`grok: ${bad}:1: unknown format generation`)
+    await expect(grokAdapter.load({ host: 'grok', path: bad }, nodeIO, {})).rejects.toThrow(
+      `grok: ${bad}:1: unknown format generation`,
+    )
   })
 })

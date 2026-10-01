@@ -12,12 +12,14 @@ const demo = join(repoRoot, 'fixtures/demo.trace.json')
 const webDir = join(repoRoot, 'apps/web')
 
 async function ensureWebDist(): Promise<void> {
-  if (existsSync(join(webDir, 'dist/index.html')))
+  if (existsSync(join(webDir, 'dist/index.html'))) {
     return
+  }
   const vite = join(webDir, 'node_modules/.bin/vite')
   const { code, stderr } = await run(vite, ['build', '--config', join(webDir, 'src/vite.config.ts')], webDir)
-  if (code !== 0)
+  if (code !== 0) {
     throw new Error(stderr)
+  }
 }
 
 function childEnv(): NodeJS.ProcessEnv {
@@ -26,7 +28,7 @@ function childEnv(): NodeJS.ProcessEnv {
   return env
 }
 
-function run(command: string, args: string[], cwd: string): Promise<{ code: number, stdout: string, stderr: string }> {
+function run(command: string, args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -54,13 +56,15 @@ async function treeContains(dir: string, needle: string): Promise<boolean> {
   for (const entry of entries) {
     const path = join(dir, entry.name)
     if (entry.isDirectory()) {
-      if (await treeContains(path, needle))
+      if (await treeContains(path, needle)) {
         return true
+      }
       continue
     }
     const text = await readFile(path)
-    if (text.includes(needle))
+    if (text.includes(needle)) {
       return true
+    }
   }
   return false
 }
@@ -85,7 +89,11 @@ describe('cli smoke', () => {
     ].join('\n')
     try {
       const preload = `data:text/javascript,${encodeURIComponent(counter)}`
-      const result = await run(process.execPath, ['--import', preload, 'bin.mjs', 'build', demo, '--out-dir', outDir], cliDir)
+      const result = await run(
+        process.execPath,
+        ['--import', preload, 'bin.mjs', 'build', demo, '--out-dir', outDir],
+        cliDir,
+      )
       expect(result.code).toBe(0)
       expect(result.stderr).toContain('full-reads=1\n')
       expect(result.stdout).not.toContain('\u001b')
@@ -93,8 +101,7 @@ describe('cli smoke', () => {
       expect(result.stdout).toContain('Write:')
       expect(await treeContains(outDir, homedir())).toBe(false)
       expect(await treeContains(outDir, repoRoot)).toBe(false)
-    }
-    finally {
+    } finally {
       await rm(outDir, { recursive: true, force: true })
     }
   })
@@ -147,8 +154,9 @@ describe('cli smoke', () => {
     expect(stdout).toContain('completeness')
     for (const line of stdout.split('\n')) {
       const trimmed = line.trim()
-      if (!trimmed)
+      if (!trimmed) {
         continue
+      }
       expect(() => JSON.parse(trimmed)).not.toThrow()
     }
   })

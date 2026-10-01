@@ -6,7 +6,16 @@ import { redactText, splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
-import { activityLabel, indexHeadOf, publicRow, rowFromIndex, sameRow, summarizeRow, type LiveRow, type Redactor } from './catalog-rows.ts'
+import {
+  activityLabel,
+  indexHeadOf,
+  publicRow,
+  rowFromIndex,
+  sameRow,
+  summarizeRow,
+  type LiveRow,
+  type Redactor,
+} from './catalog-rows.ts'
 import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { registeredHosts } from './session.ts'
 import { oneLine, sessionRefId } from './session-ref.ts'
@@ -62,19 +71,24 @@ export class SessionCatalog {
     const home = this.env.homeDir
     // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
     this.redact = this.env.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, home)
-    this.index = options.index ?? openSessionIndex({
-      enabled: options.noIndex !== true,
-      homeDir: this.env.homeDir,
-      env: this.env.env,
-    })
+    this.index =
+      options.index
+      ?? openSessionIndex({
+        enabled: options.noIndex !== true,
+        homeDir: this.env.homeDir,
+        env: this.env.env,
+      })
     this.hostStates = this.hosts.map(hostState)
-    this.queue = new SummaryQueue<LiveRow>({
-      concurrency: CONCURRENCY,
-      key: row => row.ref,
-      rank: row => row.lastActiveAt,
-      heavy: row => row.size >= HEAVY_BYTES,
-      run: row => this.summarize(row),
-    }, options.deferSummaries === true)
+    this.queue = new SummaryQueue<LiveRow>(
+      {
+        concurrency: CONCURRENCY,
+        key: row => row.ref,
+        rank: row => row.lastActiveAt,
+        heavy: row => row.size >= HEAVY_BYTES,
+        run: row => this.summarize(row),
+      },
+      options.deferSummaries === true,
+    )
   }
 
   resumeSummaries(): void {
@@ -133,21 +147,29 @@ export class SessionCatalog {
     return target === undefined ? undefined : { key: ref, path: target }
   }
 
-  pickChoices(): { value: string, label: string }[] {
+  pickChoices(): { value: string; label: string }[] {
     const names = new Map(this.hosts.map(host => [host.id, host.displayName]))
-    return this.sortedRows().filter(row => !row.error).map(row => ({
-      value: row.ref,
-      label: [row.title ? this.redact(row.title) : 'Untitled', names.get(row.target.host) ?? row.target.host, row.project ? this.redact(row.project) : '', activityLabel(row.lastActiveAt)]
-        .map(oneLine)
-        .filter(part => part.length > 0)
-        .join(' · '),
-    }))
+    return this.sortedRows()
+      .filter(row => !row.error)
+      .map(row => ({
+        value: row.ref,
+        label: [
+          row.title ? this.redact(row.title) : 'Untitled',
+          names.get(row.target.host) ?? row.target.host,
+          row.project ? this.redact(row.project) : '',
+          activityLabel(row.lastActiveAt),
+        ]
+          .map(oneLine)
+          .filter(part => part.length > 0)
+          .join(' · '),
+      }))
   }
 
   async listSessions(input: ListSessionsQuery = {}): Promise<ListSessionsResult> {
     await this.start()
-    if (input.first && input.first.length > 0)
+    if (input.first && input.first.length > 0) {
       this.queue.prioritize(input.first)
+    }
     const since = input.since
     const rows = this.sortedRows()
       .filter(row => since === undefined || row.revision > since)
@@ -166,8 +188,9 @@ export class SessionCatalog {
   }
 
   close(): void {
-    if (this.flushTimer)
+    if (this.flushTimer) {
       clearTimeout(this.flushTimer)
+    }
     this.flush()
     this.index.close()
   }
@@ -193,7 +216,9 @@ export class SessionCatalog {
   }
 
   private async discover(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
-    const fresh = await discoverRows(this.hostStates, this.io, this.env, () => onProgress?.(progressOf(this.hostStates, this.env.homeDir)))
+    const fresh = await discoverRows(this.hostStates, this.io, this.env, () =>
+      onProgress?.(progressOf(this.hostStates, this.env.homeDir)),
+    )
     const gone: string[] = []
     for (const [ref, old] of this.rows) {
       if (!fresh.has(ref)) {
@@ -207,14 +232,14 @@ export class SessionCatalog {
       const old = this.rows.get(row.ref)
       if (!row.error) {
         // Same file (size and raw mtime): keep the summary; otherwise ask the index for this key.
-        const summary = old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs
-          ? old.summary
-          : this.readIndex(() => this.index.get(row.target.path, row.size, row.mtimeMs), undefined)
+        const summary =
+          old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs
+            ? old.summary
+            : this.readIndex(() => this.index.get(row.target.path, row.size, row.mtimeMs), undefined)
         if (summary) {
           row.summary = summary
           row.pending = false
-        }
-        else {
+        } else {
           pending.push(row)
         }
       }
@@ -226,8 +251,7 @@ export class SessionCatalog {
     try {
       this.index.remove(gone)
       this.index.putHeads([...fresh.values()].filter(row => !row.error).map(indexHeadOf))
-    }
-    catch {
+    } catch {
       // The index is a cache: a failed write costs a re-read next launch.
     }
     this.announce()
@@ -237,13 +261,13 @@ export class SessionCatalog {
   private async summarize(row: LiveRow): Promise<void> {
     const adapter = this.hosts.find(host => host.id === row.target.host)
     try {
-      if (!adapter)
+      if (!adapter) {
         throw new Error(`${row.target.host}: host is not registered`)
+      }
       const result = await summarizeRow(adapter, row.target, this.io)
       row.summary = result.summary
       this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
-    }
-    catch (error) {
+    } catch (error) {
       // Not cached (3.7): the head stays, the numbers stay undefined, and the reason is shown.
       row.error = parseReadFailure(errorMessage(error), this.env.homeDir, row.target.path)
     }
@@ -261,8 +285,7 @@ export class SessionCatalog {
     if (batch.length > 0) {
       try {
         this.index.putSummaries(batch)
-      }
-      catch {
+      } catch {
         // The index is a cache: a failed write costs a re-read next launch.
       }
     }
@@ -275,15 +298,22 @@ export class SessionCatalog {
 
   private search(query: string): string[] {
     const hits = this.readIndex(() => this.index.search(query), undefined)
-    if (hits)
+    if (hits) {
       return hits.filter(ref => this.rows.has(ref))
+    }
     // --no-index, index unavailable or busy: the index's rule over titles and first prompts in memory.
     // Under 3 characters the index also matches substrings, so both lengths are a substring match here.
-    const text = query.replace(/\p{Cc}/gu, ' ').trim().toLowerCase()
-    if (!text)
+    const text = query
+      .replace(/\p{Cc}/gu, ' ')
+      .trim()
+      .toLowerCase()
+    if (!text) {
       return []
+    }
     return this.sortedRows()
-      .filter(row => (row.title ?? '').toLowerCase().includes(text) || (row.firstPrompt ?? '').toLowerCase().includes(text))
+      .filter(
+        row => (row.title ?? '').toLowerCase().includes(text) || (row.firstPrompt ?? '').toLowerCase().includes(text),
+      )
       .map(row => row.ref)
   }
 
@@ -291,20 +321,21 @@ export class SessionCatalog {
   private readIndex<T>(read: () => T, fallback: T): T {
     try {
       return read()
-    }
-    catch {
+    } catch {
       return fallback
     }
   }
 
   private hostEntries(): HostListEntry[] {
-    return this.hostStates.map((state) => {
+    return this.hostStates.map(state => {
       let count = 0
       for (const row of this.rows.values()) {
-        if (row.target.host === state.adapter.id)
+        if (row.target.host === state.adapter.id) {
           count += 1
+        }
       }
-      const roots = state.found.length > 0 ? state.found : (state.missing.length > 0 ? state.missing : state.adapter.roots(this.env))
+      const roots =
+        state.found.length > 0 ? state.found : state.missing.length > 0 ? state.missing : state.adapter.roots(this.env)
       const checked = roots.map(path => redactText(path, this.env.homeDir)).join(', ')
       return {
         id: state.adapter.id,
@@ -322,8 +353,9 @@ export class SessionCatalog {
   private pendingCount(): number {
     let count = 0
     for (const row of this.rows.values()) {
-      if (row.pending)
+      if (row.pending) {
         count += 1
+      }
     }
     return count
   }

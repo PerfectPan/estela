@@ -20,11 +20,17 @@ export function laneOf(event: TraceEvent, mainId: string): string {
  * later chunks of one prompt (`payload.continued`).
  */
 export function isPrompt(event: TraceEvent): boolean {
-  if (event.kind !== 'user')
+  if (event.kind !== 'user') {
     return false
+  }
   const payload = event.payload
-  return !(payload.meta === true || payload.compactSummary === true || payload.command === true
-    || payload.injected === true || payload.continued === true)
+  return !(
+    payload.meta === true
+    || payload.compactSummary === true
+    || payload.command === true
+    || payload.injected === true
+    || payload.continued === true
+  )
 }
 
 /** Key of the host record an event came from. Content blocks of one record share it. */
@@ -41,13 +47,16 @@ export function promptStarts(trace: Trace, lane?: string): TraceEvent[] {
   const seen = new Set<string>()
   const out: TraceEvent[] = []
   for (const event of trace.events) {
-    if (!isPrompt(event))
+    if (!isPrompt(event)) {
       continue
-    if (lane !== undefined && laneOf(event, mainId) !== lane)
+    }
+    if (lane !== undefined && laneOf(event, mainId) !== lane) {
       continue
+    }
     const key = `${laneOf(event, mainId)}\0${recordKey(event)}`
-    if (seen.has(key))
+    if (seen.has(key)) {
       continue
+    }
     seen.add(key)
     out.push(event)
   }
@@ -55,15 +64,17 @@ export function promptStarts(trace: Trace, lane?: string): TraceEvent[] {
 }
 
 /** Recorded input and output tokens of a `request` event; a field is absent when not recorded. */
-export function requestUsage(event: TraceEvent): { inputTokens?: number, outputTokens?: number } {
+export function requestUsage(event: TraceEvent): { inputTokens?: number; outputTokens?: number } {
   const usage = asRecord(event.payload.usage)
-  const out: { inputTokens?: number, outputTokens?: number } = {}
+  const out: { inputTokens?: number; outputTokens?: number } = {}
   const input = asNumber(usage?.inputTokens)
-  if (input !== undefined)
+  if (input !== undefined) {
     out.inputTokens = input
+  }
   const output = asNumber(usage?.outputTokens)
-  if (output !== undefined)
+  if (output !== undefined) {
     out.outputTokens = output
+  }
   return out
 }
 
@@ -72,8 +83,9 @@ export function shadowedIn(events: readonly TraceEvent[]): Set<string> {
   const compactions = new Set(events.filter(event => event.kind === 'compaction').map(event => event.id))
   const hidden = new Set<string>()
   for (const event of events) {
-    if (event.shadowedBy != null && compactions.has(event.shadowedBy))
+    if (event.shadowedBy != null && compactions.has(event.shadowedBy)) {
       hidden.add(event.id)
+    }
   }
   return hidden
 }

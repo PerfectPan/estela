@@ -12,8 +12,9 @@ const report = reportTrace()
 applyLocale(report?.locale ?? preferredLocale())
 
 const root = document.getElementById('app')
-if (!root)
+if (!root) {
   throw new Error('#app mount node missing from index.html')
+}
 
 // A report has no server: no DevFrame connection, no one-time code, no route to rewrite.
 void (report ? Promise.resolve() : bootLocation()).finally(() => {

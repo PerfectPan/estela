@@ -67,18 +67,20 @@ export const requestPayloadSchema = z.object({
   model: z.optional(z.string()),
   /** gen_ai.response.id */
   responseId: z.optional(z.string()),
-  usage: z.optional(z.object({
-    /** gen_ai.usage.input_tokens — total input, including cached tokens. cacheReadTokens and cacheWriteTokens are breakdowns. */
-    inputTokens: z.optional(z.number()),
-    /** gen_ai.usage.output_tokens */
-    outputTokens: z.optional(z.number()),
-    /** gen_ai.usage.cache_read.input_tokens */
-    cacheReadTokens: z.optional(z.number()),
-    /** gen_ai.usage.cache_write.input_tokens */
-    cacheWriteTokens: z.optional(z.number()),
-    /** gen_ai.usage.reasoning.output_tokens */
-    reasoningTokens: z.optional(z.number()),
-  })),
+  usage: z.optional(
+    z.object({
+      /** gen_ai.usage.input_tokens — total input, including cached tokens. cacheReadTokens and cacheWriteTokens are breakdowns. */
+      inputTokens: z.optional(z.number()),
+      /** gen_ai.usage.output_tokens */
+      outputTokens: z.optional(z.number()),
+      /** gen_ai.usage.cache_read.input_tokens */
+      cacheReadTokens: z.optional(z.number()),
+      /** gen_ai.usage.cache_write.input_tokens */
+      cacheWriteTokens: z.optional(z.number()),
+      /** gen_ai.usage.reasoning.output_tokens */
+      reasoningTokens: z.optional(z.number()),
+    }),
+  ),
   startedAt: z.optional(z.number()),
   durationMs: z.optional(z.number()),
   /** gen_ai.response.finish_reasons[0] */

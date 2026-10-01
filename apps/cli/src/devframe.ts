@@ -1,6 +1,13 @@
 import type { SessionsSignal } from '@rivus/agent-trace-rpc'
 import { defineDevframe } from 'devframe'
-import { bindSessionPublisher, emptySessionsSignal, NAMESPACE, reportFunctions, serverFunctions, SESSIONS_STATE } from '@rivus/agent-trace-rpc'
+import {
+  bindSessionPublisher,
+  emptySessionsSignal,
+  NAMESPACE,
+  reportFunctions,
+  serverFunctions,
+  SESSIONS_STATE,
+} from '@rivus/agent-trace-rpc'
 import pkg from '../package.json' with { type: 'json' }
 import { webDistDir } from './paths.ts'
 
@@ -27,26 +34,27 @@ export default defineDevframe({
   },
   setup(ctx) {
     const scoped = ctx.scope(NAMESPACE)
-    for (const fn of serverFunctions)
+    for (const fn of serverFunctions) {
       scoped.rpc.register(fn)
+    }
     if (ctx.mode === 'build') {
       // A report: DevFrame bakes the argument-free `report-trace` snapshot. No browser is
       // connected to a build, and "Export report" runs a build inside the dev server, so the
       // session push below must stay bound to the live server's state.
-      for (const fn of reportFunctions)
+      for (const fn of reportFunctions) {
         scoped.rpc.register(fn)
+      }
       return
     }
     // Push: a small shared state tells every browser that rows changed. The browser then
     // asks `list-sessions({ since })` for only those rows (M3 report: push vs poll).
-    void scoped.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, { initialValue: emptySessionsSignal() })
-      .then((state) => {
-        bindSessionPublisher((next) => {
-          state.mutate((draft) => {
-            draft.revision = next.revision
-            draft.pending = next.pending
-          })
+    void scoped.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, { initialValue: emptySessionsSignal() }).then(state => {
+      bindSessionPublisher(next => {
+        state.mutate(draft => {
+          draft.revision = next.revision
+          draft.pending = next.pending
         })
       })
+    })
   },
 })

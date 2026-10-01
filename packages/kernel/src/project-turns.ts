@@ -3,9 +3,7 @@ import { asNumber } from './jsonl.ts'
 import { mainAgentId, promptStarts, requestUsage, shadowedIn } from './lanes.ts'
 
 /** A ledger row: one event, or one run of consecutive `hook` events. */
-export type TurnRow =
-  | { type: 'event', eventId: string }
-  | { type: 'hooks', eventIds: string[], count: number }
+export type TurnRow = { type: 'event'; eventId: string } | { type: 'hooks'; eventIds: string[]; count: number }
 
 export interface TurnTotals {
   events: number
@@ -32,8 +30,9 @@ export interface Turn {
 }
 
 function addKnown(total: number | undefined, value: number | undefined): number | undefined {
-  if (value === undefined)
+  if (value === undefined) {
     return total
+  }
   return (total ?? 0) + value
 }
 
@@ -46,23 +45,24 @@ function totalsOf(events: TraceEvent[]): TurnTotals {
       totals.requests += 1
       const usage = requestUsage(event)
       const input = addKnown(totals.inputTokens, usage.inputTokens)
-      if (input !== undefined)
+      if (input !== undefined) {
         totals.inputTokens = input
+      }
       const output = addKnown(totals.outputTokens, usage.outputTokens)
-      if (output !== undefined)
+      if (output !== undefined) {
         totals.outputTokens = output
+      }
       requestDuration = addKnown(requestDuration, asNumber(event.payload.durationMs))
-    }
-    else if (event.kind === 'tool_result' && event.payload.isError === true) {
+    } else if (event.kind === 'tool_result' && event.payload.isError === true) {
       totals.failedTools += 1
-    }
-    else if (event.kind === 'system' && event.payload.type === 'turn_duration') {
+    } else if (event.kind === 'system' && event.payload.type === 'turn_duration') {
       marked = addKnown(marked, asNumber(event.payload.durationMs))
     }
   }
   const duration = marked ?? requestDuration
-  if (duration !== undefined)
+  if (duration !== undefined) {
     totals.durationMs = duration
+  }
   return totals
 }
 
@@ -75,8 +75,7 @@ export function foldHookRuns(events: readonly TraceEvent[]): TurnRow[] {
       if (last?.type === 'hooks') {
         last.eventIds.push(event.id)
         last.count += 1
-      }
-      else {
+      } else {
         rows.push({ type: 'hooks', eventIds: [event.id], count: 1 })
       }
       continue
@@ -95,8 +94,9 @@ function turnOf(index: number, events: TraceEvent[], prompt?: TraceEvent): Turn 
     rows: foldHookRuns(events),
     totals: totalsOf(events),
   }
-  if (prompt)
+  if (prompt) {
     turn.promptEventId = prompt.id
+  }
   return turn
 }
 
@@ -115,12 +115,14 @@ export function projectTurns(trace: Trace): Turn[] {
       turns.push(turnOf(turns.length, current, prompt))
       current = []
     }
-    if (starts.has(event.id))
+    if (starts.has(event.id)) {
       prompt = event
+    }
     current.push(event)
   }
-  if (current.length > 0)
+  if (current.length > 0) {
     turns.push(turnOf(turns.length, current, prompt))
+  }
   return turns
 }
 
@@ -129,8 +131,9 @@ export function projectTurns(trace: Trace): Turn[] {
  * the trace and, when `atEventId` is given, at or before that event.
  */
 export function hiddenAfterCompaction(trace: Trace, atEventId?: string): Set<string> {
-  if (atEventId === undefined)
+  if (atEventId === undefined) {
     return shadowedIn(trace.events)
+  }
   const at = trace.events.findIndex(event => event.id === atEventId)
   return at < 0 ? new Set() : shadowedIn(trace.events.slice(0, at + 1))
 }

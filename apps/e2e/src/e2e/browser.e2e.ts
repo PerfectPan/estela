@@ -35,7 +35,10 @@ test('S3: a home without ~/.codex shows Codex with 0 and the checked path', asyn
   await expect(page.locator('[data-ref][data-host="codex"]')).toHaveCount(0)
 })
 
-test('S4: an unknown format generation is listed as "could not read", and opening it shows host, file, and line', async ({ page, launch }) => {
+test('S4: an unknown format generation is listed as "could not read", and opening it shows host, file, and line', async ({
+  page,
+  launch,
+}) => {
   const server = await launch({ args: ['--no-auth', '--no-open'] })
   await page.goto(server.base)
   const row = page.locator('[data-ref][data-host="claude-code"]').filter({ hasText: 'Could not read' })

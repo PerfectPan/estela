@@ -108,9 +108,10 @@ export class LoadCancelledError extends Error {
 function withoutOriginals(trace: Trace): Trace {
   return {
     ...trace,
-    events: trace.events.map((event) => {
-      if (!('original' in event))
+    events: trace.events.map(event => {
+      if (!('original' in event)) {
         return event
+      }
       const { original: _original, ...rest } = event
       return rest
     }),
@@ -126,7 +127,7 @@ export class TraceStore {
   private readonly deps: TraceStoreDeps
   private readonly entries = new Map<string, Entry>()
   private readonly pending = new Map<string, Pending>()
-  private readonly owners = new WeakMap<object, { key: string, handle: LoadHandle }>()
+  private readonly owners = new WeakMap<object, { key: string; handle: LoadHandle }>()
   /** Latest `open` per owner, counted before any await, so a slower earlier open cannot win. */
   private readonly generations = new WeakMap<object, number>()
 
@@ -151,8 +152,9 @@ export class TraceStore {
    */
   async open(ref: string, owner?: object): Promise<LoadHandle> {
     const generation = owner ? (this.generations.get(owner) ?? 0) + 1 : 0
-    if (owner)
+    if (owner) {
       this.generations.set(owner, generation)
+    }
     const current = (): boolean => !owner || this.generations.get(owner) === generation
     return this.guard(async () => {
       const session = await this.resolveOrThrow(ref)
@@ -166,8 +168,9 @@ export class TraceStore {
         this.owners.get(owner)?.handle.release()
         this.owners.set(owner, { key: session.key, handle })
         const forget = (): void => {
-          if (this.owners.get(owner)?.handle === handle)
+          if (this.owners.get(owner)?.handle === handle) {
             this.owners.delete(owner)
+          }
         }
         handle.done.then(forget, forget)
       }
@@ -185,8 +188,11 @@ export class TraceStore {
       const entry = await this.entryFor(ref, owner)
       if (!entry.view) {
         entry.view = fitView(this.present(entry.trace), { maxString: this.deps.maxString, maxBytes: VIEW_BYTES })
-        if (entry.view.trace.view?.withinBudget === false)
-          this.deps.log?.(`view of ${ref} is ${entry.view.bytes} bytes at the 256-character floor, over the ${VIEW_BYTES}-byte budget`)
+        if (entry.view.trace.view?.withinBudget === false) {
+          this.deps.log?.(
+            `view of ${ref} is ${entry.view.bytes} bytes at the 256-character floor, over the ${VIEW_BYTES}-byte budget`,
+          )
+        }
       }
       return { ref, trace: entry.view.trace, summary: summaryOf(fold(entry.trace)), bytes: entry.view.bytes }
     })
@@ -197,14 +203,22 @@ export class TraceStore {
     return this.guard(async () => {
       const entry = await this.entryFor(ref, owner)
       const index = entry.byId.get(id)
-      if (index === undefined)
+      if (index === undefined) {
         throw new Error(`no event ${id} in ${ref}`)
+      }
       const event = entry.trace.events[index]!
-      if (entry.canonical)
+      if (entry.canonical) {
         return this.present({ ...event, original: await this.canonicalOriginal(entry, index) })
-      const checked = await checkedOriginal(this.deps.io, event, entry.stamps.get(event.source.file), entry.prints[index]!)
-      if ('unavailable' in checked)
+      }
+      const checked = await checkedOriginal(
+        this.deps.io,
+        event,
+        entry.stamps.get(event.source.file),
+        entry.prints[index]!,
+      )
+      if ('unavailable' in checked) {
         return this.present({ ...event, originalUnavailable: checked.unavailable })
+      }
       return this.present({ ...event, original: checked.original })
     })
   }
@@ -214,24 +228,30 @@ export class TraceStore {
    * pointers are read a few at a time, so a long read never runs out of file handles. A canonical
    * file is reloaded once for all of `run`'s reads and dropped when `run` ends.
    */
-  async withEvents<T>(ref: string, run: (read: (ids: readonly string[]) => Promise<EventDetail[]>) => Promise<T>, owner?: object): Promise<T> {
+  async withEvents<T>(
+    ref: string,
+    run: (read: (ids: readonly string[]) => Promise<EventDetail[]>) => Promise<T>,
+    owner?: object,
+  ): Promise<T> {
     const entry = await this.guard(() => this.entryFor(ref, owner))
     entry.pinned += 1
     const read = async (ids: readonly string[]): Promise<EventDetail[]> => {
-      if (entry.canonical)
+      if (entry.canonical) {
         return Promise.all(ids.map(id => this.event(ref, id, owner)))
+      }
       const out: EventDetail[] = []
-      for (let start = 0; start < ids.length; start += READ_BATCH)
-        out.push(...await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(ref, id, owner))))
+      for (let start = 0; start < ids.length; start += READ_BATCH) {
+        out.push(...(await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(ref, id, owner)))))
+      }
       return out
     }
     try {
       return await run(read)
-    }
-    finally {
+    } finally {
       entry.pinned -= 1
-      if (entry.pinned === 0)
+      if (entry.pinned === 0) {
         entry.reload = undefined
+      }
     }
   }
 
@@ -245,27 +265,29 @@ export class TraceStore {
 
   /** Error messages carry paths and file content; they leave the store redacted. */
   private scrub(error: unknown): Error {
-    if (error instanceof LoadCancelledError)
+    if (error instanceof LoadCancelledError) {
       return error
+    }
     const out = new Error(this.present(error instanceof Error ? error.message : String(error)))
-    if (error instanceof Error)
+    if (error instanceof Error) {
       out.name = error.name
+    }
     return out
   }
 
   private async guard<T>(run: () => Promise<T>): Promise<T> {
     try {
       return await run()
-    }
-    catch (error) {
+    } catch (error) {
       throw this.scrub(error)
     }
   }
 
   private async resolveOrThrow(ref: string): Promise<ResolvedSession> {
     const session = await this.deps.resolve(ref)
-    if (!session)
+    if (!session) {
       throw new Error(`unknown session ref: ${ref}`)
+    }
     return session
   }
 
@@ -276,24 +298,24 @@ export class TraceStore {
   private async entryFor(ref: string, owner?: object): Promise<Entry> {
     const session = await this.resolveOrThrow(ref)
     const cached = this.touch(session.key)
-    if (cached)
+    if (cached) {
       return cached
+    }
     const owned = owner ? this.owners.get(owner) : undefined
     if (owned?.key === session.key) {
       await owned.handle.done
-    }
-    else {
+    } else {
       const handle = await this.hold(ref, session)
       try {
         await handle.done
-      }
-      finally {
+      } finally {
         handle.release()
       }
     }
     const entry = this.touch(session.key)
-    if (!entry)
+    if (!entry) {
       throw new Error(`${ref} was evicted before it could be read`)
+    }
     return entry
   }
 
@@ -303,7 +325,16 @@ export class TraceStore {
     const byId = new Map<string, number>()
     trace.events.forEach((event, index) => byId.set(event.id, index))
     const stamps = loaded.canonical ? new Map<string, FileStamp>() : await stampFiles(trace, this.deps.io)
-    return { session, trace, canonical: loaded.canonical, byId, stamps, prints, pinned: 0, evicted: new AbortController() }
+    return {
+      session,
+      trace,
+      canonical: loaded.canonical,
+      byId,
+      stamps,
+      prints,
+      pinned: 0,
+      evicted: new AbortController(),
+    }
   }
 
   private touch(key: string): Entry | undefined {
@@ -337,15 +368,22 @@ export class TraceStore {
     if (this.touch(session.key)) {
       const total = await this.totalBytes(session)
       const progress = { bytesRead: total, totalBytes: total }
-      return { cached: true, progress: () => progress, onProgress: () => () => {}, done: Promise.resolve(), release: () => {} }
+      return {
+        cached: true,
+        progress: () => progress,
+        onProgress: () => () => {},
+        done: Promise.resolve(),
+        release: () => {},
+      }
     }
     let pending = this.pending.get(session.key)
     if (!pending) {
       const total = await this.totalBytes(session)
       pending = this.pending.get(session.key)
       if (!pending) {
-        if (!current())
+        if (!current()) {
           throw new LoadCancelledError(ref)
+        }
         pending = this.start(ref, session, total)
       }
     }
@@ -358,20 +396,23 @@ export class TraceStore {
     return {
       cached: false,
       progress: () => state.progress,
-      onProgress: (listener) => {
-        if (state.settled)
+      onProgress: listener => {
+        if (state.settled) {
           return () => {}
+        }
         state.listeners.add(listener)
         return () => state.listeners.delete(listener)
       },
       done,
       release: () => {
-        if (released)
+        if (released) {
           return
+        }
         released = true
         state.holders -= 1
-        if (state.holders <= 0 && !state.settled)
+        if (state.holders <= 0 && !state.settled) {
           state.controller.abort(new LoadCancelledError(ref))
+        }
       },
     }
   }
@@ -386,8 +427,9 @@ export class TraceStore {
     }
     const onProgress = (bytes: number): void => {
       state.progress = { bytesRead: totalBytes > 0 ? Math.min(bytes, totalBytes) : bytes, totalBytes }
-      for (const listener of state.listeners)
+      for (const listener of state.listeners) {
         listener(state.progress)
+      }
     }
     const promise = (async () => {
       try {
@@ -397,11 +439,9 @@ export class TraceStore {
         this.remember(entry)
         onProgress(totalBytes)
         return entry
-      }
-      catch (error) {
+      } catch (error) {
         throw state.controller.signal.aborted ? new LoadCancelledError(ref) : this.scrub(error)
-      }
-      finally {
+      } finally {
         state.settled = true
         state.listeners.clear()
         this.pending.delete(session.key)
@@ -420,16 +460,20 @@ export class TraceStore {
    */
   private async canonicalOriginal(entry: Entry, index: number): Promise<unknown> {
     if (!entry.reload) {
-      const reload = this.deps.load(entry.session, { signal: entry.evicted.signal, onProgress: () => {} }).then(loaded => loaded.trace)
+      const reload = this.deps
+        .load(entry.session, { signal: entry.evicted.signal, onProgress: () => {} })
+        .then(loaded => loaded.trace)
       entry.reload = reload
       const clear = (): void => {
-        if (entry.reload === reload && entry.pinned === 0)
+        if (entry.reload === reload && entry.pinned === 0) {
           entry.reload = undefined
+        }
       }
       reload.then(clear, clear)
     }
     const trace = await entry.reload
     const id = entry.trace.events[index]!.id
-    return (trace.events[index]?.id === id ? trace.events[index] : trace.events.find(event => event.id === id))?.original
+    return (trace.events[index]?.id === id ? trace.events[index] : trace.events.find(event => event.id === id))
+      ?.original
   }
 }

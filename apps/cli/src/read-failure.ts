@@ -24,7 +24,8 @@ export function parseReadFailure(message: string, homeDir: string, fallbackFile?
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.cause instanceof Error && error.cause.message)
+  if (error instanceof Error && error.cause instanceof Error && error.cause.message) {
     return `${error.message}: ${error.cause.message}`
+  }
   return error instanceof Error ? error.message : String(error)
 }

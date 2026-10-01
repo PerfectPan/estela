@@ -16,6 +16,8 @@ node scripts/check-browser-bundle.mjs
 gh repo-checks pr-title "docs: add external release plan"
 gh repo-checks pr-body pr-body.md
 node common/scripts/install-run-rush.js update
+node scripts/format.mjs --check
+node scripts/lint-scripts.mjs
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
 node common/scripts/install-run-rush.js typecheck
@@ -23,7 +25,9 @@ node common/scripts/install-run-rush.js build
 cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 ```
 
-There is no formatter and no package publish command.
+`node scripts/format.mjs` formats the JS and TS files under `apps/`, `packages/`, and `scripts/` with oxfmt and `.oxfmtrc.json`; `--check` writes nothing and fails on an unformatted file. It needs the Rush install, because `apps/cli` owns oxfmt. Markdown, JSON, fixtures, and `common/` are not formatted. oxlint's `curly: all` requires a braced block for every `if`, `else`, `for`, `while`, and `do` body. `node scripts/lint-scripts.mjs` lints the root `scripts/`, which no Rush project covers, with the same `.oxlintrc.json`. The CI `test` job and the pre-commit hook run the format check and the scripts lint.
+
+There is no package publish command.
 
 ## Contribution Flow
 
@@ -35,7 +39,7 @@ There is no formatter and no package publish command.
 6. Implement the change, keeping responsibilities separated and using existing project patterns.
 7. Add or update tests for behavior changes.
 8. Update `README.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
-9. Run repository checks, title and description checks, and the Rush lint, test, typecheck, and build gates.
+9. Run repository checks, title and description checks, the format check, and the Rush lint, test, typecheck, and build gates.
 10. Open a pull request with a conventional title, a summary of what changed and why, validation with skipped gates, and any risks.
 11. Keep the PR description current after review feedback, rebases, validation reruns, or scope changes.
 
@@ -190,7 +194,7 @@ Workflows reference actions by their latest major version tag, such as `actions/
 ./scripts/install-git-hooks.sh
 ```
 
-The pre-commit hook runs `git diff --cached --check`, `gh repo-checks repository --staged` (without the extension it warns and skips that check), `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, and `node scripts/check-layers.mjs`. Hooks are a local guardrail; CI and branch protection remain the authoritative enforcement because hooks can be missing or bypassed.
+The pre-commit hook runs `git diff --cached --check`, `gh repo-checks repository --staged` (without the extension it warns and skips that check), `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, `node scripts/check-layers.mjs`, `node scripts/format.mjs --check`, and `node scripts/lint-scripts.mjs`. Hooks are a local guardrail; CI and branch protection remain the authoritative enforcement because hooks can be missing or bypassed.
 
 If `core.hooksPath` is already set to another path, `scripts/install-git-hooks.sh` fails instead of overwriting it. Re-run with `--force` only after confirming the existing hooks can be replaced or moved into `.githooks`.
 

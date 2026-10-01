@@ -16,8 +16,9 @@ export async function summarize(
   io: TraceIO,
   opts?: { signal?: AbortSignal },
 ): Promise<SessionSummary> {
-  if (adapter.summarize)
+  if (adapter.summarize) {
     return summaryOf(await adapter.summarize(ref, io, opts ?? {}))
+  }
   const trace = await adapter.load(ref, io, opts ?? {})
   return summaryOf(fold(trace))
 }

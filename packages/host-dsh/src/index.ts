@@ -17,10 +17,11 @@ export const dshAdapter: HostAdapter = {
   async *discover() {},
   async detect(ref): Promise<boolean> {
     const name = basenamePath(ref.path)
-    return name.endsWith('.zip')
-      || /^session(\.v\d+)?\.jsonl(\.zst)?$/.test(name)
+    return name.endsWith('.zip') || /^session(\.v\d+)?\.jsonl(\.zst)?$/.test(name)
   },
   async load(ref): Promise<Trace> {
-    throw new Error(`dsh adapter cannot load ${ref.path} yet: wire session-format-catalog restore; do not parse a single generation by hand`)
+    throw new Error(
+      `dsh adapter cannot load ${ref.path} yet: wire session-format-catalog restore; do not parse a single generation by hand`,
+    )
   },
 }

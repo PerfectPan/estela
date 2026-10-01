@@ -32,8 +32,9 @@ export const SUBSCRIBE_GRACE_MS = 5000
 function subscribed(meta: { subscribedStreams?: Set<string> } | undefined, id: string): boolean {
   // DevFrame keys these as `<channel>\x1F<id>`.
   for (const key of meta?.subscribedStreams ?? []) {
-    if (key.endsWith(`\x1F${id}`))
+    if (key.endsWith(`\x1F${id}`)) {
       return true
+    }
   }
   return false
 }
@@ -44,11 +45,12 @@ let store: TraceStore | undefined
  * The calling browser connection, or `undefined` outside a WebSocket/SSE call
  * (MCP and in-process calls, where DevFrame throws DF0007 instead).
  */
-function ownerOf(ctx: { rpc: { getCurrentRpcSession: () => { meta: DevframeNodeRpcSessionMeta } | undefined } }): DevframeNodeRpcSessionMeta | undefined {
+function ownerOf(ctx: {
+  rpc: { getCurrentRpcSession: () => { meta: DevframeNodeRpcSessionMeta } | undefined }
+}): DevframeNodeRpcSessionMeta | undefined {
   try {
     return ctx.rpc.getCurrentRpcSession()?.meta
-  }
-  catch {
+  } catch {
     return undefined
   }
 }
@@ -58,8 +60,9 @@ export function bindTraceStore(next: TraceStore): void {
 }
 
 function requireStore(): TraceStore {
-  if (!store)
+  if (!store) {
     throw new Error('trace store is not bound')
+  }
   return store
 }
 
@@ -84,7 +87,7 @@ export const loadTrace = defineRpcFunction({
   name: 'load-trace',
   type: 'action',
   jsonSerializable: true,
-  setup: (ctx) => {
+  setup: ctx => {
     let channel: RpcStreamingChannel<LoadProgress> | undefined
     const progressChannel = (): RpcStreamingChannel<LoadProgress> => {
       // Qualified with the rpc NAMESPACE (`agent-trace`); the scoped client subscribes by the bare name.
@@ -99,23 +102,29 @@ export const loadTrace = defineRpcFunction({
         const first = handle.progress()
         sink.write(first)
         let last = Date.now()
-        const off = handle.onProgress((progress) => {
+        const off = handle.onProgress(progress => {
           const now = Date.now()
-          if (now - last < PROGRESS_INTERVAL_MS)
+          if (now - last < PROGRESS_INTERVAL_MS) {
             return
+          }
           last = now
           sink.write(progress)
         })
         const grace = setTimeout(() => {
-          if (!subscribed(owner, sink.id))
+          if (!subscribed(owner, sink.id)) {
             sink.abort('not subscribed')
+          }
         }, SUBSCRIBE_GRACE_MS)
         grace.unref?.()
-        sink.signal.addEventListener('abort', () => {
-          clearTimeout(grace)
-          off()
-          handle.release()
-        }, { once: true })
+        sink.signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(grace)
+            off()
+            handle.release()
+          },
+          { once: true },
+        )
         handle.done.then(
           () => {
             off()
@@ -149,7 +158,8 @@ export const getEvent = defineRpcFunction({
   type: 'query',
   jsonSerializable: true,
   setup: ctx => ({
-    handler: async ({ ref, id }: { ref: string, id: string }): Promise<EventDetail> => requireStore().event(ref, id, ownerOf(ctx)),
+    handler: async ({ ref, id }: { ref: string; id: string }): Promise<EventDetail> =>
+      requireStore().event(ref, id, ownerOf(ctx)),
   }),
 })
 
@@ -158,11 +168,12 @@ export const reconstructAt = defineRpcFunction({
   type: 'query',
   jsonSerializable: true,
   agent: {
-    description: 'Reconstruct the model-visible surface at one event id: context slots, recorded token counts, and events removed by compaction. Missing slots are unavailable, never invented. `ref` defaults to the session the server was started with.',
+    description:
+      'Reconstruct the model-visible surface at one event id: context slots, recorded token counts, and events removed by compaction. Missing slots are unavailable, never invented. `ref` defaults to the session the server was started with.',
   },
   // No owner: MCP calls run outside an RPC session, and a reconstruct takes its own hold.
   setup: () => ({
-    handler: async ({ ref, eventId }: { ref?: string, eventId: string }): Promise<ReconstructResult> =>
+    handler: async ({ ref, eventId }: { ref?: string; eventId: string }): Promise<ReconstructResult> =>
       requireStore().reconstruct(ref ?? CURRENT_REF, eventId),
   }),
 })

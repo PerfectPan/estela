@@ -83,12 +83,12 @@ export function sessionIndexFile(
 /** Never throws: an index that cannot be opened (EACCES, read-only home) is returned disabled, with the reason. */
 export function openSessionIndex(options: OpenIndexOptions = {}): SessionIndex {
   const file = options.file ?? sessionIndexFile(options.env ?? process.env, options.homeDir ?? homedir())
-  if (options.enabled === false)
+  if (options.enabled === false) {
     return disabledIndex(file)
+  }
   try {
     return new SqliteIndex(file, openDatabase(file), options.summaryVersion ?? SUMMARY_VERSION)
-  }
-  catch (error) {
+  } catch (error) {
     return disabledIndex(file, error instanceof Error ? error.message : String(error))
   }
 }
@@ -119,8 +119,16 @@ const SUMMARY_COLUMNS = [
   ['failed_tools', 'failedTools'],
 ] as const
 
-const HEAD_TEXT = [['session_id', 'sessionId'], ['title', 'title'], ['cwd', 'cwd'], ['first_prompt', 'firstPrompt']] as const
-const HEAD_NUMBERS = [['started_at', 'startedAt'], ['last_active_at', 'lastActiveAt']] as const
+const HEAD_TEXT = [
+  ['session_id', 'sessionId'],
+  ['title', 'title'],
+  ['cwd', 'cwd'],
+  ['first_prompt', 'firstPrompt'],
+] as const
+const HEAD_NUMBERS = [
+  ['started_at', 'startedAt'],
+  ['last_active_at', 'lastActiveAt'],
+] as const
 
 const SUMMARY_SELECT = `summary_version, ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape`
 const HEAD_SELECT = `ref, host, path, size, mtime, ${[...HEAD_TEXT, ...HEAD_NUMBERS].map(([column]) => column).join(', ')}`
@@ -137,34 +145,44 @@ class SqliteIndex implements SessionIndex {
     this.db = db
     this.version = version
     // One case fold for the query and the stored text; SQLite's lower() folds ASCII only.
-    db.function('casefold', { deterministic: true }, value => typeof value === 'string' ? casefold(value) : value)
+    db.function('casefold', { deterministic: true }, value => (typeof value === 'string' ? casefold(value) : value))
   }
 
   rows(): IndexRow[] {
-    const rows = this.sql(`SELECT ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`).all() as Record<string, unknown>[]
-    return rows.map((row) => {
+    const rows = this.sql(
+      `SELECT ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`,
+    ).all() as Record<string, unknown>[]
+    return rows.map(row => {
       const out: IndexRow = { ...headOf(row) }
       const summary = this.summaryOf(row)
-      if (summary)
+      if (summary) {
         out.summary = summary
+      }
       return out
     })
   }
 
   get(path: string, size: number, mtimeMs: number): SessionSummary | undefined {
-    const row = this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE path = ? AND size = ? AND mtime = ?`)
-      .get(path, size, mtimeMs) as Record<string, unknown> | undefined
+    const row = this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE path = ? AND size = ? AND mtime = ?`).get(
+      path,
+      size,
+      mtimeMs,
+    ) as Record<string, unknown> | undefined
     return row ? this.summaryOf(row) : undefined
   }
 
   remove(paths: readonly string[]): void {
-    if (paths.length === 0)
+    if (paths.length === 0) {
       return
+    }
     this.transaction(() => {
       for (const path of paths) {
-        const row = this.sql('SELECT id, ref FROM sessions WHERE path = ?').get(path) as { id: number | bigint, ref: string } | undefined
-        if (!row)
+        const row = this.sql('SELECT id, ref FROM sessions WHERE path = ?').get(path) as
+          | { id: number | bigint; ref: string }
+          | undefined
+        if (!row) {
           continue
+        }
         this.sql('DELETE FROM search WHERE rowid = ?').run(row.id)
         this.sql('DELETE FROM prompts WHERE ref = ?').run(row.ref)
         this.sql('DELETE FROM sessions WHERE id = ?').run(row.id)
@@ -173,20 +191,23 @@ class SqliteIndex implements SessionIndex {
   }
 
   putHeads(rows: readonly IndexHead[]): void {
-    if (rows.length > 0)
+    if (rows.length > 0) {
       this.transaction(() => rows.forEach(row => this.writeHead(row)))
+    }
   }
 
   putSummaries(rows: readonly IndexSummary[]): void {
-    if (rows.length > 0)
+    if (rows.length > 0) {
       this.transaction(() => rows.forEach(row => this.writeSummary(row)))
+    }
   }
 
   search(query: string): string[] | undefined {
     // NUL and other control characters are not search text.
     const text = query.replace(/\p{Cc}/gu, ' ').trim()
-    if (!text)
+    if (!text) {
       return undefined
+    }
     try {
       if (Array.from(text).length < 3) {
         const pattern = `%${casefold(text).replace(/[\\%_]/g, match => `\\${match}`)}%`
@@ -205,8 +226,7 @@ class SqliteIndex implements SessionIndex {
          WHERE search MATCH ? ORDER BY sessions.last_active_at DESC`,
       ).all(phrase) as { ref: unknown }[]
       return rows.map(row => String(row.ref))
-    }
-    catch (error) {
+    } catch (error) {
       // Busy or locked: let the caller search in memory. Anything else is a query that matches nothing.
       return isBusy(error) ? undefined : []
     }
@@ -228,21 +248,23 @@ class SqliteIndex implements SessionIndex {
 
   /** A NULL column is a capability the host does not record: it stays `undefined`, never 0. */
   private summaryOf(row: Record<string, unknown>): SessionSummary | undefined {
-    if (readNumber(row.summary_version) !== this.version)
+    if (readNumber(row.summary_version) !== this.version) {
       return undefined
+    }
     const summary: SessionSummary = {}
     for (const [column, key] of SUMMARY_COLUMNS) {
       const value = readNumber(row[column])
-      if (value !== undefined)
+      if (value !== undefined) {
         summary[key] = value
+      }
     }
     if (typeof row.context_shape === 'string') {
       try {
         const parsed: unknown = JSON.parse(row.context_shape)
-        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'number'))
+        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'number')) {
           summary.contextShape = parsed
-      }
-      catch {
+        }
+      } catch {
         // A damaged shape is missing data.
       }
     }
@@ -250,13 +272,20 @@ class SqliteIndex implements SessionIndex {
   }
 
   private writeHead(row: IndexHead): void {
-    const stored = this.sql(`SELECT ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path) as Record<string, unknown> | undefined
+    const stored = this.sql(`SELECT ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path) as
+      | Record<string, unknown>
+      | undefined
     const next = { ...row, ...(row.firstPrompt ? { firstPrompt: clip(row.firstPrompt) } : {}) }
     const existing = stored ? headOf(stored) : undefined
-    const sameKey = existing !== undefined && existing.size === row.size && existing.mtimeMs === row.mtimeMs && existing.ref === row.ref
+    const sameKey =
+      existing !== undefined
+      && existing.size === row.size
+      && existing.mtimeMs === row.mtimeMs
+      && existing.ref === row.ref
     // Unchanged file and head: nothing to write. This is every row on a second launch.
-    if (sameKey && [...HEAD_TEXT, ...HEAD_NUMBERS].every(([, key]) => existing[key] === next[key]))
+    if (sameKey && [...HEAD_TEXT, ...HEAD_NUMBERS].every(([, key]) => existing[key] === next[key])) {
       return
+    }
     this.sql(
       `INSERT INTO sessions (path, ref, host, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -281,8 +310,9 @@ class SqliteIndex implements SessionIndex {
       `UPDATE sessions SET summary_version = NULL, ${SUMMARY_COLUMNS.map(([column]) => `${column} = NULL`).join(', ')},
        context_shape = NULL WHERE path = ?`,
     ).run(row.path)
-    if (existing && existing.ref !== row.ref)
+    if (existing && existing.ref !== row.ref) {
       this.sql('DELETE FROM prompts WHERE ref = ?').run(existing.ref)
+    }
     const prompts = next.firstPrompt ? [next.firstPrompt] : []
     this.replacePrompts(row.ref, prompts)
     this.rewriteSearch(row.path, next.title, prompts)
@@ -290,7 +320,10 @@ class SqliteIndex implements SessionIndex {
 
   private writeSummary(row: IndexSummary): void {
     this.writeHead(row)
-    const prompts = row.prompts.slice(0, PROMPT_LIMIT).map(clip).filter(text => text.length > 0)
+    const prompts = row.prompts
+      .slice(0, PROMPT_LIMIT)
+      .map(clip)
+      .filter(text => text.length > 0)
     const shape = row.summary.contextShape
     this.sql(
       `UPDATE sessions SET summary_version = ?, ${SUMMARY_COLUMNS.map(([column]) => `${column} = ?`).join(', ')},
@@ -319,11 +352,17 @@ class SqliteIndex implements SessionIndex {
   /** One FTS row per session, keyed by `sessions.id`, so a rewrite is two lookups by rowid. */
   private rewriteSearch(path: string, title: string | undefined, prompts: readonly string[]): void {
     const session = this.sql('SELECT id FROM sessions WHERE path = ?').get(path) as { id: number | bigint } | undefined
-    if (!session)
+    if (!session) {
       return
+    }
     this.sql('DELETE FROM search WHERE rowid = ?').run(session.id)
-    if (title || prompts.length > 0)
-      this.sql('INSERT INTO search (rowid, title, prompts) VALUES (?, ?, ?)').run(session.id, title ?? '', prompts.join('\n'))
+    if (title || prompts.length > 0) {
+      this.sql('INSERT INTO search (rowid, title, prompts) VALUES (?, ?, ?)').run(
+        session.id,
+        title ?? '',
+        prompts.join('\n'),
+      )
+    }
   }
 
   private transaction(fn: () => void): void {
@@ -331,8 +370,7 @@ class SqliteIndex implements SessionIndex {
     try {
       fn()
       this.db.exec('COMMIT')
-    }
-    catch (error) {
+    } catch (error) {
       this.db.exec('ROLLBACK')
       throw error
     }
@@ -349,13 +387,15 @@ function headOf(row: Record<string, unknown>): IndexHead {
   }
   for (const [column, key] of HEAD_TEXT) {
     const value = row[column]
-    if (typeof value === 'string' && value !== '')
+    if (typeof value === 'string' && value !== '') {
       head[key] = value
+    }
   }
   for (const [column, key] of HEAD_NUMBERS) {
     const value = readNumber(row[column])
-    if (value !== undefined)
+    if (value !== undefined) {
       head[key] = value
+    }
   }
   return head
 }
@@ -375,8 +415,9 @@ function clip(text: string): string {
 }
 
 function readNumber(value: unknown): number | undefined {
-  if (value == null)
+  if (value == null) {
     return undefined
+  }
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
 }

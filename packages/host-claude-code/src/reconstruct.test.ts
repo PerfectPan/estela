@@ -32,7 +32,14 @@ describe('claude-code reconstruct (S7)', () => {
     expect(result.visibleIds).not.toContain('c-side')
 
     const [main] = projectLanes(trace)
-    expect(main!.markers).toContainEqual({ kind: 'compaction', eventId: compaction.id, ts: compaction.ts, trigger: 'auto', preTokens: 1000, postTokens: 100 })
+    expect(main!.markers).toContainEqual({
+      kind: 'compaction',
+      eventId: compaction.id,
+      ts: compaction.ts,
+      trigger: 'auto',
+      preTokens: 1000,
+      postTokens: 100,
+    })
     expect(main!.requests.map(entry => entry.inputTokens)).toEqual([100, 40])
   })
 
@@ -41,6 +48,8 @@ describe('claude-code reconstruct (S7)', () => {
     const firstRequest = trace.events.find(event => event.kind === 'request')!
     const result = reconstruct(trace, firstRequest.id)
     expect(result.removedIds).toEqual([])
-    expect(result.tokens).toEqual([{ slots: ['system', 'tools', 'summary', 'messages', 'currentTurn'], tokens: 100, from: 'request.inputTokens' }])
+    expect(result.tokens).toEqual([
+      { slots: ['system', 'tools', 'summary', 'messages', 'currentTurn'], tokens: 100, from: 'request.inputTokens' },
+    ])
   })
 })

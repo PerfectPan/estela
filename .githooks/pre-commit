@@ -18,3 +18,5 @@ fi
 node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
+node scripts/format.mjs --check
+node scripts/lint-scripts.mjs

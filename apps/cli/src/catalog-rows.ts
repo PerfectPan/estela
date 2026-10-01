@@ -29,9 +29,9 @@ export interface LiveRow {
   revision: number
 }
 
-export type DiscoverItem = SessionHead | { ref: SessionRef, error: string }
+export type DiscoverItem = SessionHead | { ref: SessionRef; error: string }
 
-export function isDiscoverError(item: DiscoverItem): item is { ref: SessionRef, error: string } {
+export function isDiscoverError(item: DiscoverItem): item is { ref: SessionRef; error: string } {
   return 'error' in item
 }
 
@@ -62,14 +62,18 @@ function clipPrompt(text: string): string {
   return text.length > LIST_PROMPT_CHARS ? `${text.slice(0, LIST_PROMPT_CHARS)}…` : text
 }
 
-function summaryFields(summary: SessionSummary | undefined): Omit<SessionListRow, 'ref' | 'host' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
-  if (!summary)
+function summaryFields(
+  summary: SessionSummary | undefined,
+): Omit<SessionListRow, 'ref' | 'host' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
+  if (!summary) {
     return {}
+  }
   const { contextShape, ...numbers } = summary
-  if (!contextShape || contextShape.length === 0)
+  if (!contextShape || contextShape.length === 0) {
     return numbers
+  }
   const max = Math.max(...contextShape)
-  return { ...numbers, shape: contextShape.map(value => max > 0 ? Math.round((value / max) * 100) : 0) }
+  return { ...numbers, shape: contextShape.map(value => (max > 0 ? Math.round((value / max) * 100) : 0)) }
 }
 
 /** One full read: `fold` of the loaded trace for the numbers, and the main agent's user prompts for search. */
@@ -77,7 +81,7 @@ export async function summarizeRow(
   adapter: HostAdapter,
   ref: SessionRef,
   io: TraceIO,
-): Promise<{ summary: SessionSummary, prompts: string[] }> {
+): Promise<{ summary: SessionSummary; prompts: string[] }> {
   const trace = await adapter.load(ref, io, {})
   return { summary: summaryOf(fold(trace)), prompts: userPrompts(trace) }
 }
@@ -88,8 +92,9 @@ function pad(value: number): string {
 
 /** `2026-09-24 14:02` in local time, for the terminal picker. */
 export function activityLabel(ts: number): string {
-  if (!ts)
+  if (!ts) {
     return ''
+  }
   const date = new Date(ts)
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
@@ -112,7 +117,7 @@ function headFields(head: Head, homeDir: string): Partial<LiveRow> {
 export function rowFromHead(
   host: string,
   head: SessionHead,
-  info: { size: number, mtimeMs: number },
+  info: { size: number; mtimeMs: number },
   homeDir: string,
   sharedFile = false,
 ): LiveRow {

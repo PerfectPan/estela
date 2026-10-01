@@ -37,42 +37,59 @@ export interface TimelineData {
 }
 
 /** Built once per trace; the SVG only maps it to pixels. */
-export function timelineData(trace: Trace, lanes: readonly Lane[], byId: ReadonlyMap<string, TraceEvent>): TimelineData {
+export function timelineData(
+  trace: Trace,
+  lanes: readonly Lane[],
+  byId: ReadonlyMap<string, TraceEvent>,
+): TimelineData {
   const mainId = mainAgentId(trace)
   const draws = new Map<string, LaneDraw>()
   for (const lane of lanes) {
     const draw: LaneDraw = {
       lane,
-      bars: lane.requests.map(request => ({ ts: request.ts, id: request.id, ...(request.inputTokens !== undefined ? { tokens: request.inputTokens } : {}) })),
+      bars: lane.requests.map(request => ({
+        ts: request.ts,
+        id: request.id,
+        ...(request.inputTokens !== undefined ? { tokens: request.inputTokens } : {}),
+      })),
       tools: [],
       prompts: [],
       failed: [],
       compactions: [],
     }
     for (const marker of lane.markers) {
-      if (marker.kind === 'prompt')
+      if (marker.kind === 'prompt') {
         draw.prompts.push({ ts: marker.ts, id: marker.eventId })
-      else if (marker.kind === 'failed-tool')
+      } else if (marker.kind === 'failed-tool') {
         draw.failed.push({ ts: marker.ts, id: marker.eventId })
-      else
-        draw.compactions.push({ ts: marker.ts, id: marker.eventId, preTokens: marker.preTokens, postTokens: marker.postTokens })
+      } else {
+        draw.compactions.push({
+          ts: marker.ts,
+          id: marker.eventId,
+          preTokens: marker.preTokens,
+          postTokens: marker.postTokens,
+        })
+      }
     }
     draws.set(lane.id, draw)
   }
   let start = Number.POSITIVE_INFINITY
   let end = Number.NEGATIVE_INFINITY
   for (const event of trace.events) {
-    if (!Number.isFinite(event.ts) || event.ts <= 0)
+    if (!Number.isFinite(event.ts) || event.ts <= 0) {
       continue
+    }
     start = Math.min(start, event.ts)
     end = Math.max(end, event.ts)
     const draw = draws.get(event.agentId ?? mainId)
-    if (!draw)
+    if (!draw) {
       continue
+    }
     draw.from = Math.min(draw.from ?? event.ts, event.ts)
     draw.to = Math.max(draw.to ?? event.ts, event.ts)
-    if (event.kind === 'tool_call')
+    if (event.kind === 'tool_call') {
       draw.tools.push({ ts: event.ts, id: event.id })
+    }
   }
   if (!Number.isFinite(start)) {
     start = trace.session.startedAt ?? 0
@@ -81,10 +98,17 @@ export function timelineData(trace: Trace, lanes: readonly Lane[], byId: Readonl
   for (const draw of draws.values()) {
     const spawn = draw.lane.spawnEventId
     const ts = spawn ? byId.get(spawn)?.ts : undefined
-    if (spawn && ts !== undefined)
+    if (spawn && ts !== undefined) {
       draw.spawn = { ts, id: spawn }
+    }
   }
   const main = draws.get(mainId) ?? draws.values().next().value!
   const top = main.bars.reduce((max, bar) => Math.max(max, bar.tokens ?? 0), 0)
-  return { main, subs: lanes.filter(lane => lane.id !== main.lane.id).map(lane => draws.get(lane.id)!), start, end, top }
+  return {
+    main,
+    subs: lanes.filter(lane => lane.id !== main.lane.id).map(lane => draws.get(lane.id)!),
+    start,
+    end,
+    top,
+  }
 }

@@ -10,15 +10,17 @@ function traceOf(payload: Record<string, unknown>, session: Trace['session'] = {
     capabilities: [],
     agents: [],
     skipped: [],
-    events: [{
-      id: 'e',
-      seq: 0,
-      ts: 0,
-      kind: 'tool_result',
-      payload,
-      source: { file: 'fixture.json', offset: 0, length: 1, line: 1 },
-      original: { secret: 'keep-me-out' },
-    }],
+    events: [
+      {
+        id: 'e',
+        seq: 0,
+        ts: 0,
+        kind: 'tool_result',
+        payload,
+        source: { file: 'fixture.json', offset: 0, length: 1, line: 1 },
+        original: { secret: 'keep-me-out' },
+      },
+    ],
   }
 }
 
@@ -36,19 +38,24 @@ describe('toView', () => {
 
   it('defaults to 4,096 characters and records nested and array paths', () => {
     const long = 'y'.repeat(5000)
-    const view = toView(traceOf({
-      callId: 'c1',
-      output: { stdout: long, lines: ['short', long], exact: 'z'.repeat(4096) },
-      count: 3,
-    }))
+    const view = toView(
+      traceOf({
+        callId: 'c1',
+        output: { stdout: long, lines: ['short', long], exact: 'z'.repeat(4096) },
+        count: 3,
+      }),
+    )
     const payload = view.events[0]!.payload
-    const output = payload.output as { stdout: string, lines: string[], exact: string }
+    const output = payload.output as { stdout: string; lines: string[]; exact: string }
     expect(output.stdout).toHaveLength(4096)
     expect(output.lines).toEqual(['short', 'y'.repeat(4096)])
     expect(output.exact).toHaveLength(4096)
     expect(payload.count).toBe(3)
     expect(payload.callId).toBe('c1')
-    expect(payload.$truncated).toEqual([['output', 'stdout'], ['output', 'lines', 1]])
+    expect(payload.$truncated).toEqual([
+      ['output', 'stdout'],
+      ['output', 'lines', 1],
+    ])
   })
 
   it('leaves events with no long string unmarked', () => {
@@ -57,7 +64,10 @@ describe('toView', () => {
   })
 
   it('caps session strings and marks them on the session', () => {
-    const view = toView(traceOf({}, { id: 's', systemPrompt: 'p'.repeat(20), tools: [{ description: 'd'.repeat(20) }] }), { maxString: 12 })
+    const view = toView(
+      traceOf({}, { id: 's', systemPrompt: 'p'.repeat(20), tools: [{ description: 'd'.repeat(20) }] }),
+      { maxString: 12 },
+    )
     expect(view.session.systemPrompt).toBe('p'.repeat(12))
     expect(view.session.$truncated).toEqual([['systemPrompt'], ['tools', 0, 'description']])
   })
@@ -74,7 +84,12 @@ describe('toView', () => {
   it('interns source files and keeps record identity', () => {
     const trace = traceOf({ text: 'a' })
     trace.events.push(
-      { ...trace.events[0]!, id: 'f', seq: 1, source: { file: '/logs/sub/agent-a.jsonl', offset: 5, length: 2, line: 3 } },
+      {
+        ...trace.events[0]!,
+        id: 'f',
+        seq: 1,
+        source: { file: '/logs/sub/agent-a.jsonl', offset: 5, length: 2, line: 3 },
+      },
       { ...trace.events[0]!, id: 'g', seq: 2 },
     )
     const view = toView(trace)
@@ -122,7 +137,7 @@ describe('fitView', () => {
     const fitted = fitView(big(), { maxBytes: 200_000 })
     expect(fitted.trace.view).toEqual({ maxString: 1728, budgetBytes: 200_000, withinBudget: true })
     expect(fitted.bytes).toBeLessThanOrEqual(200_000)
-    expect((fitted.trace.events[0]!.payload.text as string)).toHaveLength(1728)
+    expect(fitted.trace.events[0]!.payload.text as string).toHaveLength(1728)
   })
 
   it('stops at 256 characters and says when the budget is still exceeded', () => {
@@ -159,7 +174,7 @@ describe('toView key collisions', () => {
   it('suffixes long keys that share a prefix after cutting', () => {
     const view = toView(traceOf({ ['a'.repeat(10) + '1']: 1, ['a'.repeat(10) + '2']: 2, aaaa: 0 }), { maxString: 4 })
     const payload = view.events[0]!.payload
-    expect(payload).toMatchObject({ 'aaaa#2': 1, 'aaaa#3': 2, 'aaaa': 0 })
+    expect(payload).toMatchObject({ 'aaaa#2': 1, 'aaaa#3': 2, aaaa: 0 })
     expect(payload.$truncated).toEqual([['aaaa#2'], ['aaaa#3']])
   })
 })

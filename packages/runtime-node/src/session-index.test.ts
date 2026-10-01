@@ -59,7 +59,17 @@ describe('session index', () => {
   it('does not treat a head write as a cached summary', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ file })
-    index.putHeads([{ ref: 'a', host: 'codex', path: '/logs/a.jsonl', size: 10, mtimeMs: 1_000, title: 'Fix the auth refresh', firstPrompt: 'Run the tests please' }])
+    index.putHeads([
+      {
+        ref: 'a',
+        host: 'codex',
+        path: '/logs/a.jsonl',
+        size: 10,
+        mtimeMs: 1_000,
+        title: 'Fix the auth refresh',
+        firstPrompt: 'Run the tests please',
+      },
+    ])
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
     expect(index.search('Run the tests')).toEqual(['a'])
     index.close()
@@ -123,11 +133,13 @@ describe('session index', () => {
   it('keeps an undefined capability out of the cache and keeps a real zero', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ file })
-    index.putSummaries([summary({
-      ref: 'a',
-      path: '/logs/a.jsonl',
-      summary: { turns: 0, failedTools: 0 },
-    })])
+    index.putSummaries([
+      summary({
+        ref: 'a',
+        path: '/logs/a.jsonl',
+        summary: { turns: 0, failedTools: 0 },
+      }),
+    ])
     const cached = index.get('/logs/a.jsonl', 10, 1_000)
     expect(cached?.turns).toBe(0)
     expect(cached?.failedTools).toBe(0)
@@ -210,8 +222,7 @@ describe('session index', () => {
       expect(index.unavailable).toMatch(/EACCES|permission/i)
       expect(index.search('x')).toBeUndefined()
       index.close()
-    }
-    finally {
+    } finally {
       chmodSync(cache, 0o700)
     }
   })
@@ -221,26 +232,40 @@ describe('session index', () => {
     const file = join(dir, 'index.sqlite')
     const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
     const child = join(dir, 'child.mjs')
-    writeFileSync(child, `
+    writeFileSync(
+      child,
+      `
       const { openSessionIndex } = await import(${JSON.stringify(module)})
       const n = process.argv[2]
       const index = openSessionIndex({ file: ${JSON.stringify(file)} })
       if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
       index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
-    `)
-    const runs = Array.from({ length: 6 }, (_, n) => new Promise<{ code: number | null, stderr: string }>((resolve) => {
-      const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], { stdio: ['ignore', 'ignore', 'pipe'] })
-      let stderr = ''
-      proc.stderr.on('data', (chunk: Buffer) => {
-        stderr += String(chunk)
-      })
-      proc.on('close', code => resolve({ code, stderr }))
-    }))
+    `,
+    )
+    const runs = Array.from(
+      { length: 6 },
+      (_, n) =>
+        new Promise<{ code: number | null; stderr: string }>(resolve => {
+          const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], {
+            stdio: ['ignore', 'ignore', 'pipe'],
+          })
+          let stderr = ''
+          proc.stderr.on('data', (chunk: Buffer) => {
+            stderr += String(chunk)
+          })
+          proc.on('close', code => resolve({ code, stderr }))
+        }),
+    )
     const results = await Promise.all(runs)
     expect(results).toEqual(Array.from({ length: 6 }, () => ({ code: 0, stderr: '' })))
     const index = openSessionIndex({ file })
-    expect(index.rows().map(row => row.ref).toSorted()).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
+    expect(
+      index
+        .rows()
+        .map(row => row.ref)
+        .toSorted(),
+    ).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
     index.close()
   })
 
@@ -265,8 +290,9 @@ describe('session index', () => {
     const index = openSessionIndex({ file })
     index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
     expect(statSync(dir).mode & 0o777).toBe(0o700)
-    for (const suffix of ['', '-wal', '-shm'])
+    for (const suffix of ['', '-wal', '-shm']) {
       expect({ suffix, mode: statSync(`${file}${suffix}`).mode & 0o777 }).toEqual({ suffix, mode: 0o600 })
+    }
     const raw = new DatabaseSync(file)
     expect(raw.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
     raw.close()
@@ -279,14 +305,22 @@ describe('session index', () => {
     const seed = openSessionIndex({ file })
     seed.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
     seed.close()
-    const holder = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '-e', `
+    const holder = spawn(
+      process.execPath,
+      [
+        '--disable-warning=ExperimentalWarning',
+        '-e',
+        `
       const { DatabaseSync } = require('node:sqlite')
       const db = new DatabaseSync(${JSON.stringify(file)})
       db.exec('BEGIN EXCLUSIVE')
       db.exec("UPDATE sessions SET title = 'held' WHERE ref = 'a'")
       process.stdout.write('locked\\n')
       setTimeout(() => { db.exec('ROLLBACK'); db.close() }, 3000)
-    `], { stdio: ['ignore', 'pipe', 'inherit'] })
+    `,
+      ],
+      { stdio: ['ignore', 'pipe', 'inherit'] },
+    )
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     const started = performance.now()
     const index = openSessionIndex({ file })
@@ -306,27 +340,43 @@ describe('session index', () => {
     writeFileSync(file, 'not a database, not at all')
     const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
     const child = join(dir, 'child.mjs')
-    writeFileSync(child, `
+    writeFileSync(
+      child,
+      `
       const { openSessionIndex } = await import(${JSON.stringify(module)})
       const n = process.argv[2]
       const index = openSessionIndex({ file: ${JSON.stringify(file)} })
       if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
       index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
-    `)
-    const results = await Promise.all(Array.from({ length: 4 }, (_, n) => new Promise<string>((resolve) => {
-      const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], { stdio: ['ignore', 'ignore', 'pipe'] })
-      let stderr = ''
-      proc.stderr.setEncoding('utf8')
-      proc.stderr.on('data', (chunk: string) => {
-        stderr += chunk
-      })
-      // The exit code and, on failure, why: `index.unavailable` or a stack.
-      proc.on('close', code => resolve(code === 0 ? '0' : `${code}: ${stderr.trim()}`))
-    })))
+    `,
+    )
+    const results = await Promise.all(
+      Array.from(
+        { length: 4 },
+        (_, n) =>
+          new Promise<string>(resolve => {
+            const proc = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', child, String(n)], {
+              stdio: ['ignore', 'ignore', 'pipe'],
+            })
+            let stderr = ''
+            proc.stderr.setEncoding('utf8')
+            proc.stderr.on('data', (chunk: string) => {
+              stderr += chunk
+            })
+            // The exit code and, on failure, why: `index.unavailable` or a stack.
+            proc.on('close', code => resolve(code === 0 ? '0' : `${code}: ${stderr.trim()}`))
+          }),
+      ),
+    )
     expect(results).toEqual(['0', '0', '0', '0'])
     const index = openSessionIndex({ file })
-    expect(index.rows().map(row => row.ref).toSorted()).toEqual(['r0', 'r1', 'r2', 'r3'])
+    expect(
+      index
+        .rows()
+        .map(row => row.ref)
+        .toSorted(),
+    ).toEqual(['r0', 'r1', 'r2', 'r3'])
     index.close()
   })
 })

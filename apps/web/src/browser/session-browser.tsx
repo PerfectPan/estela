@@ -32,35 +32,51 @@ export function SessionBrowser() {
   const visible = createMemo((): SessionListRow[] => {
     const matches = store.matches()
     const f = flags()
-    return store.rows().filter(row =>
-      (!matches || matches.has(row.ref))
-      && (!host() || row.host === host())
-      && (!project() || row.project === project())
-      && (!f.compaction || (row.compactions ?? 0) > 0)
-      && (!f.subagents || (row.subagents ?? 0) > 0)
-      && (!f.failed || (row.failedTools ?? 0) > 0))
+    return store
+      .rows()
+      .filter(
+        row =>
+          (!matches || matches.has(row.ref))
+          && (!host() || row.host === host())
+          && (!project() || row.project === project())
+          && (!f.compaction || (row.compactions ?? 0) > 0)
+          && (!f.subagents || (row.subagents ?? 0) > 0)
+          && (!f.failed || (row.failedTools ?? 0) > 0),
+      )
   })
   const selectedRow = createMemo(() => visible().find(row => row.ref === selected()))
 
   createEffect(() => {
     const rows = visible()
-    if (!rows.some(row => row.ref === selected()))
+    if (!rows.some(row => row.ref === selected())) {
       setSelected(rows[0]?.ref)
+    }
   })
 
   /** Open a row, unless it could not be read (the same rule as the disabled Open button). */
   function openRow(ref: string | undefined): void {
     const row = ref ? store.rows().find(item => item.ref === ref) : undefined
-    if (row && !row.error)
+    if (row && !row.error) {
       openSession(row.ref)
+    }
   }
 
   /** Pending rows at the top of the current view: summarized before the rest. */
-  const pendingOnScreen = () => visible().slice(0, VISIBLE_FIRST).filter(row => row.pending).map(row => row.ref)
+  const pendingOnScreen = () =>
+    visible()
+      .slice(0, VISIBLE_FIRST)
+      .filter(row => row.pending)
+      .map(row => row.ref)
 
-  createEffect(on(() => [host(), project(), flags(), store.matches(), store.loaded()], () => {
-    store.prioritize(pendingOnScreen())
-  }, { defer: true }))
+  createEffect(
+    on(
+      () => [host(), project(), flags(), store.matches(), store.loaded()],
+      () => {
+        store.prioritize(pendingOnScreen())
+      },
+      { defer: true },
+    ),
+  )
 
   function onSearch(value: string): void {
     setInput(value)
@@ -70,10 +86,11 @@ export function SessionBrowser() {
 
   function move(step: number): void {
     const rows = visible()
-    if (rows.length === 0)
+    if (rows.length === 0) {
       return
+    }
     const index = rows.findIndex(row => row.ref === selected())
-    const next = rows[Math.min(rows.length - 1, Math.max(0, (index < 0 ? 0 : index + step)))]!
+    const next = rows[Math.min(rows.length - 1, Math.max(0, index < 0 ? 0 : index + step))]!
     setSelected(next.ref)
     listElement?.querySelector(`[data-ref="${CSS.escape(next.ref)}"]`)?.scrollIntoView({ block: 'nearest' })
   }
@@ -83,8 +100,7 @@ export function SessionBrowser() {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       move(event.key === 'ArrowDown' ? 1 : -1)
-    }
-    else if (event.key === 'Enter' && selected()) {
+    } else if (event.key === 'Enter' && selected()) {
       event.preventDefault()
       openRow(selected())
     }
@@ -119,8 +135,9 @@ export function SessionBrowser() {
     const clock = setInterval(() => setNow(Date.now()), 60_000)
     // Fallback when a push is missed: re-ask while summaries are pending.
     const poll = setInterval(() => {
-      if (store.pending() > 0)
+      if (store.pending() > 0) {
         store.prioritize(pendingOnScreen())
+      }
     }, PENDING_POLL_MS)
     onCleanup(() => {
       window.removeEventListener('keydown', onKey)
@@ -130,7 +147,7 @@ export function SessionBrowser() {
     })
   })
 
-  const empty = () => store.rows().length === 0 ? t('browser.noSessions') : t('browser.noMatches')
+  const empty = () => (store.rows().length === 0 ? t('browser.noSessions') : t('browser.noMatches'))
 
   return (
     <div class="flex h-full min-h-0 flex-col bg-background text-foreground">
@@ -163,7 +180,9 @@ export function SessionBrowser() {
               <label class="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-[9px] border border-input bg-muted px-3.5 focus-within:border-ring">
                 <SearchIcon size={16} class="shrink-0 text-muted-foreground" />
                 <input
-                  ref={(element) => { searchBox = element }}
+                  ref={element => {
+                    searchBox = element
+                  }}
                   type="search"
                   id="session-search"
                   name="session-search"
@@ -182,8 +201,14 @@ export function SessionBrowser() {
             <Show when={!connectionLost() && store.error()}>
               {reason => (
                 <div class="flex items-center gap-3" role="alert">
-                  <p class="m-0 text-[13px] text-muted-foreground">{t('browser.connectionError', { reason: reason() })}</p>
-                  <button type="button" class="rounded-md border border-input px-2.5 py-1 text-[12.5px] text-foreground hover:bg-accent" onClick={() => location.reload()}>
+                  <p class="m-0 text-[13px] text-muted-foreground">
+                    {t('browser.connectionError', { reason: reason() })}
+                  </p>
+                  <button
+                    type="button"
+                    class="rounded-md border border-input px-2.5 py-1 text-[12.5px] text-foreground hover:bg-accent"
+                    onClick={() => location.reload()}
+                  >
                     {t('common.reload')}
                   </button>
                 </div>
@@ -194,7 +219,9 @@ export function SessionBrowser() {
             </Show>
           </div>
           <SessionList
-            ref={(element) => { listElement = element }}
+            ref={element => {
+              listElement = element
+            }}
             hosts={store.hosts()}
             rows={visible()}
             now={now()}
@@ -205,7 +232,17 @@ export function SessionBrowser() {
             onKeyDown={onListKey}
           />
           <footer class="flex h-10 shrink-0 items-center gap-2.5 border-t border-border px-[18px] text-[12px] text-subtle">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
               <path d="M5 8 L9 12 L5 16" />
               <path d="M11 16 H19" />
             </svg>

@@ -13,7 +13,14 @@ import {
   toTrace,
   walkFiles,
 } from '@rivus/agent-trace-kernel'
-import { chunkText, isInjectedChunk, META_KEY, parseGrokRecords, summaryFields, type GrokSessionMeta } from './parse-session.ts'
+import {
+  chunkText,
+  isInjectedChunk,
+  META_KEY,
+  parseGrokRecords,
+  summaryFields,
+  type GrokSessionMeta,
+} from './parse-session.ts'
 
 /** Recorded by every session this adapter reads. */
 const BASE_CAPABILITIES: Capability[] = [
@@ -34,12 +41,14 @@ const BASE_CAPABILITIES: Capability[] = [
  */
 const CAPABILITIES: Capability[] = [...BASE_CAPABILITIES, 'systemPrompt', 'toolSchemas']
 
-function traceCapabilities(parsed: { session: Trace['session'], agents: Trace['agents'] }): Capability[] {
+function traceCapabilities(parsed: { session: Trace['session']; agents: Trace['agents'] }): Capability[] {
   const out = [...BASE_CAPABILITIES]
-  if (parsed.session.systemPrompt || parsed.agents.some(agent => agent.systemPrompt))
+  if (parsed.session.systemPrompt || parsed.agents.some(agent => agent.systemPrompt)) {
     out.push('systemPrompt')
-  if (parsed.session.tools != null)
+  }
+  if (parsed.session.tools != null) {
     out.push('toolSchemas')
+  }
   return out
 }
 
@@ -52,8 +61,9 @@ function updatesPath(path: string): string {
 }
 
 async function readOptional(io: TraceIO, path: string, progress: ReadProgress): Promise<string | undefined> {
-  if ((await io.stat(path))?.kind !== 'file')
+  if ((await io.stat(path))?.kind !== 'file') {
     return undefined
+  }
   return readTextCounted(io, path, progress)
 }
 
@@ -65,21 +75,20 @@ async function loadMeta(io: TraceIO, dir: string, progress: ReadProgress): Promi
     let value: unknown
     try {
       value = JSON.parse(summaryText) as unknown
-    }
-    catch {
+    } catch {
       throw new Error(`grok: ${summaryPath}:1: invalid JSON`)
     }
     meta = summaryFields(value, summaryPath)
   }
   const prompt = await readOptional(io, joinPath(dir, 'system_prompt.txt'), progress)
-  if (prompt && prompt.length > 0)
+  if (prompt && prompt.length > 0) {
     meta.systemPrompt = prompt
+  }
   const toolsText = await readOptional(io, joinPath(dir, 'tool_definitions.json'), progress)
   if (toolsText !== undefined) {
     try {
       meta.tools = JSON.parse(toolsText) as unknown
-    }
-    catch {
+    } catch {
       throw new Error(`grok: ${joinPath(dir, 'tool_definitions.json')}:1: invalid JSON`)
     }
   }
@@ -88,19 +97,21 @@ async function loadMeta(io: TraceIO, dir: string, progress: ReadProgress): Promi
 
 async function enrichAgents(io: TraceIO, dir: string, agents: Trace['agents'], progress: ReadProgress): Promise<void> {
   const subDir = joinPath(dir, 'subagents')
-  if ((await io.stat(subDir))?.kind !== 'dir')
+  if ((await io.stat(subDir))?.kind !== 'dir') {
     return
+  }
   for (const entry of await io.list(subDir)) {
-    if (entry.kind !== 'dir')
+    if (entry.kind !== 'dir') {
       continue
+    }
     const text = await readOptional(io, joinPath(joinPath(subDir, entry.name), 'meta.json'), progress)
-    if (!text)
+    if (!text) {
       continue
+    }
     let value: unknown
     try {
       value = JSON.parse(text) as unknown
-    }
-    catch {
+    } catch {
       continue
     }
     const meta = asRecord(value)
@@ -108,8 +119,9 @@ async function enrichAgents(io: TraceIO, dir: string, agents: Trace['agents'], p
     const title = asString(meta?.description)
     const existing = agents.find(agent => agent.id === id)
     if (existing) {
-      if (!existing.title && title)
+      if (!existing.title && title) {
         existing.title = title
+      }
       continue
     }
     agents.push({ id, parentId: 'main', ...(title ? { title } : {}) })
@@ -128,8 +140,9 @@ function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
     }
     if (!preview.firstPrompt && update?.sessionUpdate === 'user_message_chunk') {
       const text = chunkText(update.content)
-      if (text && !isInjectedChunk(asRecord(update[META_KEY]), text))
+      if (text && !isInjectedChunk(asRecord(update[META_KEY]), text)) {
         preview.firstPrompt = text.slice(0, 500)
+      }
     }
   }
   return preview
@@ -146,30 +159,35 @@ export const grokAdapter: HostAdapter = {
     return discoverSessions('grok', root, io, {
       signal: opts.signal,
       ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
-      files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
-        match: name => name === 'updates.jsonl',
-        skipDir: name => name === 'subagents',
-        maxDepth: 8,
-        signal,
-      }),
+      files: (fileIo, dir, signal) =>
+        walkFiles(fileIo, dir, {
+          match: name => name === 'updates.jsonl',
+          skipDir: name => name === 'subagents',
+          maxDepth: 8,
+          signal,
+        }),
       preview: previewRecords,
       decorate: async (path, head, fileIo) => {
         const summaryPath = joinPath(dirnamePath(path), 'summary.json')
         const summaryStat = await fileIo.stat(summaryPath)
-        if (summaryStat?.kind !== 'file' || summaryStat.size > 64 * 1024)
+        if (summaryStat?.kind !== 'file' || summaryStat.size > 64 * 1024) {
           return
+        }
         try {
           const fields = summaryFields(JSON.parse(await fileIo.readText(summaryPath)) as unknown, summaryPath)
-          if (fields.id)
+          if (fields.id) {
             head.ref.sessionId = fields.id
-          if (fields.title)
+          }
+          if (fields.title) {
             head.title = fields.title
-          if (fields.cwd)
+          }
+          if (fields.cwd) {
             head.cwd = fields.cwd
-          if (fields.endedAt !== undefined)
+          }
+          if (fields.endedAt !== undefined) {
             head.lastActiveAt = fields.endedAt
-        }
-        catch {
+          }
+        } catch {
           // The head still lists the session. Load reports a summary parse error.
         }
       },
@@ -181,8 +199,7 @@ export const grokAdapter: HostAdapter = {
       const summary = await io.stat(joinPath(dir, 'summary.json'))
       const updates = await io.stat(updatesPath(ref.path))
       return summary?.kind === 'file' && updates?.kind === 'file'
-    }
-    catch {
+    } catch {
       return false
     }
   },

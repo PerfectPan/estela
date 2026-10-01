@@ -12,31 +12,37 @@ export function isPlainOutput(): boolean {
  * sequences. With `homeDir`, it also replaces the home directory with `~` in
  * DevFrame's `[devframe]` log lines, in plain and TTY mode alike.
  */
-export function installPlainFilter(options?: { stderrOnly?: boolean, homeDir?: string }): void {
+export function installPlainFilter(options?: { stderrOnly?: boolean; homeDir?: string }): void {
   const tilde = options?.homeDir ? devframeTilde(options.homeDir) : undefined
   if (options?.stderrOnly) {
     wrap(process.stderr, true, tilde)
     return
   }
   const strip = isPlainOutput()
-  if (!strip && !tilde)
+  if (!strip && !tilde) {
     return
+  }
   wrap(process.stdout, strip, tilde)
   wrap(process.stderr, strip, tilde)
 }
 
 /** `~` for the home directory, only on lines that DevFrame logs. */
 export function devframeTilde(homeDir: string): (text: string) => string {
-  return text => text.includes('[devframe]')
-    ? text.split('\n').map(line => line.includes('[devframe]') ? redactText(line, homeDir) : line).join('\n')
-    : text
+  return text =>
+    text.includes('[devframe]')
+      ? text
+          .split('\n')
+          .map(line => (line.includes('[devframe]') ? redactText(line, homeDir) : line))
+          .join('\n')
+      : text
 }
 
 function callbackArg(rest: readonly unknown[]): [] | [(error?: Error | null) => void] {
   for (let i = rest.length - 1; i >= 0; i--) {
     const item = rest[i]
-    if (typeof item === 'function')
+    if (typeof item === 'function') {
       return [item as (error?: Error | null) => void]
+    }
   }
   return []
 }
@@ -49,9 +55,11 @@ function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string
   }
   stream.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     if (typeof chunk !== 'string') {
-      const touched = (strip && chunk.includes(0x1B)) || (tilde !== undefined && Buffer.from(chunk).includes('[devframe]'))
-      if (!touched)
+      const touched =
+        (strip && chunk.includes(0x1b)) || (tilde !== undefined && Buffer.from(chunk).includes('[devframe]'))
+      if (!touched) {
         return write(chunk, ...(rest as []))
+      }
       return write(clean(Buffer.from(chunk).toString('utf8')), ...callbackArg(rest))
     }
     return write(clean(chunk), ...(rest as []))
@@ -59,13 +67,23 @@ function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string
 }
 
 function supportsOsc8(): boolean {
-  if (!process.stdout.isTTY || process.env.TERM === 'dumb')
+  if (!process.stdout.isTTY || process.env.TERM === 'dumb') {
     return false
+  }
   const program = process.env.TERM_PROGRAM ?? ''
-  if (program === 'iTerm.app' || program === 'WezTerm' || program === 'vscode' || program === 'ghostty' || program === 'Apple_Terminal' || program === 'Hyper')
+  if (
+    program === 'iTerm.app'
+    || program === 'WezTerm'
+    || program === 'vscode'
+    || program === 'ghostty'
+    || program === 'Apple_Terminal'
+    || program === 'Hyper'
+  ) {
     return true
-  if (process.env.WT_SESSION || process.env.KONSOLE_VERSION || process.env.VTE_VERSION)
+  }
+  if (process.env.WT_SESSION || process.env.KONSOLE_VERSION || process.env.VTE_VERSION) {
     return true
+  }
   return /^(xterm|screen|tmux|alacritty|kitty)/.test(process.env.TERM ?? '')
 }
 
@@ -90,7 +108,7 @@ export function sayStart(version: string): void {
   intro(`agent-trace ${version}`)
 }
 
-export function startLoad(): { stop: (events: number) => void, cancel: () => void } {
+export function startLoad(): { stop: (events: number) => void; cancel: () => void } {
   if (isPlainOutput()) {
     return {
       stop(events) {
@@ -111,11 +129,14 @@ export function startLoad(): { stop: (events: number) => void, cancel: () => voi
   }
 }
 
-export async function sayBuild(version: string, steps: {
-  load: () => Promise<string>
-  redact: () => Promise<string>
-  write: () => Promise<string>
-}): Promise<void> {
+export async function sayBuild(
+  version: string,
+  steps: {
+    load: () => Promise<string>
+    redact: () => Promise<string>
+    write: () => Promise<string>
+  },
+): Promise<void> {
   if (isPlainOutput()) {
     process.stdout.write(`agent-trace ${version}\n`)
     process.stdout.write(`Load: ${await steps.load()}\n`)
@@ -151,8 +172,7 @@ export function sayReady(url: string): void {
     // link does not push the right border out; `width: 'auto'` sizes the box to the URL.
     box(supportsOsc8() ? osc8(url, url) : url, 'Ready', { width: 'auto' })
     outro('Ready')
-  }
-  catch {
+  } catch {
     plainReady(url)
   }
 }
@@ -175,7 +195,7 @@ export function sayError(cause: string, fix: string): void {
   log.error(text)
 }
 
-export async function pickSession(options: { value: string, label: string }[]): Promise<string> {
+export async function pickSession(options: { value: string; label: string }[]): Promise<string> {
   const choice = await autocomplete({
     message: 'Pick a session',
     options,

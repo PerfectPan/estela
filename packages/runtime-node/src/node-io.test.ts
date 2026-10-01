@@ -20,8 +20,9 @@ async function fixture(name: string, bytes: Buffer): Promise<string> {
 
 async function collect(path: string) {
   const rows = []
-  for await (const row of nodeIO.lines(path))
+  for await (const row of nodeIO.lines(path)) {
     rows.push(row)
+  }
   return rows
 }
 

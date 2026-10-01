@@ -56,24 +56,29 @@ export function isInjectedChunk(meta: Record<string, unknown> | undefined, text:
 
 export function chunkText(content: unknown): string {
   const rec = asRecord(content)
-  if (asString(rec?.text))
+  if (asString(rec?.text)) {
     return asString(rec?.text) ?? ''
-  if (typeof content === 'string')
+  }
+  if (typeof content === 'string') {
     return content
+  }
   if (Array.isArray(content)) {
-    return content.map((part) => {
-      const inner = asRecord(part)
-      const nested = asRecord(inner?.content)
-      return asString(nested?.text) ?? asString(inner?.text) ?? ''
-    }).join('')
+    return content
+      .map(part => {
+        const inner = asRecord(part)
+        const nested = asRecord(inner?.content)
+        return asString(nested?.text) ?? asString(inner?.text) ?? ''
+      })
+      .join('')
   }
   return ''
 }
 
 /** Grok `inputTokens` already includes cached input (`cachedReadTokens` ≤ `inputTokens`, `totalTokens` = input + output). */
 function usageOf(raw: Record<string, unknown> | undefined): RequestPayload['usage'] | undefined {
-  if (!raw)
+  if (!raw) {
     return undefined
+  }
   return usageFrom({
     input: asNumber(raw.inputTokens),
     output: asNumber(raw.outputTokens),
@@ -87,8 +92,9 @@ function usageOf(raw: Record<string, unknown> | undefined): RequestPayload['usag
 export function summaryFields(value: unknown, file: string): GrokSessionMeta {
   const summary = asRecord(value) ?? {}
   const format = asNumber(summary.chat_format_version)
-  if (format !== undefined && format !== 1)
+  if (format !== undefined && format !== 1) {
     throw generationError(HOST, file, 1)
+  }
   const info = asRecord(summary.info)
   return {
     id: asString(info?.id),
@@ -101,12 +107,14 @@ export function summaryFields(value: unknown, file: string): GrokSessionMeta {
 }
 
 function hookRuns(runs: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(runs))
+  if (!Array.isArray(runs)) {
     return []
-  return runs.flatMap((item) => {
+  }
+  return runs.flatMap(item => {
     const run = asRecord(item)
-    if (!run)
+    if (!run) {
       return []
+    }
     const status = asRecord(run.status)
     const body: Record<string, unknown> = {}
     const name = asString(run.name)
@@ -114,16 +122,21 @@ function hookRuns(runs: unknown): Record<string, unknown>[] {
     const elapsedMs = asNumber(status?.elapsed_ms)
     const exitCode = asNumber(run.exit_code ?? status?.exit_code)
     const output = asString(run.output ?? status?.output)
-    if (name)
+    if (name) {
       body.name = name
-    if (state)
+    }
+    if (state) {
       body.status = state
-    if (elapsedMs !== undefined)
+    }
+    if (elapsedMs !== undefined) {
       body.elapsedMs = elapsedMs
-    if (exitCode !== undefined)
+    }
+    if (exitCode !== undefined) {
       body.exitCode = exitCode
-    if (output)
+    }
+    if (output) {
       body.output = output.slice(0, HOOK_OUTPUT_MAX)
+    }
     return [body]
   })
 }
@@ -135,8 +148,9 @@ function completedLater(records: SourcedRecord[]): boolean[] {
   for (let index = records.length - 1; index >= 0; index--) {
     out[index] = seen
     const update = asRecord(asRecord(asRecord(records[index]!.value)?.params)?.update)
-    if (update?.sessionUpdate === 'auto_compact_completed')
+    if (update?.sessionUpdate === 'auto_compact_completed') {
       seen = true
+    }
   }
   return out
 }
@@ -168,10 +182,12 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
       agents.push({ id, parentId: 'main', ...(title ? { title } : {}), ...(spawnEventId ? { spawnEventId } : {}) })
       return
     }
-    if (!existing.title && title)
+    if (!existing.title && title) {
       existing.title = title
-    if (!existing.spawnEventId && spawnEventId)
+    }
+    if (!existing.spawnEventId && spawnEventId) {
       existing.spawnEventId = spawnEventId
+    }
   }
 
   for (let index = 0; index < records.length; index++) {
@@ -179,19 +195,22 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
     const ts = times[index]!
     const rec = asRecord(record.value)
     const update = asRecord(asRecord(rec?.params)?.update) ?? asRecord(rec?.update)
-    if (!rec || !update || 'formatVersion' in rec || 'formatVersion' in update)
+    if (!rec || !update || 'formatVersion' in rec || 'formatVersion' in update) {
       throw generationError(HOST, record.file, record.line)
+    }
     const schemaVersion = asNumber(update.schema_version)
-    if (schemaVersion !== undefined && schemaVersion !== 1)
+    if (schemaVersion !== undefined && schemaVersion !== 1) {
       throw generationError(HOST, record.file, record.line)
+    }
 
     const kind = asString(update.sessionUpdate) ?? 'update'
     startedAt = Math.min(startedAt ?? ts, ts)
     endedAt = Math.max(endedAt ?? ts, ts)
     const updateMeta = asRecord(update[META_KEY])
     const promptIndex = asNumber(updateMeta?.promptIndex)
-    if (promptIndex !== undefined)
+    if (promptIndex !== undefined) {
       prompt = String(promptIndex)
+    }
     model = asString(updateMeta?.modelId) ?? model
     const emit = (eventKind: TraceEvent['kind'], payload: Record<string, unknown>, id?: string): TraceEvent => {
       const event = baseEvent(record, eventKind, payload, { id: id ?? lineId(record), ts })
@@ -206,13 +225,16 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
         continue
       }
       const flags: Record<string, unknown> = {}
-      if (isInjectedChunk(updateMeta, text))
+      if (isInjectedChunk(updateMeta, text)) {
         flags.injected = true
+      }
       // A later chunk of a prompt that already started a turn does not start another.
-      if (!flags.injected && prompt !== undefined && prompt === lastUserPrompt)
+      if (!flags.injected && prompt !== undefined && prompt === lastUserPrompt) {
         flags.continued = true
-      if (!flags.injected)
+      }
+      if (!flags.injected) {
         lastUserPrompt = prompt
+      }
       emit('user', { ...flags, ...(text ? { text } : {}) })
       continue
     }
@@ -222,8 +244,9 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
         callId: asString(update.toolCallId) ?? '',
         name: asString(update.title) ?? asString(update.toolName) ?? '',
       }
-      if (update.rawInput !== undefined)
+      if (update.rawInput !== undefined) {
         payload.args = update.rawInput
+      }
       emit('tool_call', payload)
       continue
     }
@@ -234,10 +257,14 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
         skipRecord(skipped, record, 'tool-progress')
         continue
       }
-      const payload: Record<string, unknown> = { callId: asString(update.toolCallId) ?? '', isError: status !== 'completed' }
-      const output = update.content !== undefined ? (chunkText(update.content) || update.content) : update.rawOutput
-      if (output !== undefined)
+      const payload: Record<string, unknown> = {
+        callId: asString(update.toolCallId) ?? '',
+        isError: status !== 'completed',
+      }
+      const output = update.content !== undefined ? chunkText(update.content) || update.content : update.rawOutput
+      if (output !== undefined) {
         payload.output = output
+      }
       emit('tool_result', payload)
       continue
     }
@@ -249,18 +276,22 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
       const models = Object.keys(asRecord(usageRaw?.modelUsage) ?? {})
       const payload: Record<string, unknown> = {}
       const requestModel = model ?? (models.length === 1 ? models[0] : undefined)
-      if (requestModel)
+      if (requestModel) {
         payload.model = requestModel
+      }
       const usage = usageOf(usageRaw)
-      if (usage)
+      if (usage) {
         payload.usage = usage
+      }
       const stop = asString(update.stop_reason)
-      if (stop)
+      if (stop) {
         payload.stopReason = stop
+      }
       segment = placeRequest(events, segment, baseEvent(record, 'request', payload, { id, ts, requestId: key }))
       const durationMs = asNumber(update.elapsed_ms)
-      if (durationMs !== undefined)
+      if (durationMs !== undefined) {
         emit('system', { type: 'turn_duration', durationMs })
+      }
       segment = events.length
       continue
     }
@@ -307,8 +338,9 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
         ...(status ? { status } : {}),
         ...(durationMs !== undefined ? { durationMs } : {}),
       })
-      if (agentId)
+      if (agentId) {
         rememberAgent(agentId, asString(update.description), kind === 'subagent_spawned' ? event.id : undefined)
+      }
       continue
     }
 
@@ -328,8 +360,9 @@ export function parseGrokRecords(records: SourcedRecord[], meta: GrokSessionMeta
   }
 
   for (const compaction of events) {
-    if (compaction.kind === 'compaction')
+    if (compaction.kind === 'compaction') {
       shadowBefore(events, compaction)
+    }
   }
   markOrphanToolResults(events)
   assignSeq(events)

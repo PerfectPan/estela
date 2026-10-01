@@ -17,14 +17,7 @@ import { INJECTED_USER, textFrom } from './codex-items.ts'
 import { parseCodexRecords } from './parse-session.ts'
 
 /** Recorded by every rollout this adapter reads. */
-const BASE_CAPABILITIES: Capability[] = [
-  'requests',
-  'usage',
-  'durations',
-  'thinking',
-  'compaction',
-  'subagents',
-]
+const BASE_CAPABILITIES: Capability[] = ['requests', 'usage', 'durations', 'thinking', 'compaction', 'subagents']
 
 /**
  * Possible for the host: `systemPrompt` comes from `session_meta.base_instructions.text`,
@@ -47,10 +40,16 @@ function previewRecords(records: Record<string, unknown>[]): DiscoverPreview {
       preview.sessionId ??= asString(payload?.id) ?? asString(payload?.session_id)
       preview.cwd ??= asString(payload?.cwd)
     }
-    if (!preview.firstPrompt && rec.type === 'response_item' && payload?.type === 'message' && payload.role === 'user') {
+    if (
+      !preview.firstPrompt
+      && rec.type === 'response_item'
+      && payload?.type === 'message'
+      && payload.role === 'user'
+    ) {
       const text = textFrom(payload.content)
-      if (text && !INJECTED_USER.test(text))
+      if (text && !INJECTED_USER.test(text)) {
         preview.firstPrompt = text.slice(0, 500)
+      }
     }
   }
   return preview
@@ -67,26 +66,28 @@ export const codexAdapter: HostAdapter = {
     return discoverSessions('codex', root, io, {
       signal: opts.signal,
       ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
-      files: (fileIo, dir, signal) => walkFiles(fileIo, dir, {
-        match: name => name.startsWith('rollout-') && name.endsWith('.jsonl'),
-        maxDepth: 6,
-        signal,
-      }),
+      files: (fileIo, dir, signal) =>
+        walkFiles(fileIo, dir, {
+          match: name => name.startsWith('rollout-') && name.endsWith('.jsonl'),
+          maxDepth: 6,
+          signal,
+        }),
       preview: previewRecords,
     })
   },
   async detect(ref, io) {
     const name = basenamePath(ref.path)
-    if (name.startsWith('rollout-') && name.endsWith('.jsonl'))
+    if (name.startsWith('rollout-') && name.endsWith('.jsonl')) {
       return true
+    }
     try {
       const edges = await readEdges(io, ref.path)
-      if (!edges)
+      if (!edges) {
         return false
+      }
       const head = edges.head.slice(0, 2000)
       return head.includes('"session_meta"')
-    }
-    catch {
+    } catch {
       return false
     }
   },
@@ -98,6 +99,10 @@ export const codexAdapter: HostAdapter = {
       const stem = basenamePath(ref.path).replace(/\.jsonl$/, '')
       parsed.session.id = stem || 'unknown'
     }
-    return toTrace('codex', [...BASE_CAPABILITIES, ...(parsed.session.systemPrompt ? ['systemPrompt' as const] : [])], parsed)
+    return toTrace(
+      'codex',
+      [...BASE_CAPABILITIES, ...(parsed.session.systemPrompt ? ['systemPrompt' as const] : [])],
+      parsed,
+    )
   },
 }

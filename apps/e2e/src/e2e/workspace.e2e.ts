@@ -7,7 +7,12 @@ const sessions = ctx.homes.main
 
 /** `m:ss` or `h:mm:ss` from the ledger's time column, in ms. */
 function elapsedMs(text: string): number {
-  return text.split(':').map(Number).reduce((total, part) => total * 60 + part, 0) * 1000
+  return (
+    text
+      .split(':')
+      .map(Number)
+      .reduce((total, part) => total * 60 + part, 0) * 1000
+  )
 }
 
 test('S2: the opened ?s=<ref> URL lands on #/s/<ref> through the one-time code', async ({ page, launch }) => {
@@ -28,10 +33,12 @@ test('S5: bars rise to a labeled dashed compaction rule and are lower after it',
   // The host recorded both counts: pre 3,500 and post 400.
   await expect(rule).toHaveAttribute('data-label', 'compacted  3.5k → 400')
   const at = Number(await rule.getAttribute('x')) + 4
-  const bars = await page.locator('rect[data-marker=request]').evaluateAll(rects => rects.map(rect => ({
-    x: Number(rect.getAttribute('x')) + 1.5,
-    height: Number(rect.getAttribute('height')),
-  })))
+  const bars = await page.locator('rect[data-marker=request]').evaluateAll(rects =>
+    rects.map(rect => ({
+      x: Number(rect.getAttribute('x')) + 1.5,
+      height: Number(rect.getAttribute('height')),
+    })),
+  )
   const before = bars.filter(bar => bar.x < at).map(bar => bar.height)
   const after = bars.filter(bar => bar.x > at).map(bar => bar.height)
   expect(before).toHaveLength(3)
@@ -41,7 +48,10 @@ test('S5: bars rise to a labeled dashed compaction rule and are lower after it',
   expect(Math.max(...after)).toBeLessThan(before[2]!)
 })
 
-test('S6: a brush filters the ledger to its range, by mouse drag and by keyboard on a focused handle', async ({ page, launch }) => {
+test('S6: a brush filters the ledger to its range, by mouse drag and by keyboard on a focused handle', async ({
+  page,
+  launch,
+}) => {
   const dir = join(ctx.root, 's6')
   try {
     await openWorkspace(page, launch, await generateTrace(dir, 640))
@@ -84,8 +94,7 @@ test('S6: a brush filters the ledger to its range, by mouse drag and by keyboard
     await inRange()
     await page.keyboard.press('Escape')
     await expect(range).toHaveText(all)
-  }
-  finally {
+  } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })
@@ -111,15 +120,22 @@ test('S7: Model saw at the first request after a compaction', async ({ page, lau
     await expect(saw.locator(`[data-slot=${slot}]`)).toContainText('unavailable')
   }
   await expect(saw).toContainText('The log of this session does not record the system prompt and tool definitions')
-  for (const slot of ['summary', 'messages', 'currentTurn'])
+  for (const slot of ['summary', 'messages', 'currentTurn']) {
     await expect(saw.locator(`[data-slot=${slot}]`)).toHaveAttribute('data-status', 'present')
+  }
   // The counts the host recorded, each with the slots it covers: the request's input tokens
   // (every slot) and the compaction's post tokens (everything before the current turn).
   const counts = saw.getByTestId('recorded-counts')
   await expect(counts.locator('[data-from="request.inputTokens"]')).toHaveAttribute('data-tokens', '600')
-  await expect(counts.locator('[data-from="request.inputTokens"]')).toHaveAttribute('data-slots', 'system tools summary messages currentTurn')
+  await expect(counts.locator('[data-from="request.inputTokens"]')).toHaveAttribute(
+    'data-slots',
+    'system tools summary messages currentTurn',
+  )
   await expect(counts.locator('[data-from="compaction.postTokens"]')).toHaveAttribute('data-tokens', '400')
-  await expect(counts.locator('[data-from="compaction.postTokens"]')).toHaveAttribute('data-slots', 'system tools summary messages')
+  await expect(counts.locator('[data-from="compaction.postTokens"]')).toHaveAttribute(
+    'data-slots',
+    'system tools summary messages',
+  )
   await expect(saw.getByTestId('dropped').locator('li')).not.toHaveCount(0)
   await expect(activePanel(page)).toContainText('Dropped by compaction')
 })
@@ -130,18 +146,24 @@ test('S7: Model saw shows the system prompt and tools a prompt snapshot recorded
   const first = await openModelSaw(page, '1k in')
   await expect(first.locator('[data-slot=system]')).toHaveAttribute('data-status', 'present')
   await expect(first.locator('[data-slot=tools]')).toHaveAttribute('data-status', 'unavailable')
-  await expect(first).toContainText('The log of this session records tool definitions only after this event or on another lane')
+  await expect(first).toContainText(
+    'The log of this session records tool definitions only after this event or on another lane',
+  )
   await expect(first).not.toContainText('does not record')
 
   const saw = await openModelSaw(page)
-  for (const slot of ['system', 'tools', 'summary', 'messages', 'currentTurn'])
+  for (const slot of ['system', 'tools', 'summary', 'messages', 'currentTurn']) {
     await expect(saw.locator(`[data-slot=${slot}]`)).toHaveAttribute('data-status', 'present')
+  }
   await expect(saw.locator('.hatched')).toHaveCount(0)
   await expect(saw).toContainText('complete')
   await expect(saw).not.toContainText('does not record')
   // The snapshots stay out of the events the compaction removed.
   await expect(saw.getByTestId('dropped')).not.toContainText('prompt_snapshot')
-  await expect(saw.getByTestId('recorded-counts').locator('[data-from="request.inputTokens"]')).toHaveAttribute('data-tokens', '600')
+  await expect(saw.getByTestId('recorded-counts').locator('[data-from="request.inputTokens"]')).toHaveAttribute(
+    'data-tokens',
+    '600',
+  )
   // The system prompt row links to the snapshot it comes from; its Input tab shows what the model saw.
   await saw.locator('[data-slot=system] [data-testid=slot-source]').click()
   await expect(page.getByTestId('inspector').locator('h2')).toContainText('#')

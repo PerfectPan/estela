@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** Browser-bundle and oxlint sources for conformance check 9. */
-export function repoEvidence(): { browserBundleSource: string, oxlintSource: string } {
+export function repoEvidence(): { browserBundleSource: string; oxlintSource: string } {
   const root = join(dirname(fileURLToPath(import.meta.url)), '../../..')
   return {
     browserBundleSource: readFileSync(join(root, 'scripts/check-browser-bundle.mjs'), 'utf8'),
@@ -17,8 +17,9 @@ export function writeOversized(directory: string, name: string, line: string): s
   const path = join(directory, name)
   const once = line.endsWith('\n') ? line : `${line}\n`
   let body = ''
-  while (Buffer.byteLength(body) <= 128 * 1024)
+  while (Buffer.byteLength(body) <= 128 * 1024) {
     body += once
+  }
   writeFileSync(path, body)
   return path
 }

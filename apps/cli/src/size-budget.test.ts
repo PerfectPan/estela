@@ -25,14 +25,17 @@ async function lineAt(path: string, offset: number, length: number): Promise<unk
     const buffer = Buffer.alloc(length)
     await handle.read(buffer, 0, length, offset)
     return JSON.parse(buffer.toString('utf8')) as unknown
-  }
-  finally {
+  } finally {
     await handle.close()
   }
 }
 
 async function measure(path: string) {
-  const { store } = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => ref === SIZE_REF ? { key: path, path } : undefined })
+  const { store } = createTraceStore({
+    adapters: registeredHosts,
+    redacts: true,
+    resolve: ref => (ref === SIZE_REF ? { key: path, path } : undefined),
+  })
   let peakRss = process.memoryUsage().rss
   const sampler = setInterval(() => {
     peakRss = Math.max(peakRss, process.memoryUsage().rss)
@@ -49,27 +52,28 @@ async function measure(path: string) {
     const payloadBytes = Buffer.byteLength(JSON.stringify(view))
     peakRss = Math.max(peakRss, process.memoryUsage().rss)
     return { store, view, loadMs, viewMs, payloadBytes, progress, peakRss, settledRss: process.memoryUsage().rss }
-  }
-  finally {
+  } finally {
     clearInterval(sampler)
   }
 }
 
 function report(label: string, fileBytes: number, m: Awaited<ReturnType<typeof measure>>, shortened: number): void {
-  console.log(`${label}: ${JSON.stringify({
-    fileMB: +(fileBytes / 1e6).toFixed(1),
-    events: m.view.trace.events.length,
-    shortenedEvents: shortened,
-    viewPayloadBytes: m.payloadBytes,
-    viewPayloadMB: +(m.payloadBytes / 1e6).toFixed(2),
-    maxString: m.view.trace.view?.maxString,
-    withinBudget: m.view.trace.view?.withinBudget,
-    loadMs: Math.round(m.loadMs),
-    viewMs: Math.round(m.viewMs),
-    peakRssMB: Math.round(m.peakRss / MB),
-    settledRssMB: Math.round(m.settledRss / MB),
-    progressUpdates: m.progress.length,
-  })}`)
+  console.log(
+    `${label}: ${JSON.stringify({
+      fileMB: +(fileBytes / 1e6).toFixed(1),
+      events: m.view.trace.events.length,
+      shortenedEvents: shortened,
+      viewPayloadBytes: m.payloadBytes,
+      viewPayloadMB: +(m.payloadBytes / 1e6).toFixed(2),
+      maxString: m.view.trace.view?.maxString,
+      withinBudget: m.view.trace.view?.withinBudget,
+      loadMs: Math.round(m.loadMs),
+      viewMs: Math.round(m.viewMs),
+      peakRssMB: Math.round(m.peakRss / MB),
+      settledRssMB: Math.round(m.settledRss / MB),
+      progressUpdates: m.progress.length,
+    })}`,
+  )
 }
 
 describe.skipIf(!enabled)('S12 size budget', () => {
@@ -87,15 +91,16 @@ describe.skipIf(!enabled)('S12 size budget', () => {
       expect(m.progress.at(-1)).toEqual({ bytesRead: session.bytes, totalBytes: session.bytes })
       expect(shortened.length).toBeGreaterThanOrEqual(session.longOutputs)
 
-      const longest = m.view.trace.events.find(event => event.kind === 'tool_result' && event.payload.callId === session.longest.callId)!
+      const longest = m.view.trace.events.find(
+        event => event.kind === 'tool_result' && event.payload.callId === session.longest.callId,
+      )!
       expect(longest.payload.$truncated).toEqual([['output']])
       expect((longest.payload.output as string).length).toBe(m.view.trace.view!.maxString)
       expect(m.view.bytes).toBeLessThan(m.payloadBytes)
       const full = await m.store.event(SIZE_REF, longest.id)
       expect((full.payload.output as string).length).toBe(session.longest.length)
       expect(full.original).toEqual(await lineAt(session.path, full.source.offset, full.source.length))
-    }
-    finally {
+    } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   }, 600_000)
@@ -110,7 +115,9 @@ describe.skipIf(!realPath)('S12 on a local session (numbers only)', () => {
     if (sample) {
       const started = performance.now()
       const full = await m.store.event(SIZE_REF, sample.id)
-      console.log(`real get-event: ${JSON.stringify({ ms: Math.round(performance.now() - started), fullEventMB: +(Buffer.byteLength(JSON.stringify(full)) / MB).toFixed(2), hasOriginal: full.original !== undefined })}`)
+      console.log(
+        `real get-event: ${JSON.stringify({ ms: Math.round(performance.now() - started), fullEventMB: +(Buffer.byteLength(JSON.stringify(full)) / MB).toFixed(2), hasOriginal: full.original !== undefined })}`,
+      )
     }
     expect(m.payloadBytes).toBeLessThanOrEqual(VIEW_BUDGET_BYTES)
   }, 600_000)

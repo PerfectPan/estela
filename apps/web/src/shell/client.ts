@@ -22,9 +22,10 @@ export function devframeClient(): Promise<DevframeRpcClient> {
  * the URL, or call the server, until this resolves.
  */
 export function trustedClient(): Promise<DevframeRpcClient> {
-  trusted ??= devframeClient().then(async (client) => {
-    if (client.transport !== 'static' && !client.isTrusted)
+  trusted ??= devframeClient().then(async client => {
+    if (client.transport !== 'static' && !client.isTrusted) {
       await client.ensureTrusted(TRUST_TIMEOUT_MS).catch(() => false)
+    }
     return client
   })
   return trusted

@@ -29,21 +29,31 @@ export function Rail(props: {
   const projects = () => {
     const counts = new Map<string, number>()
     for (const row of props.rows) {
-      if (row.project && (!props.host || row.host === props.host))
+      if (row.project && (!props.host || row.host === props.host)) {
         counts.set(row.project, (counts.get(row.project) ?? 0) + 1)
+      }
     }
     const sorted = [...counts.entries()].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     const shown = sorted.slice(0, PROJECT_LIMIT)
     const active = props.project
-    if (active && !shown.some(([name]) => name === active))
+    if (active && !shown.some(([name]) => name === active)) {
       shown.push([active, counts.get(active) ?? 0])
+    }
     return shown
   }
 
   return (
-    <aside class="flex w-[216px] shrink-0 flex-col gap-[22px] overflow-y-auto border-r border-border px-3 py-[18px]" aria-label={t('browser.hosts')}>
+    <aside
+      class="flex w-[216px] shrink-0 flex-col gap-[22px] overflow-y-auto border-r border-border px-3 py-[18px]"
+      aria-label={t('browser.hosts')}
+    >
       <Group label={t('browser.hosts')}>
-        <FilterRow active={!props.host} label={t('browser.allHosts')} count={total()} onClick={() => props.onHost(undefined)} />
+        <FilterRow
+          active={!props.host}
+          label={t('browser.allHosts')}
+          count={total()}
+          onClick={() => props.onHost(undefined)}
+        />
         <For each={props.hosts}>
           {host => (
             <FilterRow
@@ -72,15 +82,30 @@ export function Rail(props: {
         </Group>
       </Show>
       <Group label={t('browser.showOnly')}>
-        <Flag name="has-compaction" label={t('browser.hasCompaction')} checked={props.flags.compaction} onChange={value => props.onFlag('compaction', value)} />
-        <Flag name="has-subagents" label={t('browser.hasSubagents')} checked={props.flags.subagents} onChange={value => props.onFlag('subagents', value)} />
-        <Flag name="has-failed-tools" label={t('browser.hasFailedTools')} checked={props.flags.failed} onChange={value => props.onFlag('failed', value)} />
+        <Flag
+          name="has-compaction"
+          label={t('browser.hasCompaction')}
+          checked={props.flags.compaction}
+          onChange={value => props.onFlag('compaction', value)}
+        />
+        <Flag
+          name="has-subagents"
+          label={t('browser.hasSubagents')}
+          checked={props.flags.subagents}
+          onChange={value => props.onFlag('subagents', value)}
+        />
+        <Flag
+          name="has-failed-tools"
+          label={t('browser.hasFailedTools')}
+          checked={props.flags.failed}
+          onChange={value => props.onFlag('failed', value)}
+        />
       </Group>
     </aside>
   )
 }
 
-function Group(props: { label: string, children: JSX.Element }) {
+function Group(props: { label: string; children: JSX.Element }) {
   return (
     <div class="flex flex-col gap-0.5">
       <span class="rail-label px-2.5 pb-1.5 text-subtle">{props.label}</span>
@@ -106,13 +131,15 @@ function FilterRow(props: {
       onClick={() => props.onClick()}
     >
       <span class="flex min-w-0 items-center gap-[9px] py-1">
-        <Show when={props.mark}>
-          {id => <HostMark id={id()} />}
-        </Show>
+        <Show when={props.mark}>{id => <HostMark id={id()} />}</Show>
         <span class="min-w-0">
           <span class="block truncate">{props.label}</span>
           <Show when={props.detail}>
-            {detail => <span class="font-mono block truncate text-[11px] text-subtle" title={detail()}>{detail()}</span>}
+            {detail => (
+              <span class="font-mono block truncate text-[11px] text-subtle" title={detail()}>
+                {detail()}
+              </span>
+            )}
           </Show>
         </span>
       </span>
@@ -121,7 +148,7 @@ function FilterRow(props: {
   )
 }
 
-function Flag(props: { name: string, label: string, checked: boolean, onChange: (value: boolean) => void }) {
+function Flag(props: { name: string; label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
     <label class="flex h-7 cursor-pointer items-center gap-[9px] px-2.5 text-[13px] text-muted-foreground hover:text-foreground">
       <input
@@ -137,7 +164,16 @@ function Flag(props: { name: string, label: string, checked: boolean, onChange: 
         aria-hidden="true"
       >
         <Show when={props.checked}>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--background)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--background)"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M5 12.5 L10 17 L19 7" />
           </svg>
         </Show>

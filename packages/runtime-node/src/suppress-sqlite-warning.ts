@@ -8,15 +8,19 @@
  * `import()`, as `apps/cli/bin.mjs` does.
  */
 export function isSqliteExperimentalWarning(warning: unknown, typeOrOptions: unknown): boolean {
-  const name = typeof warning === 'string'
-    ? (typeof typeOrOptions === 'string' ? typeOrOptions : (typeOrOptions as { type?: unknown } | undefined)?.type)
-    : (warning as { name?: unknown } | undefined)?.name
+  const name =
+    typeof warning === 'string'
+      ? typeof typeOrOptions === 'string'
+        ? typeOrOptions
+        : (typeOrOptions as { type?: unknown } | undefined)?.type
+      : (warning as { name?: unknown } | undefined)?.name
   const message = typeof warning === 'string' ? warning : (warning as { message?: unknown } | undefined)?.message
   return name === 'ExperimentalWarning' && typeof message === 'string' && /\bSQLite\b/i.test(message)
 }
 
 const original = process.emitWarning.bind(process) as (...args: unknown[]) => void
-process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
-  if (!isSqliteExperimentalWarning(warning, rest[0]))
+process.emitWarning = (warning: string | Error, ...rest: unknown[]) => {
+  if (!isSqliteExperimentalWarning(warning, rest[0])) {
     original(warning, ...rest)
-})
+  }
+}

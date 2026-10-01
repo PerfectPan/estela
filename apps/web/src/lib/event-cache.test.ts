@@ -4,7 +4,7 @@ import { createEventCache, rawFetchKey } from './event-cache.ts'
 describe('inspector event cache', () => {
   it('keeps at most `size` events, dropping the least recently used', async () => {
     const loads: string[] = []
-    const get = createEventCache(async (id) => {
+    const get = createEventCache(async id => {
       loads.push(id)
       return id
     }, 2)
@@ -21,8 +21,9 @@ describe('inspector event cache', () => {
     let calls = 0
     const get = createEventCache(async () => {
       calls += 1
-      if (calls === 1)
+      if (calls === 1) {
         throw new Error('x')
+      }
       return 'ok'
     })
     await expect(get('a')).rejects.toThrow('x')
@@ -32,19 +33,21 @@ describe('inspector event cache', () => {
 
   it('makes no get-event call for 30 selections after Raw was opened once and closed', async () => {
     const loads: string[] = []
-    const get = createEventCache(async (id) => {
+    const get = createEventCache(async id => {
       loads.push(id)
       return id
     })
     const select = async (tab: string, ids: string[]) => {
       const key = rawFetchKey(tab, ids)
-      if (key)
+      if (key) {
         await Promise.all(key.split('\0').map(get))
+      }
     }
     await select('raw', ['e0'])
     expect(loads).toEqual(['e0'])
-    for (let index = 1; index <= 30; index++)
+    for (let index = 1; index <= 30; index++) {
       await select('input', [`e${index}`, `r${index}`])
+    }
     expect(loads).toEqual(['e0'])
     await select('raw', ['e30', 'r30'])
     expect(loads).toEqual(['e0', 'e30', 'r30'])

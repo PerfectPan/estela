@@ -2,7 +2,7 @@ import type { TraceIO } from './io.ts'
 import { describe, expect, it } from 'vitest'
 import { edgeRecords, readEdges } from './head-tail.ts'
 
-function bytesIO(file: Uint8Array, calls: { start: number, end: number }[] = []): TraceIO {
+function bytesIO(file: Uint8Array, calls: { start: number; end: number }[] = []): TraceIO {
   return {
     async readText() {
       return new TextDecoder().decode(file)
@@ -29,21 +29,23 @@ function paddedLine(n: number, bytes: number): string {
 }
 
 /** JSONL lines of `{"n":i,"pad":"…"}` up to `size` bytes; one line ends exactly at byte `boundary`. */
-function jsonl(size: number, boundary: number): { file: Uint8Array, count: number } {
+function jsonl(size: number, boundary: number): { file: Uint8Array; count: number } {
   const lines: string[] = []
   let length = 0
-  for (; length + 1000 <= boundary; length += 1000)
+  for (; length + 1000 <= boundary; length += 1000) {
     lines.push(paddedLine(lines.length, 1000))
+  }
   lines.push(paddedLine(lines.length, boundary - length))
-  for (length = boundary; length + 1000 <= size; length += 1000)
+  for (length = boundary; length + 1000 <= size; length += 1000) {
     lines.push(paddedLine(lines.length, 1000))
+  }
   return { file: new TextEncoder().encode(`${lines.join('\n')}\n`), count: lines.length }
 }
 
 describe('readEdges', () => {
   it('reads 64 KB from each end when the file is between 64 KB and 128 KB', async () => {
     const { file } = jsonl(90 * 1024, 64 * 1024)
-    const calls: { start: number, end: number }[] = []
+    const calls: { start: number; end: number }[] = []
     const edges = await readEdges(bytesIO(file, calls), 'session.jsonl')
     expect(edges?.whole).toBe(false)
     expect(calls).toEqual([
@@ -60,7 +62,7 @@ describe('readEdges', () => {
   })
 
   it('reads a file of at most 64 KB once', async () => {
-    const calls: { start: number, end: number }[] = []
+    const calls: { start: number; end: number }[] = []
     const edges = await readEdges(bytesIO(new TextEncoder().encode('{"n":0}\n'), calls), 'session.jsonl')
     expect(edges?.whole).toBe(true)
     expect(calls).toEqual([{ start: 0, end: 8 }])

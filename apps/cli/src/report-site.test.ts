@@ -10,7 +10,11 @@ const compaction = join(cliDir, '../../packages/host-claude-code/fixtures/confor
 
 function build(path: string, outDir: string): Promise<number> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['bin.mjs', 'build', path, '--out-dir', outDir], { cwd: cliDir, stdio: 'ignore', env: { ...process.env, AGENT_TRACE_REDACT: '0' } })
+    const child = spawn(process.execPath, ['bin.mjs', 'build', path, '--out-dir', outDir], {
+      cwd: cliDir,
+      stdio: 'ignore',
+      env: { ...process.env, AGENT_TRACE_REDACT: '0' },
+    })
     child.on('error', reject)
     child.on('close', code => resolve(code ?? 1))
   })
@@ -27,16 +31,21 @@ describe('report site', () => {
       expect(html).not.toContain(homedir())
       expect(html).not.toMatch(/<script[^>]+src=|<link rel="stylesheet"|url\(\.\//)
       const json = /<script type="application\/json" id="report-trace">(.*?)<\/script>/s.exec(html)?.[1]
-      const report = JSON.parse(json!) as { trace: { events: unknown[], sourceFiles?: string[] }, events: { original?: unknown }[], total: number, truncated: boolean }
+      const report = JSON.parse(json!) as {
+        trace: { events: unknown[]; sourceFiles?: string[] }
+        events: { original?: unknown }[]
+        total: number
+        truncated: boolean
+      }
       expect(report.total).toBe(report.trace.events.length)
       expect(report.truncated).toBe(false)
       expect(report.events.every(event => event.original !== undefined)).toBe(true)
       // The checkout usually sits under the home directory (locally and on CI runners).
-      if (compaction.startsWith(homedir()))
+      if (compaction.startsWith(homedir())) {
         expect(report.trace.sourceFiles?.[0]).toMatch(/^~\//)
+      }
       expect(html).toContain('<script type="module">')
-    }
-    finally {
+    } finally {
       await rm(outDir, { recursive: true, force: true })
     }
   })

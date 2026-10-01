@@ -32,7 +32,7 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   const home = homeDir()
   let current: ResolvedSession | undefined
   const store = new TraceStore({
-    resolve: ref => ref === CURRENT_REF ? current : options.resolve?.(ref),
+    resolve: ref => (ref === CURRENT_REF ? current : options.resolve?.(ref)),
     io: nodeIO,
     async load(session, opts) {
       const [trace, canonical] = await Promise.all([
@@ -42,7 +42,8 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
       return { trace, canonical }
     },
     present: options.redacts ? value => redact(value, { homeDir: home }) : undefined,
-    log: message => process.stderr.write(`agent-trace: ${options.redacts ? redact(message, { homeDir: home }) : message}\n`),
+    log: message =>
+      process.stderr.write(`agent-trace: ${options.redacts ? redact(message, { homeDir: home }) : message}\n`),
   })
   return {
     store,

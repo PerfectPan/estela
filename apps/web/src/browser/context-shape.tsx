@@ -10,11 +10,18 @@ const BAR = 2
  * Context over time: one bar per request, height = input tokens (the kernel's `contextShape`,
  * at most 120 points, sent scaled to 0–100). SVG only, no chart library (D9).
  */
-export function ContextShape(props: { values: readonly number[], label: string }) {
+export function ContextShape(props: { values: readonly number[]; label: string }) {
   const max = () => Math.max(1, ...props.values)
   const slot = () => WIDTH / Math.max(1, props.values.length)
   return (
-    <svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} class="block max-w-full" role="img" aria-label={props.label}>
+    <svg
+      width={WIDTH}
+      height={HEIGHT}
+      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      class="block max-w-full"
+      role="img"
+      aria-label={props.label}
+    >
       <For each={props.values}>
         {(value, index) => {
           const height = () => Math.max(1, (value / max()) * TALLEST)

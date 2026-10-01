@@ -60,7 +60,7 @@ export interface ConformanceEvidence {
   oxlintSource: string
 }
 
-function isHead(value: SessionHead | { ref: SessionRef, error: string }): value is SessionHead {
+function isHead(value: SessionHead | { ref: SessionRef; error: string }): value is SessionHead {
   return 'lastActiveAt' in value
 }
 
@@ -71,8 +71,9 @@ function filesOf(session: ConformanceSession): readonly string[] {
 async function nonEmptyLines(io: TraceIO, file: string): Promise<number[]> {
   const lines: number[] = []
   for await (const line of io.lines(file)) {
-    if (line.text.trim())
+    if (line.text.trim()) {
       lines.push(line.line)
+    }
   }
   return lines
 }
@@ -84,23 +85,31 @@ function capabilitySeen(trace: Trace, capability: Capability): boolean {
     case 'usage':
       return trace.events.some(event => event.kind === 'request' && asRecord(event.payload.usage) != null)
     case 'durations':
-      return trace.events.some(event =>
-        (event.kind === 'request' && asNumber(event.payload.durationMs) !== undefined)
-        || (event.kind === 'system' && event.payload.type === 'turn_duration' && asNumber(event.payload.durationMs) !== undefined))
+      return trace.events.some(
+        event =>
+          (event.kind === 'request' && asNumber(event.payload.durationMs) !== undefined)
+          || (event.kind === 'system'
+            && event.payload.type === 'turn_duration'
+            && asNumber(event.payload.durationMs) !== undefined),
+      )
     case 'thinking':
       return trace.events.some(event => event.kind === 'thinking')
     case 'compaction':
       return trace.events.some(event => event.kind === 'compaction')
     case 'compactionTokens':
-      return trace.events.some(event =>
-        event.kind === 'compaction'
-        && (asNumber(event.payload.preTokens) !== undefined || asNumber(event.payload.postTokens) !== undefined))
+      return trace.events.some(
+        event =>
+          event.kind === 'compaction'
+          && (asNumber(event.payload.preTokens) !== undefined || asNumber(event.payload.postTokens) !== undefined),
+      )
     case 'subagents':
       return trace.agents.some(agent => agent.parentId != null)
     case 'systemPrompt':
-      return (typeof trace.session.systemPrompt === 'string' && trace.session.systemPrompt.length > 0)
+      return (
+        (typeof trace.session.systemPrompt === 'string' && trace.session.systemPrompt.length > 0)
         || trace.agents.some(agent => typeof agent.systemPrompt === 'string' && agent.systemPrompt.length > 0)
         || latestSnapshot(trace.events, snapshotHasSystemPrompt) !== undefined
+      )
     case 'toolSchemas':
       return trace.session.tools != null || latestSnapshot(trace.events, snapshotHasTools) !== undefined
     case 'hooks':
@@ -135,12 +144,14 @@ export function describeHostConformance(
       const found: string[] = []
       for await (const item of adapter.discover(fixtures.root, counted, {})) {
         expect(isHead(item), 'error' in item ? item.error : '').toBe(true)
-        if (isHead(item))
+        if (isHead(item)) {
           found.push(item.ref.path)
+        }
       }
       expect(found.toSorted()).toEqual(fixtures.sessions.map(session => session.path).toSorted())
-      for (const [path, bytes] of counted.snapshot())
+      for (const [path, bytes] of counted.snapshot()) {
         expect(bytes, path).toBeLessThanOrEqual(DISCOVER_BUDGET)
+      }
     })
 
     it('loads the same event ids in the same order', async () => {
@@ -161,8 +172,9 @@ export function describeHostConformance(
           lines.add(line)
           covered.set(file, lines)
         }
-        for (const event of trace.events)
+        for (const event of trace.events) {
           mark(event.source.file, event.source.line)
+        }
         for (const skip of trace.skipped) {
           expect(skip.reason.length).toBeGreaterThan(0)
           mark(skip.file, skip.line)
@@ -189,13 +201,15 @@ export function describeHostConformance(
             seen.add(`${agent}\0${callId}`)
             continue
           }
-          if (event.kind !== 'tool_result')
+          if (event.kind !== 'tool_result') {
             continue
+          }
           const matched = callId != null && seen.has(`${agent}\0${callId}`)
-          if (!matched)
+          if (!matched) {
             expect(event.payload.orphan).toBe(true)
-          else
+          } else {
             expect(event.payload.orphan).not.toBe(true)
+          }
         }
       }
     })
@@ -205,8 +219,9 @@ export function describeHostConformance(
         const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
         const byId = new Map(trace.events.map(event => [event.id, event]))
         for (const event of trace.events) {
-          if (!event.shadowedBy)
+          if (!event.shadowedBy) {
             continue
+          }
           const compaction = byId.get(event.shadowedBy)
           expect(compaction?.kind, event.id).toBe('compaction')
           expect(compaction!.seq).toBeGreaterThan(event.seq)
@@ -229,8 +244,9 @@ export function describeHostConformance(
         trace.events.forEach((event, index) => {
           expect(event.seq, event.id).toBe(index)
         })
-        for (let index = 1; index < trace.events.length; index++)
+        for (let index = 1; index < trace.events.length; index++) {
           expect(trace.events[index]!.seq).toBeGreaterThan(trace.events[index - 1]!.seq)
+        }
       }
     })
 
@@ -241,8 +257,9 @@ export function describeHostConformance(
         const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
         const last = new Map<string, number>()
         for (const event of trace.events) {
-          if (event.kind === 'request')
+          if (event.kind === 'request') {
             continue
+          }
           const previous = last.get(event.source.file) ?? -1
           expect(event.source.offset, `${event.id} after offset ${previous}`).toBeGreaterThanOrEqual(previous)
           last.set(event.source.file, event.source.offset)
@@ -255,8 +272,9 @@ export function describeHostConformance(
         const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
         const byId = new Map(trace.events.map(event => [event.id, event]))
         for (const event of trace.events) {
-          if (!event.shadowedBy)
+          if (!event.shadowedBy) {
             continue
+          }
           const compaction = byId.get(event.shadowedBy)
           expect(compaction?.agentId ?? '', event.id).toBe(event.agentId ?? '')
         }
@@ -266,14 +284,16 @@ export function describeHostConformance(
     it('reads at most 64 KB from each end of a large session', async () => {
       const oversized = fixtures.oversized
       expect(oversized, 'generated oversized session').toBeTruthy()
-      if (!oversized)
+      if (!oversized) {
         return
+      }
       const counted = countingIO(fixtures.io)
       const found: string[] = []
       for await (const item of adapter.discover(oversized.root, counted, {})) {
         expect(isHead(item), 'error' in item ? item.error : '').toBe(true)
-        if (isHead(item))
+        if (isHead(item)) {
           found.push(item.ref.path)
+        }
       }
       expect(found).toContain(oversized.file)
       const bytes = counted.snapshot().get(oversized.file) ?? 0
@@ -281,9 +301,13 @@ export function describeHostConformance(
       expect(bytes).toBeLessThanOrEqual(DISCOVER_BUDGET)
       const size = (await fixtures.io.stat(oversized.file))?.size ?? 0
       const ranges = counted.ranges().get(oversized.file) ?? []
-      for (const range of ranges)
+      for (const range of ranges) {
         expect(range.end - range.start, `range ${range.start}-${range.end}`).toBeLessThanOrEqual(EDGE_BUDGET)
-      expect(ranges.some(range => range.end === size), 'one read ends at end of file').toBe(true)
+      }
+      expect(
+        ranges.some(range => range.end === size),
+        'one read ends at end of file',
+      ).toBe(true)
     })
 
     it('reads each source pointer back to original', async () => {
@@ -307,8 +331,9 @@ export function describeHostConformance(
       for (const session of fixtures.sessions) {
         const trace = await adapter.load({ host: adapter.id, path: session.path }, fixtures.io, {})
         const listed = new Set(trace.capabilities)
-        for (const capability of listed)
+        for (const capability of listed) {
           expect(declared.has(capability), `${session.path} lists ${capability}`).toBe(true)
+        }
         for (const capability of session.capabilities) {
           claimed.add(capability)
           expect(declared.has(capability), capability).toBe(true)
@@ -316,15 +341,20 @@ export function describeHostConformance(
           expect(capabilitySeen(trace, capability), `${session.path} ${capability}`).toBe(true)
         }
         for (const capability of ALL_CAPABILITIES) {
-          if (!declared.has(capability) || !listed.has(capability))
+          if (!declared.has(capability) || !listed.has(capability)) {
             expect(capabilitySeen(trace, capability), `${session.path} ${capability}`).toBe(false)
+          }
         }
         // Content capabilities: a trace lists one exactly when its files contain that content.
-        for (const capability of PRESENCE_CAPABILITIES)
-          expect(listed.has(capability), `${session.path} lists ${capability} iff it has one`).toBe(capabilitySeen(trace, capability))
+        for (const capability of PRESENCE_CAPABILITIES) {
+          expect(listed.has(capability), `${session.path} lists ${capability} iff it has one`).toBe(
+            capabilitySeen(trace, capability),
+          )
+        }
       }
-      for (const capability of adapter.capabilities)
+      for (const capability of adapter.capabilities) {
         expect(claimed.has(capability), capability).toBe(true)
+      }
     })
 
     it('summarizes like fold(load())', async () => {

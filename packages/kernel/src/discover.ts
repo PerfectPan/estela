@@ -22,7 +22,7 @@ export async function* discoverSessions(
     preview: (records: Record<string, unknown>[]) => DiscoverPreview
     decorate?: (path: string, head: SessionHead, io: TraceIO) => Promise<void>
   },
-): AsyncGenerator<SessionHead | { ref: { host: string, path: string }, error: string }> {
+): AsyncGenerator<SessionHead | { ref: { host: string; path: string }; error: string }> {
   if ((await io.stat(root)) == null) {
     yield { ref: { host, path: root }, error: `${host}: ${root} does not exist` }
     return
@@ -30,8 +30,7 @@ export async function* discoverSessions(
   let paths: string[]
   try {
     paths = await opts.files(io, root, opts.signal)
-  }
-  catch (error) {
+  } catch (error) {
     yield { ref: { host, path: root }, error: error instanceof Error ? error.message : String(error) }
     return
   }
@@ -39,24 +38,30 @@ export async function* discoverSessions(
   for (const path of paths) {
     opts.signal?.throwIfAborted()
     const edges = await readEdges(io, path, opts.signal)
-    if (!edges)
+    if (!edges) {
       continue
+    }
     const preview = opts.preview(edgeRecords(edges))
     const head: SessionHead = {
       ref: { host, path, ...(preview.sessionId ? { sessionId: preview.sessionId } : {}) },
       lastActiveAt: preview.lastAt ?? edges.mtimeMs,
       sizeBytes: edges.size,
     }
-    if (preview.title ?? preview.firstPrompt)
+    if (preview.title ?? preview.firstPrompt) {
       head.title = (preview.title ?? preview.firstPrompt)!.slice(0, 80)
-    if (preview.cwd)
+    }
+    if (preview.cwd) {
       head.cwd = preview.cwd
-    if (preview.startedAt !== undefined)
+    }
+    if (preview.startedAt !== undefined) {
       head.startedAt = preview.startedAt
-    if (preview.firstPrompt)
+    }
+    if (preview.firstPrompt) {
       head.firstPrompt = preview.firstPrompt
-    if (opts.decorate)
+    }
+    if (opts.decorate) {
       await opts.decorate(path, head, io)
+    }
     yield head
   }
 }

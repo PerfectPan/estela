@@ -38,22 +38,22 @@ export function openDatabase(file: string): DatabaseSync {
     let failure: unknown
     try {
       return prepare(file)
-    }
-    catch (error) {
+    } catch (error) {
       failure = error
     }
     const rebuilding = existsSync(lock)
     if (!rebuilding && (isBroken(failure) || failure instanceof LayoutMismatch)) {
       const rebuilt = rebuildUnderLock(file, lock)
-      if (rebuilt)
+      if (rebuilt) {
         return rebuilt
-    }
-    else if (!rebuilding && !isBusy(failure)) {
+      }
+    } else if (!rebuilding && !isBusy(failure)) {
       throw failure
     }
     // Another process holds the rebuild lock or the write lock: open again once it lets go.
-    if (Date.now() > deadline)
+    if (Date.now() > deadline) {
       throw rebuilding ? new Error(`index rebuild is locked by another process (${lock})`) : failure
+    }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20)
   }
 }
@@ -66,29 +66,29 @@ export function openDatabase(file: string): DatabaseSync {
 function rebuildUnderLock(file: string, lock: string): DatabaseSync | undefined {
   try {
     closeSync(openSync(lock, 'wx', 0o600))
-  }
-  catch (error) {
-    if ((error as { code?: unknown }).code !== 'EEXIST')
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== 'EEXIST') {
       throw error
+    }
     const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())
-    if (age > STALE_LOCK_MS)
+    if (age > STALE_LOCK_MS) {
       rmSync(lock, { force: true })
+    }
     return undefined
   }
   try {
     // Another process may have rebuilt it between this one's failed open and the lock.
     try {
       return prepare(file)
-    }
-    catch (error) {
-      if (!isBroken(error) && !(error instanceof LayoutMismatch))
+    } catch (error) {
+      if (!isBroken(error) && !(error instanceof LayoutMismatch)) {
         throw error
+      }
     }
     removeDatabase(file)
     touchPrivate(file)
     return prepare(file)
-  }
-  finally {
+  } finally {
     rmSync(lock, { force: true })
   }
 }
@@ -101,8 +101,7 @@ function touchPrivate(file: string): void {
   const fd = openSync(file, 'a', 0o600)
   try {
     fchmodSync(fd, 0o600)
-  }
-  finally {
+  } finally {
     closeSync(fd)
   }
 }
@@ -126,27 +125,28 @@ function isBusy(error: unknown): boolean {
 function prepare(file: string): DatabaseSync {
   const db = new DatabaseSync(file, { timeout: BUSY_TIMEOUT_MS })
   try {
-    if (readVersion(db) === INDEX_LAYOUT_VERSION)
+    if (readVersion(db) === INDEX_LAYOUT_VERSION) {
       return withWal(db)
+    }
     db.exec('BEGIN IMMEDIATE')
     try {
       // Read again under the write lock: another process may have created the schema.
       const version = readVersion(db)
-      if (version === 0 && isEmpty(db))
+      if (version === 0 && isEmpty(db)) {
         createSchema(db)
-      else if (version !== INDEX_LAYOUT_VERSION)
+      } else if (version !== INDEX_LAYOUT_VERSION) {
         throw new LayoutMismatch(`index layout ${version}, expected ${INDEX_LAYOUT_VERSION}`)
+      }
       db.exec('COMMIT')
-    }
-    catch (error) {
+    } catch (error) {
       // SQLite may have rolled back already (a busy or I/O error); keep the first error.
-      if (db.isTransaction)
+      if (db.isTransaction) {
         db.exec('ROLLBACK')
+      }
       throw error
     }
     return withWal(db)
-  }
-  catch (error) {
+  } catch (error) {
     db.close()
     throw error
   }
@@ -156,8 +156,7 @@ function prepare(file: string): DatabaseSync {
 function withWal(db: DatabaseSync): DatabaseSync {
   try {
     db.exec('PRAGMA journal_mode = WAL')
-  }
-  catch {
+  } catch {
     // Busy: the next open tries again.
   }
   return db
@@ -221,6 +220,7 @@ function createSchema(db: DatabaseSync): void {
  * creates its own `-wal` and `-shm`, and they must not be deleted under it.
  */
 function removeDatabase(file: string): void {
-  for (const suffix of ['-wal', '-shm', '-journal', ''])
+  for (const suffix of ['-wal', '-shm', '-journal', '']) {
     rmSync(`${file}${suffix}`, { force: true })
+  }
 }

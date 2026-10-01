@@ -32,13 +32,15 @@ const outDir = await mkdtemp(join(tmpdir(), 'agent-trace-browser-'))
 const rslib = await createRslib({
   cwd: root,
   config: {
-    lib: [{
-      id: 'browser',
-      format: 'esm',
-      bundle: true,
-      dts: false,
-      syntax: 'es2022',
-    }],
+    lib: [
+      {
+        id: 'browser',
+        format: 'esm',
+        bundle: true,
+        dts: false,
+        syntax: 'es2022',
+      },
+    ],
     source: {
       entry: {
         kernel: 'packages/kernel/src/index.ts',
@@ -62,12 +64,10 @@ try {
   const result = await rslib.build()
   await result.close()
   console.log(`check-browser-bundle: ok (${outDir})`)
-}
-catch (error) {
-  const text = error instanceof Error ? error.stack ?? error.message : String(error)
+} catch (error) {
+  const text = error instanceof Error ? (error.stack ?? error.message) : String(error)
   console.error(`check-browser-bundle: failed\n${text}`)
   process.exitCode = 1
-}
-finally {
+} finally {
   await rm(outDir, { recursive: true, force: true })
 }

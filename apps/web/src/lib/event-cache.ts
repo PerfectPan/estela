@@ -5,9 +5,12 @@ export const EVENT_CACHE_SIZE = 20
  * `load` behind a small LRU of `size` promises. A hit moves the entry to the newest end; a
  * failed load is forgotten so the next call retries.
  */
-export function createEventCache<T>(load: (id: string) => Promise<T>, size = EVENT_CACHE_SIZE): (id: string) => Promise<T> {
+export function createEventCache<T>(
+  load: (id: string) => Promise<T>,
+  size = EVENT_CACHE_SIZE,
+): (id: string) => Promise<T> {
   const entries = new Map<string, Promise<T>>()
-  return (id) => {
+  return id => {
     const found = entries.get(id)
     if (found) {
       entries.delete(id)
@@ -17,11 +20,13 @@ export function createEventCache<T>(load: (id: string) => Promise<T>, size = EVE
     const next = load(id)
     entries.set(id, next)
     next.catch(() => {
-      if (entries.get(id) === next)
+      if (entries.get(id) === next) {
         entries.delete(id)
+      }
     })
-    while (entries.size > size)
+    while (entries.size > size) {
       entries.delete(entries.keys().next().value!)
+    }
     return next
   }
 }

@@ -4,8 +4,8 @@
  */
 const HOST_NAMES: Record<string, string> = {
   'claude-code': 'Claude Code',
-  'codex': 'Codex',
-  'grok': 'Grok',
+  codex: 'Codex',
+  grok: 'Grok',
 }
 
 export function hostName(id: string): string {

@@ -11,7 +11,7 @@ const STEP = 0.75
 /** `value` cut to at most `max` UTF-16 units, never between the two halves of a surrogate pair. */
 function cut(value: string, max: number): string {
   const high = value.charCodeAt(max - 1)
-  const end = high >= 0xD800 && high <= 0xDBFF ? max - 1 : max
+  const end = high >= 0xd800 && high <= 0xdbff ? max - 1 : max
   return value.slice(0, end)
 }
 
@@ -23,17 +23,20 @@ class Capper {
   }
 
   text(value: string, path: TruncatedPath): string {
-    if (value.length <= this.max)
+    if (value.length <= this.max) {
       return value
+    }
     this.truncated.push(path)
     return cut(value, this.max)
   }
 
   value(value: unknown, path: TruncatedPath): unknown {
-    if (typeof value === 'string')
+    if (typeof value === 'string') {
       return this.text(value, path)
-    if (Array.isArray(value))
+    }
+    if (Array.isArray(value)) {
       return value.map((item, index) => this.value(item, [...path, index]))
+    }
     if (isObjectLike(value)) {
       const record = value as Record<string, unknown>
       const out: Record<string, unknown> = {}
@@ -43,8 +46,9 @@ class Capper {
         let shown = key.length > this.max ? cut(key, this.max) : key
         if (shown !== key) {
           const base = shown
-          for (let suffix = 2; Object.hasOwn(out, shown) || Object.hasOwn(record, shown); suffix++)
+          for (let suffix = 2; Object.hasOwn(out, shown) || Object.hasOwn(record, shown); suffix++) {
             shown = `${base}#${suffix}`
+          }
           this.truncated.push([...path, shown])
         }
         out[shown] = this.value(item, [...path, shown])
@@ -56,7 +60,7 @@ class Capper {
 }
 
 /** Snapshot fields a view replaces with a reference: `systemPrompt` → `systemPromptSameAs`, `tools` → `toolsSameAs`. */
-type SnapshotRefs = Map<string, { systemPromptSameAs?: string, toolsSameAs?: string }>
+type SnapshotRefs = Map<string, { systemPromptSameAs?: string; toolsSameAs?: string }>
 
 /**
  * For each prompt snapshot whose system prompt or non-empty tool list already
@@ -70,26 +74,30 @@ function repeatedSnapshots(events: readonly TraceEvent[]): SnapshotRefs {
   const toolLists = new Map<string, string>()
   for (const event of events) {
     const snapshot = promptSnapshot(event)
-    if (!snapshot)
+    if (!snapshot) {
       continue
-    const ref: { systemPromptSameAs?: string, toolsSameAs?: string } = {}
+    }
+    const ref: { systemPromptSameAs?: string; toolsSameAs?: string } = {}
     if (typeof snapshot.systemPrompt === 'string' && snapshot.systemPrompt.length > 0) {
       const holder = prompts.get(snapshot.systemPrompt)
-      if (holder)
+      if (holder) {
         ref.systemPromptSameAs = holder
-      else
+      } else {
         prompts.set(snapshot.systemPrompt, event.id)
+      }
     }
     if (Array.isArray(snapshot.tools) && snapshot.tools.length > 0) {
       const value = JSON.stringify(snapshot.tools)
       const holder = toolLists.get(value)
-      if (holder)
+      if (holder) {
         ref.toolsSameAs = holder
-      else
+      } else {
         toolLists.set(value, event.id)
+      }
     }
-    if (ref.systemPromptSameAs || ref.toolsSameAs)
+    if (ref.systemPromptSameAs || ref.toolsSameAs) {
       refs.set(event.id, ref)
+    }
   }
   return refs
 }
@@ -107,9 +115,10 @@ function capEvent(event: TraceEvent, max: number, fileIndex: (file: string) => s
     capper.truncated.push(['tools'])
   }
   // The references are added after capping: they are ids, and their keys must stay whole.
-  const payload: Record<string, unknown> = { ...capper.value(rest, []) as Record<string, unknown>, ...ref }
-  if (capper.truncated.length > 0)
+  const payload: Record<string, unknown> = { ...(capper.value(rest, []) as Record<string, unknown>), ...ref }
+  if (capper.truncated.length > 0) {
     payload.$truncated = capper.truncated
+  }
   const { original: _original, ...fields } = event
   return { ...fields, payload, source: { ...event.source, file: fileIndex(event.source.file) } }
 }
@@ -120,20 +129,23 @@ function groupSkipped(skipped: readonly SkippedRecord[], max: number): SkippedRe
   for (const entry of skipped) {
     const key = `${entry.file}\0${entry.reason}`
     const group = groups.get(key)
-    if (group)
+    if (group) {
       group.count = (group.count ?? 1) + (entry.count ?? 1)
-    else
+    } else {
       groups.set(key, { file: entry.file, line: entry.line, reason: cut(entry.reason, max), count: entry.count ?? 1 })
+    }
   }
   return [...groups.values()]
 }
 
 function capAgent(agent: AgentInfo, max: number): AgentInfo {
   const out = { ...agent }
-  if (out.title !== undefined && out.title.length > max)
+  if (out.title !== undefined && out.title.length > max) {
     out.title = cut(out.title, max)
-  if (out.systemPrompt !== undefined && out.systemPrompt.length > max)
+  }
+  if (out.systemPrompt !== undefined && out.systemPrompt.length > max) {
     out.systemPrompt = cut(out.systemPrompt, max)
+  }
   return out
 }
 
@@ -159,8 +171,9 @@ export function toView(trace: Trace, opts?: { maxString?: number }): Trace {
   const capper = new Capper(max)
   const { $truncated: _previous, ...rest } = trace.session
   const session = capper.value(rest, []) as Trace['session']
-  if (capper.truncated.length > 0)
+  if (capper.truncated.length > 0) {
     session.$truncated = capper.truncated
+  }
   const files = new Map<string, string>()
   const fileIndex = (file: string): string => {
     let index = files.get(file)
@@ -199,15 +212,16 @@ function jsonBytes(value: unknown): number {
  * larger ones get a lower cap, in steps of 0.75, down to 256 characters. At the
  * floor the view is returned anyway with `view.withinBudget: false`.
  */
-export function fitView(trace: Trace, opts?: { maxString?: number, maxBytes?: number }): FittedView {
+export function fitView(trace: Trace, opts?: { maxString?: number; maxBytes?: number }): FittedView {
   const budget = opts?.maxBytes ?? VIEW_BUDGET_BYTES
   let max = opts?.maxString ?? DEFAULT_MAX
   while (true) {
     const view = toView(trace, { maxString: max })
     view.view = { maxString: max, budgetBytes: budget, withinBudget: true }
     const bytes = jsonBytes(view)
-    if (bytes <= budget)
+    if (bytes <= budget) {
       return { trace: view, bytes }
+    }
     if (max <= MIN_STRING) {
       view.view.withinBudget = false
       // `false` is one byte longer than `true`.

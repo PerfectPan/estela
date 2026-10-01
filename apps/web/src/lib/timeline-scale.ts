@@ -61,8 +61,9 @@ const STEPS = [
 /** The smallest round step that gives at most `maxTicks` intervals. */
 export function niceStep(durationMs: number, maxTicks: number): number {
   for (const step of STEPS) {
-    if (durationMs / step <= maxTicks)
+    if (durationMs / step <= maxTicks) {
       return step
+    }
   }
   const days = Math.ceil(durationMs / (24 * HOUR) / maxTicks)
   return days * 24 * HOUR
@@ -73,21 +74,24 @@ export function axisTicks(scale: TimeScale, maxTicks: number): number[] {
   const duration = scale.end - scale.start
   const step = niceStep(duration, maxTicks)
   const out: number[] = []
-  for (let at = 0; at <= duration + 1e-6; at += step)
+  for (let at = 0; at <= duration + 1e-6; at += step) {
     out.push(at)
+  }
   return out
 }
 
 /** Round "nice" token values for the main lane grid: at most `max` lines below `top`. */
 export function tokenGrid(top: number, max = 2): number[] {
-  if (!(top > 0))
+  if (!(top > 0)) {
     return []
+  }
   const power = 10 ** Math.floor(Math.log10(top / max))
   const candidates = [1, 2, 5, 10, 20, 50].map(m => m * power)
   const step = candidates.find(candidate => Math.floor(top / candidate) <= max) ?? candidates.at(-1)!
   const out: number[] = []
-  for (let value = step; value <= top; value += step)
+  for (let value = step; value <= top; value += step) {
     out.push(value)
+  }
   return out
 }
 
@@ -103,7 +107,13 @@ export function isFullRange(range: TimeRange | undefined, scale: TimeScale): boo
 }
 
 /** Arrow keys move one edge by 1 % of the session, Shift by 10 %. Edges never cross. */
-export function stepEdge(range: TimeRange, edge: 'from' | 'to', direction: -1 | 1, big: boolean, scale: TimeScale): TimeRange {
+export function stepEdge(
+  range: TimeRange,
+  edge: 'from' | 'to',
+  direction: -1 | 1,
+  big: boolean,
+  scale: TimeScale,
+): TimeRange {
   const duration = scale.end - scale.start
   const step = Math.max(1, duration * (big ? 0.1 : 0.01)) * direction
   if (edge === 'from') {
@@ -117,8 +127,9 @@ export function stepEdge(range: TimeRange, edge: 'from' | 'to', direction: -1 | 
 /** Home / End: move one edge to the session's start or end. */
 export function edgeTo(range: TimeRange, edge: 'from' | 'to', where: 'start' | 'end', scale: TimeScale): TimeRange {
   const target = where === 'start' ? scale.start : scale.end
-  if (edge === 'from')
+  if (edge === 'from') {
     return { from: Math.min(range.to, target), to: range.to }
+  }
   return { from: range.from, to: Math.max(range.from, target) }
 }
 
@@ -163,8 +174,9 @@ export function bucketBars(inputs: readonly BarInput[], scale: TimeScale, minGap
     }
     column = x
     const bar: Bar = { x, id: input.id, count: 1 }
-    if (input.tokens !== undefined)
+    if (input.tokens !== undefined) {
       bar.tokens = input.tokens
+    }
     out.push(bar)
   }
   return out

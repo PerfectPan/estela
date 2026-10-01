@@ -11,5 +11,5 @@ const REPORT_ELEMENT_ID = 'report-trace'
  */
 export function reportTrace(): ReportTrace | undefined {
   const text = document.getElementById(REPORT_ELEMENT_ID)?.textContent
-  return text ? JSON.parse(text) as ReportTrace : undefined
+  return text ? (JSON.parse(text) as ReportTrace) : undefined
 }
