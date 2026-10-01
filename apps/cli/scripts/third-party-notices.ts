@@ -4,6 +4,13 @@ import { dirname, join, resolve, sep } from 'node:path'
 
 /** Web build tools whose own code lands in `apps/web/dist` (CSS layers, the preload helper). */
 const WEB_BUILD_TOOLS = ['tailwindcss', 'tw-animate-css', 'vite']
+/**
+ * Dependencies of those tools that also put code there, resolved from the tool. Vite 8's bundler adds its runtime
+ * helpers; the lazy-init helper among them is esbuild's `__esmMin`, whose MIT notice rolldown keeps in
+ * THIRD-PARTY-LICENSE next to Rollup's, so that file is listed too.
+ */
+const WEB_BUILD_TOOL_DEPS = [{ tool: 'vite', name: 'rolldown', extraFiles: ['THIRD-PARTY-LICENSE'] }]
+const EXTRA_LICENSE_FILES = new Map(WEB_BUILD_TOOL_DEPS.map(dep => [dep.name, dep.extraFiles]))
 const LICENSE_FILE = /^(?:licen[cs]e|copying|notice)(?:[.-].*)?$/i
 const NODE_MODULES = `${sep}node_modules${sep}`
 
@@ -32,8 +39,9 @@ function ownLicense(text: string): string {
 
 function noticeOf(dir: string): PackageNotice {
   const manifest = readManifest(dir)
+  const extra = EXTRA_LICENSE_FILES.get(manifest.name ?? '') ?? []
   const texts = readdirSync(dir)
-    .filter(name => LICENSE_FILE.test(name))
+    .filter(name => LICENSE_FILE.test(name) || extra.includes(name))
     .toSorted()
     .map(name => ownLicense(readFileSync(join(dir, name), 'utf8')))
   return {
@@ -68,7 +76,7 @@ function findPackage(name: string, dir: string): string | undefined {
   }
 }
 
-/** Every package reachable through `dependencies` from `root`, plus the listed build tools. */
+/** Every package reachable through `dependencies` from `root`, plus the listed build tools and their listed dependencies. */
 function webPackages(root: string): string[] {
   const found = new Set<string>()
   const visit = (dir: string) => {
@@ -85,6 +93,13 @@ function webPackages(root: string): string[] {
   visit(root)
   for (const name of WEB_BUILD_TOOLS) {
     const pkg = findPackage(name, root)
+    if (pkg) {
+      found.add(pkg)
+    }
+  }
+  for (const { tool, name } of WEB_BUILD_TOOL_DEPS) {
+    const toolPkg = findPackage(tool, root)
+    const pkg = toolPkg === undefined ? undefined : findPackage(name, toolPkg)
     if (pkg) {
       found.add(pkg)
     }

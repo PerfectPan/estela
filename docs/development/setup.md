@@ -74,7 +74,7 @@ cd apps/e2e
 node ../../common/scripts/install-run-rushx.js test:smoke
 ```
 
-`TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs this job on Node.js 22.18 and 24.
+`TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js 24.
 
 ## Browser end-to-end on the installed tarball
 

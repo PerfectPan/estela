@@ -26,8 +26,13 @@
 
   /**
    * The minimum number of minutes that must pass after a version is published before pnpm will install it.
-   * 1440 (one day) is pnpm 11's default; it is written out so the policy is visible. A dependency
-   * upgrade must pick versions at least a day old, or `rush update` fails.
+   * 1440 is also pnpm's built-in default; what matters is setting it here. From pnpm 12.3 on, an explicit
+   * value turns on `minimumReleaseAgeStrict`: when a version range can only be met by a release younger
+   * than a day, a non-interactive `rush update` fails, and in a terminal pnpm asks "Add to
+   * minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed?". Answer N. A yes, like the built-in
+   * default's silent fallback, records the exception in common/temp/pnpm-workspace.yaml, which Rush
+   * regenerates on every install, so CI's frozen `rush install` then fails. Put deliberate exceptions in
+   * `minimumReleaseAgeExclude` in this file.
    *
    * PNPM documentation: https://pnpm.io/settings#minimumreleaseage
    */
@@ -373,7 +378,6 @@
    * PNPM documentation: https://pnpm.io/settings#allowbuilds
    */
   "globalAllowBuilds": {
-    "esbuild": true,
     // apps/e2e uses node-pty's prebuilt binaries; its install script would fall back to node-gyp.
     "node-pty": false
   },
