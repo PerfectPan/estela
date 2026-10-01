@@ -1,9 +1,9 @@
-import type { JSX } from 'solid-js'
 import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
 import { For, Show } from 'solid-js'
-import { locale, translate as t } from '@/i18n/locale.ts'
-import { formatNumber } from '@/lib/format.ts'
-import { HostMark } from '@/browser/host-mark.tsx'
+import { translate as t } from '@/i18n/locale.ts'
+import { RailGroup } from '@/browser/rail-group.tsx'
+import { FilterRow } from '@/browser/filter-row.tsx'
+import { RailFlag } from '@/browser/rail-flag.tsx'
 
 export interface Flags {
   compaction: boolean
@@ -47,7 +47,7 @@ export function Rail(props: {
       class="flex w-[216px] shrink-0 flex-col gap-[22px] overflow-y-auto border-r border-border px-3 py-[18px]"
       aria-label={t('browser.hosts')}
     >
-      <Group label={t('browser.hosts')}>
+      <RailGroup label={t('browser.hosts')}>
         <FilterRow
           active={!props.host}
           label={t('browser.allHosts')}
@@ -66,9 +66,9 @@ export function Rail(props: {
             />
           )}
         </For>
-      </Group>
+      </RailGroup>
       <Show when={projects().length > 0}>
-        <Group label={t('browser.projects')}>
+        <RailGroup label={t('browser.projects')}>
           <For each={projects()}>
             {([name, count]) => (
               <FilterRow
@@ -79,106 +79,28 @@ export function Rail(props: {
               />
             )}
           </For>
-        </Group>
+        </RailGroup>
       </Show>
-      <Group label={t('browser.showOnly')}>
-        <Flag
+      <RailGroup label={t('browser.showOnly')}>
+        <RailFlag
           name="has-compaction"
           label={t('browser.hasCompaction')}
           checked={props.flags.compaction}
           onChange={value => props.onFlag('compaction', value)}
         />
-        <Flag
+        <RailFlag
           name="has-subagents"
           label={t('browser.hasSubagents')}
           checked={props.flags.subagents}
           onChange={value => props.onFlag('subagents', value)}
         />
-        <Flag
+        <RailFlag
           name="has-failed-tools"
           label={t('browser.hasFailedTools')}
           checked={props.flags.failed}
           onChange={value => props.onFlag('failed', value)}
         />
-      </Group>
+      </RailGroup>
     </aside>
-  )
-}
-
-function Group(props: { label: string; children: JSX.Element }) {
-  return (
-    <div class="flex flex-col gap-0.5">
-      <span class="rail-label px-2.5 pb-1.5 text-subtle">{props.label}</span>
-      {props.children}
-    </div>
-  )
-}
-
-function FilterRow(props: {
-  active: boolean
-  label: string
-  count: number
-  mark?: string
-  detail?: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={props.active}
-      data-host={props.mark}
-      class={`flex min-h-8 w-full shrink-0 items-center justify-between gap-2 rounded-[7px] px-2.5 text-left text-[13px] ${props.active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
-      onClick={() => props.onClick()}
-    >
-      <span class="flex min-w-0 items-center gap-[9px] py-1">
-        <Show when={props.mark}>{id => <HostMark id={id()} />}</Show>
-        <span class="min-w-0">
-          <span class="block truncate">{props.label}</span>
-          <Show when={props.detail}>
-            {detail => (
-              <span class="font-mono block truncate text-[11px] text-subtle" title={detail()}>
-                {detail()}
-              </span>
-            )}
-          </Show>
-        </span>
-      </span>
-      <span class="font-mono shrink-0 text-[11.5px] text-subtle">{formatNumber(props.count, locale())}</span>
-    </button>
-  )
-}
-
-function Flag(props: { name: string; label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <label class="flex h-7 cursor-pointer items-center gap-[9px] px-2.5 text-[13px] text-muted-foreground hover:text-foreground">
-      <input
-        type="checkbox"
-        name={props.name}
-        id={props.name}
-        class="peer sr-only"
-        checked={props.checked}
-        onChange={event => props.onChange(event.currentTarget.checked)}
-      />
-      <span
-        class={`flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border peer-focus-visible:ring-2 peer-focus-visible:ring-ring ${props.checked ? 'border-kind-request bg-kind-request' : 'border-input'}`}
-        aria-hidden="true"
-      >
-        <Show when={props.checked}>
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--background)"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M5 12.5 L10 17 L19 7" />
-          </svg>
-        </Show>
-      </span>
-      {props.label}
-    </label>
   )
 }

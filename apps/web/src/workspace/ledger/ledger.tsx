@@ -1,13 +1,13 @@
-import type { Entry, VirtualRow } from '@/lib/ledger-model.ts'
+import type { VirtualRow } from '@/lib/ledger-model.ts'
 import type { WorkspaceState } from '../workspace-state.ts'
-import type { RowContext } from './ledger-rows.tsx'
+import type { RowContext } from './row-frame.tsx'
 import { createVirtualizer } from '@tanstack/solid-virtual'
-import { For, Match, Show, Switch, createEffect, createMemo, on } from 'solid-js'
+import { For, Show, createEffect, createMemo, on } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
 import { anchorIndex, moveSelection } from '@/lib/ledger-model.ts'
-import { CompactionRow, EventRow, HooksRow, SubagentRow, TurnHeader } from './ledger-rows.tsx'
 import { LedgerToolbar } from './ledger-toolbar.tsx'
+import { LedgerRowBody } from './ledger-row-body.tsx'
 
 /** Rows drawn above and below the viewport. With 36 px rows the DOM holds about 40 rows (S8: under 100). */
 const OVERSCAN = 10
@@ -173,7 +173,7 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
                           }
                         }}
                       >
-                        <RowBody row={current()} ctx={ctx()} number={turnNumber} state={state} />
+                        <LedgerRowBody row={current()} ctx={ctx()} number={turnNumber} state={state} />
                       </div>
                     )}
                   </Show>
@@ -184,58 +184,5 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
         </Show>
       </div>
     </section>
-  )
-}
-
-function RowBody(props: {
-  row: VirtualRow
-  ctx: RowContext
-  number: (index: number, hasPrompt: boolean) => number | undefined
-  state: WorkspaceState
-}) {
-  const turn = () => (props.row.type === 'turn' ? props.row : undefined)
-  const entry = () => (props.row.type === 'entry' ? props.row : undefined)
-  return (
-    <Switch>
-      <Match when={turn()}>
-        {row => (
-          <TurnHeader
-            group={row().group}
-            number={props.number(row().group.turn.index, row().group.turn.promptEventId !== undefined)}
-            collapsed={row().collapsed}
-            ctx={props.ctx}
-            onToggle={() => props.state.toggleTurn(row().group.id)}
-          />
-        )}
-      </Match>
-      <Match when={entry()}>{row => <EntryBody row={row()} ctx={props.ctx} state={props.state} />}</Match>
-    </Switch>
-  )
-}
-
-function EntryBody(props: { row: Extract<VirtualRow, { type: 'entry' }>; ctx: RowContext; state: WorkspaceState }) {
-  const entry = () => props.row.entry
-  return (
-    <Switch>
-      <Match when={entry().type === 'event' ? (entry() as Extract<Entry, { type: 'event' }>) : undefined}>
-        {current => <EventRow entry={current()} depth={props.row.depth} ctx={props.ctx} lane={props.row.lane} />}
-      </Match>
-      <Match when={entry().type === 'subagent' ? (entry() as Extract<Entry, { type: 'subagent' }>) : undefined}>
-        {current => (
-          <SubagentRow
-            entry={current()}
-            expanded={props.row.expanded}
-            ctx={props.ctx}
-            onToggle={() => props.state.toggleEntry(current().id)}
-          />
-        )}
-      </Match>
-      <Match when={entry().type === 'hooks' ? (entry() as Extract<Entry, { type: 'hooks' }>) : undefined}>
-        {current => <HooksRow entry={current()} depth={props.row.depth} />}
-      </Match>
-      <Match when={entry().type === 'compaction' ? (entry() as Extract<Entry, { type: 'compaction' }>) : undefined}>
-        {current => <CompactionRow entry={current()} ctx={props.ctx} />}
-      </Match>
-    </Switch>
   )
 }

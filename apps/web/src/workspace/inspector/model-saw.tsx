@@ -9,6 +9,7 @@ import { cx } from '@/lib/cva'
 import { rowLine, rowText } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
 import { unavailableNote } from '@/lib/unavailable-note.ts'
+import { StatusPill } from '@/workspace/inspector/status-pill.tsx'
 
 const SLOT_LABEL: Record<ContextSlotName, MessageKey> = {
   system: 'inspector.slots.system',
@@ -36,14 +37,6 @@ function covers(names: ContextSlotName[]): string {
   return names.length === 5
     ? t('inspector.allSlots')
     : names.map(name => t(SLOT_LABEL[name])).join(t('inspector.listSeparator'))
-}
-
-function Pill(props: { children: string }) {
-  return (
-    <span class="rounded-full border border-input px-[9px] py-px text-[12px] whitespace-nowrap text-muted-foreground">
-      {props.children}
-    </span>
-  )
 }
 
 /** Hatched when the host does not record the slot, outlined when it is empty, else the slot color. */
@@ -107,7 +100,7 @@ export function ModelSaw(props: {
           <h3 class="section-label m-0 text-muted-foreground">
             {isRequest() ? t('inspector.contextAtRequest') : t('inspector.contextAtEvent')}
           </h3>
-          <Pill>{completeness()}</Pill>
+          <StatusPill>{completeness()}</StatusPill>
         </div>
         <Show when={headline()} fallback={<p class="m-0 text-[13px] text-subtle">{t('inspector.noTokens')}</p>}>
           {group => (

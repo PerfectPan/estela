@@ -1,13 +1,16 @@
 import type { TimelineData } from './timeline-data.ts'
 import type { TimeRange } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
-import { locale, translate as t } from '@/i18n/locale.ts'
-import { formatDuration } from '@/lib/format.ts'
+import { translate as t } from '@/i18n/locale.ts'
 import { fitMeasured, measureText } from '@/lib/measure-text.ts'
 import { edgeTo, inRange, isFullRange, makeScale, normalizeRange, stepEdge, tsOf, xOf } from '@/lib/timeline-scale.ts'
 import { CompactionLayer } from './timeline-compactions.tsx'
-import { Axis, axisTop, LAYOUT, MainLane, SubLane } from './timeline-marks.tsx'
+import { axisTop, LAYOUT } from './timeline-layout.ts'
+import { MainLane } from './timeline-marks.tsx'
+import { TimelineAxis } from './timeline-axis.tsx'
+import { SubLane } from './sub-lane.tsx'
 import { TimelineHeader } from './timeline-header.tsx'
+import { BrushHandle, type Edge } from './brush-handle.tsx'
 
 /** Lane labels are 12 px in the UI font. */
 function labelFont(): string {
@@ -39,8 +42,6 @@ function trackDrag(
 
 /** A drag shorter than this is a click: it selects the nearest request, or clears the range. */
 const CLICK_PX = 3
-
-type Edge = 'from' | 'to'
 
 /**
  * SVG timeline (3.6): one lane for the main agent and one per subagent, drawn from kernel
@@ -248,7 +249,7 @@ export function Timeline(props: {
               {t('timeline.moreLanes', { count: extra() })}
             </text>
           </Show>
-          <Axis scale={scale()} top={bottom()} />
+          <TimelineAxis scale={scale()} top={bottom()} />
           <rect
             x={scale().x0}
             y="0"
@@ -262,7 +263,7 @@ export function Timeline(props: {
           <CompactionLayer marks={compactions()} scale={scale()} bottom={bottom() - 2} right={width() - 4} />
           <For each={['from', 'to'] as const}>
             {edge => (
-              <Handle
+              <BrushHandle
                 edge={edge}
                 x={xOf(scale(), edges()[edge])}
                 bottom={bottom() - 2}
@@ -278,55 +279,5 @@ export function Timeline(props: {
         </svg>
       </div>
     </section>
-  )
-}
-
-function Handle(props: {
-  edge: Edge
-  x: number
-  bottom: number
-  active: boolean
-  label: string
-  valueNow: number
-  valueMax: number
-  onPointerDown: (event: PointerEvent) => void
-  onKeyDown: (event: KeyboardEvent) => void
-}) {
-  return (
-    <g class="brush-handle" data-idle={props.active ? 'false' : 'true'}>
-      <Show when={props.active}>
-        <line
-          x1={props.x}
-          y1="10"
-          x2={props.x}
-          y2={props.bottom}
-          stroke="var(--kind-request)"
-          stroke-width="1"
-          stroke-opacity="0.7"
-        />
-      </Show>
-      <rect
-        x={props.x - 3}
-        y={LAYOUT.handleY}
-        width="6"
-        height="18"
-        rx="3"
-        fill="var(--muted)"
-        stroke="var(--kind-request)"
-        stroke-width="1.2"
-        class="cursor-ew-resize outline-none"
-        tabindex="0"
-        role="slider"
-        aria-label={props.label}
-        aria-orientation="horizontal"
-        aria-valuemin={0}
-        aria-valuemax={Math.round(props.valueMax)}
-        aria-valuenow={Math.round(props.valueNow)}
-        aria-valuetext={formatDuration(props.valueNow, locale())}
-        data-testid={`brush-${props.edge}`}
-        onPointerDown={event => props.onPointerDown(event)}
-        onKeyDown={event => props.onKeyDown(event)}
-      />
-    </g>
   )
 }

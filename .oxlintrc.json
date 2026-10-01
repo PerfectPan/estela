@@ -20,10 +20,7 @@
     "vitest/valid-expect": ["error", { "maxArgs": 2 }],
     // Fire-and-forget `.then` at the end of a chain has nothing to return.
     "promise/always-return": ["warn", { "ignoreLastCallback": true }],
-    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
-    // Every if, else, for, while, and do body is a braced block. lint-config v0.2.0
-    // has this rule; drop the line when bumping to it.
-    "curly": ["error", "all"]
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }]
   },
   "overrides": [
     {
@@ -54,6 +51,13 @@
         }],
         "no-restricted-globals": ["error", "process", "Buffer"]
       }
+    },
+    {
+      // One Icon base and the stroke icons built on it: a component family, which lint-config's
+      // README exempts from one component per file (like a shadcn/ui file).
+      "files": ["apps/web/src/components/icons.tsx"],
+      "plugins": ["react"],
+      "rules": { "react/no-multi-comp": "off" }
     },
     {
       "files": ["**/*.test.{ts,mts,cts,tsx}"],

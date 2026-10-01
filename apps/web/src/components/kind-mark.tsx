@@ -1,7 +1,7 @@
 import type { RowKind } from '@/lib/ledger-model.ts'
 import type { MessageKey } from '@/i18n/locale.ts'
 import { translate as t } from '@/i18n/locale.ts'
-import { cx } from '@/lib/cva'
+import { KindSquare } from '@/components/kind-square.tsx'
 
 const KIND_LABEL: Record<RowKind, MessageKey> = {
   user: 'common.kinds.user',
@@ -27,37 +27,6 @@ export const KIND_TITLE: Record<RowKind, MessageKey> = {
   hook: 'inspector.titles.hook',
   compaction: 'inspector.titles.compaction',
   unknown: 'inspector.titles.unknown',
-}
-
-/**
- * Kind is a mark, not text color (docs/design/README.md). The five palette kinds are filled
- * squares; assistant replies are a neutral outlined square; the rest are neutral.
- */
-const MARK: Record<RowKind, string> = {
-  user: 'bg-kind-user',
-  request: 'bg-kind-request',
-  tool: 'bg-kind-tool',
-  thinking: 'bg-kind-thinking',
-  subagent: 'bg-kind-subagent',
-  reply: 'border border-subtle',
-  system: 'bg-subtle',
-  hook: 'bg-subtle',
-  compaction: 'border border-foreground',
-  unknown: 'border border-subtle border-dashed',
-}
-
-export function KindSquare(props: { kind: RowKind; size?: 'row' | 'title'; class?: string }) {
-  return (
-    <span
-      class={cx(
-        'box-border shrink-0 rounded-[2px]',
-        props.size === 'title' ? 'size-[9px]' : 'size-[7px]',
-        MARK[props.kind],
-        props.class,
-      )}
-      aria-hidden="true"
-    />
-  )
 }
 
 /** The ledger's kind column: mark plus label, 86 px. */

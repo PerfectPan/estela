@@ -4,8 +4,6 @@
   // .oxlintrc.json for why packages/schema.
   "extends": "./packages/schema/node_modules/@perfectpan/lint-config/tsconfig/bundler.json",
   "compilerOptions": {
-    // Off by default from lint-config v0.3.2 on; drop this line when bumping to it.
-    "exactOptionalPropertyTypes": false,
     "target": "ESNext",
     "lib": ["ESNext"],
     "types": ["node"]
