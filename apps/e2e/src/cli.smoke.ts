@@ -131,13 +131,13 @@ describe('installed tarball', () => {
     expect(server.output().stderr).not.toContain('\u001B')
   })
 
-  it('S13: Node 20 gets one line naming Node.js 22.18', async () => {
-    const result = await run('npx', ['-y', 'node@20', ctx.bin, '--help'], {
+  it('S13: Node 22 gets one line naming Node.js 24', async () => {
+    const result = await run('npx', ['-y', 'node@22', ctx.bin, '--help'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 's13')),
     })
     expect(result.code).toBe(1)
-    expect(`${result.stdout}${result.stderr}`).toBe('agent-trace requires Node.js 22.18 or later.\n')
+    expect(`${result.stdout}${result.stderr}`).toBe('agent-trace requires Node.js 24 or later.\n')
   })
 
   it('S15: build piped to a file writes plain lines and no home path', async () => {

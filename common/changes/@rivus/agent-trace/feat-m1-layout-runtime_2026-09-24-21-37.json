@@ -2,7 +2,7 @@
   "changes": [
     {
       "packageName": "@rivus/agent-trace",
-      "comment": "The CLI requires Node.js 22.18, accepts a session path, and prints plain progress when output is piped or NO_COLOR is set.",
+      "comment": "The CLI requires Node.js 24, accepts a session path, and prints plain progress when output is piped or NO_COLOR is set.",
       "type": "minor"
     }
   ],

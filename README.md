@@ -10,7 +10,7 @@ The screens are described in words here. Screenshots are not committed; the desi
 
 ## Quick start
 
-Node.js 22.18 or later (not 23.0–23.5):
+Node.js 24 or later:
 
 ```sh
 npx @rivus/agent-trace
@@ -19,7 +19,7 @@ npx @rivus/agent-trace
 This starts a server on `localhost`, indexes the sessions of the supported hosts, and opens the session browser. `@rivus/agent-trace` is not published yet. Until then, build it from this repository and run the bundle:
 
 ```sh
-node common/scripts/install-run-rush.js update
+node common/scripts/install-run-rush.js install
 node common/scripts/install-run-rush.js build
 node apps/cli/dist/bin.mjs
 ```

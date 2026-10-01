@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 22.18 or later. `rush.json` requires `>=22.18.0 <25`, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. Rush installs its own pnpm. Do not run a root `pnpm install`.
+Use Node.js 24. `rush.json` requires `>=24.0.0 <25`, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older than 24. Rush installs its own pnpm. Do not run a root `pnpm install`.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks

@@ -45,7 +45,7 @@ agent-trace 是一个本地 DevTools。一条命令即可在浏览器中打开�
 - `npx @rivus/agent-trace` 必须在 `localhost` 上启动一个 server，并在默认浏览器中打开会话浏览器。`--no-open` 必须跳过打开浏览器并打印 URL。
 - `npx @rivus/agent-trace <path>` 必须直接打开该会话的会话工作区。
 - 不存在的路径，或没有任何受支持 host 接受的路径，必须在 server 开始监听前以 1 退出，并给出指明该路径的消息。
-- 在低于 22.18 的 Node.js 上，该命令必须退出，并给出指明所需版本的消息。
+- 在低于 24 的 Node.js 上，该命令必须退出，并给出指明所需版本的消息。
 
 ### 终端输出
 
@@ -109,7 +109,7 @@ agent-trace 是一个本地 DevTools。一条命令即可在浏览器中打开�
 
 ### S1：DevTools 的打开
 
-- Given Node.js 22.18，以及位于各自默认位置的 Claude Code、Codex 和 Grok 会话
+- Given Node.js 24，以及位于各自默认位置的 Claude Code、Codex 和 Grok 会话
 - When 用户运行 `npx @rivus/agent-trace`
 - Then 浏览器打开会话浏览器，其中列出来自全部三个 host 的会话，并附带每个 host 的计数
 
@@ -181,9 +181,9 @@ agent-trace 是一个本地 DevTools。一条命令即可在浏览器中打开�
 
 ### S13：旧版 Node.js
 
-- Given Node.js 20
+- Given Node.js 22
 - When 用户运行 `npx @rivus/agent-trace`
-- Then 用户看到一条指明 Node.js 22.18 的消息，而不是模块加载器的堆栈跟踪
+- Then 用户看到一条指明 Node.js 24 的消息，而不是模块加载器的堆栈跟踪
 
 ### S14：语言
 
