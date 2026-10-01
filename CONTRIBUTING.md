@@ -59,7 +59,7 @@ Every change needs a requirement record. Use the smallest set of artifacts that 
 | Technical refactor without changed user behavior | Detailed Plan with compatibility and acceptance conditions |
 | Narrow maintenance, tests, or documentation | Requirement and PR checklist; a separate Plan only when useful |
 
-A Spec defines observable interactions, scope, failure behavior, and acceptance examples. Use stable scenario IDs and Given/When/Then where useful. Link scenarios to tests. A Spec does not prescribe components, interfaces, or execution order. Keep active Specs under [`specs/`](specs/). A small change may keep both sections in the PR description. Split only when each slice has an independently demonstrable outcome.
+A Spec defines observable interactions, scope, failure behavior, and acceptance examples. Use stable scenario IDs and Given/When/Then where useful. Link scenarios to tests. A Spec does not prescribe components, interfaces, or execution order. Keep active Specs under [`docs/specs/`](docs/specs/). A small change may keep both sections in the PR description. Split only when each slice has an independently demonstrable outcome.
 
 A Plan records technical decisions and the detailed execution plan that implements them. Shared architecture, compatibility, security, and recovery decisions belong in a reviewed Plan. After implementation, move lasting constraints into current-state architecture or operations docs. This repository does not keep an RFC directory. Removing a proposal does not mark unimplemented ideas as delivered.
 
@@ -73,7 +73,7 @@ Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make
 
 ## Bilingual Specs And Plans
 
-Every active Spec and Plan has a Chinese reading copy beside it: `specs/0001-foo.md` pairs with `specs/0001-foo.zh-CN.md`, and `docs/plans/0001-foo.md` with `docs/plans/0001-foo.zh-CN.md`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking reviewers read the whole design.
+Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/0001-foo.md` pairs with `docs/specs/0001-foo.zh-CN.md`, and `docs/plans/0001-foo.md` with `docs/plans/0001-foo.zh-CN.md`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking reviewers read the whole design.
 
 - The English file changes first; the Chinese copy follows in the same PR.
 - The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`
@@ -191,6 +191,8 @@ After the GitHub repository exists, preview branch protection with:
 The script requires pull requests, one approving review (fresh after new pushes), linear history, resolved conversations, and the `Review` workflow checks named `repository checks`, `conventional PR title`, and `PR description`. A single maintainer cannot approve their own pull requests; pass `--approvals 0` to keep the other protections without a review requirement. Add the CI job with `--check test` so it is required too. If the repository already uses a ruleset, add these checks to the ruleset instead of layering classic branch protection on top.
 
 Apply it only when the repository plan allows branch protection. Do not treat a failed apply on a private repository as a product defect.
+
+Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Workflow files copied from `PerfectPan/project-template` take action upgrades from the template rather than local edits.
 
 ## Security Reports
 

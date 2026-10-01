@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 
 const root = process.cwd()
-const dirs = ['specs', 'docs/plans']
+const dirs = ['docs/specs', 'docs/plans']
 const skip = new Set(['README.md', '0000-template.md'])
 const ZH = '.zh-CN.md'
 

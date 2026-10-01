@@ -6,7 +6,7 @@
 - 负责人：未确认
 - 评审人：未确认
 - 最后更新：2026-09-24
-- 配套 Spec：[`specs/0001-external-release.md`](../../specs/0001-external-release.md)
+- 配套 Spec：[`docs/specs/0001-external-release.md`](../specs/0001-external-release.md)
 - 视觉设计：[`docs/design/`](../design/README.md)
 
 本计划把 `main` 上的 MVP 做成 `@rivus/agent-trace`：一个本地 DevTools，由 `npx @rivus/agent-trace` 在浏览器中打开。用户从 Claude Code、Codex 或 Grok 中选择一个会话，在一个工作区中调试它。本计划定义这三个 host 首先实现的 host 协议、规范 trace、在真实机器上的会话规模下会话的发现与加载方式、按选定设计实现的英文和简体中文 UI，以及打包成一个可在任何地方安装和运行的 tarball。发布到 npm、ATIF 导出、OpenCode 和 dsh 是后续工作。目前没有任何发布，因此接口和格式直接原地修改，不设版本号，也不设兼容层。
