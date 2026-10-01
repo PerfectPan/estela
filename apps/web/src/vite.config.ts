@@ -18,18 +18,10 @@ export default defineConfig({
   build: {
     outDir: join(clientRoot, '../dist'),
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       // One script: the report inlines it into `index.html`, and a page opened from `file://` cannot
       // load a split chunk (DevFrame's client imports its browser-agent bridge lazily).
-      output: { inlineDynamicImports: true },
-      onwarn(warning, warn) {
-        // zod places two `@__PURE__` comments where Rollup cannot read them; Rollup only drops the
-        // comments. Rush treats any build warning as a failure, so this one is filtered out.
-        if (warning.code === 'INVALID_ANNOTATION' && warning.id?.includes('/zod/')) {
-          return
-        }
-        warn(warning)
-      },
+      output: { codeSplitting: false },
     },
   },
 })
