@@ -1,3 +1,4 @@
+// Adapted from shadcn-solid (MIT, copyright 2023 shadcn and hngngn). Notice: third-party-notices.md.
 import type { ComponentProps, ValidComponent } from 'solid-js'
 import { splitProps } from 'solid-js'
 import { Root as ButtonPrimitive } from '@kobalte/core/button'

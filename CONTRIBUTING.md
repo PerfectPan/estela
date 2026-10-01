@@ -99,6 +99,10 @@ Documentation-only and workflow-only PRs need no change file.
 
 Why a script: Rush requires change files only for projects in a version policy and does not follow dependencies, so an edit that only touches a bundled private package would reach users with no changelog entry. Changesets has the same gap ([changesets#944](https://github.com/changesets/changesets/issues/944), open since 2022). Putting the private packages into the version policy is not an option: `rush publish` publishes every project in a policy regardless of `"private"`. Remove `release-intent.mjs` if Rush gains this behavior.
 
+## License
+
+The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the software or a modified version requires releasing its source under the same license. Package metadata uses the SPDX identifier `GPL-3.0-only`. Change the license only as a deliberate project decision, and keep third-party notices for code or data copied from other projects. Record those notices in [`third-party-notices.md`](third-party-notices.md).
+
 ## File Conventions
 
 - File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.

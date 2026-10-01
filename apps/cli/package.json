@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
   "homepage": "https://devfra.me/",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "engines": {
     "node": ">=22.18.0"
   },

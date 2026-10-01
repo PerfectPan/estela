@@ -2,7 +2,7 @@
   "name": "@rivus/agent-trace-host-codex",
   "type": "module",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "exports": {
     ".": "./src/index.ts",
     "./testing": "./testing/large-session.ts"

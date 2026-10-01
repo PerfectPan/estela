@@ -29,3 +29,7 @@ Default fixture: `fixtures/demo.trace.json`. Pass a path, or set `AGENT_TRACE_PA
 Rush monorepo. UI is Solid + Tailwind v4 + shadcn-solid. Lint is oxlint.
 
 Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands: [docs/development/setup.md](docs/development/setup.md).
+
+## License
+
+GPL-3.0-only. See [LICENSE](LICENSE).

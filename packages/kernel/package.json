@@ -2,7 +2,7 @@
   "name": "@rivus/agent-trace-kernel",
   "type": "module",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "exports": {
     ".": "./src/index.ts",
     "./reconstruct": "./src/reconstruct.ts",

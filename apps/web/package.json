@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "scripts": {
     "build": "vite build --config src/vite.config.ts",
     "lint": "oxlint -c ../../.oxlintrc.json src",
