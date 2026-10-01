@@ -5,6 +5,7 @@ Audience: someone running or testing the viewer locally.
 ## Setup
 
 ```bash
+gh extension install PerfectPan/gh-repo-checks
 ./scripts/install-git-hooks.sh
 node common/scripts/install-run-rush.js update
 ```
@@ -14,7 +15,7 @@ Use Node.js 22.18 or later. `rush.json` requires `>=22.18.0 <25`, and the CLI ex
 ## Checks
 
 ```bash
-./scripts/check-repository.sh
+gh repo-checks repository
 node scripts/check-doc-translations.mjs
 node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
 node scripts/check-conventions.mjs

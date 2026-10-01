@@ -5,15 +5,16 @@
 Use Node.js 22.18 or later. `rush.json` requires `>=22.18.0 <25`, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. Rush installs its own pnpm. Do not run a root `pnpm install`.
 
 ```bash
+gh extension install PerfectPan/gh-repo-checks
 ./scripts/install-git-hooks.sh
-./scripts/check-repository.sh
+gh repo-checks repository
 node scripts/check-doc-translations.mjs
 node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
-./scripts/check-pr-title.sh "docs: add external release plan"
-./scripts/check-pr-body.sh pr-body.md
+gh repo-checks pr-title "docs: add external release plan"
+gh repo-checks pr-body pr-body.md
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
@@ -135,9 +136,11 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 CI runs when a Draft PR becomes Ready for review. Ordinary pushes, main merges and metadata edits do not start
 it. Finish local checks before requesting CI. After changing the head or base, update the branch and select Draft
 then Ready again; confirm that the current PR comparison passed before merging. The single `test` job includes
-repository checks, the PR title and release intent; there is no separate Review workflow. GitHub's PR checkout tests
-the merge result. A manual `workflow_dispatch` runs the selected branch as `manual checks` for diagnosis, without PR
-title or release intent checks, and does not satisfy the required PR `test` check. Do not retry account/billing-blocked
+the repository checks, the PR title and description checks, and release intent; there is no separate Review
+workflow. Editing the title or description does not re-run them; select Draft then Ready again after such an edit.
+GitHub's PR checkout tests the merge result. A manual `workflow_dispatch` runs the selected branch as `manual checks`
+for diagnosis, without the PR title, description, or release intent checks, and does not satisfy the required PR
+`test` check. Do not retry account/billing-blocked
 runs until the blocker is resolved.
 
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
@@ -169,11 +172,19 @@ type(scope): summary
 
 Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
 
-Titles are English; `scripts/check-pr-title.sh` rejects CJK characters. Bot-generated PRs follow the same rule, so configure release and dependency bots to emit titles such as `chore(release): version packages` or `chore(deps): bump <package> to <version>`.
+Titles are English; `gh repo-checks pr-title` rejects CJK characters. Bot-generated PRs follow the same rule, so configure release and dependency bots to emit titles such as `chore(release): version packages` or `chore(deps): bump <package> to <version>`.
 
-The description keeps every `##` section from the PR/MR template. Summary and Validation must contain real content, not template placeholders. Do not include agent attribution lines such as "Generated with <tool>"; the author is accountable for the content. `scripts/check-pr-body.sh` enforces these rules, and the `PR description` job runs it on every pull request event, including description edits. PRs opened by bot accounts skip the description check, because dependency and release bots write their own bodies; they still must pass the title check. A skipped job still satisfies the required status check.
+The description keeps every `##` section from the PR/MR template. Summary and Validation must contain real content, not template placeholders. Do not include agent attribution lines such as "Generated with <tool>"; the author is accountable for the content. `gh repo-checks pr-body` enforces these rules, and the `test` job runs it as its `PR description` step. PRs opened by bot accounts skip that step, because dependency and release bots write their own bodies; they still must pass the title check.
 
 Update the description when review feedback, rebases, or follow-up commits change the scope or validation result. Reviewers should be able to understand the final state from the PR without reconstructing it from comments.
+
+## Repository Checks
+
+The review checks come from [`PerfectPan/gh-repo-checks`](https://github.com/PerfectPan/gh-repo-checks): CI runs them through its GitHub Action (`uses: PerfectPan/gh-repo-checks@v1`), and locally they run as a GitHub CLI extension (`gh extension install PerfectPan/gh-repo-checks`). Do not copy the check scripts into this repository; change them upstream. Repository-specific additions, such as extra required files or forbidden patterns, go in `.github/repo-checks.conf`, and repository-specific scripts run as extra steps after the shared check. Here those are `check-doc-translations.mjs`, `check-conventions.mjs`, and `check-layers.mjs`, in the CI `test` job and in the pre-commit hook.
+
+Run `gh repo-checks repository` locally before opening review. This generic check does not replace stack-specific tests, but it catches missing template files, tracked local artifacts, obvious secrets, private paths, and drift in review templates.
+
+Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Workflow files copied from `PerfectPan/project-template` take action upgrades from the template rather than local edits.
 
 ## Local Git Hooks
 
@@ -181,7 +192,7 @@ Update the description when review feedback, rebases, or follow-up commits chang
 ./scripts/install-git-hooks.sh
 ```
 
-The pre-commit hook runs `git diff --cached --check`, `./scripts/check-repository.sh --staged`, `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, and `node scripts/check-layers.mjs`. Hooks are a local guardrail; CI and branch protection remain the authoritative enforcement because hooks can be missing or bypassed.
+The pre-commit hook runs `git diff --cached --check`, `gh repo-checks repository --staged` (without the extension it warns and skips that check), `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, and `node scripts/check-layers.mjs`. Hooks are a local guardrail; CI and branch protection remain the authoritative enforcement because hooks can be missing or bypassed.
 
 If `core.hooksPath` is already set to another path, `scripts/install-git-hooks.sh` fails instead of overwriting it. Re-run with `--force` only after confirming the existing hooks can be replaced or moved into `.githooks`.
 
@@ -190,14 +201,12 @@ If `core.hooksPath` is already set to another path, `scripts/install-git-hooks.s
 After the GitHub repository exists, preview branch protection with:
 
 ```bash
-./scripts/configure-github-repository.sh --repo PerfectPan/agent-trace
+gh repo-checks protect --repo PerfectPan/agent-trace --no-review-checks --check test
 ```
 
-The script requires pull requests, one approving review (fresh after new pushes), linear history, resolved conversations, and the `Review` workflow checks named `repository checks`, `conventional PR title`, and `PR description`. A single maintainer cannot approve their own pull requests; pass `--approvals 0` to keep the other protections without a review requirement. Add the CI job with `--check test` so it is required too. If the repository already uses a ruleset, add these checks to the ruleset instead of layering classic branch protection on top.
+The command requires pull requests, one approving review (fresh after new pushes), linear history, resolved conversations, and the CI `test` check. This repository has no Review workflow; its review checks run inside `test`. `--no-review-checks` therefore drops the default `repository checks`, `conventional PR title`, and `PR description` contexts. A single maintainer cannot approve their own pull requests; pass `--approvals 0` to keep the other protections without a review requirement. If the repository already uses a ruleset, add these checks to the ruleset instead of layering classic branch protection on top.
 
 Apply it only when the repository plan allows branch protection. Do not treat a failed apply on a private repository as a product defect.
-
-Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Workflow files copied from `PerfectPan/project-template` take action upgrades from the template rather than local edits.
 
 ## Security Reports
 

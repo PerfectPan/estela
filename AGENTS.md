@@ -41,8 +41,8 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 ## Review Evidence
 
-- PR titles must be English and follow `type(scope): summary`, including bot-generated release and dependency PRs such as `chore(release): version packages`; use `scripts/check-pr-title.sh` to verify them.
-- PR descriptions must keep every template section and include motivation, implementation notes, exact validation commands, skipped gates with reasons, and follow-up risks. Do not add agent attribution lines such as "Generated with <tool>". Verify the body with `scripts/check-pr-body.sh` before opening or updating the PR. Bot-opened PRs are exempt from the description check, not the title check.
+- PR titles must be English and follow `type(scope): summary`, including bot-generated release and dependency PRs such as `chore(release): version packages`; use `gh repo-checks pr-title` to verify them.
+- PR descriptions must keep every template section and include motivation, implementation notes, exact validation commands, skipped gates with reasons, and follow-up risks. Do not add agent attribution lines such as "Generated with <tool>". Verify the body with `gh repo-checks pr-body` before opening or updating the PR. Bot-opened PRs are exempt from the description check, not the title check.
 - If a claim depends on logs, screenshots, package output, deployed behavior, or generated artifacts, attach or link the evidence in the PR.
 - Update the PR description after substantial code changes, review-driven revisions, rebases that change behavior, or validation reruns.
 - Keep the GitHub PR template and the GitLab MR template in sync.
@@ -50,11 +50,12 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 ## Commands
 
 ```sh
-./scripts/check-repository.sh
+gh extension install PerfectPan/gh-repo-checks
+gh repo-checks repository
 node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
-./scripts/check-pr-title.sh "<title>"
-./scripts/check-pr-body.sh pr-body.md
+gh repo-checks pr-title "<title>"
+gh repo-checks pr-body pr-body.md
 node common/scripts/install-run-rush.js update
 node common/scripts/install-run-rush.js lint
 node common/scripts/install-run-rush.js test
