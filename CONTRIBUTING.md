@@ -33,7 +33,7 @@ There is no formatter and no package publish command.
 5. Identify the affected domain concepts, layer boundaries, data flow, and tests before changing code.
 6. Implement the change, keeping responsibilities separated and using existing project patterns.
 7. Add or update tests for behavior changes.
-8. Update `README.md`, `CHANGELOG.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
+8. Update `README.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
 9. Run repository checks, title and description checks, and the Rush lint, test, typecheck, and build gates.
 10. Open a pull request with a conventional title, motivation, implementation notes, validation, evidence, skipped gates, and follow-up risks.
 11. Keep the PR description current after review feedback, rebases, validation reruns, or scope changes.
@@ -93,6 +93,7 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI runs `rush change --verify` and `node scripts/release-intent.mjs check` against the merge base. The checkout needs full history (`fetch-depth: 0`).
 - `rush version --bump --version-policy agent-trace` consumes the change files, sets the version, and writes `apps/cli/CHANGELOG.md` and `CHANGELOG.json`. It runs only in the release workflow, which is not set up yet.
+- Release notes come only from change files. Do not edit the generated changelogs or keep a hand-written root `CHANGELOG.md` beside them.
 
 Documentation-only and workflow-only PRs need no change file.
 
