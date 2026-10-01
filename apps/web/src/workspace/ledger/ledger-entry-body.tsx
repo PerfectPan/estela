@@ -1,6 +1,6 @@
 import type { Entry, VirtualRow } from '@/lib/ledger-model.ts'
 import type { WorkspaceState } from '../workspace-state.ts'
-import type { RowContext } from './ledger-rows.tsx'
+import type { RowContext } from './row-frame.tsx'
 import { Match, Switch } from 'solid-js'
 import { CompactionRow } from './compaction-row.tsx'
 import { HooksRow } from './hooks-row.tsx'

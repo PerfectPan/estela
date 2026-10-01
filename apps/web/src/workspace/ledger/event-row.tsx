@@ -5,8 +5,8 @@ import { isShortened, numberField, rowText } from '@/lib/event-text.ts'
 import { formatDuration, formatTokens } from '@/lib/format.ts'
 import { ShortenedMark } from './shortened-mark.tsx'
 import { ToolStatus } from './tool-status.tsx'
-import type { RowContext } from './ledger-rows.tsx'
-import { RowFrame, elapsed } from './ledger-rows.tsx'
+import type { RowContext } from './row-frame.tsx'
+import { RowFrame, elapsed } from './row-frame.tsx'
 
 const dash = () => t('common.dash')
 

@@ -4,8 +4,8 @@ import { CompactIcon } from '@/components/icons.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { numberField } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
-import type { RowContext } from './ledger-rows.tsx'
-import { elapsed } from './ledger-rows.tsx'
+import type { RowContext } from './row-frame.tsx'
+import { elapsed } from './row-frame.tsx'
 
 export function CompactionRow(props: { entry: Extract<Entry, { type: 'compaction' }>; ctx: RowContext }) {
   const event = () => props.ctx.model.byId.get(props.entry.eventId)!

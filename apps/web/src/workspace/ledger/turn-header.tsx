@@ -4,7 +4,7 @@ import { ChevronDownIcon, ChevronRightIcon, EyeIcon } from '@/components/icons.t
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { formatDuration, formatNumber } from '@/lib/format.ts'
 import { previewText } from '@/lib/preview.ts'
-import type { RowContext } from './ledger-rows.tsx'
+import type { RowContext } from './row-frame.tsx'
 
 /** 40 px turn header: chevron, "Turn N", the prompt, the hidden badge, requests and duration. */
 export function TurnHeader(props: {
