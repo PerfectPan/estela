@@ -1,7 +1,7 @@
-import type { JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatDuration, formatNumber } from '@/lib/format.ts'
+import { TimelineLegend } from './timeline-legend.tsx'
 
 /**
  * "TIMELINE", the selected range and its event count (S6), and the legend. The range text
@@ -48,11 +48,19 @@ export function TimelineHeader(props: {
         </Show>
       </div>
       <ul class="m-0 flex shrink-0 list-none items-center gap-4 p-0 text-[12px] text-muted-foreground">
-        <Legend mark={<span class="size-2.5 rounded-[2px] bg-kind-request" />}>{t('timeline.legendRequest')}</Legend>
-        <Legend mark={<span class="size-2.5 rounded-full bg-kind-user" />}>{t('timeline.legendPrompt')}</Legend>
-        <Legend mark={<span class="size-2.5 rounded-[2px] bg-kind-tool" />}>{t('timeline.legendTool')}</Legend>
-        <Legend mark={<span class="size-2.5 rounded-[2px] bg-kind-subagent" />}>{t('timeline.legendSubagent')}</Legend>
-        <Legend
+        <TimelineLegend mark={<span class="size-2.5 rounded-[2px] bg-kind-request" />}>
+          {t('timeline.legendRequest')}
+        </TimelineLegend>
+        <TimelineLegend mark={<span class="size-2.5 rounded-full bg-kind-user" />}>
+          {t('timeline.legendPrompt')}
+        </TimelineLegend>
+        <TimelineLegend mark={<span class="size-2.5 rounded-[2px] bg-kind-tool" />}>
+          {t('timeline.legendTool')}
+        </TimelineLegend>
+        <TimelineLegend mark={<span class="size-2.5 rounded-[2px] bg-kind-subagent" />}>
+          {t('timeline.legendSubagent')}
+        </TimelineLegend>
+        <TimelineLegend
           mark={
             <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
               <path d="M5 1 L9.5 9 H0.5 Z" fill="var(--destructive)" />
@@ -60,22 +68,11 @@ export function TimelineHeader(props: {
           }
         >
           {t('timeline.legendFailed')}
-        </Legend>
-        <Legend mark={<span class="h-3 w-0 border-l-[1.5px] border-dashed border-foreground" />}>
+        </TimelineLegend>
+        <TimelineLegend mark={<span class="h-3 w-0 border-l-[1.5px] border-dashed border-foreground" />}>
           {t('timeline.legendCompaction')}
-        </Legend>
+        </TimelineLegend>
       </ul>
     </div>
-  )
-}
-
-function Legend(props: { mark: JSX.Element; children: JSX.Element }) {
-  return (
-    <li class="flex items-center gap-1.5 whitespace-nowrap">
-      <span class="flex items-center" aria-hidden="true">
-        {props.mark}
-      </span>
-      <span>{props.children}</span>
-    </li>
   )
 }

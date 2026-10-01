@@ -1,6 +1,5 @@
 import type { CompactionMark } from './timeline-data.ts'
 import type { TimeScale } from '@/lib/timeline-scale.ts'
-import type { LabelBox } from '@/lib/label-layout.ts'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { locale } from '@/i18n/locale.ts'
 import { translate as t } from '@/i18n/locale.ts'
@@ -8,10 +7,10 @@ import { formatDuration, formatTokens } from '@/lib/format.ts'
 import { layoutLabels, placeLabel, rovingIndex, ruleTarget } from '@/lib/label-layout.ts'
 import { measureText } from '@/lib/measure-text.ts'
 import { xOf } from '@/lib/timeline-scale.ts'
+import { PAD, moreText } from './compaction-label.ts'
+import { CompactionBox } from './compaction-box.tsx'
 
 const LABEL_FONT = '10.5px "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", monospace'
-/** Text inset inside the box, left and right. */
-const PAD = 8
 
 function labelOf(mark: CompactionMark): string {
   const { preTokens, postTokens } = mark
@@ -20,39 +19,6 @@ function labelOf(mark: CompactionMark): string {
       ? `  ${formatTokens(preTokens)} → ${formatTokens(postTokens)}`
       : ''
   return `${t('timeline.compacted')}${numbers}`
-}
-
-function moreText(more: number): string {
-  return more > 0 ? `  ${t('timeline.moreCompactions', { count: more })}` : ''
-}
-
-function Box(props: { box: LabelBox; label: string; more?: number; raised?: boolean }) {
-  return (
-    <g pointer-events="none" data-testid="compaction-box">
-      <rect
-        x={props.box.x}
-        y="4"
-        width={props.box.width}
-        height="18"
-        rx="4"
-        fill="var(--muted)"
-        stroke={props.raised ? 'var(--foreground)' : 'var(--input)'}
-      />
-      <text
-        x={props.box.x + PAD}
-        y="17"
-        class="font-mono"
-        font-size="10.5"
-        fill="var(--foreground)"
-        style={{ 'white-space': 'pre' }}
-      >
-        {props.label}
-        <Show when={(props.more ?? 0) > 0}>
-          <tspan fill="var(--subtle-foreground)">{moreText(props.more!)}</tspan>
-        </Show>
-      </text>
-    </g>
-  )
 }
 
 /**
@@ -135,7 +101,7 @@ export function CompactionLayer(props: { marks: CompactionMark[]; scale: TimeSca
       <For each={items()}>
         {(item, index) => (
           <Show when={slots()[index()]?.box}>
-            {box => <Box box={box()} label={item.label} more={slots()[index()]!.more} />}
+            {box => <CompactionBox box={box()} label={item.label} more={slots()[index()]!.more} />}
           </Show>
         )}
       </For>
@@ -169,7 +135,9 @@ export function CompactionLayer(props: { marks: CompactionMark[]; scale: TimeSca
           )}
         </For>
       </g>
-      <Show when={activeBox()}>{current => <Box box={current().box} label={current().item.label} raised />}</Show>
+      <Show when={activeBox()}>
+        {current => <CompactionBox box={current().box} label={current().item.label} raised />}
+      </Show>
     </g>
   )
 }
