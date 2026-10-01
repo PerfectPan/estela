@@ -17,7 +17,7 @@ host log
   -> rpc TraceStore (ref -> session catalog): last 3 traces, originals dropped
   -> kernel toView / fold / reconstruct / projections / redact
   -> DevFrame load-trace (progress stream) + get-trace-view + get-event
-  -> Solid ledger + inspector (timeline in M4b)
+  -> Solid workspace: header, SVG timeline, virtualized ledger, inspector
 ```
 
 `events[]` is the archive. Every event can return its original: the store keeps each event's source pointer (file, byte offset, length) and `get-event(ref, id)` reads that line again (`readOriginal`). The store records each source file's size and mtime at load and a fingerprint of each record; if the file changed since (a live session appends), the bytes must still parse to the same record, else the event comes back with `originalUnavailable` and the reason. A canonical JSON file keeps originals inside the file, so `get-event` reloads it once per cached entry.
@@ -36,7 +36,7 @@ A session is addressed by `ref`, a hash of host and path. The session id counts 
 
 `get-trace-view(ref)` returns `toView(trace)`: no `original`, every string and key capped at 4,096 UTF-16 units (never splitting a surrogate pair) with the shortened paths in `payload.$truncated` as key/index arrays, source files interned in `sourceFiles`, and `skipped` merged per file and reason. `fitView` lowers the cap, in steps of 0.75, only when the view would exceed 12 MB (plan 1.3); the view records the cap in `view.maxString`, and `view.withinBudget: false` (also logged once on the server) when even the 256 floor does not fit. Codex event ids are `L<line>` (one file per trace) to keep per-event overhead low.
 
-Loading: the browser calls `load-trace(ref)`, subscribes to the `load-progress` stream with the returned id (bytes read of file size), then calls `get-trace-view(ref)`. Loads are shared per session. Cancelling the stream, disconnecting, not subscribing within 5 s, or a newer `load-trace` from the same connection releases the hold; the last release aborts the load. That connection's `get-trace-view` rides on its hold; any other reader (another tab, MCP `reconstruct`) takes its own, so one browser's navigation never cancels another reader. Holds do not reach the loaded trace, so an evicted trace is collectable. Error messages leave the store redacted. `ref` is opaque and resolved by the shell: on the dev server through the session catalog (the TraceStore's cache key is the catalog ref, so `current` and the launch session's list row share one entry); under `mcp` and `build` only `current` resolves, keyed by the launch path. The workspace route calls `get-trace-view(ref)` and, for the Raw tab, `get-event(ref, id)`; it does not show load progress yet (M4b).
+Loading: the browser calls `load-trace(ref)`, subscribes to the `load-progress` stream with the returned id (bytes read of file size), then calls `get-trace-view(ref)`. Loads are shared per session. Cancelling the stream, disconnecting, not subscribing within 5 s, or a newer `load-trace` from the same connection releases the hold; the last release aborts the load. That connection's `get-trace-view` rides on its hold; any other reader (another tab, MCP `reconstruct`) takes its own, so one browser's navigation never cancels another reader. Holds do not reach the loaded trace, so an evicted trace is collectable. Error messages leave the store redacted. `ref` is opaque and resolved by the shell: on the dev server through the session catalog (the TraceStore's cache key is the catalog ref, so `current` and the launch session's list row share one entry); under `mcp` and `build` only `current` resolves, keyed by the launch path. The workspace route shows that progress (bytes read of file size), calls `get-trace-view(ref)`, and calls `get-event(ref, id)` for the Raw tab and for the full text of a shortened event. DevFrame 1.0.0 does not reconnect a closed WebSocket, so when the socket drops the workspace and the session browser say "Lost the connection to the agent-trace server" and offer Reload; a loaded workspace stays readable under that notice.
 
 Projections, all pure over `Trace`: `projectRequests` (one entry per request, recorded numbers only), `projectLanes` (main lane plus one per subagent, with requests and prompt, failed-tool, and compaction markers), `projectTurns` (turns start at main-lane prompts; hook runs fold into one row; per-turn totals), and `hiddenAfterCompaction` (from `shadowedBy`). `fold` adds session summary numbers only for capabilities the host declares.
 
@@ -51,13 +51,23 @@ The `reconstruct` RPC takes `{ ref?, eventId }`; without a ref (MCP) it reads `c
 | `packages/schema` (`@rivus/agent-trace-schema`) | Canonical `Trace` (`schema: 'agent-trace'`), kinds, capabilities, `shadowedBy` |
 | `packages/kernel` (`@rivus/agent-trace-kernel`) | `HostAdapter`, `TraceIO`, load, fold, reconstruct, redact, `toView` / `fitView`, projections, conformance |
 | `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | `NodeIO`, `homeDir`, session index (`node:sqlite`) |
-| `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; legacy `get-trace` for the static build |
+| `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; legacy `get-trace` for the static build and MCP (the dev server does not bind it) |
 | `packages/host-claude-code` | Claude Code JSONL, registered |
 | `packages/host-codex` | Codex `rollout-*.jsonl`, registered |
 | `packages/host-grok` | Grok `updates.jsonl` plus side files, registered |
 | `packages/host-opencode` | OpenCode SQLite, kept, not registered |
 | `packages/host-dsh` | detect stub, kept, not registered |
 | `apps/web` (`@rivus/agent-trace-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<ref>` (workspace), design tokens, `en` / `zh-CN` dictionaries |
+
+## Workspace
+
+`#/s/<ref>` draws, top to bottom: the session header (`summary` from `get-trace-view`, which is `fold` of the trace; "—" for undeclared capabilities), the SVG timeline, the ledger, and the inspector. Everything on the page is computed in the browser from the view trace with the kernel:
+
+- Timeline (`apps/web/src/workspace/timeline/`): `projectLanes` gives the lanes, requests, and markers. Bar height is the request's recorded input tokens; a request without usage is a hollow bar. Requests closer than 3.5 px share one bar (the largest value), so a 10,000-event session stays a small SVG. Compaction is a dashed rule, boxed with `pre → post` when recorded; rules too close to box keep the label as a tooltip. Dragging selects a range; the two handles are `role="slider"` and move with the arrow keys (1 %, Shift 10 %), Home and End. Brush math is in `lib/timeline-scale.ts`.
+- Ledger (`workspace/ledger/`): `lib/ledger-model.ts` builds turns from `projectTurns`, folds hook runs with `foldHookRuns`, pairs tool results with their calls, and puts each subagent lane's events of a turn behind one row at its spawn call. `flattenLedger` applies collapse, expansion, the kind chips, and the brush range. `@tanstack/solid-virtual` draws fixed sizes per row type (36 px rows, 40 px turn headers, 30 px hook fold, 44 px compaction), so the DOM holds about 40 rows at any scroll position. The dim toggle uses `hiddenAfterCompaction`.
+- Inspector (`workspace/inspector/`): Input and Output show normalized fields; a shortened event (`payload.$truncated`) loads its full text through `get-event` on selection. Model saw is kernel `reconstruct` on the view trace: slots with their status, the recorded token counts with the slots each covers, and the removed events. Raw is `get-event`'s original record.
+
+A static build (until M5's `report-trace`) reads the argument-free `get-trace` snapshot and computes the summary with `fold` in the browser.
 | `apps/cli` (`@rivus/agent-trace`) | DevFrame CLI, the session catalog, and the TraceStore wiring; the only published package |
 
 ## Trust
@@ -66,4 +76,4 @@ Session files stay on disk. The dev server binds localhost. The index holds titl
 
 ## Out of the current viewer
 
-The workspace UI (timeline, virtualized ledger, turn collapse, request dots, Model saw, a composer overlay) is not built yet (M4b); the kernel projections and RPCs above are its data. The current workspace route renders the view trace in the M1 ledger and inspector. dsh ingestion is not implemented.
+Not built: report export (M5; the header's "Export report" is a disabled placeholder), the ⌘K jump palette (the box focuses the ledger), and a composer overlay. dsh ingestion is not implemented.

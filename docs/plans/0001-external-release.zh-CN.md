@@ -460,7 +460,7 @@ flowchart LR
 - server 在内存中保留最近 3 个已加载的 trace（不含原始记录）；`get-event` 通过 source pointer 读取原始记录，当文件已变化且该处字节不再是那条记录时，返回 `originalUnavailable` 及原因。
 - 每个读取方都持有该加载，最后一次释放时中止它（`AbortSignal`）：浏览器离开页面、断开连接、从未订阅或打开另一个会话时取消 stream。另一个标签页或 MCP `reconstruct` 持有自己的 hold，因此不会因某个浏览器的跳转而被取消。
 - 错误信息在到达浏览器之前经过脱敏。
-- DevFrame 1.0.0 不暴露 stream 的订阅者，因此 5 秒检查读取的是发起调用的连接的订阅。WebSocket 重连后，浏览器再次调用 `load-trace`；新的调用会加入正在进行的加载，或拿到已缓存的 trace。
+- DevFrame 1.0.0 不暴露 stream 的订阅者，因此 5 秒检查读取的是发起调用的连接的订阅。DevFrame 1.0.0 不会重连已关闭的 WebSocket，因此连接断开时浏览器显示“连接已断开”并提供重新加载；重新加载后页面的 `load-trace` 会加入正在进行的加载，或拿到已缓存的 trace。
 
 ### 3.6 UI
 

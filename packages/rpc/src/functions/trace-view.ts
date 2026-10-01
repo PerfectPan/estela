@@ -22,10 +22,10 @@ const PROGRESS_INTERVAL_MS = 100
  *
  * Limitation: DevFrame 1.0.0 does not expose a stream's subscribers (the
  * channel's `get(id)` returns only the sink), so the check reads the calling
- * connection's `subscribedStreams`. If the WebSocket reconnects between
- * `load-trace` and the subscribe, the new connection is not seen and this hold
- * is released; the browser calls `load-trace` again after a reconnect, which
- * joins the running load or gets the cached trace.
+ * connection's `subscribedStreams`. DevFrame 1.0.0 does not reconnect a closed
+ * WebSocket: when the socket drops, the browser shows "lost the connection"
+ * and a reload, whose new `load-trace` joins the running load or gets the
+ * cached trace.
  */
 export const SUBSCRIBE_GRACE_MS = 5000
 

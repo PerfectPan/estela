@@ -135,3 +135,44 @@ export function formatOptional(value: number | undefined, text: (value: number) 
   return value === undefined ? dash : text(value)
 }
 
+
+/** Ledger time column: elapsed since the session start, `36:10` or `1:02:05`. Locale-independent. */
+export function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = String(total % 60).padStart(2, '0')
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`
+}
+
+/** Session header start time: `Tue, 23 Sep, 14:02` / `9月23日周二 14:02`, with the year when it is not this year. */
+export function formatStart(ts: number, locale: string, now = Date.now()): string {
+  const sameYear = new Date(ts).getFullYear() === new Date(now).getFullYear()
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' as const }),
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(ts)
+}
+
+/** Load progress: `12.3 MB`, `845 kB` (decimal units, as file managers show them). */
+export function formatBytes(bytes: number, locale: string): string {
+  const [unit, divisor] = bytes >= 1e9 ? ['gigabyte', 1e9] as const : bytes >= 1e6 ? ['megabyte', 1e6] as const : ['kilobyte', 1e3] as const
+  return new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'short', maximumFractionDigits: 1 }).format(bytes / divisor)
+}
+
+/** The ledger time column for an event: elapsed since `start`, or empty when the event has no time. */
+export function elapsedFrom(ts: number | undefined, start: number): string {
+  return ts === undefined || ts <= 0 ? '' : formatElapsed(ts - start)
+}
+
+/** `2.41M / 61k`; one dash when neither side was recorded. */
+export function formatInOut(input: number | undefined, output: number | undefined, dash: string): string {
+  if (input === undefined && output === undefined)
+    return dash
+  return `${formatOptional(input, formatTokens, dash)} / ${formatOptional(output, formatTokens, dash)}`
+}

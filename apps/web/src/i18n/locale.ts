@@ -59,3 +59,8 @@ export function translate(key: MessageKey, params?: Record<string, string | numb
   const value = t(key, params as Record<string, string>)
   return typeof value === 'string' ? value : key
 }
+
+/** `one` for a count of exactly 1, else `many` with `{{ count }}` (English and Chinese need no other forms). */
+export function plural(count: number, one: MessageKey, many: MessageKey, formatted: string = String(count)): string {
+  return count === 1 ? translate(one) : translate(many, { count: formatted })
+}

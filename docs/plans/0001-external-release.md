@@ -458,7 +458,7 @@ flowchart LR
 - The server keeps the last 3 loaded traces in memory without originals; `get-event` reads the original from the source pointer, and returns `originalUnavailable` with a reason when the file changed and the bytes are no longer that record.
 - Each reader holds the load. The last release aborts it (`AbortSignal`): the browser cancels the stream when it navigates away, disconnects, never subscribes, or opens another session. Another tab or an MCP `reconstruct` holds its own, so it is not cancelled by one browser's navigation.
 - Error messages are redacted before they reach the browser.
-- DevFrame 1.0.0 does not expose a stream's subscribers, so the 5 s check reads the calling connection's subscriptions. After a WebSocket reconnect the browser calls `load-trace` again; the new call joins the running load or gets the cached trace.
+- DevFrame 1.0.0 does not expose a stream's subscribers, so the 5 s check reads the calling connection's subscriptions. DevFrame 1.0.0 does not reconnect a closed WebSocket, so on a drop the browser shows "lost the connection" with a reload; the reloaded page's `load-trace` joins the running load or gets the cached trace.
 
 ### 3.6 UI
 

@@ -1,5 +1,6 @@
 import type { MessageKey } from '@/i18n/locale.ts'
 import type { ThemeMode } from '@/shell/theme.ts'
+import type { JSX } from 'solid-js'
 import { For, Match, Switch } from 'solid-js'
 import { chooseLocale, locale, translate as t } from '@/i18n/locale.ts'
 import { chooseTheme, nextThemeMode, themeMode } from '@/shell/theme.ts'
@@ -16,10 +17,10 @@ const themeLabel = () => t('common.themeSwitch', {
 })
 
 /**
- * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, and the
- * theme and language switches.
+ * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, the
+ * theme and language switches, and screen actions (the workspace's "Export report").
  */
-export function TopBar(props: { crumbs?: string[], onJump?: () => void }) {
+export function TopBar(props: { crumbs?: string[], onJump?: () => void, actions?: JSX.Element }) {
   const crumbs = () => props.crumbs ?? []
   return (
     <header class="flex h-[52px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">
@@ -78,6 +79,7 @@ export function TopBar(props: { crumbs?: string[], onJump?: () => void }) {
         >
           {t('common.languageShort')}
         </button>
+        {props.actions}
       </div>
     </header>
   )
