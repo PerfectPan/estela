@@ -5,7 +5,7 @@ import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent
 import type { Platform } from '@rivus/agent-kit/platform'
 import { foldTranscript, loadTranscript } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
-import { loadErrorMessage, parseReadFailure } from './read-failure.ts'
+import { loadFailure } from './read-failure.ts'
 import { kitTargetOf, projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
 import { userPrompts } from './user-prompts.ts'
 
@@ -127,10 +127,7 @@ export async function summarizeRow(
 ): Promise<SummarizeResult> {
   const loaded = await loadTranscript(platform, kitTargetOf(target), { adapters })
   if (!loaded.ok) {
-    // The message parses back into the wire shape, exactly as the hosts' thrown errors did.
-    return {
-      error: parseReadFailure(loadErrorMessage(loaded.error, sessionRefLabel(target)), platform.home, target.path),
-    }
+    return { error: loadFailure(loaded.error, platform.home, sessionRefLabel(target), target.path) }
   }
   return { summary: summaryOf(foldTranscript(loaded.value)), prompts: userPrompts(loaded.value) }
 }

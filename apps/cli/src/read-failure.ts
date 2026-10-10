@@ -52,6 +52,23 @@ export function loadErrorMessage(error: LoadTranscriptError, refLabel: string): 
   }
 }
 
+/**
+ * A failed transcript load as a wire `SessionError`: the hosts' message shape, parsed back.
+ * A missing file is the one wording without the path in the reason — `session file does not
+ * exist`, with the path in `file` — everywhere the catalog shows it.
+ */
+export function loadFailure(
+  error: LoadTranscriptError,
+  homeDir: string,
+  refLabel: string,
+  fallbackFile?: string,
+): SessionError {
+  if (error._tag === 'SessionNotFound') {
+    return { reason: 'session file does not exist', file: redactText(fallbackFile ?? refLabel, { home: homeDir }) }
+  }
+  return parseReadFailure(loadErrorMessage(error, refLabel), homeDir, fallbackFile)
+}
+
 /** A listing failure for one file. `RootMissing` never reaches a row: the root stat records it. */
 export function listError(error: SessionListError, homeDir: string): SessionError {
   if (error._tag === 'ReadFailed') {

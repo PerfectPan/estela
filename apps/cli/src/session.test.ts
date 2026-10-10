@@ -43,13 +43,14 @@ describe('loadSession', () => {
     )
   })
 
-  it('routes by the ref’s agent instead of detecting again', async () => {
+  it('the ref’s agent routes the read even when detection would pick another adapter', async () => {
     const dir = await grokUnknownGeneration()
-    // The Grok adapter is named and reads the directory as Grok's: the failure is Grok's
-    // unknown-generation from summary.json, not detection, and not another agent's adapter.
+    // Named Claude Code, the Grok directory is read as a Claude file: the failure is Claude
+    // Code's directory read failure (EISDIR), not Grok's summary handling — routing beat
+    // detection, which would have picked Grok for this directory.
     await expect(
-      loadSession({ host: 'grok', path: dir }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
-    ).rejects.toThrow(`grok: ${join(dir, 'summary.json')}:1: unknown format generation`)
+      loadSession({ host: 'claude-code', path: dir }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow(/EISDIR/)
   })
 
   it('a ref naming an agent without an adapter fails with capability-unsupported wording', async () => {
