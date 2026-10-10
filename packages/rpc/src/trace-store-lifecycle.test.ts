@@ -53,6 +53,7 @@ describe('TraceStore lifecycle', () => {
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     f.write('/logs/b.jsonl', [{ id: 'u1', kind: 'user' }])
     const slow = deferred()
+    let slowDone = false
     const io = {
       ...f.io,
       async stat(file: string) {
@@ -62,7 +63,6 @@ describe('TraceStore lifecycle', () => {
         return f.io.stat(file)
       },
     }
-    let slowDone = false
     const { store, signals, gates } = storeOf({ io, parse: f.parse })
     gates.set('b', deferred())
     const browser = {}

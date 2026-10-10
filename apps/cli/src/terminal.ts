@@ -7,25 +7,6 @@ export function isPlainOutput(): boolean {
   return !process.stdout.isTTY || process.env.NO_COLOR !== undefined
 }
 
-/**
- * Output filter. In plain mode (not a TTY, or `NO_COLOR`) it strips escape
- * sequences. With `homeDir`, it also replaces the home directory with `~` in
- * DevFrame's `[devframe]` log lines, in plain and TTY mode alike.
- */
-export function installPlainFilter(options?: { stderrOnly?: boolean; homeDir?: string }): void {
-  const tilde = options?.homeDir ? devframeTilde(options.homeDir) : undefined
-  if (options?.stderrOnly) {
-    wrap(process.stderr, true, tilde)
-    return
-  }
-  const strip = isPlainOutput()
-  if (!strip && !tilde) {
-    return
-  }
-  wrap(process.stdout, strip, tilde)
-  wrap(process.stderr, strip, tilde)
-}
-
 /** `~` for the home directory, only on lines that DevFrame logs. */
 export function devframeTilde(homeDir: string): (text: string) => string {
   return text =>
@@ -66,6 +47,25 @@ function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string
   }) as typeof stream.write
 }
 
+/**
+ * Output filter. In plain mode (not a TTY, or `NO_COLOR`) it strips escape
+ * sequences. With `homeDir`, it also replaces the home directory with `~` in
+ * DevFrame's `[devframe]` log lines, in plain and TTY mode alike.
+ */
+export function installPlainFilter(options?: { stderrOnly?: boolean; homeDir?: string }): void {
+  const tilde = options?.homeDir ? devframeTilde(options.homeDir) : undefined
+  if (options?.stderrOnly) {
+    wrap(process.stderr, true, tilde)
+    return
+  }
+  const strip = isPlainOutput()
+  if (!strip && !tilde) {
+    return
+  }
+  wrap(process.stdout, strip, tilde)
+  wrap(process.stderr, strip, tilde)
+}
+
 function supportsOsc8(): boolean {
   if (!process.stdout.isTTY || process.env.TERM === 'dumb') {
     return false
@@ -97,7 +97,8 @@ function osc8(url: string, text: string): string {
  * from 0 or very few columns, where it would repeat a negative width.
  */
 function boxFits(url: string): boolean {
-  return (process.stdout.columns ?? 0) >= url.length + 9
+  // `columns` can be unset even on a TTY (no window size); `undefined >= n` is false, so the box is skipped.
+  return process.stdout.columns >= url.length + 9
 }
 
 export function sayStart(version: string): void {

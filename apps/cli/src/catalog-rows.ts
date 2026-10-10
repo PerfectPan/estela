@@ -38,23 +38,6 @@ export function isDiscoverError(item: DiscoverItem): item is { ref: SessionRef; 
 /** Session text shown in the browser and the terminal: redacted like the workspace (D10) unless `AGENT_TRACE_REDACT=0`. */
 export type Redactor = (text: string) => string
 
-export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
-  return {
-    ref: row.ref,
-    host: row.target.host,
-    lastActiveAt: row.lastActiveAt,
-    sizeBytes: row.sizeBytes,
-    pending: row.pending,
-    ...(row.title ? { title: redact(row.title) } : {}),
-    ...(row.project ? { project: redact(row.project) } : {}),
-    ...(row.cwd ? { cwd: row.cwd } : {}),
-    ...(row.startedAt !== undefined ? { startedAt: row.startedAt } : {}),
-    ...(row.firstPrompt ? { firstPrompt: clipPrompt(redact(row.firstPrompt)) } : {}),
-    ...summaryFields(row.summary),
-    ...(row.error ? { error: row.error } : {}),
-  }
-}
-
 /** The preview shows about nine lines; the whole prompt stays searchable in the index. */
 const LIST_PROMPT_CHARS = 400
 
@@ -74,6 +57,23 @@ function summaryFields(
   }
   const max = Math.max(...contextShape)
   return { ...numbers, shape: contextShape.map(value => (max > 0 ? Math.round((value / max) * 100) : 0)) }
+}
+
+export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
+  return {
+    ref: row.ref,
+    host: row.target.host,
+    lastActiveAt: row.lastActiveAt,
+    sizeBytes: row.sizeBytes,
+    pending: row.pending,
+    ...(row.title ? { title: redact(row.title) } : {}),
+    ...(row.project ? { project: redact(row.project) } : {}),
+    ...(row.cwd ? { cwd: row.cwd } : {}),
+    ...(row.startedAt !== undefined ? { startedAt: row.startedAt } : {}),
+    ...(row.firstPrompt ? { firstPrompt: clipPrompt(redact(row.firstPrompt)) } : {}),
+    ...summaryFields(row.summary),
+    ...(row.error ? { error: row.error } : {}),
+  }
 }
 
 /** One full read: `fold` of the loaded trace for the numbers, and the main agent's user prompts for search. */

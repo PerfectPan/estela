@@ -193,6 +193,7 @@ function hooks() {
   }
 }
 
+const agents = [{ id: 'main' }]
 function subagent(spec) {
   callSeq += 1
   const callId = `call-${callSeq}`
@@ -213,7 +214,6 @@ function subagent(spec) {
   push('tool_result', { callId, output: `The ${spec.title} agent finished.` })
 }
 
-const agents = [{ id: 'main' }]
 const totalTurns = Math.max(7, Math.round(target / 38))
 const compactAtRequest = Math.round((target / 4) * 0.55)
 let compacted = false

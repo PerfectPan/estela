@@ -132,6 +132,46 @@ function shadowRemoved(events: TraceEvent[]): void {
   }
 }
 
+/**
+ * One lane per agent id. The spawning tool call comes from `meta.json`
+ * `toolUseId`, else from the tool result whose `toolUseResult.agentId` names
+ * the agent. A lane with neither has no `spawnEventId`.
+ */
+function agentLanes(events: TraceEvent[], metas?: ReadonlyMap<string, AgentMeta>): AgentInfo[] {
+  const calls = new Map<string, TraceEvent>()
+  const spawnCall = new Map<string, string>()
+  for (const event of events) {
+    const callId = asString(event.payload.callId)
+    if (event.kind === 'tool_call' && callId) {
+      calls.set(callId, event)
+    }
+    const spawned = asString(asRecord(asRecord(event.original)?.toolUseResult)?.agentId)
+    if (event.kind === 'tool_result' && callId && spawned && !spawnCall.has(spawned)) {
+      spawnCall.set(spawned, callId)
+    }
+  }
+  const agents: AgentInfo[] = [{ id: 'main' }]
+  const seen = new Set<string>(['main'])
+  for (const event of events) {
+    const id = event.agentId
+    if (!id || seen.has(id)) {
+      continue
+    }
+    seen.add(id)
+    const meta = metas?.get(id)
+    const spawn = calls.get(meta?.toolUseId ?? spawnCall.get(id) ?? '')
+    const agent: AgentInfo = { id, parentId: meta?.parentAgentId ?? spawn?.agentId ?? 'main' }
+    if (spawn) {
+      agent.spawnEventId = spawn.id
+    }
+    if (meta?.title) {
+      agent.title = meta.title
+    }
+    agents.push(agent)
+  }
+  return agents
+}
+
 export function parseClaudeRecords(
   stamped: readonly StampedRecord[],
   options?: {
@@ -434,44 +474,4 @@ export function parseClaudeRecords(
   }
   applySnapshots(events, agents, session)
   return { events, skipped, version, agents, session }
-}
-
-/**
- * One lane per agent id. The spawning tool call comes from `meta.json`
- * `toolUseId`, else from the tool result whose `toolUseResult.agentId` names
- * the agent. A lane with neither has no `spawnEventId`.
- */
-function agentLanes(events: TraceEvent[], metas?: ReadonlyMap<string, AgentMeta>): AgentInfo[] {
-  const calls = new Map<string, TraceEvent>()
-  const spawnCall = new Map<string, string>()
-  for (const event of events) {
-    const callId = asString(event.payload.callId)
-    if (event.kind === 'tool_call' && callId) {
-      calls.set(callId, event)
-    }
-    const spawned = asString(asRecord(asRecord(event.original)?.toolUseResult)?.agentId)
-    if (event.kind === 'tool_result' && callId && spawned && !spawnCall.has(spawned)) {
-      spawnCall.set(spawned, callId)
-    }
-  }
-  const agents: AgentInfo[] = [{ id: 'main' }]
-  const seen = new Set<string>(['main'])
-  for (const event of events) {
-    const id = event.agentId
-    if (!id || seen.has(id)) {
-      continue
-    }
-    seen.add(id)
-    const meta = metas?.get(id)
-    const spawn = calls.get(meta?.toolUseId ?? spawnCall.get(id) ?? '')
-    const agent: AgentInfo = { id, parentId: meta?.parentAgentId ?? spawn?.agentId ?? 'main' }
-    if (spawn) {
-      agent.spawnEventId = spawn.id
-    }
-    if (meta?.title) {
-      agent.title = meta.title
-    }
-    agents.push(agent)
-  }
-  return agents
 }

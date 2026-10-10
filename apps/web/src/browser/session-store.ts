@@ -34,7 +34,8 @@ export function createSessionStore() {
   let wanted: string[] = []
   let query = ''
   let searchSeq = 0
-  let disposed = false
+  /** Aborted by `onCleanup`: a settled request must not apply rows after the store is gone. */
+  const lifetime = new AbortController()
   const cleanups: (() => void)[] = []
 
   function fail(reason: unknown): void {
@@ -68,6 +69,21 @@ export function createSessionStore() {
     revision = Math.max(revision ?? 0, result.revision)
   }
 
+  async function runSearch(): Promise<void> {
+    const seq = ++searchSeq
+    const text = query
+    try {
+      const result = await listSessions(revision === undefined ? { query: text } : { query: text, since: revision })
+      if (seq !== searchSeq || lifetime.signal.aborted || text !== query) {
+        return
+      }
+      apply(result)
+      setMatches(new Set(result.matches ?? []))
+    } catch (reason) {
+      fail(reason)
+    }
+  }
+
   async function refresh(): Promise<void> {
     if (inflight) {
       again = true
@@ -83,7 +99,7 @@ export function createSessionStore() {
         request.first = first
       }
       const result = await listSessions(request)
-      if (!disposed) {
+      if (!lifetime.signal.aborted) {
         apply(result)
       }
       // New titles and prompts may match the active search.
@@ -94,25 +110,10 @@ export function createSessionStore() {
       fail(reason)
     } finally {
       inflight = false
-      if (again && !disposed) {
+      if (again && !lifetime.signal.aborted) {
         again = false
         void refresh()
       }
-    }
-  }
-
-  async function runSearch(): Promise<void> {
-    const seq = ++searchSeq
-    const text = query
-    try {
-      const result = await listSessions(revision === undefined ? { query: text } : { query: text, since: revision })
-      if (seq !== searchSeq || disposed || text !== query) {
-        return
-      }
-      apply(result)
-      setMatches(new Set(result.matches ?? []))
-    } catch (reason) {
-      fail(reason)
     }
   }
 
@@ -148,7 +149,7 @@ export function createSessionStore() {
       const off = state.on('updated', changed)
       // A change between the first response and the subscription would otherwise be missed.
       changed(state.value())
-      if (disposed) {
+      if (lifetime.signal.aborted) {
         off()
       } else {
         cleanups.push(off)
@@ -159,7 +160,7 @@ export function createSessionStore() {
   })()
 
   onCleanup(() => {
-    disposed = true
+    lifetime.abort()
     for (const fn of cleanups.splice(0)) {
       fn()
     }

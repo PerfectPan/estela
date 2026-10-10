@@ -31,7 +31,7 @@ function stored(): Locale | undefined {
 }
 
 /** `zh*` in `navigator.languages` selects `zh-CN`; anything else is `en`. A manual choice wins. */
-export function preferredLocale(languages: readonly string[] = navigator.languages ?? [navigator.language]): Locale {
+export function preferredLocale(languages: readonly string[] = navigator.languages): Locale {
   const manual = stored()
   if (manual) {
     return manual

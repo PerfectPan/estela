@@ -3,7 +3,7 @@ import { createSignal } from 'solid-js'
 let context: CanvasRenderingContext2D | null | undefined
 const [fontsReady, setFontsReady] = createSignal(0)
 if (typeof document !== 'undefined') {
-  void document.fonts?.ready.then(() => setFontsReady(count => count + 1))
+  void document.fonts.ready.then(() => setFontsReady(count => count + 1))
 }
 
 /**

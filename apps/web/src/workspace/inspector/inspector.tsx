@@ -100,7 +100,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     () => rawFetchKey(tab(), ids()),
     key => Promise.all(key.split('\0').map(fetchEvent)),
   )
-  const lookup = (id: string) => (full.state === 'ready' ? full()?.get(id) : undefined) ?? state.model.byId.get(id)
+  const lookup = (id: string) => (full.state === 'ready' ? full().get(id) : undefined) ?? state.model.byId.get(id)
   const primary = () => (primaryId() ? lookup(primaryId()!) : undefined)
   const result = () => (resultId() ? lookup(resultId()!) : undefined)
   const input = createMemo(() => (entry() ? inputText(entry()!, primary(), lookup) : ''))

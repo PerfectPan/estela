@@ -115,7 +115,7 @@ export const loadTrace = defineRpcFunction({
             sink.abort('not subscribed')
           }
         }, SUBSCRIBE_GRACE_MS)
-        grace.unref?.()
+        grace.unref()
         sink.signal.addEventListener(
           'abort',
           () => {
