@@ -7,12 +7,11 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile }
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadTrace } from '@rivus/agent-trace-kernel'
 import { CURRENT_REF } from '@rivus/agent-trace-rpc'
-import { nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionCatalog } from './catalog.ts'
-import { registeredHosts } from './session.ts'
+import { loadSession } from './session.ts'
 import { oneLine } from './session-ref.ts'
 import { createTraceStore } from './trace-store.ts'
 
@@ -39,6 +38,8 @@ function fakeAdapter(home: string, loads: string[]): SessionAdapter {
     specificationVersion: 'sessions-v1',
     agent: 'fake',
     displayName: 'Fake',
+    // The fake ignores `home`; the rule only satisfies `sessionAdapterHome`.
+    home: { defaultPath: [] },
     capabilities: ['requests'],
     roots: () => [root],
     async *discover(_platform, dir, opts) {
@@ -134,6 +135,39 @@ describe('session catalog cache', () => {
     const after = await third.listSessions({ since: before.revision })
     expect(after.rows.map(row => [row.title, row.pending])).toEqual([['Beta, edited', true]])
     third.close()
+  })
+
+  it('does not serve a summary cached by the host implementations, and recomputes it', async () => {
+    const home = await tempHome()
+    await session(home, 'a.jsonl', 'Alpha')
+    // A host-era cache: the production cache path, written at summary version 1.
+    const cache = join(home, 'cache')
+    const eraFile = join(cache, 'rivus-agent-trace/index.sqlite')
+    await mkdir(dirname(eraFile), { recursive: true })
+    const platform = createNodePlatform({ home, env: {} })
+    const era = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, []) },
+      index: openSessionIndex({ file: eraFile, summaryVersion: 1 }),
+    })
+    await era.whenIdle()
+    era.close()
+    expect((await stat(eraFile)).size).toBeGreaterThan(0)
+
+    // The production default (the catalog opens its own index) refuses version 1.
+    const current = new SessionCatalog({
+      platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
+      adapters: { fake: fakeAdapter(home, []) },
+    })
+    const listed = await current.listSessions()
+    expect(current.startedFromIndex).toBe(true)
+    expect(listed.rows[0]?.pending).toBe(true)
+    expect(listed.rows[0]?.requests).toBeUndefined()
+    await current.whenIdle()
+    const done = await current.listSessions()
+    expect(done.rows[0]?.pending).toBe(false)
+    expect(done.rows[0]?.requests).toBe(1)
+    current.close()
   })
 
   it('re-summarizes a row cached under an older SUMMARY_VERSION', async () => {
@@ -235,18 +269,15 @@ describe('session catalog cache', () => {
       path,
       await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
     )
-    const catalog = new SessionCatalog({
-      platform: createNodePlatform({ home, env: {} }),
-      noIndex: true,
-      deferSummaries: true,
-    })
-    const trace = await loadTrace(path, registeredHosts, nodeIO)
+    const platform = createNodePlatform({ home, env: {} })
+    const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
+    const trace = await loadSession(path, { platform })
     const opened = catalog.openPath(path, trace)
     const listed = await catalog.listSessions()
     expect(listed.rows.map(row => row.ref)).toEqual([opened])
 
     // The TraceStore resolves list refs through the catalog; `current` shares the row's entry.
-    const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
+    const traces = createTraceStore({ platform, redacts: true, resolve: ref => catalog.resolve(ref) })
     await traces.seed({ key: opened, path }, trace)
     const byRef = await traces.store.view(opened)
     const byCurrent = await traces.store.view(CURRENT_REF)
@@ -267,13 +298,10 @@ describe('session catalog cache', () => {
       path,
       await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
     )
-    const catalog = new SessionCatalog({
-      platform: createNodePlatform({ home, env: {} }),
-      noIndex: true,
-      deferSummaries: true,
-    })
+    const platform = createNodePlatform({ home, env: {} })
+    const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
     const [row] = (await catalog.listSessions()).rows
-    const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
+    const traces = createTraceStore({ platform, redacts: true, resolve: ref => catalog.resolve(ref) })
     const handle = await traces.store.open(row!.ref, {})
     await handle.done
     expect(handle.progress().bytesRead).toBe(handle.progress().totalBytes)
