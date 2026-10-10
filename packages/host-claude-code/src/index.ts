@@ -73,60 +73,29 @@ function agentFromFile(name: string, records: { value: unknown }[]): string {
   return base.startsWith('agent-') ? base.slice('agent-'.length) : base
 }
 
-export const claudeCodeAdapter: HostAdapter = {
-  id: 'claude-code',
-  displayName: 'Claude Code',
-  capabilities: CAPABILITIES,
-  roots(env) {
-    return [joinPath(env.homeDir, '.claude/projects')]
-  },
-  discover(root, io, opts) {
-    return discoverSessions('claude-code', root, io, {
-      signal: opts.signal,
-      ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
-      files: (fileIo, dir, signal) =>
-        walkFiles(fileIo, dir, {
-          match: name => name.endsWith('.jsonl'),
-          skipDir: name => name === 'subagents',
-          maxDepth: 6,
-          signal,
-        }),
-      preview: previewRecords,
-    })
-  },
-  async detect(ref, io) {
-    if (ref.path.includes('/.claude/projects/')) {
-      return true
-    }
-    try {
-      const edges = await readEdges(io, ref.path)
-      if (!edges) {
-        return false
-      }
-      const head = edges.head.slice(0, 4000)
-      const user = head.includes('"type":"user"') || head.includes('"type": "user"')
-      const assistant = head.includes('"type":"assistant"') || head.includes('"type": "assistant"')
-      return (user || assistant) && head.includes('"sessionId"')
-    } catch {
-      return false
-    }
-  },
-  async load(ref, io, opts): Promise<Trace> {
-    const progress = readProgress(opts.onProgress)
-    const main = await readJsonlRecords(ref.path, io, 'claude-code', { signal: opts.signal, progress })
-    const stem = basenamePath(ref.path).replace(/\.jsonl$/, '')
-    const nested = await nestedSubagents(io, ref.path, stem, opts.signal, progress)
-    const parsed = parseClaudeRecords(mergeByTime([main, ...nested.groups]), {
-      sessionId: ref.sessionId,
-      agentForFile: file => nested.agentForFile.get(file),
-      agentMeta: nested.metas,
-    })
-    parsed.skipped.push(...nested.skipped)
-    if (parsed.session.id === 'unknown') {
-      parsed.session.id = stem || 'unknown'
-    }
-    return toTrace('claude-code', [...BASE_CAPABILITIES, ...snapshotCapabilities(parsed.events)], parsed)
-  },
+async function agentMeta(io: TraceIO, path: string, progress: ReadProgress): Promise<AgentMeta> {
+  const text = await readTextCounted(io, path, progress)
+  let value: unknown
+  try {
+    value = JSON.parse(text) as unknown
+  } catch {
+    throw new Error(`claude-code: ${path}:1: invalid JSON`)
+  }
+  const meta = asRecord(value)
+  const out: AgentMeta = {}
+  const title = asString(meta?.description)
+  const toolUseId = asString(meta?.toolUseId)
+  const parentAgentId = asString(meta?.parentAgentId)
+  if (title) {
+    out.title = title
+  }
+  if (toolUseId) {
+    out.toolUseId = toolUseId
+  }
+  if (parentAgentId) {
+    out.parentAgentId = parentAgentId
+  }
+  return out
 }
 
 /**
@@ -183,27 +152,58 @@ async function nestedSubagents(
   return out
 }
 
-async function agentMeta(io: TraceIO, path: string, progress: ReadProgress): Promise<AgentMeta> {
-  const text = await readTextCounted(io, path, progress)
-  let value: unknown
-  try {
-    value = JSON.parse(text) as unknown
-  } catch {
-    throw new Error(`claude-code: ${path}:1: invalid JSON`)
-  }
-  const meta = asRecord(value)
-  const out: AgentMeta = {}
-  const title = asString(meta?.description)
-  const toolUseId = asString(meta?.toolUseId)
-  const parentAgentId = asString(meta?.parentAgentId)
-  if (title) {
-    out.title = title
-  }
-  if (toolUseId) {
-    out.toolUseId = toolUseId
-  }
-  if (parentAgentId) {
-    out.parentAgentId = parentAgentId
-  }
-  return out
+export const claudeCodeAdapter: HostAdapter = {
+  id: 'claude-code',
+  displayName: 'Claude Code',
+  capabilities: CAPABILITIES,
+  roots(env) {
+    return [joinPath(env.homeDir, '.claude/projects')]
+  },
+  discover(root, io, opts) {
+    return discoverSessions('claude-code', root, io, {
+      signal: opts.signal,
+      ...(opts.onTotal ? { onTotal: opts.onTotal } : {}),
+      files: (fileIo, dir, signal) =>
+        walkFiles(fileIo, dir, {
+          match: name => name.endsWith('.jsonl'),
+          skipDir: name => name === 'subagents',
+          maxDepth: 6,
+          signal,
+        }),
+      preview: previewRecords,
+    })
+  },
+  async detect(ref, io) {
+    if (ref.path.includes('/.claude/projects/')) {
+      return true
+    }
+    try {
+      const edges = await readEdges(io, ref.path)
+      if (!edges) {
+        return false
+      }
+      const head = edges.head.slice(0, 4000)
+      const user = head.includes('"type":"user"') || head.includes('"type": "user"')
+      const assistant = head.includes('"type":"assistant"') || head.includes('"type": "assistant"')
+      return (user || assistant) && head.includes('"sessionId"')
+    } catch {
+      return false
+    }
+  },
+  async load(ref, io, opts): Promise<Trace> {
+    const progress = readProgress(opts.onProgress)
+    const main = await readJsonlRecords(ref.path, io, 'claude-code', { signal: opts.signal, progress })
+    const stem = basenamePath(ref.path).replace(/\.jsonl$/, '')
+    const nested = await nestedSubagents(io, ref.path, stem, opts.signal, progress)
+    const parsed = parseClaudeRecords(mergeByTime([main, ...nested.groups]), {
+      sessionId: ref.sessionId,
+      agentForFile: file => nested.agentForFile.get(file),
+      agentMeta: nested.metas,
+    })
+    parsed.skipped.push(...nested.skipped)
+    if (parsed.session.id === 'unknown') {
+      parsed.session.id = stem || 'unknown'
+    }
+    return toTrace('claude-code', [...BASE_CAPABILITIES, ...snapshotCapabilities(parsed.events)], parsed)
+  },
 }

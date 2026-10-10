@@ -89,7 +89,8 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
   const [state, setState] = createSignal<LoadState>({ status: 'loading', bytesRead: 0, totalBytes: 0 })
   let reader: { cancel: () => void } | undefined
   let attempt = 0
-  let disposed = false
+  /** Aborted by `onCleanup`: no state update or subscription may outlive the route. */
+  const lifetime = new AbortController()
   let offStatus: (() => void) | undefined
 
   function stopReader(): void {
@@ -109,12 +110,16 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
     let client: LoadClient | undefined
     try {
       client = await connect()
-      if (mine !== attempt || disposed) {
+      if (mine !== attempt || lifetime.signal.aborted) {
         return
       }
       offStatus?.()
       offStatus = client.onStatus(status => {
-        if ((status === 'disconnected' || status === 'error') && state().status === 'loading' && !disposed) {
+        if (
+          (status === 'disconnected' || status === 'error')
+          && state().status === 'loading'
+          && !lifetime.signal.aborted
+        ) {
           fail(lostFailure())
         }
       })
@@ -122,15 +127,18 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
         return fail(lostFailure())
       }
       const started = await client.call('load-trace', { ref })
-      if (mine !== attempt || disposed) {
+      // After the check above, TypeScript narrows `lifetime.signal.aborted` to false and keeps that
+      // across awaits, though `onCleanup` can abort during them: `throwIfAborted` reads the live value.
+      if (mine !== attempt) {
         return
       }
+      lifetime.signal.throwIfAborted()
       const stream = client.subscribe(LOAD_PROGRESS_CHANNEL, started.loadId)
       reader = stream
       setState({ status: 'loading', bytesRead: 0, totalBytes: started.totalBytes })
       void (async () => {
         for await (const chunk of stream) {
-          if (mine !== attempt || disposed) {
+          if (mine !== attempt || lifetime.signal.aborted) {
             break
           }
           setState(current => (current.status === 'loading' ? { status: 'loading', ...chunk } : current))
@@ -139,7 +147,8 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
         // The stream ends with the load's error; `get-trace-view` reports it.
       })
       const view = await client.call('get-trace-view', { ref })
-      if (mine !== attempt || disposed || state().status === 'error') {
+      lifetime.signal.throwIfAborted()
+      if (mine !== attempt || state().status === 'error') {
         return
       }
       const live = client
@@ -148,7 +157,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
         session: { ref, trace: view.trace, summary: view.summary, event: id => live.call('get-event', { ref, id }) },
       })
     } catch (error) {
-      if (mine !== attempt || disposed || isCancelled(error) || state().status === 'error') {
+      if (mine !== attempt || lifetime.signal.aborted || isCancelled(error) || state().status === 'error') {
         return
       }
       if (client && (client.status === 'disconnected' || client.status === 'error')) {
@@ -161,7 +170,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
   void run()
 
   onCleanup(() => {
-    disposed = true
+    lifetime.abort()
     attempt += 1
     stopReader()
     offStatus?.()

@@ -95,6 +95,24 @@ function rowKind(event: TraceEvent): RowKind {
   }
 }
 
+/** One hook of a folded run, drawn when its hooks row is expanded. Hooks carry no row number. */
+function hookEntry(eventId: string): Entry {
+  return { type: 'event', id: `e:${eventId}`, eventId, kind: 'hook', ordinal: 0 }
+}
+
+/** The events an entry draws, its main event first (a subagent row: the spawn call, then its lane's rows). */
+export function entryEventIds(entry: Entry): string[] {
+  switch (entry.type) {
+    case 'event':
+    case 'compaction':
+      return [entry.eventId]
+    case 'hooks':
+      return entry.eventIds
+    case 'subagent':
+      return [...(entry.eventId ? [entry.eventId] : []), ...entry.children.flatMap(entryEventIds)]
+  }
+}
+
 /** Builds turns, entries, and row numbers once per trace. */
 export function buildLedgerModel(trace: Trace): LedgerModel {
   const mainId = mainAgentId(trace)
@@ -274,24 +292,6 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
   }
 
   return { trace, turns, lanes, byId, ordinals, locate, hidden, results, requests, entries: all, shadowed }
-}
-
-/** One hook of a folded run, drawn when its hooks row is expanded. Hooks carry no row number. */
-function hookEntry(eventId: string): Entry {
-  return { type: 'event', id: `e:${eventId}`, eventId, kind: 'hook', ordinal: 0 }
-}
-
-/** The events an entry draws, its main event first (a subagent row: the spawn call, then its lane's rows). */
-export function entryEventIds(entry: Entry): string[] {
-  switch (entry.type) {
-    case 'event':
-    case 'compaction':
-      return [entry.eventId]
-    case 'hooks':
-      return entry.eventIds
-    case 'subagent':
-      return [...(entry.eventId ? [entry.eventId] : []), ...entry.children.flatMap(entryEventIds)]
-  }
 }
 
 export type LedgerFilter = 'all' | 'requests' | 'tools' | 'failures'

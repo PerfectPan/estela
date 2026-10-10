@@ -7,8 +7,10 @@ const slot = (name: ContextSlot['name'], status: ContextSlot['status']): Context
 
 describe('unavailableNote', () => {
   afterEach(() => applyLocale('en'))
-  // `applyLocale` sets `<html lang>`; the node test environment has no document.
-  globalThis.document ??= { documentElement: {} } as Document
+  // `applyLocale` sets `<html lang>`; the node test environment has no document, while lib.dom
+  // types `document` as always present, so read `document` off globalThis as optional.
+  const globalDocument = globalThis as { document?: Document }
+  globalDocument.document ??= { documentElement: {} } as Document
 
   it('says nothing when every slot is recorded', () => {
     expect(unavailableNote(['systemPrompt'], [slot('system', 'present'), slot('tools', 'empty')])).toBeUndefined()

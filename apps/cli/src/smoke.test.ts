@@ -11,17 +11,6 @@ const repoRoot = join(cliDir, '../..')
 const demo = join(repoRoot, 'fixtures/demo.trace.json')
 const webDir = join(repoRoot, 'apps/web')
 
-async function ensureWebDist(): Promise<void> {
-  if (existsSync(join(webDir, 'dist/index.html'))) {
-    return
-  }
-  const vite = join(webDir, 'node_modules/.bin/vite')
-  const { code, stderr } = await run(vite, ['build', '--config', join(webDir, 'src/vite.config.ts')], webDir)
-  if (code !== 0) {
-    throw new Error(stderr)
-  }
-}
-
 function childEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env }
   delete env.NO_COLOR
@@ -49,6 +38,17 @@ function run(command: string, args: string[], cwd: string): Promise<{ code: numb
     child.on('close', code => resolve({ code: code ?? 1, stdout, stderr }))
     child.stdin.end()
   })
+}
+
+async function ensureWebDist(): Promise<void> {
+  if (existsSync(join(webDir, 'dist/index.html'))) {
+    return
+  }
+  const vite = join(webDir, 'node_modules/.bin/vite')
+  const { code, stderr } = await run(vite, ['build', '--config', join(webDir, 'src/vite.config.ts')], webDir)
+  if (code !== 0) {
+    throw new Error(stderr)
+  }
 }
 
 async function treeContains(dir: string, needle: string): Promise<boolean> {

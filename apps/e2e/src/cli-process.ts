@@ -56,6 +56,20 @@ export function openLogPath(ctx: SmokeContext, name: string): string {
   return join(ctx.root, `opened-${name}.log`)
 }
 
+function collect(child: ChildProcess): () => { stdout: string; stderr: string } {
+  let stdout = ''
+  let stderr = ''
+  child.stdout?.setEncoding('utf8')
+  child.stderr?.setEncoding('utf8')
+  child.stdout?.on('data', (chunk: string) => {
+    stdout += chunk
+  })
+  child.stderr?.on('data', (chunk: string) => {
+    stderr += chunk
+  })
+  return () => ({ stdout, stderr })
+}
+
 export function run(
   command: string,
   args: string[],
@@ -102,20 +116,6 @@ export function start(
       await closed
     },
   }
-}
-
-function collect(child: ChildProcess): () => { stdout: string; stderr: string } {
-  let stdout = ''
-  let stderr = ''
-  child.stdout?.setEncoding('utf8')
-  child.stderr?.setEncoding('utf8')
-  child.stdout?.on('data', (chunk: string) => {
-    stdout += chunk
-  })
-  child.stderr?.on('data', (chunk: string) => {
-    stderr += chunk
-  })
-  return () => ({ stdout, stderr })
 }
 
 export async function waitFor(what: string, check: () => boolean, timeoutMs = 30000): Promise<void> {

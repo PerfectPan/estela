@@ -35,6 +35,37 @@ function normalizeSessionPath(input: string): string {
   return sessionId === undefined ? resolved : `${resolved}#${sessionId}`
 }
 
+function messageOf(error: unknown): string {
+  if (error instanceof Error && error.cause instanceof Error && error.cause.message) {
+    return `${error.message}: ${error.cause.message}`
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** The dev server's launch session, loaded once before it listens; it seeds the TraceStore. */
+async function loadLaunch(target: ResolvedSession['path'], failure: string): Promise<Trace> {
+  const loading = startLoad()
+  try {
+    const trace = await loadTrace(target, registeredHosts, nodeIO)
+    loading.stop(trace.events.length)
+    return trace
+  } catch (error) {
+    loading.cancel()
+    sayError(`${failure}: ${messageOf(error)}`, FIX)
+    process.exit(1)
+  }
+}
+
+/** `mcp` writes only to stderr: stdout carries the protocol. */
+async function loadOrExit(load: () => Promise<Trace>, path: string): Promise<Trace> {
+  try {
+    return await load()
+  } catch (error) {
+    process.stderr.write(`Could not load ${path}: ${messageOf(error)}\n${FIX}\n`)
+    process.exit(1)
+  }
+}
+
 export async function main(): Promise<void> {
   const parsed = parseCommand(process.argv)
   if (parsed.error) {
@@ -175,35 +206,4 @@ export async function main(): Promise<void> {
     userArgs.push('--no-open')
   }
   await handle.parse(programArgv(userArgs))
-}
-
-/** The dev server's launch session, loaded once before it listens; it seeds the TraceStore. */
-async function loadLaunch(target: ResolvedSession['path'], failure: string): Promise<Trace> {
-  const loading = startLoad()
-  try {
-    const trace = await loadTrace(target, registeredHosts, nodeIO)
-    loading.stop(trace.events.length)
-    return trace
-  } catch (error) {
-    loading.cancel()
-    sayError(`${failure}: ${messageOf(error)}`, FIX)
-    process.exit(1)
-  }
-}
-
-/** `mcp` writes only to stderr: stdout carries the protocol. */
-async function loadOrExit(load: () => Promise<Trace>, path: string): Promise<Trace> {
-  try {
-    return await load()
-  } catch (error) {
-    process.stderr.write(`Could not load ${path}: ${messageOf(error)}\n${FIX}\n`)
-    process.exit(1)
-  }
-}
-
-function messageOf(error: unknown): string {
-  if (error instanceof Error && error.cause instanceof Error && error.cause.message) {
-    return `${error.message}: ${error.cause.message}`
-  }
-  return error instanceof Error ? error.message : String(error)
 }

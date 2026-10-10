@@ -35,6 +35,11 @@ function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
 }
 
+function fail(message) {
+  console.error(`release-intent: ${message}`)
+  process.exit(1)
+}
+
 function check(base) {
   if (!base) {
     fail('check needs --base <sha>')
@@ -90,11 +95,6 @@ function add(type, message) {
   mkdirSync(CHANGE_DIR, { recursive: true })
   writeFileSync(file, `${JSON.stringify(body, null, 2)}\n`, { flag: 'wx' })
   console.log(`release-intent: wrote ${file}`)
-}
-
-function fail(message) {
-  console.error(`release-intent: ${message}`)
-  process.exit(1)
 }
 
 const USAGE = 'usage: release-intent.mjs check --base <sha> | add --type <major|minor|patch|none> --message "<text>"'

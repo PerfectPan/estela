@@ -20,7 +20,7 @@ export default defineDevframe({
   packageName: pkg.name,
   importMetaUrl: import.meta.url,
   homepage: pkg.homepage,
-  description: pkg.description ?? 'Inspect agent session logs; reconstruct what the model saw.',
+  description: pkg.description,
   icon: 'ph:path-duotone',
   basePath: BASE_PATH,
   clientAssets: webDistDir(),

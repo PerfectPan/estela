@@ -80,34 +80,6 @@ export function sessionIndexFile(
   return join(base, 'rivus-agent-trace', 'index.sqlite')
 }
 
-/** Never throws: an index that cannot be opened (EACCES, read-only home) is returned disabled, with the reason. */
-export function openSessionIndex(options: OpenIndexOptions = {}): SessionIndex {
-  const file = options.file ?? sessionIndexFile(options.env ?? process.env, options.homeDir ?? homedir())
-  if (options.enabled === false) {
-    return disabledIndex(file)
-  }
-  try {
-    return new SqliteIndex(file, openDatabase(file), options.summaryVersion ?? SUMMARY_VERSION)
-  } catch (error) {
-    return disabledIndex(file, error instanceof Error ? error.message : String(error))
-  }
-}
-
-function disabledIndex(file: string, unavailable?: string): SessionIndex {
-  return {
-    file,
-    enabled: false,
-    ...(unavailable ? { unavailable } : {}),
-    rows: () => [],
-    remove: () => {},
-    get: () => undefined,
-    putHeads: () => {},
-    putSummaries: () => {},
-    search: () => undefined,
-    close: () => {},
-  }
-}
-
 const SUMMARY_COLUMNS = [
   ['turns', 'turns'],
   ['requests', 'requests'],
@@ -132,6 +104,51 @@ const HEAD_NUMBERS = [
 
 const SUMMARY_SELECT = `summary_version, ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape`
 const HEAD_SELECT = `ref, host, path, size, mtime, ${[...HEAD_TEXT, ...HEAD_NUMBERS].map(([column]) => column).join(', ')}`
+
+function casefold(text: string): string {
+  return text.toLowerCase()
+}
+
+function clip(text: string): string {
+  return text.slice(0, PROMPT_CHARS)
+}
+
+function readNumber(value: unknown): number | undefined {
+  if (value == null) {
+    return undefined
+  }
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/** SQLITE_BUSY and SQLITE_LOCKED, including their extended codes. */
+function isBusy(error: unknown): boolean {
+  const code = (error as { errcode?: unknown } | null)?.errcode
+  return typeof code === 'number' && ((code & 0xff) === 5 || (code & 0xff) === 6)
+}
+
+function headOf(row: Record<string, unknown>): IndexHead {
+  const head: IndexHead = {
+    ref: String(row.ref),
+    host: String(row.host),
+    path: String(row.path),
+    size: Number(row.size),
+    mtimeMs: Number(row.mtime),
+  }
+  for (const [column, key] of HEAD_TEXT) {
+    const value = row[column]
+    if (typeof value === 'string' && value !== '') {
+      head[key] = value
+    }
+  }
+  for (const [column, key] of HEAD_NUMBERS) {
+    const value = readNumber(row[column])
+    if (value !== undefined) {
+      head[key] = value
+    }
+  }
+  return head
+}
 
 class SqliteIndex implements SessionIndex {
   readonly enabled = true
@@ -377,47 +394,30 @@ class SqliteIndex implements SessionIndex {
   }
 }
 
-function headOf(row: Record<string, unknown>): IndexHead {
-  const head: IndexHead = {
-    ref: String(row.ref),
-    host: String(row.host),
-    path: String(row.path),
-    size: Number(row.size),
-    mtimeMs: Number(row.mtime),
+function disabledIndex(file: string, unavailable?: string): SessionIndex {
+  return {
+    file,
+    enabled: false,
+    ...(unavailable ? { unavailable } : {}),
+    rows: () => [],
+    remove: () => {},
+    get: () => undefined,
+    putHeads: () => {},
+    putSummaries: () => {},
+    search: () => undefined,
+    close: () => {},
   }
-  for (const [column, key] of HEAD_TEXT) {
-    const value = row[column]
-    if (typeof value === 'string' && value !== '') {
-      head[key] = value
-    }
-  }
-  for (const [column, key] of HEAD_NUMBERS) {
-    const value = readNumber(row[column])
-    if (value !== undefined) {
-      head[key] = value
-    }
-  }
-  return head
 }
 
-/** SQLITE_BUSY and SQLITE_LOCKED, including their extended codes. */
-function isBusy(error: unknown): boolean {
-  const code = (error as { errcode?: unknown } | null)?.errcode
-  return typeof code === 'number' && ((code & 0xff) === 5 || (code & 0xff) === 6)
-}
-
-function casefold(text: string): string {
-  return text.toLowerCase()
-}
-
-function clip(text: string): string {
-  return text.slice(0, PROMPT_CHARS)
-}
-
-function readNumber(value: unknown): number | undefined {
-  if (value == null) {
-    return undefined
+/** Never throws: an index that cannot be opened (EACCES, read-only home) is returned disabled, with the reason. */
+export function openSessionIndex(options: OpenIndexOptions = {}): SessionIndex {
+  const file = options.file ?? sessionIndexFile(options.env ?? process.env, options.homeDir ?? homedir())
+  if (options.enabled === false) {
+    return disabledIndex(file)
   }
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
+  try {
+    return new SqliteIndex(file, openDatabase(file), options.summaryVersion ?? SUMMARY_VERSION)
+  } catch (error) {
+    return disabledIndex(file, error instanceof Error ? error.message : String(error))
+  }
 }
