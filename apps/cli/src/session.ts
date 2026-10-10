@@ -18,6 +18,33 @@ export interface LoadSessionOptions {
   onProgress?: (bytes: number) => void
 }
 
+function targetOf(target: string | SessionRef): SessionTarget {
+  if (typeof target === 'string') {
+    const split = splitSessionRef(target)
+    return { path: split.file, ...(split.sessionId ? { sessionId: split.sessionId } : {}) }
+  }
+  return {
+    agent: target.host,
+    path: target.path,
+    ...(target.sessionId ? { sessionId: target.sessionId } : {}),
+  }
+}
+
+function loadError(error: LoadTranscriptError, path: string): Error {
+  switch (error._tag) {
+    case 'SessionNotFound':
+      return new Error(`${path} does not exist`)
+    case 'NoAdapterAccepted':
+      return new UnsupportedTraceError(path)
+    case 'UnknownFormatGeneration':
+      return new Error(`${error.agent}: ${error.file}:${error.line}: unknown format generation`)
+    case 'ReadFailed':
+      return new Error(error.message, { cause: error.cause })
+    case 'CapabilityUnsupported':
+      return new Error(`no session adapter for ${error.agent}`)
+  }
+}
+
 /**
  * One session load for the whole shell: canonical agent-trace JSON keeps its fast path
  * (`isCanonicalTraceFile` + `isTrace`; originals live in the file), everything else reads
@@ -50,33 +77,6 @@ export async function loadSession(target: string | SessionRef, options: LoadSess
     throw loadError(loaded.error, kitTarget.path)
   }
   return transcriptToTrace(loaded.value)
-}
-
-function targetOf(target: string | SessionRef): SessionTarget {
-  if (typeof target === 'string') {
-    const split = splitSessionRef(target)
-    return { path: split.file, ...(split.sessionId ? { sessionId: split.sessionId } : {}) }
-  }
-  return {
-    agent: target.host,
-    path: target.path,
-    ...(target.sessionId ? { sessionId: target.sessionId } : {}),
-  }
-}
-
-function loadError(error: LoadTranscriptError, path: string): Error {
-  switch (error._tag) {
-    case 'SessionNotFound':
-      return new Error(`${path} does not exist`)
-    case 'NoAdapterAccepted':
-      return new UnsupportedTraceError(path)
-    case 'UnknownFormatGeneration':
-      return new Error(`${error.agent}: ${error.file}:${error.line}: unknown format generation`)
-    case 'ReadFailed':
-      return new Error(error.message, { cause: error.cause })
-    case 'CapabilityUnsupported':
-      return new Error(`no session adapter for ${error.agent}`)
-  }
 }
 
 /** The one session `build` and `mcp` work on: loaded once, with its original records. */
