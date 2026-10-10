@@ -9,7 +9,7 @@ import type {
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
-import { redact, redactText } from '@rivus/agent-trace-kernel'
+import { redact, redactText } from '@rivus/agent-kit/redact'
 import { bindReportSource, buildReport } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import { createBuild } from 'devframe/adapters/build'
@@ -28,7 +28,7 @@ export async function reportOf(
   locale?: ReportLocale,
 ): Promise<ReportTrace> {
   const home = homeDir()
-  return buildReport({ view: await store.view(ref), full, redact: value => redact(value, { homeDir: home }), locale })
+  return buildReport({ view: await store.view(ref), full, redact: value => redact(value, { home }), locale })
 }
 
 let queue: Promise<unknown> = Promise.resolve()
@@ -94,10 +94,14 @@ export async function exportReport(
       return dir
     })
     // Absolute, so the browser can say exactly where; the home directory shows as `~`.
-    return { path: redactText(join(outDir, 'index.html'), home), included: report.events.length, total: report.total }
+    return {
+      path: redactText(join(outDir, 'index.html'), { home }),
+      included: report.events.length,
+      total: report.total,
+    }
   } catch (error) {
     // No cause: it would carry the unredacted home path to the browser.
     // oxlint-disable-next-line preserve-caught-error
-    throw new Error(redactText(error instanceof Error ? error.message : String(error), home))
+    throw new Error(redactText(error instanceof Error ? error.message : String(error), { home }))
   }
 }

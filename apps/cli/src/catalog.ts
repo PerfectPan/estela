@@ -2,7 +2,8 @@ import type { HostAdapter, HostEnv, SessionRef, TraceIO } from '@rivus/agent-tra
 import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node'
 import type { HostListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
-import { redactText, splitSessionRef } from '@rivus/agent-trace-kernel'
+import { redactText } from '@rivus/agent-kit/redact'
+import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
@@ -70,7 +71,7 @@ export class SessionCatalog {
     this.env = options.env ?? { homeDir: homeDir(), env: process.env }
     const home = this.env.homeDir
     // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
-    this.redact = this.env.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, home)
+    this.redact = this.env.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, { home })
     this.index =
       options.index
       ?? openSessionIndex({
@@ -108,7 +109,7 @@ export class SessionCatalog {
   /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
   get indexUnavailable(): string | undefined {
     // The reason names the cache path: always `~`, whatever AGENT_TRACE_REDACT says.
-    return this.index.unavailable ? redactText(this.index.unavailable, this.env.homeDir) : undefined
+    return this.index.unavailable ? redactText(this.index.unavailable, { home: this.env.homeDir }) : undefined
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */
@@ -336,7 +337,7 @@ export class SessionCatalog {
       }
       const roots =
         state.found.length > 0 ? state.found : state.missing.length > 0 ? state.missing : state.adapter.roots(this.env)
-      const checked = roots.map(path => redactText(path, this.env.homeDir)).join(', ')
+      const checked = roots.map(path => redactText(path, { home: this.env.homeDir })).join(', ')
       return {
         id: state.adapter.id,
         displayName: state.adapter.displayName,

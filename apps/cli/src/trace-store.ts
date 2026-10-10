@@ -2,7 +2,8 @@ import type { Trace } from '@rivus/agent-trace-schema'
 import type { HostAdapter } from '@rivus/agent-trace-kernel'
 import type { ResolvedSession } from '@rivus/agent-trace-rpc'
 import process from 'node:process'
-import { isCanonicalTraceFile, loadTrace, redact } from '@rivus/agent-trace-kernel'
+import { isCanonicalTraceFile, loadTrace } from '@rivus/agent-trace-kernel'
+import { redact } from '@rivus/agent-kit/redact'
 import { CURRENT_REF, TraceStore } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO } from '@rivus/agent-trace-runtime-node'
 
@@ -41,9 +42,8 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
       ])
       return { trace, canonical }
     },
-    present: options.redacts ? value => redact(value, { homeDir: home }) : undefined,
-    log: message =>
-      process.stderr.write(`agent-trace: ${options.redacts ? redact(message, { homeDir: home }) : message}\n`),
+    present: options.redacts ? value => redact(value, { home }) : undefined,
+    log: message => process.stderr.write(`agent-trace: ${options.redacts ? redact(message, { home }) : message}\n`),
   })
   return {
     store,

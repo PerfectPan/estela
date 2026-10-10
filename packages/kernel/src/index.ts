@@ -43,7 +43,6 @@ export {
   type ReadProgress,
   type SourcedRecord,
 } from './records.ts'
-export { redact, redactText } from './redact.ts'
 export {
   baseEvent,
   inheritTimes,

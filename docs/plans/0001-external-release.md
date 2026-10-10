@@ -150,7 +150,7 @@ Rules:
 - `apps/cli` is the only composition root. It alone knows which hosts are registered and that the runtime is Node.
 - Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, `rpc`, and every `host-*` do not (D5).
 - UI components stay inside `apps/web` until a second consumer needs them.
-- The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod` and no workspace package.
+- The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod`, and `apps/cli` bundles the external `@rivus/agent-kit`, which `scripts/check-layers.mjs` allow-lists by name.
 - `apps/e2e` tests the packed tarball from outside: it depends on no workspace package and has no runtime dependencies.
 - `scripts/check-layers.mjs` checks every `package.json` against the "May depend on" column in CI.
 

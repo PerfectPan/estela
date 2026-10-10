@@ -152,7 +152,7 @@ flowchart TB
 - `apps/cli` 是唯一的组合根。只有它知道注册了哪些 host，以及运行时是 Node。
 - 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel`、`rpc` 和每个 `host-*` 都不导入（D5）。
 - UI 组件留在 `apps/web` 内，直到出现第二个使用方。
-- “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，不依赖任何工作区包。
+- “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，`apps/cli` 打包外部的 `@rivus/agent-kit`，由 `scripts/check-layers.mjs` 按名称加入白名单。
 - `apps/e2e` 从外部测试打包后的 tarball：它不依赖任何工作区包，也没有运行时依赖。
 - `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
 

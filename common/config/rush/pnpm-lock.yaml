@@ -28,6 +28,9 @@ importers:
       '@perfectpan/lint-config':
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
+      '@rivus/agent-kit':
+        specifier: 0.7.0
+        version: 0.7.0
       '@rivus/agent-trace-host-claude-code':
         specifier: workspace:*
         version: link:../../packages/host-claude-code
@@ -440,6 +443,11 @@ importers:
 
 packages:
 
+  '@agentclientprotocol/sdk@1.7.0':
+    resolution: {integrity: sha512-ZORuxsuEnLjRly7t6Ad7zAsWitjWsyprswyPUHz/yycPb+tTm3DGa8XheaHhRXqX8LS9snuxaYavXSRA50TlHw==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
   '@ast-grep/napi-darwin-arm64@0.45.3':
     resolution: {integrity: sha512-rMZJ6frSpR/xSbeV4hiA9WR5hHqk3rVYX8lOqEoUCaUnjEuFXvHdGN4WawJ8pVDq/IqM1UnTtsDSYgUdVmO5DA==}
     engines: {node: '>= 10'}
@@ -595,6 +603,10 @@ packages:
     resolution: {integrity: sha512-Ox2kYyxy7NoXdKWdHeDEjZxClwzO4SKM8plAaVwmAJPxHMqA0rLOoAsa+hBDwRLpctf+ZRnAd/ykguuJidnaTA==}
     peerDependencies:
       solid-js: ^1.8
+
+  '@decimalturn/toml-patch@3.3.0':
+    resolution: {integrity: sha512-xyamcHl5Jlm+KfI9Vn7k6Je+kqQ8bAmJtoWleQ7yNqUL9fwwc66+Q3bRO326U/ZLYjrVzB3irvJz8nuG+JwFdA==}
+    engines: {node: '>=16'}
 
   '@devframes/agentic@1.1.0':
     resolution: {integrity: sha512-YLD+yCMiNuUnf1EslRWx0j+kwY8+ByX8RjKghC1ElqX/SrkMGw21K1u8+sd0REdX3uHy22nxL+X/tFaEjk0oLg==}
@@ -974,6 +986,15 @@ packages:
     resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
     engines: {node: '>=20'}
     hasBin: true
+
+  '@rivus/agent-kit@0.7.0':
+    resolution: {integrity: sha512-xVFO+gaTIu/OxWwcoALENkoDmUGrwjamODY82Er5djZG1Ru4rCOMQG6lMw8XjEZ3PWezoSEl6OvUJuEjZBt7OQ==}
+    engines: {node: '>=22.13'}
+    peerDependencies:
+      effect: 4.0.1
+    peerDependenciesMeta:
+      effect:
+        optional: true
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     resolution: {integrity: sha512-dB/a1214qKfHMXCpgqR4OZT+jS4kTyEXbQGJPqzobt5EwH5rX080pxE37alt3RzvR1bf1Yz/yGqRfrYAxuPw0A==}
@@ -1629,6 +1650,9 @@ packages:
   es-module-lexer@2.3.2:
     resolution: {integrity: sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw==}
 
+  es-toolkit@1.52.0:
+    resolution: {integrity: sha512-XTNEJQh1tY1ZJVcf6ayP/2n4ZPyaHlW2FWs7xvw5ddPuhUVjLD3olQVQS7kf58JbAB48iL0uL/jerTrjtV3lDA==}
+
   escalade@3.2.0:
     resolution: {integrity: sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA==}
     engines: {node: '>=6'}
@@ -1720,6 +1744,9 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
@@ -2217,6 +2244,10 @@ packages:
 
 snapshots:
 
+  '@agentclientprotocol/sdk@1.7.0(zod@4.6.5)':
+    dependencies:
+      zod: 4.6.5
+
   '@ast-grep/napi-darwin-arm64@0.45.3':
     optional: true
 
@@ -2383,6 +2414,8 @@ snapshots:
     dependencies:
       '@floating-ui/dom': 1.8.0
       solid-js: 1.9.15
+
+  '@decimalturn/toml-patch@3.3.0': {}
 
   '@devframes/agentic@1.1.0(crossws@0.4.12(srvx@1.0.5))(devframe@1.1.0)':
     dependencies:
@@ -2641,6 +2674,14 @@ snapshots:
   '@playwright/test@1.63.0':
     dependencies:
       playwright: 1.63.0
+
+  '@rivus/agent-kit@0.7.0':
+    dependencies:
+      '@agentclientprotocol/sdk': 1.7.0(zod@4.6.5)
+      '@decimalturn/toml-patch': 3.3.0
+      es-toolkit: 1.52.0
+      jsonc-parser: 3.3.1
+      zod: 4.6.5
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     optional: true
@@ -3119,6 +3160,8 @@ snapshots:
 
   es-module-lexer@2.3.2: {}
 
+  es-toolkit@1.52.0: {}
+
   escalade@3.2.0: {}
 
   estree-walker@3.0.3:
@@ -3176,6 +3219,8 @@ snapshots:
   jsesc@3.1.0: {}
 
   json5@2.2.3: {}
+
+  jsonc-parser@3.3.1: {}
 
   lightningcss-android-arm64@1.32.0:
     optional: true

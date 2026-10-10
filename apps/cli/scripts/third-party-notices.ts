@@ -125,7 +125,8 @@ function sorted(dirs: Iterable<string>): PackageNotice[] {
   const byId = new Map<string, PackageNotice>()
   for (const dir of dirs) {
     const notice = noticeOf(dir)
-    if (!notice.name.startsWith('@rivus/')) {
+    // Workspace packages are this repository's own GPL code; @rivus/agent-kit is an external MIT package.
+    if (!notice.name.startsWith('@rivus/agent-trace')) {
       byId.set(`${notice.name}@${notice.version}`, notice)
     }
   }

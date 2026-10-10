@@ -1,7 +1,8 @@
 import type { HostAdapter, SessionHead, SessionRef, SessionSummary, TraceIO } from '@rivus/agent-trace-kernel'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
-import { fold, redactText, summaryOf } from '@rivus/agent-trace-kernel'
+import { fold, summaryOf } from '@rivus/agent-trace-kernel'
+import { redactText } from '@rivus/agent-kit/redact'
 import { parseReadFailure } from './read-failure.ts'
 import { projectName, sessionRefId } from './session-ref.ts'
 import { userPrompts } from './user-prompts.ts'
@@ -107,7 +108,7 @@ function headFields(head: Head, homeDir: string): Partial<LiveRow> {
   return {
     ...(head.title ? { title: head.title } : {}),
     ...(project ? { project } : {}),
-    ...(head.cwd ? { cwd: redactText(head.cwd, homeDir), rawCwd: head.cwd } : {}),
+    ...(head.cwd ? { cwd: redactText(head.cwd, { home: homeDir }), rawCwd: head.cwd } : {}),
     ...(head.startedAt !== undefined ? { startedAt: head.startedAt } : {}),
     ...(head.firstPrompt ? { firstPrompt: head.firstPrompt } : {}),
   }
