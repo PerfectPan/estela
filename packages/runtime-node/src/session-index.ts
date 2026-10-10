@@ -86,8 +86,8 @@ export function sessionIndexFile(
 const SUMMARY_COLUMNS = [
   ['turns', 'turns'],
   ['requests', 'requests'],
-  ['tokens_in', 'tokensIn'],
-  ['tokens_out', 'tokensOut'],
+  ['tokens_in', 'inputTokens'],
+  ['tokens_out', 'outputTokens'],
   ['duration_ms', 'durationMs'],
   ['compactions', 'compactions'],
   ['subagents', 'subagents'],

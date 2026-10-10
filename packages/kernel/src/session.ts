@@ -13,8 +13,8 @@ export interface SessionRef {
 export interface SessionSummary {
   turns?: number
   requests?: number
-  tokensIn?: number
-  tokensOut?: number
+  inputTokens?: number
+  outputTokens?: number
   durationMs?: number
   compactions?: number
   subagents?: number

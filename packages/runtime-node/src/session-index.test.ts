@@ -26,7 +26,7 @@ function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'ref' | 'pa
     size: 10,
     mtimeMs: 1_000,
     title: 'Fix the auth refresh',
-    summary: { turns: 2, requests: 4, tokensIn: 118_400, tokensOut: 0 },
+    summary: { turns: 2, requests: 4, inputTokens: 118_400, outputTokens: 0 },
     prompts: ['Run the tests please'],
     ...partial,
   }
@@ -44,8 +44,8 @@ describe('session index', () => {
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
     expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)?.tokensOut).toBe(0)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)?.tokensIn).toBe(118_400)
+    expect(index.get('/logs/a.jsonl', 10, 1_000)?.outputTokens).toBe(0)
+    expect(index.get('/logs/a.jsonl', 10, 1_000)?.inputTokens).toBe(118_400)
     expect(index.get('/logs/a.jsonl', 11, 1_000)).toBeUndefined()
     index.close()
     expect(statSync(file).mode & 0o777).toBe(0o600)
@@ -144,7 +144,7 @@ describe('session index', () => {
     expect(cached?.turns).toBe(0)
     expect(cached?.failedTools).toBe(0)
     expect(cached?.requests).toBeUndefined()
-    expect(cached?.tokensIn).toBeUndefined()
+    expect(cached?.inputTokens).toBeUndefined()
     index.close()
   })
 

@@ -21,11 +21,11 @@ export function summaryOf(summary: SessionSummary): SessionSummary {
   if (summary.requests !== undefined) {
     out.requests = summary.requests
   }
-  if (summary.tokensIn !== undefined) {
-    out.tokensIn = summary.tokensIn
+  if (summary.inputTokens !== undefined) {
+    out.inputTokens = summary.inputTokens
   }
-  if (summary.tokensOut !== undefined) {
-    out.tokensOut = summary.tokensOut
+  if (summary.outputTokens !== undefined) {
+    out.outputTokens = summary.outputTokens
   }
   if (summary.durationMs !== undefined) {
     out.durationMs = summary.durationMs
@@ -125,8 +125,8 @@ export function fold(trace: Trace): TraceFold {
     roots: trace.events.filter(event => event.parentId == null),
     turns,
     requests: gated(capabilities.has('requests'), requestEvents.length),
-    tokensIn: gated(usage, usageSum(trace.events, 'inputTokens')),
-    tokensOut: gated(usage, usageSum(trace.events, 'outputTokens')),
+    inputTokens: gated(usage, usageSum(trace.events, 'inputTokens')),
+    outputTokens: gated(usage, usageSum(trace.events, 'outputTokens')),
     durationMs: gated(capabilities.has('durations'), durationSum(trace.events)),
     compactions: gated(
       capabilities.has('compaction'),

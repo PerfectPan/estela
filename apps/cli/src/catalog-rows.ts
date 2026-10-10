@@ -79,46 +79,10 @@ export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
 export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | { error: SessionError }
 
 /**
- * Kit summary → the wire/index shape: same numbers, but the kit names the token totals
- * `inputTokens`/`outputTokens` where the `SessionListRow` contract and the session index
- * say `tokensIn`/`tokensOut` (the contract rename is PR 2b's). Undefined stays undefined.
- */
-function summaryOf(summary: ReturnType<typeof foldTranscript>): SessionSummary {
-  const out: SessionSummary = {}
-  if (summary.turns !== undefined) {
-    out.turns = summary.turns
-  }
-  if (summary.requests !== undefined) {
-    out.requests = summary.requests
-  }
-  if (summary.inputTokens !== undefined) {
-    out.tokensIn = summary.inputTokens
-  }
-  if (summary.outputTokens !== undefined) {
-    out.tokensOut = summary.outputTokens
-  }
-  if (summary.durationMs !== undefined) {
-    out.durationMs = summary.durationMs
-  }
-  if (summary.compactions !== undefined) {
-    out.compactions = summary.compactions
-  }
-  if (summary.subagents !== undefined) {
-    out.subagents = summary.subagents
-  }
-  if (summary.failedTools !== undefined) {
-    out.failedTools = summary.failedTools
-  }
-  if (summary.contextShape !== undefined) {
-    out.contextShape = summary.contextShape
-  }
-  return out
-}
-
-/**
  * One read per session: the transcript loads once through the kit, and both the summary
  * (`foldTranscript`, what `summarizeSession` runs) and the search prompts come from it. The
- * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70.
+ * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70. The kit
+ * summary is the wire/index shape: the kernel `SessionSummary` type carries the same fields.
  */
 export async function summarizeRow(
   platform: CatalogPlatform,
@@ -129,7 +93,7 @@ export async function summarizeRow(
   if (!loaded.ok) {
     return { error: loadFailure(loaded.error, platform.home, sessionRefLabel(target), target.path) }
   }
-  return { summary: summaryOf(foldTranscript(loaded.value)), prompts: userPrompts(loaded.value) }
+  return { summary: foldTranscript(loaded.value), prompts: userPrompts(loaded.value) }
 }
 
 function pad(value: number): string {
