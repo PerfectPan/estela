@@ -1,5 +1,5 @@
 import type { HostAdapter, HostEnv, SessionHead, SessionRef, TraceIO } from '@rivus/agent-trace-kernel'
-import { redactText } from '@rivus/agent-trace-kernel'
+import { redactText } from '@rivus/agent-kit/redact'
 import { errorRow, isDiscoverError, rowFromHead, type LiveRow } from './catalog-rows.ts'
 import { errorMessage } from './read-failure.ts'
 
@@ -35,7 +35,7 @@ export function progressOf(states: readonly HostState[], homeDir: string): HostP
   return states.map(state => {
     const checked =
       state.done && state.found.length === 0
-        ? state.missing.map(path => redactText(path, homeDir)).join(', ')
+        ? state.missing.map(path => redactText(path, { home: homeDir })).join(', ')
         : undefined
     return {
       name: state.adapter.displayName,

@@ -1,6 +1,6 @@
 import type { Writable } from 'node:stream'
 import { stripVTControlCharacters } from 'node:util'
-import { redactText } from '@rivus/agent-trace-kernel'
+import { redactText } from '@rivus/agent-kit/redact'
 import { autocomplete, box, cancel, intro, isCancel, log, outro, spinner, tasks } from '@clack/prompts'
 
 export function isPlainOutput(): boolean {
@@ -13,7 +13,7 @@ export function devframeTilde(homeDir: string): (text: string) => string {
     text.includes('[devframe]')
       ? text
           .split('\n')
-          .map(line => (line.includes('[devframe]') ? redactText(line, homeDir) : line))
+          .map(line => (line.includes('[devframe]') ? redactText(line, { home: homeDir }) : line))
           .join('\n')
       : text
 }

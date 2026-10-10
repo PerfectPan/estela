@@ -38,6 +38,9 @@
    */
   "minimumReleaseAgeMinutes": 1440,
 
+  // @rivus/agent-kit is owner-published and validated across repositories right after publication.
+  "minimumReleaseAgeExclude": ["@rivus/agent-kit"],
+
   /**
    * This setting determines how PNPM chooses version numbers during `rush update`.
    * For example, suppose `lib-x@3.0.0` depends on `"lib-y": "^1.2.3"` whose latest major

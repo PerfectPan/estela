@@ -21,7 +21,14 @@ const HOST_DEPS = [KERNEL, SCHEMA]
 const RUNTIME = '@rivus/agent-trace-runtime-node'
 
 const ALLOW = {
-  '@rivus/agent-trace': ['@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE, ...HOSTS],
+  // @rivus/agent-kit is an external npm package bundled into the CLI, not a workspace package.
+  '@rivus/agent-trace': [
+    '@rivus/agent-kit',
+    '@rivus/agent-trace-web',
+    '@rivus/agent-trace-runtime-node',
+    ...CORE,
+    ...HOSTS,
+  ],
   '@rivus/agent-trace-web': CORE,
   // Tests the packed tarball from outside; it depends on no workspace package.
   '@rivus/agent-trace-e2e': [],
