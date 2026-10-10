@@ -12,7 +12,7 @@ describe('TraceStore', () => {
       { id: 'u1', kind: 'user', text: 'hello' },
       { id: 'r1', kind: 'request', text: 'AAAA' },
     ])
-    const { store } = storeOf({ io: f.io, parse: f.parse })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
     const view = await store.view('a')
     expect(view.trace.events.every(event => !('original' in event))).toBe(true)
 
@@ -31,7 +31,7 @@ describe('TraceStore', () => {
   it('returns the full payload in get-event while the view is capped and presented', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: `${HOME} ${'x'.repeat(50)}` }])
-    const { store } = storeOf({ io: f.io, parse: f.parse, present, maxString: 16 })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, present, maxString: 16 })
     const view = await store.view('a')
     expect(view.trace.events[0]!.payload).toEqual({ text: `~ ${'x'.repeat(14)}`, $truncated: [['text']] })
     expect(view.summary).toMatchObject({ requests: 0 })
@@ -45,7 +45,7 @@ describe('TraceStore', () => {
     for (const name of ['a', 'b', 'c', 'd']) {
       f.write(`/logs/${name}.jsonl`, [{ id: 'u1', kind: 'user' }])
     }
-    const { store, loads } = storeOf({ io: f.io, parse: f.parse })
+    const { store, loads } = storeOf({ fs: f.fs, parse: f.parse })
     await store.view('a')
     await store.view('b')
     await store.view('c')
@@ -62,7 +62,7 @@ describe('TraceStore', () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     const size = f.files.get('/logs/a.jsonl')!.byteLength
-    const { store, loads, gates } = storeOf({ io: f.io, parse: f.parse })
+    const { store, loads, gates } = storeOf({ fs: f.fs, parse: f.parse })
     gates.set('a', deferred())
     const handle = await store.open('a', {})
     const seen: LoadProgress[] = []
@@ -82,7 +82,7 @@ describe('TraceStore', () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     f.write('/logs/b.jsonl', [{ id: 'u1', kind: 'user' }])
-    const { store, signals, gates } = storeOf({ io: f.io, parse: f.parse })
+    const { store, signals, gates } = storeOf({ fs: f.fs, parse: f.parse })
     gates.set('a', deferred())
     const browser = {}
     const first = await store.open('a', browser)
@@ -98,7 +98,7 @@ describe('TraceStore', () => {
   it('does not abort while another connection still holds the load, and aborts on the last release', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
-    const { store, signals, gates } = storeOf({ io: f.io, parse: f.parse })
+    const { store, signals, gates } = storeOf({ fs: f.fs, parse: f.parse })
     gates.set('a', deferred())
     const one = await store.open('a', {})
     const two = await store.open('a', {})
@@ -112,7 +112,7 @@ describe('TraceStore', () => {
   it('reopening the same ref from one connection keeps the load running', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
-    const { store, signals, gates } = storeOf({ io: f.io, parse: f.parse })
+    const { store, signals, gates } = storeOf({ fs: f.fs, parse: f.parse })
     gates.set('a', deferred())
     const browser = {}
     await store.open('a', browser)
@@ -128,7 +128,7 @@ describe('TraceStore', () => {
     let loads = 0
     const store = new TraceStore({
       resolve: ref => (ref === 'a' ? { key: 'a', path: '/logs/a.jsonl' } : undefined),
-      io: f.io,
+      fs: f.fs,
       async load(session) {
         loads += 1
         const trace = f.parse(session.path as string)
@@ -151,7 +151,7 @@ describe('TraceStore', () => {
   it('seeds the launch session without copying originals into the cache', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
-    const { store, loads } = storeOf({ io: f.io, parse: f.parse })
+    const { store, loads } = storeOf({ fs: f.fs, parse: f.parse })
     const trace = f.parse('/logs/a.jsonl')
     await store.seed({ key: 'a', path: '/logs/a.jsonl' }, { trace, canonical: false })
     expect(trace.events[0]!.original).toBeDefined()
@@ -166,7 +166,7 @@ describe('TraceStore', () => {
       '/logs/a.jsonl',
       Array.from({ length: 100 }, (_, index) => ({ id: `e${index}`, kind: 'user', text: `t${index}` })),
     )
-    const { store } = storeOf({ io: f.io, parse: f.parse })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
     await store.view('a')
     const before = f.reads.length
     const ids = Array.from({ length: 100 }, (_, index) => `e${99 - index}`)
@@ -183,7 +183,7 @@ describe('TraceStore', () => {
     )
     let loads = 0
     const { store } = storeOf({
-      io: f.io,
+      fs: f.fs,
       parse: f.parse,
       load: async session => {
         loads += 1

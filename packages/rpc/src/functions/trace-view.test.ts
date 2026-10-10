@@ -42,8 +42,10 @@ function harness() {
   const progress = new Map<string, (bytes: number) => void>()
   const store = new TraceStore({
     resolve: ref => ({ key: ref, path: ref }),
-    io: {
-      readBytes: async () => new Uint8Array(),
+    fs: {
+      read: async function* () {
+        yield new Uint8Array()
+      },
       stat: async () => ({ kind: 'file', size: SIZE, mtimeMs: 0 }),
     },
     load: (session, opts) =>

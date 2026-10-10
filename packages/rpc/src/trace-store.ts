@@ -1,5 +1,5 @@
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { FittedView, SessionRef, SessionSummary, TraceIO } from '@rivus/agent-trace-kernel'
+import type { FittedView, SessionFs, SessionRef, SessionSummary } from '@rivus/agent-trace-kernel'
 import type { FileStamp } from './source-check.ts'
 import { fitView, fold, reconstruct, splitSessionRef, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
@@ -33,7 +33,8 @@ export interface LoadOpts {
 export interface TraceStoreDeps {
   resolve: (ref: string) => ResolvedSession | undefined | Promise<ResolvedSession | undefined>
   load: (session: ResolvedSession, opts: LoadOpts) => Promise<LoadedTrace>
-  io: Pick<TraceIO, 'readBytes' | 'stat'>
+  /** Reads for the source-pointer originals: stamps, `checkedOriginal`, and `totalBytes`. */
+  fs: SessionFs
   /** Applied to everything sent out: view trace, events, and error messages. Redaction lives here. */
   present?: <T>(value: T) => T
   /** Server log, for conditions the operator should see (a view over budget). */
@@ -211,7 +212,7 @@ export class TraceStore {
         return this.present({ ...event, original: await this.canonicalOriginal(entry, index) })
       }
       const checked = await checkedOriginal(
-        this.deps.io,
+        this.deps.fs,
         event,
         entry.stamps.get(event.source.file),
         entry.prints[index]!,
@@ -324,7 +325,7 @@ export class TraceStore {
     const trace = withoutOriginals(loaded.trace)
     const byId = new Map<string, number>()
     trace.events.forEach((event, index) => byId.set(event.id, index))
-    const stamps = loaded.canonical ? new Map<string, FileStamp>() : await stampFiles(trace, this.deps.io)
+    const stamps = loaded.canonical ? new Map<string, FileStamp>() : await stampFiles(trace, this.deps.fs)
     return {
       session,
       trace,
@@ -359,7 +360,7 @@ export class TraceStore {
 
   private async totalBytes(session: ResolvedSession): Promise<number> {
     const file = typeof session.path === 'string' ? splitSessionRef(session.path).file : session.path.path
-    const info = await this.deps.io.stat(file)
+    const info = await this.deps.fs.stat(file, { followSymlinks: true })
     return info?.size ?? 0
   }
 

@@ -1,6 +1,6 @@
 import type { SourcePointer, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { TraceIO } from '@rivus/agent-trace-kernel'
-import { readOriginal } from '@rivus/agent-trace-kernel'
+import type { SessionFs } from '@rivus/agent-trace-kernel'
+import { readRange } from '@rivus/agent-trace-kernel'
 
 /** Size and mtime of one source file when its trace was loaded. */
 export interface FileStamp {
@@ -53,10 +53,10 @@ export function fingerprints(trace: Trace): Uint32Array {
   return out
 }
 
-export async function stampFiles(trace: Trace, io: Pick<TraceIO, 'stat'>): Promise<Map<string, FileStamp>> {
+export async function stampFiles(trace: Trace, fs: SessionFs): Promise<Map<string, FileStamp>> {
   const stamps = new Map<string, FileStamp>()
   for (const file of new Set(trace.events.map(event => event.source.file))) {
-    const info = await io.stat(file)
+    const info = await fs.stat(file, { followSymlinks: true })
     if (info) {
       stamps.set(file, { size: info.size, mtimeMs: info.mtimeMs })
     }
@@ -66,6 +66,12 @@ export async function stampFiles(trace: Trace, io: Pick<TraceIO, 'stat'>): Promi
 
 export type OriginalResult = { original: unknown } | { unavailable: string }
 
+/** The record bytes at a source pointer, parsed. Throws when they are no longer one JSON value. */
+async function recordAt(fs: SessionFs, source: SourcePointer): Promise<unknown> {
+  const bytes = await readRange(fs, source.file, { start: source.offset, end: source.offset + source.length })
+  return JSON.parse(new TextDecoder().decode(bytes)) as unknown
+}
+
 /**
  * Read the original back from its source pointer. When the file is unchanged
  * since the load, the bytes are trusted. When it changed (a live session keeps
@@ -74,26 +80,26 @@ export type OriginalResult = { original: unknown } | { unavailable: string }
  * fingerprint. Otherwise the original is unavailable, with the reason.
  */
 export async function checkedOriginal(
-  io: Pick<TraceIO, 'readBytes' | 'stat'>,
+  fs: SessionFs,
   event: TraceEvent,
   stamp: FileStamp | undefined,
   expected: number,
 ): Promise<OriginalResult> {
   const source: SourcePointer = event.source
-  const now = await io.stat(source.file)
+  const now = await fs.stat(source.file, { followSymlinks: true })
   if (!now) {
     return { unavailable: `${source.file} no longer exists` }
   }
   const changed = !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
   if (!changed) {
-    return { original: await readOriginal(io, source) }
+    return { original: await recordAt(fs, source) }
   }
   if (now.size < source.offset + source.length) {
     return { unavailable: `${source.file} shrank since it was loaded; line ${source.line} is gone` }
   }
   let original: unknown
   try {
-    original = await readOriginal(io, source)
+    original = await recordAt(fs, source)
   } catch {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record` }
   }

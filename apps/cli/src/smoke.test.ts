@@ -77,13 +77,15 @@ describe('cli smoke', () => {
   it('build reads the session once and writes portable output without escape sequences', async () => {
     await ensureWebDist()
     const outDir = await mkdtemp(join(tmpdir(), 'at-m4a-build-'))
-    // Counts full reads (`readFile`) of the demo file in the child process.
+    // Counts full reads of the demo file in the child process: the platform reads through
+    // `createReadStream`, and only the whole-file read has no `end` bound (the canonical
+    // head check reads 4 KB).
     const counter = [
-      `import fsp from 'node:fs/promises'`,
+      `import fs from 'node:fs'`,
       `import { syncBuiltinESMExports } from 'node:module'`,
       `let reads = 0`,
-      `const readFile = fsp.readFile`,
-      `fsp.readFile = function (path, ...rest) { if (String(path).endsWith('demo.trace.json')) reads += 1; return readFile.call(this, path, ...rest) }`,
+      `const createReadStream = fs.createReadStream`,
+      `fs.createReadStream = function (path, opts) { if (String(path).endsWith('demo.trace.json') && !(opts && 'end' in opts)) reads += 1; return createReadStream.call(this, path, opts) }`,
       `syncBuiltinESMExports()`,
       `process.on('exit', () => process.stderr.write('full-reads=' + reads + '\\n'))`,
     ].join('\n')

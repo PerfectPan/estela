@@ -55,7 +55,7 @@ describe('session catalog', () => {
     await cp(join(claude, 'subagent'), join(home, '.claude/projects/sub'), { recursive: true })
     await cp(grok, join(home, '.grok/sessions/plain'), { recursive: true })
     const badPath = join(home, '.claude/projects/bad/session.jsonl')
-    const index = openSessionIndex({ file: join(home, 'index.sqlite') })
+    const index = openSessionIndex({ summaryVersion: 1, file: join(home, 'index.sqlite') })
     const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: {} }), index })
     const first = await catalog.listSessions()
     const codex = first.hosts.find(host => host.id === 'codex')
@@ -163,7 +163,7 @@ describe('session catalog', () => {
     await mkdir(root)
     const path = join(root, 'bad.jsonl')
     await writeFile(path, 'x')
-    const index = openSessionIndex({ file: join(home, 'index.sqlite') })
+    const index = openSessionIndex({ summaryVersion: 1, file: join(home, 'index.sqlite') })
     const adapter: SessionAdapter = {
       specificationVersion: 'sessions-v1',
       agent: 'fake',
@@ -213,7 +213,7 @@ describe('session catalog', () => {
     const file = join(home, 'index.sqlite')
     const first = new SessionCatalog({
       platform: createNodePlatform({ home, env: {} }),
-      index: openSessionIndex({ file }),
+      index: openSessionIndex({ summaryVersion: 1, file }),
     })
     await first.whenIdle()
     const firstList = await first.listSessions()
@@ -224,7 +224,7 @@ describe('session catalog', () => {
     await rm(join(home, '.claude/projects/b'), { recursive: true })
     const second = new SessionCatalog({
       platform: createNodePlatform({ home, env: {} }),
-      index: openSessionIndex({ file }),
+      index: openSessionIndex({ summaryVersion: 1, file }),
     })
     const cached = await second.listSessions()
     expect(second.startedFromIndex).toBe(true)

@@ -10,7 +10,7 @@ async function reportOf(count: number, text: (index: number) => string, options:
     '/logs/a.jsonl',
     Array.from({ length: count }, (_, index) => ({ id: `e${index}`, kind: 'user', text: text(index) })),
   )
-  const { store } = storeOf({ io: f.io, parse: f.parse })
+  const { store } = storeOf({ fs: f.fs, parse: f.parse })
   const view = await store.view('a')
   const report = await store.withEvents('a', read => buildReport({ view, full: read, redact: present, ...options }))
   return { store, report }

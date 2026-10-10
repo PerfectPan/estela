@@ -4,7 +4,6 @@
   // the same version; packages/schema is used because every project depends on
   // it, so any install includes its node_modules.
   "extends": ["./packages/schema/node_modules/@perfectpan/lint-config/oxlint.json"],
-  // host-opencode is excluded: plan section 7, "OpenCode needs SqliteIO".
   "ignorePatterns": ["**/dist/**", "**/node_modules/**", "common/temp/**", "common/deploy/**"],
   "categories": {
     "suspicious": "warn"
@@ -29,11 +28,7 @@
       "files": [
         "packages/schema/src/**/*.{ts,mts,cts,tsx}",
         "packages/kernel/src/**/*.{ts,mts,cts,tsx}",
-        "packages/rpc/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-claude-code/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-codex/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-grok/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-dsh/src/**/*.{ts,mts,cts,tsx}"
+        "packages/rpc/src/**/*.{ts,mts,cts,tsx}"
       ],
       "rules": {
         "no-restricted-imports": ["error", {

@@ -20,7 +20,7 @@ describe('TraceStore memory', () => {
     }
     let payload: WeakRef<object> | undefined
     const { store } = storeOf({
-      io: f.io,
+      fs: f.fs,
       parse: file => {
         const trace = f.parse(file)
         if (file.endsWith('/a.jsonl')) {

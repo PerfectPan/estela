@@ -5,9 +5,7 @@
   "license": "GPL-3.0-only",
   "exports": {
     ".": "./src/index.ts",
-    "./reconstruct": "./src/reconstruct.ts",
-    "./conformance": "./src/conformance.ts",
-    "./testing": "./testing/repo-evidence.ts"
+    "./reconstruct": "./src/reconstruct.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

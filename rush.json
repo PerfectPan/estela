@@ -27,26 +27,6 @@
       "projectFolder": "packages/kernel"
     },
     {
-      "packageName": "@rivus/agent-trace-host-dsh",
-      "projectFolder": "packages/host-dsh"
-    },
-    {
-      "packageName": "@rivus/agent-trace-host-claude-code",
-      "projectFolder": "packages/host-claude-code"
-    },
-    {
-      "packageName": "@rivus/agent-trace-host-codex",
-      "projectFolder": "packages/host-codex"
-    },
-    {
-      "packageName": "@rivus/agent-trace-host-opencode",
-      "projectFolder": "packages/host-opencode"
-    },
-    {
-      "packageName": "@rivus/agent-trace-host-grok",
-      "projectFolder": "packages/host-grok"
-    },
-    {
       "packageName": "@rivus/agent-trace-runtime-node",
       "projectFolder": "packages/runtime-node"
     },

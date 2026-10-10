@@ -1,5 +1,5 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { SessionSummary } from './host.ts'
+import type { SessionSummary } from './session.ts'
 import { asNumber, asRecord } from './jsonl.ts'
 import { mainAgentId, promptStarts } from './lanes.ts'
 

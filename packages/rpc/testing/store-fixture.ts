@@ -56,24 +56,25 @@ export function fixture() {
       skipped: [],
     }
   }
-  const io: TraceStoreDeps['io'] = {
-    async readBytes(file, range) {
+  const fs: TraceStoreDeps['fs'] = {
+    async *read(file, range) {
       const bytes = files.get(file)
       if (!bytes) {
         throw new Error(`missing ${file}`)
       }
-      if (!range) {
-        return bytes
+      if (range) {
+        reads.push({ file, start: range.start, end: range.end ?? bytes.byteLength })
+        yield bytes.slice(range.start, range.end ?? bytes.byteLength)
+        return
       }
-      reads.push({ file, ...range })
-      return bytes.slice(range.start, range.end)
+      yield bytes
     },
     async stat(file) {
       const bytes = files.get(file)
-      return bytes ? { kind: 'file', size: bytes.byteLength, mtimeMs: mtimes.get(file) ?? 0 } : null
+      return bytes ? { kind: 'file', size: bytes.byteLength, mtimeMs: mtimes.get(file) ?? 0 } : undefined
     },
   }
-  return { files, reads, write, put, parse, io }
+  return { files, reads, write, put, parse, fs }
 }
 
 export function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -86,7 +87,7 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
 
 /** A store over the fixture. `gates` holds a load open until resolved; `signals` records each load's signal. */
 export function storeOf(
-  overrides: Partial<TraceStoreDeps> & { io: TraceStoreDeps['io']; parse: (file: string) => Trace },
+  overrides: Partial<TraceStoreDeps> & { fs: TraceStoreDeps['fs']; parse: (file: string) => Trace },
 ) {
   const loads: string[] = []
   const signals = new Map<string, AbortSignal>()
