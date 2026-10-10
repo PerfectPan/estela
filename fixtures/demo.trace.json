@@ -74,7 +74,7 @@
       "payload": {
         "model": "demo-model",
         "usage": { "inputTokens": 30, "outputTokens": 12 },
-        "stopReason": "end_turn"
+        "finishReason": "end_turn"
       },
       "source": { "file": "fixtures/demo.trace.json", "offset": 0, "length": 2, "line": 7 },
       "original": { "type": "request" }

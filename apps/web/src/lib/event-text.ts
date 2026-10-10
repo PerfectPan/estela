@@ -67,14 +67,14 @@ export function rowText(event: TraceEvent): RowText {
       return { text: previewUnknown(payload.output ?? payload.text) }
     case 'request': {
       const model = asString(payload.model) ?? ''
-      const stop = asString(payload.stopReason)
+      const stop = asString(payload.finishReason)
       return {
         text: [escapeBidi(model), stop ? t('common.stop', { reason: escapeBidi(stop) }) : '']
           .filter(Boolean)
           .join(' · '),
       }
     }
-    case 'thinking':
+    case 'reasoning':
       return { text: previewText(asString(payload.text) ?? ''), muted: true }
     case 'hook':
       return { text: escapeBidi(asString(payload.name) || asString(payload.event) || asString(payload.type) || 'hook') }

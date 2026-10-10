@@ -109,6 +109,43 @@ describe('loadSession', () => {
     ).rejects.toThrow(`${path}#s1 does not exist`)
   })
 
+  it('a canonical file written before the kit-name adoption maps thinking and stopReason', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'legacy.json')
+    const trace = {
+      schema: 'agent-trace',
+      host: { id: 'claude-code' },
+      session: { id: 's-legacy' },
+      capabilities: ['requests', 'usage', 'durations', 'thinking'],
+      agents: [],
+      events: [
+        {
+          id: 'k-1',
+          seq: 0,
+          ts: 1,
+          kind: 'thinking',
+          payload: { text: 'step one' },
+          source: { file: 'legacy.json', offset: 0, length: 1, line: 1 },
+        },
+        {
+          id: 'r-1',
+          seq: 1,
+          ts: 2,
+          kind: 'request',
+          payload: { model: 'm', stopReason: 'end_turn', usage: { inputTokens: 3, outputTokens: 1 } },
+          source: { file: 'legacy.json', offset: 2, length: 1, line: 2 },
+        },
+      ],
+      skipped: [],
+    }
+    await writeFile(path, JSON.stringify(trace))
+    const loaded = await loadSession(path, { platform: createNodePlatform({ home: dir, env: {} }) })
+    expect(loaded.capabilities).toEqual(['requests', 'usage', 'durations', 'reasoning'])
+    expect(loaded.events[0]!.kind).toBe('reasoning')
+    expect(loaded.events[1]!.payload).toMatchObject({ finishReason: 'end_turn' })
+    expect(loaded.events[1]!.payload.stopReason).toBeUndefined()
+  })
+
   it('a real Claude Code fixture loads with its events and originals', async () => {
     const dir = await tempDir()
     const projects = join(dir, 'projects/app')

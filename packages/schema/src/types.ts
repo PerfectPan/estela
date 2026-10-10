@@ -6,7 +6,7 @@ export const TRACE_SCHEMA = 'agent-trace' as const
 export const EVENT_KINDS = [
   'user',
   'assistant',
-  'thinking',
+  'reasoning',
   'tool_call',
   'tool_result',
   'request',
@@ -24,7 +24,7 @@ export const CAPABILITIES = [
   'requests',
   'usage',
   'durations',
-  'thinking',
+  'reasoning',
   'compaction',
   'compactionTokens',
   'subagents',
@@ -73,10 +73,14 @@ export const requestPayloadSchema = z.object({
       inputTokens: z.optional(z.number()),
       /** gen_ai.usage.output_tokens */
       outputTokens: z.optional(z.number()),
+      /** Recorded total, when the host writes one; not input + output invented. */
+      totalTokens: z.optional(z.number()),
       /** gen_ai.usage.cache_read.input_tokens */
       cacheReadTokens: z.optional(z.number()),
       /** gen_ai.usage.cache_write.input_tokens */
       cacheWriteTokens: z.optional(z.number()),
+      /** Anthropic's one-hour ephemeral cache writes; part of `cacheWriteTokens`. */
+      cacheWrite1hTokens: z.optional(z.number()),
       /** gen_ai.usage.reasoning.output_tokens */
       reasoningTokens: z.optional(z.number()),
     }),
@@ -84,7 +88,16 @@ export const requestPayloadSchema = z.object({
   startedAt: z.optional(z.number()),
   durationMs: z.optional(z.number()),
   /** gen_ai.response.finish_reasons[0] */
-  stopReason: z.optional(z.string()),
+  finishReason: z.optional(z.string()),
+  /**
+   * What `usage` covers: one model request, one turn, or the whole session. Absent means one
+   * request. An aggregate stays an aggregate and is not split into invented per-request records.
+   */
+  granularity: z.optional(z.enum(['request', 'turn', 'session'])),
+  /** How many model calls a `turn` or `session` aggregate covers. */
+  modelCalls: z.optional(z.number()),
+  /** The same usage split by model. A total uses `usage` or this split, not the two added together. */
+  usageByModel: z.optional(z.record(z.string(), z.object({ usage: z.unknown(), modelCalls: z.optional(z.number()) }))),
 })
 export type RequestPayload = z.infer<typeof requestPayloadSchema>
 
@@ -100,6 +113,8 @@ export type CompactionPayload = z.infer<typeof compactionPayloadSchema>
 export const toolCallPayloadSchema = z.object({
   callId: z.string(),
   name: z.string(),
+  /** A later update's display title; the tool name itself never changes. */
+  title: z.optional(z.string()),
   args: z.optional(z.unknown()),
 })
 export type ToolCallPayload = z.infer<typeof toolCallPayloadSchema>

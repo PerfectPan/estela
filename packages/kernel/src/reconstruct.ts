@@ -16,7 +16,7 @@ import {
   snapshotToolsEmpty,
 } from './prompt-snapshot.ts'
 
-const MESSAGE_KINDS = new Set<TraceEvent['kind']>(['user', 'assistant', 'thinking', 'tool_call', 'tool_result'])
+const MESSAGE_KINDS = new Set<TraceEvent['kind']>(['user', 'assistant', 'reasoning', 'tool_call', 'tool_result'])
 const ALL_SLOTS: ContextSlotName[] = ['system', 'tools', 'summary', 'messages', 'currentTurn']
 
 /** The compaction just before a request on the same lane, when no other request of that lane sits between them. */

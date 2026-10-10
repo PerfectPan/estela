@@ -121,7 +121,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     }
     const request = state.model.requests.get(event.id)?.entry
     if (request) {
-      const stop = asString(event.payload.stopReason)
+      const stop = asString(event.payload.finishReason)
       return [
         request.model ?? '',
         request.inputTokens !== undefined ? t('inspector.inTokens', { value: formatTokens(request.inputTokens) }) : '',
