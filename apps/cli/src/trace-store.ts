@@ -41,8 +41,9 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   let current: ResolvedSession | undefined
   const store = new TraceStore({
     resolve: ref => (ref === CURRENT_REF ? current : options.resolve?.(ref)),
-    // `io` serves the source-pointer reads (`checkedOriginal`) only; session loads go through
-    // the kit platform. Both stay until 2b moves the reads onto the platform.
+    // `io` serves the store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`,
+    // `totalBytes`), and the canonical fast path (`canonicalOf`, `loadSession`) reads through
+    // `nodeIO` too. Everything here moves onto the kit platform in 2b.
     io: nodeIO,
     async load(session, opts) {
       const [trace, canonical] = await Promise.all([

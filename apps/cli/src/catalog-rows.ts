@@ -3,11 +3,10 @@ import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
 import type { Platform } from '@rivus/agent-kit/platform'
-import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { foldTranscript, loadTranscript } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
-import { loadError } from './read-failure.ts'
-import { projectName, sessionRefId } from './session-ref.ts'
+import { loadErrorMessage, parseReadFailure } from './read-failure.ts'
+import { kitTargetOf, projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
 import { userPrompts } from './user-prompts.ts'
 
 /** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
@@ -126,14 +125,12 @@ export async function summarizeRow(
   adapters: SessionAdapters,
   target: SessionRef,
 ): Promise<SummarizeResult> {
-  const kitTarget: SessionTarget = {
-    agent: target.host,
-    path: target.path,
-    ...(target.sessionId ? { sessionId: target.sessionId } : {}),
-  }
-  const loaded = await loadTranscript(platform, kitTarget, { adapters })
+  const loaded = await loadTranscript(platform, kitTargetOf(target), { adapters })
   if (!loaded.ok) {
-    return { error: loadError(loaded.error, platform.home) }
+    // The message parses back into the wire shape, exactly as the hosts' thrown errors did.
+    return {
+      error: parseReadFailure(loadErrorMessage(loaded.error, sessionRefLabel(target)), platform.home, target.path),
+    }
   }
   return { summary: summaryOf(foldTranscript(loaded.value)), prompts: userPrompts(loaded.value) }
 }

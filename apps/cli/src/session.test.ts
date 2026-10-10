@@ -1,0 +1,129 @@
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createNodePlatform } from '@rivus/agent-kit/node'
+import { afterEach, describe, expect, it } from 'vitest'
+import { loadSession } from './session.ts'
+
+const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
+const dirs: string[] = []
+
+afterEach(async () => {
+  await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
+})
+
+async function tempDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'load-session-'))
+  dirs.push(dir)
+  return dir
+}
+
+/** A Claude Code session whose first record names a format generation no adapter reads. */
+async function unknownGeneration(): Promise<string> {
+  const dir = await tempDir()
+  const path = join(dir, 'session.jsonl')
+  await writeFile(path, `${JSON.stringify({ type: 'user', formatVersion: 2, uuid: 'u1', sessionId: 's-ug' })}\n`)
+  return path
+}
+
+/** A Grok session directory whose summary names a chat format the adapter does not read. */
+async function grokUnknownGeneration(): Promise<string> {
+  const dir = await tempDir()
+  await writeFile(join(dir, 'summary.json'), `${JSON.stringify({ chat_format_version: 2 })}\n`)
+  await writeFile(join(dir, 'updates.jsonl'), '')
+  return dir
+}
+
+describe('loadSession', () => {
+  it('throws the hosts’ unknown-generation wording, which the web parses into host, file, and line', async () => {
+    const path = await unknownGeneration()
+    await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+      `claude-code: ${path}:1: unknown format generation`,
+    )
+  })
+
+  it('routes by the ref’s agent instead of detecting again', async () => {
+    const dir = await grokUnknownGeneration()
+    // The Grok adapter is named and reads the directory as Grok's: the failure is Grok's
+    // unknown-generation from summary.json, not detection, and not another agent's adapter.
+    await expect(
+      loadSession({ host: 'grok', path: dir }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow(`grok: ${join(dir, 'summary.json')}:1: unknown format generation`)
+  })
+
+  it('a ref naming an agent without an adapter fails with capability-unsupported wording', async () => {
+    const path = await unknownGeneration()
+    await expect(
+      loadSession({ host: 'nosuch', path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow('no session adapter for nosuch')
+  })
+
+  it('a file no adapter recognizes fails detection with the ref label', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'notes.txt')
+    await writeFile(path, 'not a session at all\n')
+    await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+      `No adapter accepted ${path}`,
+    )
+  })
+
+  it('falls through a canonical head whose body is not JSON to the kit adapters', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'session.jsonl')
+    // The head says "canonical agent-trace", the body is a Claude record. The schema parse
+    // fails with SyntaxError, the file falls through to the kit adapters, and the canonical
+    // first record is one no adapter reads — not a raw JSON parse error.
+    await writeFile(
+      path,
+      `${JSON.stringify({ schema: 'agent-trace', truncated: true })}\n${JSON.stringify({
+        type: 'user',
+        uuid: 'u1',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        sessionId: 's-fall',
+        cwd: '/work/app',
+        message: { role: 'user', content: 'Run the fall-through checks' },
+      })}\n`,
+    )
+    await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+      `claude-code: ${path}:1: unknown format generation`,
+    )
+  })
+
+  it('an aborted load rejects with the signal’s reason', async () => {
+    const path = await unknownGeneration()
+    const controller = new AbortController()
+    const reason = new Error('stop reading')
+    controller.abort(reason)
+    await expect(
+      loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }), signal: controller.signal }),
+    ).rejects.toThrow(reason)
+  })
+
+  it('a missing file is named with its path#id label', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'missing.jsonl')
+    await expect(
+      loadSession(`${path}#s1`, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow(`${path}#s1 does not exist`)
+  })
+
+  it('a real Claude Code fixture loads with its events and originals', async () => {
+    const dir = await tempDir()
+    const projects = join(dir, 'projects/app')
+    await mkdir(projects, { recursive: true })
+    await cp(
+      join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl'),
+      join(projects, 'session.jsonl'),
+    )
+    const platform = createNodePlatform({ home: dir, env: {} })
+    const trace = await loadSession(
+      { host: 'claude-code', path: join(projects, 'session.jsonl'), sessionId: 's' },
+      { platform },
+    )
+    expect(trace.schema).toBe('agent-trace')
+    expect(trace.host.id).toBe('claude-code')
+    expect(trace.events.length).toBeGreaterThan(0)
+    expect(trace.events[0]!.original).toBeDefined()
+  })
+})
