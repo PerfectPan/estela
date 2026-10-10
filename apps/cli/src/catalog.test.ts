@@ -1,5 +1,7 @@
-import type { HostAdapter } from '@rivus/agent-trace-kernel'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { SessionAdapter } from '@rivus/agent-kit/sessions'
+import type { Transcript } from '@rivus/agent-kit/transcript'
+import { createNodePlatform } from '@rivus/agent-kit/node'
+import { err, ok } from '@rivus/agent-kit/catalog'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -8,7 +10,6 @@ import { fileURLToPath } from 'node:url'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionCatalog } from './catalog.ts'
-import { registeredHosts } from './session.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const dirs: string[] = []
@@ -25,11 +26,10 @@ async function tempHome(): Promise<string> {
 
 const source = { file: 'fixture', offset: 0, length: 1, line: 1 }
 
-function trace(text: string): Trace {
+function transcript(path: string, text: string): Transcript {
   return {
-    schema: 'agent-trace',
-    host: { id: 'fake' },
-    session: { id: 's' },
+    agent: 'fake',
+    session: { id: path },
     capabilities: ['requests', 'usage'],
     agents: [{ id: 'main' }],
     events: [
@@ -53,12 +53,12 @@ describe('session catalog', () => {
     await cp(grok, join(home, '.grok/sessions/plain'), { recursive: true })
     const badPath = join(home, '.claude/projects/bad/session.jsonl')
     const index = openSessionIndex({ file: join(home, 'index.sqlite') })
-    const env = { homeDir: home, env: {} }
-    const catalog = new SessionCatalog({ env, index, hosts: registeredHosts })
+    const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: {} }), index })
     const first = await catalog.listSessions()
     const codex = first.hosts.find(host => host.id === 'codex')
     expect(codex?.count).toBe(0)
-    expect(codex?.checked).toBe('~/.codex/sessions')
+    // The kit's Codex roots also cover archived sessions (design note §3.2 X7).
+    expect(codex?.checked).toBe('~/.codex/sessions, ~/.codex/archived_sessions')
     expect(first.rows.filter(row => row.host === 'claude-code')).toHaveLength(3)
     expect(first.hosts.find(host => host.id === 'claude-code')?.count).toBe(3)
     // Refs are opaque and the list carries no absolute path.
@@ -78,7 +78,7 @@ describe('session catalog', () => {
     expect(plain?.requests).toBeGreaterThan(0)
     expect(plain?.cwd?.startsWith('~/') || plain?.cwd === '/work/app' || plain?.project).toBeTruthy()
 
-    const second = new SessionCatalog({ env, index, hosts: registeredHosts })
+    const second = new SessionCatalog({ platform: createNodePlatform({ home, env: {} }), index })
     const cached = await second.listSessions()
     const cachedPlain = cached.rows.find(row => row.firstPrompt === 'Run the tests')
     expect(cachedPlain?.pending).toBe(false)
@@ -99,15 +99,16 @@ describe('session catalog', () => {
     let active = 0
     let max = 0
     const started: number[] = []
-    const adapter: HostAdapter = {
-      id: 'fake',
+    const adapter: SessionAdapter = {
+      specificationVersion: 'sessions-v1',
+      agent: 'fake',
       displayName: 'Fake',
-      capabilities: [],
+      capabilities: ['requests'],
       roots: () => [root],
       async *discover() {
         for (let n = 1; n <= 6; n++) {
           yield {
-            ref: { host: 'fake', path: files[n - 1]! },
+            ref: { agent: 'fake', path: files[n - 1]! },
             title: n === 6 ? '修复登录' : `Session ${n}`,
             lastActiveAt: n * 1_000,
             sizeBytes: 1,
@@ -118,7 +119,7 @@ describe('session catalog', () => {
       async detect() {
         return false
       },
-      async load(ref): Promise<Trace> {
+      async load(_platform, ref) {
         active += 1
         max = Math.max(max, active)
         const n = Number(ref.path.match(/(\d+)\.jsonl$/)?.[1])
@@ -126,12 +127,12 @@ describe('session catalog', () => {
         await new Promise(resolve => setTimeout(resolve, 30))
         active -= 1
         const text = n === 6 ? '请帮我看看这个测试为什么失败' : `prompt ${n}`
-        return trace(text)
+        return ok(transcript(ref.path, text))
       },
     }
     const catalog = new SessionCatalog({
-      hosts: [adapter],
-      env: { homeDir: home, env: {} },
+      adapters: { fake: adapter },
+      platform: createNodePlatform({ home, env: {} }),
       noIndex: true,
     })
     await catalog.listSessions()
@@ -158,14 +159,15 @@ describe('session catalog', () => {
     const path = join(root, 'bad.jsonl')
     await writeFile(path, 'x')
     const index = openSessionIndex({ file: join(home, 'index.sqlite') })
-    const adapter: HostAdapter = {
-      id: 'fake',
+    const adapter: SessionAdapter = {
+      specificationVersion: 'sessions-v1',
+      agent: 'fake',
       displayName: 'Fake',
       capabilities: [],
       roots: () => [root],
       async *discover() {
         yield {
-          ref: { host: 'fake', path },
+          ref: { agent: 'fake', path },
           title: 'Broken',
           lastActiveAt: 5_000,
           sizeBytes: 1,
@@ -174,11 +176,15 @@ describe('session catalog', () => {
       async detect() {
         return false
       },
-      async load() {
-        throw new Error('fake: /tmp/bad.jsonl:3: unknown format generation')
+      async load(_platform, ref) {
+        return err({ _tag: 'UnknownFormatGeneration', agent: 'fake', file: ref.path, line: 3 })
       },
     }
-    const catalog = new SessionCatalog({ hosts: [adapter], env: { homeDir: home, env: {} }, index })
+    const catalog = new SessionCatalog({
+      adapters: { fake: adapter },
+      platform: createNodePlatform({ home, env: {} }),
+      index,
+    })
     await catalog.listSessions()
     await catalog.whenIdle()
     const listed = await catalog.listSessions()
@@ -198,8 +204,10 @@ describe('session catalog', () => {
     await cp(join(claude, 'plain/session.jsonl'), join(home, '.claude/projects/a/session.jsonl'))
     await cp(join(claude, 'compaction/session.jsonl'), join(home, '.claude/projects/b/session.jsonl'))
     const file = join(home, 'index.sqlite')
-    const env = { homeDir: home, env: {} }
-    const first = new SessionCatalog({ env, index: openSessionIndex({ file }), hosts: registeredHosts })
+    const first = new SessionCatalog({
+      platform: createNodePlatform({ home, env: {} }),
+      index: openSessionIndex({ file }),
+    })
     await first.whenIdle()
     const firstList = await first.listSessions()
     expect(first.startedFromIndex).toBe(false)
@@ -207,7 +215,10 @@ describe('session catalog', () => {
     first.close()
 
     await rm(join(home, '.claude/projects/b'), { recursive: true })
-    const second = new SessionCatalog({ env, index: openSessionIndex({ file }), hosts: registeredHosts })
+    const second = new SessionCatalog({
+      platform: createNodePlatform({ home, env: {} }),
+      index: openSessionIndex({ file }),
+    })
     const cached = await second.listSessions()
     expect(second.startedFromIndex).toBe(true)
     expect(cached.rows).toHaveLength(2)

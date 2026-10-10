@@ -1,12 +1,17 @@
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Transcript } from '@rivus/agent-kit/transcript'
+import { laneOf, mainAgentId } from '@rivus/agent-kit/transcript'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 
-/** Main-agent user text from the canonical trace, for search: the index's `PROMPT_LIMIT` prompts, `PROMPT_CHARS` characters each. */
-export function userPrompts(trace: Trace): string[] {
-  const main = trace.agents.find(agent => agent.parentId == null)?.id
+/**
+ * Main-agent user text from the transcript, for search: the index's `PROMPT_LIMIT` prompts,
+ * `PROMPT_CHARS` characters each. Read from the transcript the summary already loads; the kit's
+ * bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70.
+ */
+export function userPrompts(transcript: Transcript): string[] {
+  const main = mainAgentId(transcript)
   const prompts: string[] = []
-  for (const event of trace.events) {
-    if (event.kind !== 'user' || (event.agentId != null && event.agentId !== main)) {
+  for (const event of transcript.events) {
+    if (event.kind !== 'user' || (event.agentId != null && laneOf(event, main) !== main)) {
       continue
     }
     const text = event.payload.text

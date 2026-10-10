@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Session discovery and summaries now read through agent-kit: sessions under CLAUDE_CONFIG_DIR, CODEX_HOME, or GROK_HOME are found, archived Codex sessions are listed, and a malformed log line no longer fails a session's summary (it is skipped and counted).",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}
