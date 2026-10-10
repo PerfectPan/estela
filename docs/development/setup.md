@@ -160,4 +160,4 @@ What to check for a workspace change:
 - S12: the loading panel shows bytes read of the file size; after the load a `[data-testid=shortened]` marker is visible, and selecting its row loads the full text.
 - The console has no errors or warnings. Keep screenshots and traces out of the repository.
 
-`host-opencode` and `host-dsh` are not registered. Set `AGENT_TRACE_REDACT=0` only when debugging redaction on the local server; `build` always redacts.
+Set `AGENT_TRACE_REDACT=0` only when debugging redaction on the local server; `build` always redacts.

@@ -1,21 +1,21 @@
 # Architecture
 
-Audience: someone changing the viewer or adding a host adapter.
+Audience: someone changing the viewer or the session reading. Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s, imported only by `apps/cli`.
 
 ## Shape
 
 ```text
 host roots
-  -> HostAdapter.discover (head/tail, 64 KB each end)      -> rows
+  -> kit adapter.discover (head/tail, 64 KB each end)      -> rows
   -> session index (index.sqlite, path + size + mtime)     -> cached numbers
-  -> HostAdapter.load + fold, 4 at a time, newest first    -> summary updates
+  -> kit loadTranscript + fold, 4 at a time, newest first  -> summary updates
   -> DevFrame list-sessions + shared state `sessions`      -> session browser
 
 host log
-  -> HostAdapter (TraceIO, onProgress, AbortSignal)
+  -> kit session adapter (platform fs, onProgress, AbortSignal)
   -> Trace { schema: agent-trace, events[] with source pointers }
   -> rpc TraceStore (ref -> session catalog): last 3 traces, originals dropped
-  -> kernel toView / fold / reconstruct / projections / redact
+  -> kernel toView / fold / reconstruct / projections
   -> DevFrame load-trace (progress stream) + get-trace-view + get-event
   -> Solid workspace: header, SVG timeline, virtualized ledger, inspector
 
@@ -26,15 +26,15 @@ one session (build <path>, or export-report on the dev server)
   -> the same SPA in report mode, opened from file://
 ```
 
-`events[]` is the archive. Every event can return its original: the store keeps each event's source pointer (file, byte offset, length) and `get-event(ref, id)` reads that line again (`readOriginal`). The store records each source file's size and mtime at load and a fingerprint of each record; if the file changed since (a live session appends), the bytes must still parse to the same record, else the event comes back with `originalUnavailable` and the reason. A canonical JSON file keeps originals inside the file, so `get-event` reloads it once per cached entry.
+`events[]` is the archive. Every event can return its original: the store keeps each event's source pointer (file, byte offset, length) and `get-event(ref, id)` reads that line again through the platform file system. The store records each source file's size and mtime at load and a fingerprint of each record; if the file changed since (a live session appends), the bytes must still parse to the same record, else the event comes back with `originalUnavailable` and the reason. A canonical JSON file keeps originals inside the file, so `get-event` reloads it once per cached entry.
 
 ## Session index and session catalog
 
-`apps/cli/src/catalog.ts` is the session catalog. For each registered host it calls `roots(env)` and `discover`, stats each file for the cache key, and serves the rows through `list-sessions`. A root that does not exist yields a host entry with `count: 0` and the checked path. A file that `discover` or `summarize` cannot read is a row with `error` (reason, file, line). Claude Code subagent files are folded into their parent by the adapter.
+`apps/cli/src/catalog.ts` is the session catalog. For each builtin kit adapter it calls `roots(home)` and `discover`, stats each file for the cache key, and serves the rows through `list-sessions`. A root that does not exist yields a host entry with `count: 0` and the checked path. A file that `discover` or `summarize` cannot read is a row with `error` (reason, file, line). Claude Code subagent files are folded into their parent by the kit adapter.
 
 Summaries run 4 at a time, newest activity first; `list-sessions({ first })` moves the rows on screen to the front, and a file of 64 MB or more runs alone. Each summary is one `load()`: `fold` of that trace for the numbers, plus the main agent's user prompts for search. `adapter.summarize` is not called, because the prompts need the loaded trace anyway. Finished summaries are written in one transaction per batch and announced through the DevFrame shared state `agent-trace:sessions` (`{ revision, pending }`); the browser then asks `list-sessions({ since })` for the rows that changed. Search is `list-sessions({ query })` and runs in the index; with `--no-index`, an unavailable index, or a busy one, the same substring rule runs in memory over titles and first prompts.
 
-`packages/runtime-node/src/session-index.ts` owns `index.sqlite` (`$XDG_CACHE_HOME/rivus-agent-trace/`, else `~/.cache/rivus-agent-trace/`, mode 0600) through `node:sqlite`: `sessions` (head fields, summary numbers, cache key), `prompts` (first 200 prompts, 500 characters each), and `search`, an FTS5 `trigram` table with one row per session. Queries of 3 or more characters use FTS5; shorter ones are a substring match over titles and prompts, with one JavaScript case fold (a registered `casefold()` function) on both sides, so `Über` and `Добро` match in any case. Each summary row stores the kernel's `SUMMARY_VERSION`; a row from another version is recomputed. The index runs in WAL mode with a 200 ms busy timeout (node:sqlite is synchronous, so a longer wait would block the server): readers never wait for another process, and a write that cannot get the lock is skipped. The schema is created inside `BEGIN IMMEDIATE`, so several processes can open a fresh cache at once; a broken or other-layout file is rebuilt only by the process holding `index.sqlite.lock`; an index that cannot be opened (for example a read-only cache directory) is skipped with one warning. `PRAGMA user_version` records the layout; a different version or an unreadable file is deleted and rebuilt. On a second launch the rows come from the index at once and the `discover` pass reconciles them in the background. `--no-index` opens nothing.
+`packages/runtime-node/src/session-index.ts` owns `index.sqlite` (`$XDG_CACHE_HOME/rivus-agent-trace/`, else `~/.cache/rivus-agent-trace/`, mode 0600) through `node:sqlite`: `sessions` (head fields, summary numbers, cache key), `prompts` (first 200 prompts, 500 characters each), and `search`, an FTS5 `trigram` table with one row per session. Queries of 3 or more characters use FTS5; shorter ones are a substring match over titles and prompts, with one JavaScript case fold (a registered `casefold()` function) on both sides, so `Über` and `Добро` match in any case. Each summary row stores the summary version the shell passes in (the kit's `SESSION_SUMMARY_VERSION` plus an offset that skips versions the former host implementations wrote); a row from another version is recomputed. The index runs in WAL mode with a 200 ms busy timeout (node:sqlite is synchronous, so a longer wait would block the server): readers never wait for another process, and a write that cannot get the lock is skipped. The schema is created inside `BEGIN IMMEDIATE`, so several processes can open a fresh cache at once; a broken or other-layout file is rebuilt only by the process holding `index.sqlite.lock`; an index that cannot be opened (for example a read-only cache directory) is skipped with one warning. `PRAGMA user_version` records the layout; a different version or an unreadable file is deleted and rebuilt. On a second launch the rows come from the index at once and the `discover` pass reconciles them in the background. `--no-index` opens nothing.
 
 A session is addressed by `ref`, a hash of host and path. The session id counts only when several sessions share one file (the `path#id` form), so `agent-trace <path>` opens the same ref as that file's list row. Titles, projects, and prompts in the list and the `--pick` labels are redacted like the workspace (home directory and token patterns) unless `AGENT_TRACE_REDACT=0`. The catalog keeps the ref → file map and is the TraceStore's resolver: every list row resolves, and so does a session opened from the command line (by path or `--pick`), which also becomes `current`. URLs carry only the ref (`#/s/<ref>`).
 
@@ -55,14 +55,9 @@ The `reconstruct` RPC takes `{ ref?, eventId }`; without a ref (MCP) it reads `c
 | Package | Role |
 |---|---|
 | `packages/schema` (`@rivus/agent-trace-schema`) | Canonical `Trace` (`schema: 'agent-trace'`), kinds, capabilities, `shadowedBy` |
-| `packages/kernel` (`@rivus/agent-trace-kernel`) | `HostAdapter`, `TraceIO`, load, fold, reconstruct, redact, `toView` / `fitView`, projections, conformance |
-| `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | `NodeIO`, `homeDir`, session index (`node:sqlite`) |
+| `packages/kernel` (`@rivus/agent-trace-kernel`) | canonical-file head check, `SessionRef`/`SessionSummary` types, `SessionFs` read shape, fold, reconstruct, `toView` / `fitView`, projections |
+| `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | home directory, session index (`node:sqlite`) |
 | `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; `export-report` over an injected writer; `buildReport`; `report-trace`, registered only in DevFrame's build mode |
-| `packages/host-claude-code` | Claude Code JSONL, registered |
-| `packages/host-codex` | Codex `rollout-*.jsonl`, registered |
-| `packages/host-grok` | Grok `updates.jsonl` plus side files, registered |
-| `packages/host-opencode` | OpenCode SQLite, kept, not registered |
-| `packages/host-dsh` | detect stub, kept, not registered |
 | `apps/web` (`@rivus/agent-trace-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<ref>` (workspace), report mode, design tokens, `en` / `zh-CN` dictionaries |
 | `apps/cli` (`@rivus/agent-trace`) | DevFrame CLI, the session catalog, the TraceStore wiring, and the report writer; the only published package |
 | `apps/e2e` (`@rivus/agent-trace-e2e`) | Private: CLI smoke and Playwright suites against the installed tarball |

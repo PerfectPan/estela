@@ -114,41 +114,38 @@ flowchart TB
   subgraph packages["packages: libraries"]
     rpc["rpc"]
     rt["runtime-node"]
-    hosts["host-claude-code<br/>host-codex<br/>host-grok"]
     kernel["kernel"]
     schema["schema"]
   end
+  kit["@rivus/agent-kit (external npm)"]
   logs["Host logs on disk (read only)"]
   cli --> rpc
   cli --> rt
-  cli --> hosts
+  cli --> kit
   cli -. "embeds build output" .-> web
   web --> rpc
   web --> kernel
   rpc --> kernel
   rt --> kernel
-  hosts --> kernel
   kernel --> schema
-  rt -. "reads" .-> logs
+  kit -. "reads" .-> logs
 ```
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: registers hosts, provides the Node runtime, starts the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: session reading through the external `@rivus/agent-kit` (the only kit importer), the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | Private test harness for the packed tarball: CLI smoke (5.3) and the browser suite (5.2) | nothing at runtime; test tooling only |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema` |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema` |
-| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO` (`TraceIO` over `node:fs`), home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
-| `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | One host each: layout knowledge, parsing, capabilities | `kernel`, `schema` |
-| `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | Kept, not registered in this release | `kernel`, `schema` |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | Host protocol types, `loadTrace`, `fold`, `reconstruct`, `redact`, `toView`, projections, conformance suite | `schema` |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `SessionRef`/`SessionSummary` types, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema` |
 | `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types and their `zod` schemas | no workspace package; small browser-safe external libraries (`zod`) |
 
 Rules:
 
 - Apps depend on packages; packages never depend on apps. The two apps share no code; `cli` takes `web`'s build output as a file through a Rush build dependency.
-- `apps/cli` is the only composition root. It alone knows which hosts are registered and that the runtime is Node.
-- Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, `rpc`, and every `host-*` do not (D5).
+- `apps/cli` is the only composition root. It alone knows that the runtime is Node and imports `@rivus/agent-kit`, whose builtin session adapters replaced the former `packages/host-*` (issue #32).
+- Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, and `rpc` do not (D5).
 - UI components stay inside `apps/web` until a second consumer needs them.
 - The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod`, and `apps/cli` bundles the external `@rivus/agent-kit`, which `scripts/check-layers.mjs` allow-lists by name.
 - `apps/e2e` tests the packed tarball from outside: it depends on no workspace package and has no runtime dependencies.
@@ -202,7 +199,7 @@ Events remain the canonical unit because `reconstruct` answers per event and the
 Claude Code has the most sessions and the fullest compaction record here. Codex and Grok already have adapters to port. OpenCode needs `SqliteIO` and is the next host on the same protocol; dsh needs zstd and its format catalog.
 
 **D5. Core packages take I/O by injection.**
-`TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in `packages/runtime-node`. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5, measured with esbuild; M1 runs the browser-target bundle with rslib `output.target: 'web'`).
+`TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in `packages/runtime-node`. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5, measured with esbuild; M1 runs the browser-target bundle with rslib `output.target: 'web'`). Since the agent-kit adoption (issue #32), session reads go through the kit's `SessionPlatform`, the Node implementation of the reads is the kit's, and the browser-target bundle check covers kernel and rpc (`scripts/check-browser-bundle.mjs`).
 
 **D6. The browser receives a view trace; originals and full text load on demand.**
 This changes two current rules in `AGENTS.md`: "canonical storage is `events[]` plus `original`" becomes "every event can return its original", and "`getTrace` is one snapshot blob" becomes "`get-trace-view` is one snapshot blob; `get-event` returns one event in full". Measured on the 355 MB session: 360 MB full, 37.9 MB without originals, 14.0 MB as a view with strings capped at 4 KB, and 11.4 MB with the cap `fitView` chose (A.6). Alternatives: paging events (rejected: the timeline and the ledger need every event's shape, and `reconstruct` needs the whole sequence), and compressing the full blob (rejected: the server would still hold 3.2 GB). The server keeps each event's source pointer (file, byte offset, length) and reads the line again when `get-event` asks for it. `AGENTS.md` is updated in the same change.
@@ -252,7 +249,7 @@ npx @rivus/agent-trace mcp <path>
 ```
 
 - No path: open `/__agent-trace/` (session browser).
-- Path: load it once through `loadTrace`; on failure exit 1 with the message before listening; on success open `/__agent-trace/#/s/<ref>`.
+- Path: load it once through `loadSession`; on failure exit 1 with the message before listening; on success open `/__agent-trace/#/s/<ref>`.
 - `ref` is an opaque id the index assigns (a hash of host and path). The absolute path never appears in a URL.
 - `AGENT_TRACE_PATH` is used when no path argument is given.
 - `--pick` opens a clack `autocomplete` over the index rows (title, host, project, last activity), then opens the workspace URL for the choice. Without a TTY on stdin it exits 1.
@@ -270,6 +267,8 @@ Terminal moments (D14):
 | `mcp` | stderr only; stdout carries protocol | same |
 
 ### 3.2 Host protocol
+
+Since the agent-kit adoption (issue #32), session reading is the kit's: `@rivus/agent-kit/sessions` owns the adapter protocol (`SessionAdapter`, `SessionPlatform`, `builtinSessionAdapters`), `/transcript` owns reading (`loadTranscript`, `summarizeSession`, `readOriginal`, `foldTranscript`) and the `Transcript` model, and `/testing` owns the conformance suite (`sessionAdapterConformance`). The trace-side remainder is the canonical-file head check, the `SessionRef`/`SessionSummary` types the other packages are typed on, and the `SessionFs` read shape the TraceStore takes. This section's interfaces below are the pre-adoption protocol, kept as the record of that decision; the durable rules under the listing (capability semantics, record accounting, unknown-generation failures, stable event ids) now hold by the kit's conformance suite over the fixtures under `fixtures/sessions/<host>/conformance`.
 
 Exported from `@rivus/agent-trace-kernel`:
 
@@ -365,7 +364,7 @@ Rules:
 
 ```ts
 export type EventKind =
-  | 'user' | 'assistant' | 'thinking' | 'tool_call' | 'tool_result'
+  | 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
   | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
 
 export interface SourcePointer { file: string, offset: number, length: number, line: number }
@@ -399,7 +398,7 @@ export interface RequestPayload {
   }
   startedAt?: number
   durationMs?: number
-  stopReason?: string     // gen_ai.response.finish_reasons[0]
+  finishReason?: string   // gen_ai.response.finish_reasons[0]
 }
 
 export interface CompactionPayload {
@@ -427,7 +426,7 @@ export interface Trace {
 }
 ```
 
-A `request` event is one model call. A host that records only per-turn totals emits one request per turn and says so in its adapter. A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
+A `request` event is one model call. A host that records only per-turn totals emits one request per turn and marks it `granularity: 'turn'` (with `modelCalls` and, when recorded, a per-model `usageByModel` split). A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
 
 A host that records the system prompt or tool list during the session emits each record as a `system` event with `type: 'prompt_snapshot'` (`PromptSnapshotPayload`) on its lane; the event keeps its source pointer and original, and a compaction does not shadow it. `reconstruct` fills the `system` and `tools` slots from the latest snapshot at or before the event on that lane that recorded each field, and names it in `slot.recordedBy`; a slot with no such snapshot is `unavailable`, even when a later snapshot exists. `session.systemPrompt` and `session.tools` hold the main lane's latest snapshot, and `AgentInfo.systemPrompt` a subagent lane's own. A trace without snapshots uses those session and lane fields for every event. Claude Code joins the recorded `systemPrompt` blocks with a blank line. The view trace keeps each distinct snapshot system prompt and non-empty tool list once, on the first snapshot with it; a later snapshot with the same content carries `systemPromptSameAs` / `toolsSameAs` naming that snapshot and lists the field in `payload.$truncated`, so `get-event` returns it in full and `reconstruct` gives the same result on the view. A recorded empty tool list is an `empty` slot.
 
@@ -441,7 +440,7 @@ A host that records the system prompt or tool list during the session emits each
 
 ```mermaid
 flowchart LR
-  roots["HostAdapter.roots(env)"] --> disc["discover<br/>list + head/tail 64 KB"]
+  roots["adapter.roots(home)"] --> disc["discover<br/>list + head/tail 64 KB"]
   disc --> rows["rows sent to the browser"]
   disc --> q{"summary in index.sqlite<br/>for path+size+mtime?"}
   q -- "yes" --> rows
@@ -554,9 +553,9 @@ Local tool, no telemetry. Signals are CI results and GitHub issues.
 
 ### 5.1 Unit and conformance
 
-- Kernel: `toView`, `redact`, `fold`, `reconstruct` slot counts, projections.
-- Each host: `describeHostConformance` on synthetic fixtures under `packages/host-*/fixtures/`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
-- D5: oxlint `node:*` rule and a browser-target rslib bundle of kernel and adapters.
+- Kernel: `toView`, `fold`, `reconstruct` slot counts, projections.
+- The kit's `sessionAdapterConformance` for the three builtin adapters on the fixtures under `fixtures/sessions/<host>/conformance/`, in `apps/cli`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
+- D5: oxlint `node:*` rule and a browser-target rslib bundle of kernel and rpc.
 
 ### 5.2 Browser end-to-end
 
@@ -753,7 +752,7 @@ A.8 Canonical trace to ATIF v1.8 (constraint for the export follow-up):
 | `RequestPayload.model` | `agent.model_name`, or `model_name` on the step |
 | `user` event | step with `source: "user"`, `message` |
 | `assistant` event | step with `source: "agent"`, `message` |
-| `thinking` event | `reasoning_content` on the agent step |
+| `reasoning` event | `reasoning_content` on the agent step |
 | `tool_call` (`callId`, `name`, `args`) | `tool_calls[]` (`tool_call_id`, `function_name`, `arguments`) |
 | `tool_result` (`callId`, `output`) | `observation.results[]` (`source_call_id`, `content`) |
 | `usage.inputTokens`, `outputTokens`, `cacheReadTokens` | `metrics.prompt_tokens`, `completion_tokens`, `cached_tokens` |
