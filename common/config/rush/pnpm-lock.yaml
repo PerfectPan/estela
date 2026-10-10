@@ -29,8 +29,8 @@ importers:
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
       '@rivus/agent-kit':
-        specifier: 0.8.0
-        version: 0.8.0
+        specifier: 0.9.0
+        version: 0.9.0
       '@rivus/agent-trace-host-claude-code':
         specifier: workspace:*
         version: link:../../packages/host-claude-code
@@ -987,8 +987,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  '@rivus/agent-kit@0.8.0':
-    resolution: {integrity: sha512-pwKBfgaU5W/BNAA/4iafViuF26aODXSCs6GTu+yQoazDoxJ7pEvtEMmv1OAjCmMlMZdXZnBqJAPUwzaGs2N51Q==}
+  '@rivus/agent-kit@0.9.0':
+    resolution: {integrity: sha512-p0GSH6V1ioHREdnkEqNlZTqnBbKl3hRJiELSKfIx8HRLoK3Gp3BXxX1dN0cmFPyTCtqYEvax4o4fsDWMXeh+EA==}
     engines: {node: '>=22.13'}
     peerDependencies:
       effect: 4.0.1
@@ -2675,7 +2675,7 @@ snapshots:
     dependencies:
       playwright: 1.63.0
 
-  '@rivus/agent-kit@0.8.0':
+  '@rivus/agent-kit@0.9.0':
     dependencies:
       '@agentclientprotocol/sdk': 1.7.0(zod@4.6.5)
       '@decimalturn/toml-patch': 3.3.0
