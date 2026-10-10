@@ -17,7 +17,7 @@ const realPath = process.env.AGENT_TRACE_SIZE_REAL
 const MB = 1024 * 1024
 const SIZE_REF = 'size-test'
 
-/** An independent read of the source line (plain `node:fs`), not the store's `readOriginal`. */
+/** An independent read of the source line (plain `node:fs`), not the store's source-pointer read. */
 async function lineAt(path: string, offset: number, length: number): Promise<unknown> {
   const handle = await open(path, 'r')
   try {
