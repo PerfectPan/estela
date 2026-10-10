@@ -103,6 +103,8 @@ describe('session catalog', () => {
       specificationVersion: 'sessions-v1',
       agent: 'fake',
       displayName: 'Fake',
+      // The fake ignores `home`; the rule only satisfies `sessionAdapterHome`.
+      home: { defaultPath: [] },
       capabilities: ['requests'],
       roots: () => [root],
       async *discover() {
@@ -163,6 +165,8 @@ describe('session catalog', () => {
       specificationVersion: 'sessions-v1',
       agent: 'fake',
       displayName: 'Fake',
+      // The fake ignores `home`; the rule only satisfies `sessionAdapterHome`.
+      home: { defaultPath: [] },
       capabilities: [],
       roots: () => [root],
       async *discover() {

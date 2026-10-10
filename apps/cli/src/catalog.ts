@@ -3,13 +3,18 @@ import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node
 import type { HostListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { redactText } from '@rivus/agent-kit/redact'
-import { builtinSessionAdapters, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
+import {
+  builtinSessionAdapters,
+  sessionAdapterHome,
+  type SessionAdapter,
+  type SessionAdapters,
+} from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
-import { discoverRows, homeOf, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
+import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
 import {
   activityLabel,
   indexHeadOf,
@@ -33,12 +38,13 @@ const HEAVY_BYTES = 64 * 1024 * 1024
 /** Finished summaries are written to the index and announced to browsers at most this often. */
 const FLUSH_MS = 150
 /**
- * Summary numbers now come from the kit, whose derivations differ from the hosts' (design note
- * §3: usage merge and decode among them), so caches written by the host implementations are
- * stale even at the same version number. +1 moves past every version the hosts wrote; later
- * bumps track the kit's constant.
+ * The session index compares summary versions for equality, and the host implementations wrote
+ * version 1 with different numbers (design note §3: usage merge and decode among them), so a
+ * host-era cache entry must not be served. This offset moves past every version the hosts
+ * wrote and must stay; later bumps track the kit's SESSION_SUMMARY_VERSION.
  */
-const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + 1
+const HOST_ERA_OFFSET = 1
+const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET
 
 export interface CatalogOptions {
   adapters?: SessionAdapters
@@ -355,7 +361,9 @@ export class SessionCatalog {
           ? state.found
           : state.missing.length > 0
             ? state.missing
-            : state.adapter.roots(homeOf(state.adapter, this.platform))
+            : state.adapter.roots(
+                sessionAdapterHome(state.adapter, { env: this.platform.env, home: this.platform.home }),
+              )
       const checked = roots.map(path => redactText(path, { home: this.platform.home })).join(', ')
       return {
         id: state.adapter.agent,

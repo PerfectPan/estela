@@ -1,6 +1,12 @@
 import type { SessionRef } from '@rivus/agent-trace-kernel'
-import { builtinCodingAgents, homeFromRule, isBuiltinCodingAgentId, type AgentHome } from '@rivus/agent-kit/catalog'
-import { isSessionHead, type SessionAdapter, type SessionHead, type SessionListError } from '@rivus/agent-kit/sessions'
+import {
+  isSessionHead,
+  sessionAdapterHome,
+  type SessionAdapter,
+  type SessionHead,
+  type SessionListError,
+  type SessionRef as KitSessionRef,
+} from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 import { errorRow, rowFromHead, type CatalogPlatform, type LiveRow } from './catalog-rows.ts'
 import { errorMessage, listError } from './read-failure.ts'
@@ -49,23 +55,8 @@ export function progressOf(states: readonly HostState[], homeDir: string): HostP
   })
 }
 
-/**
- * The home an adapter's `roots` read: its own rule, else the built-in agent's (what `resolveHome`
- * resolves), else the platform home — a third-party adapter without a home rule is expected to
- * ignore it, as the tests' fakes do.
- */
-export function homeOf(adapter: SessionAdapter, platform: CatalogPlatform): AgentHome {
-  const context = { env: platform.env, home: platform.home }
-  const rule =
-    adapter.home ?? (isBuiltinCodingAgentId(adapter.agent) ? builtinCodingAgents[adapter.agent].home : undefined)
-  if (rule !== undefined) {
-    return homeFromRule(adapter.agent, rule, context)
-  }
-  return { agent: adapter.agent, path: platform.home, source: { kind: 'default' } }
-}
-
 /** The kit ref of a head or failure, in the row/target shape (`ref.agent` reads as `host`). */
-function kitRef(ref: { readonly agent: string; readonly path: string; readonly sessionId?: string }): SessionRef {
+function kitRef(ref: KitSessionRef): SessionRef {
   return { host: ref.agent, path: ref.path, ...(ref.sessionId ? { sessionId: ref.sessionId } : {}) }
 }
 
@@ -88,8 +79,8 @@ export async function discoverRows(
   await Promise.all(
     states.map(async state => {
       const heads: SessionHead[] = []
-      const failed: { target: SessionRef; error: SessionListError }[] = []
-      const home = homeOf(state.adapter, platform)
+      const failed: { target: SessionRef; error: SessionListError; mtimeMs?: number }[] = []
+      const home = sessionAdapterHome(state.adapter, { env: platform.env, home: platform.home })
       for (const root of state.adapter.roots(home)) {
         // Symlinks resolved: the session files' own stat is the cache key.
         const info = await platform.fs.stat(root, { followSymlinks: true })
@@ -106,12 +97,27 @@ export async function discoverRows(
           for await (const item of state.adapter.discover(platform, root, { onTotal })) {
             if (isSessionHead(item)) {
               heads.push(item)
-            } else if (item.error._tag === 'ReadFailed') {
-              // A `RootMissing` was recorded by the stat above; only files become error rows.
-              failed.push({ target: kitRef(item.ref), error: item.error })
+              state.read += 1
+              report()
+              continue
             }
-            state.read += 1
-            report()
+            // A `RootMissing` was recorded by the stat above.
+            if (item.error._tag !== 'ReadFailed') {
+              continue
+            }
+            const target = kitRef(item.ref)
+            // A directory failure keeps its error row but is not a file read: `read` counts
+            // head-and-tail reads, and `total` lists files, so counting dirs shows 12/11.
+            const probed = await platform.fs.stat(target.path, { followSymlinks: true })
+            failed.push({
+              target,
+              error: item.error,
+              ...(probed?.mtimeMs !== undefined ? { mtimeMs: probed.mtimeMs } : {}),
+            })
+            if (probed?.kind !== 'dir') {
+              state.read += 1
+              report()
+            }
           }
         } catch (error) {
           failed.push({
@@ -134,7 +140,7 @@ export async function discoverRows(
           if (info !== undefined && info.kind === 'file') {
             add(
               rowFromHead(
-                state.adapter.agent,
+                target,
                 head,
                 { size: info.size, mtimeMs: info.mtimeMs },
                 platform.home,
@@ -145,10 +151,7 @@ export async function discoverRows(
             add(
               errorRow(
                 target,
-                {
-                  reason: `${state.adapter.agent}: session file does not exist`,
-                  file: redactText(target.path, { home: platform.home }),
-                },
+                { reason: 'session file does not exist', file: redactText(target.path, { home: platform.home }) },
                 Date.now(),
               ),
             )
@@ -156,10 +159,8 @@ export async function discoverRows(
         })
       }
       // An unreadable file sorts by its own mtime, not 1970.
-      const infos = await Promise.all(failed.map(item => platform.fs.stat(item.target.path, { followSymlinks: true })))
-      failed.forEach((item, index) => {
-        const info = infos[index]
-        add(errorRow(item.target, listError(item.error, platform.home), info?.mtimeMs ?? Date.now()))
+      failed.forEach(item => {
+        add(errorRow(item.target, listError(item.error, platform.home), item.mtimeMs ?? Date.now()))
       })
       state.done = true
       report()

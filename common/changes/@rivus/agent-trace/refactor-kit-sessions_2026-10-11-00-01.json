@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Sessions are now read end to end through agent-kit: sessions under CLAUDE_CONFIG_DIR, CODEX_HOME, or GROK_HOME are found (an override replaces the default home, so sessions only in ~/.claude etc. are no longer listed when the variable is set), archived Codex sessions are listed, and a malformed log line no longer fails a session — the session loads and the line is skipped.",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

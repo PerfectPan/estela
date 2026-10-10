@@ -11,7 +11,7 @@ export function userPrompts(transcript: Transcript): string[] {
   const main = mainAgentId(transcript)
   const prompts: string[] = []
   for (const event of transcript.events) {
-    if (event.kind !== 'user' || (event.agentId != null && laneOf(event, main) !== main)) {
+    if (event.kind !== 'user' || laneOf(event, main) !== main) {
       continue
     }
     const text = event.payload.text

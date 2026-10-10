@@ -56,12 +56,14 @@ npx @rivus/agent-trace mcp [path]
 | Host | Where sessions are found | Status |
 |---|---|---|
 | Claude Code | `~/.claude/projects/` | loads |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` | loads |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` | loads |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` | loads |
 | OpenCode | `opencode.db#<session-id>` | package kept, not registered |
 | dsh | — | package kept, not registered |
 
-A host whose folder does not exist shows 0 sessions and the path it checked. A file the host adapter cannot parse is listed as "could not read" with the file, line, and reason.
+The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `GROK_HOME` for Grok — with `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
+
+A host whose folder does not exist shows 0 sessions and the path it checked. A file the host adapter cannot parse is listed as "could not read" with the file, line, and reason. A line inside a session that is not JSON is skipped and does not fail the session.
 
 ## Privacy
 

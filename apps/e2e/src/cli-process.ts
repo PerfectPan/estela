@@ -20,12 +20,21 @@ export interface CliHome {
 
 /**
  * The environment a user has: synthetic `HOME`, a cache dir inside the run, the fake opener first
- * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `AGENT_TRACE_*` from the caller, and no npm notices.
+ * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `AGENT_TRACE_*` from the caller, no agent home
+ * overrides (they would point the tests at real sessions), and no npm notices.
  * `extra` goes on top (for example `AGENT_TRACE_REDACT=0`).
  */
 export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
-  for (const name of ['NO_COLOR', 'FORCE_COLOR', 'AGENT_TRACE_PATH', 'AGENT_TRACE_REDACT']) {
+  for (const name of [
+    'NO_COLOR',
+    'FORCE_COLOR',
+    'AGENT_TRACE_PATH',
+    'AGENT_TRACE_REDACT',
+    'CLAUDE_CONFIG_DIR',
+    'CODEX_HOME',
+    'GROK_HOME',
+  ]) {
     delete env[name]
   }
   return {

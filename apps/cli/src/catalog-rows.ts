@@ -2,8 +2,8 @@ import type { SessionRef, SessionSummary } from '@rivus/agent-trace-kernel'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
-import type { CodingAgentId } from '@rivus/agent-kit/catalog'
 import type { Platform } from '@rivus/agent-kit/platform'
+import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { foldTranscript, loadTranscript } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadError } from './read-failure.ts'
@@ -36,6 +36,7 @@ export interface LiveRow {
   revision: number
 }
 
+/** Session text shown in the browser and the terminal: redacted like the workspace (D10) unless `AGENT_TRACE_REDACT=0`. */
 export type Redactor = (text: string) => string
 
 /** The preview shows about nine lines; the whole prompt stays searchable in the index. */
@@ -125,11 +126,11 @@ export async function summarizeRow(
   adapters: SessionAdapters,
   target: SessionRef,
 ): Promise<SummarizeResult> {
-  const kitTarget: {
-    agent: CodingAgentId
-    path: string
-    sessionId?: string
-  } = { agent: target.host, path: target.path, ...(target.sessionId ? { sessionId: target.sessionId } : {}) }
+  const kitTarget: SessionTarget = {
+    agent: target.host,
+    path: target.path,
+    ...(target.sessionId ? { sessionId: target.sessionId } : {}),
+  }
   const loaded = await loadTranscript(platform, kitTarget, { adapters })
   if (!loaded.ok) {
     return { error: loadError(loaded.error, platform.home) }
@@ -166,21 +167,16 @@ function headFields(head: Head, homeDir: string): Partial<LiveRow> {
 
 /** A row from one `discover` head and the file's size and mtime (the cache key). */
 export function rowFromHead(
-  host: string,
+  target: SessionRef,
   head: SessionHead,
   info: { size: number; mtimeMs: number },
   homeDir: string,
   sharedFile = false,
 ): LiveRow {
-  const target: SessionRef = {
-    host,
-    path: head.ref.path,
-    ...(head.ref.sessionId ? { sessionId: head.ref.sessionId } : {}),
-  }
   return {
     ...headFields(head, homeDir),
     // The session id is part of the ref only when several sessions share one file.
-    ref: sessionRefId(sharedFile ? target : { host, path: target.path }),
+    ref: sessionRefId(sharedFile ? target : { host: target.host, path: target.path }),
     target,
     size: info.size,
     mtimeMs: info.mtimeMs,

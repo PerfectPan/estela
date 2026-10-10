@@ -89,10 +89,11 @@ test('build writes a report that names its truncation and marks events without a
   const out = join(dir, 'report')
   try {
     const trace = await generateTrace(dir, 10000)
-    await exec(process.execPath, [ctx.bin, 'build', trace, '--out-dir', out], {
-      cwd: dir,
-      env: { ...process.env, HOME: ctx.homes.main.home },
-    })
+    const env: NodeJS.ProcessEnv = { ...process.env, HOME: ctx.homes.main.home }
+    for (const name of ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'GROK_HOME']) {
+      delete env[name]
+    }
+    await exec(process.execPath, [ctx.bin, 'build', trace, '--out-dir', out], { cwd: dir, env })
     await page.goto(pathToFileURL(join(out, 'index.html')).href)
     await expect(page.getByTestId('ledger')).toBeVisible()
     await expect(page.getByTestId('report-truncated')).toHaveText(/first 2,000 of 10,\d{3} events/)
