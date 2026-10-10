@@ -43,13 +43,16 @@ function transcript(path: string, text: string): Transcript {
 describe('session catalog', () => {
   it('shows a missing root as count 0 and an unreadable file with its line', async () => {
     const home = await tempHome()
-    const claude = join(repo, 'packages/host-claude-code/fixtures')
-    const grok = join(repo, 'packages/host-grok/fixtures/conformance/plain')
+    const claude = join(repo, 'fixtures/sessions/claude-code/conformance')
+    const grok = join(repo, 'fixtures/sessions/grok/conformance/plain')
     await mkdir(join(home, '.claude/projects/plain'), { recursive: true })
     await mkdir(join(home, '.claude/projects/bad'), { recursive: true })
-    await cp(join(claude, 'conformance/plain/session.jsonl'), join(home, '.claude/projects/plain/session.jsonl'))
-    await cp(join(claude, 'unknown-generation/session.jsonl'), join(home, '.claude/projects/bad/session.jsonl'))
-    await cp(join(claude, 'conformance/subagent'), join(home, '.claude/projects/sub'), { recursive: true })
+    await cp(join(claude, 'plain/session.jsonl'), join(home, '.claude/projects/plain/session.jsonl'))
+    await cp(
+      join(repo, 'fixtures/sessions/claude-code/unknown-generation/session.jsonl'),
+      join(home, '.claude/projects/bad/session.jsonl'),
+    )
+    await cp(join(claude, 'subagent'), join(home, '.claude/projects/sub'), { recursive: true })
     await cp(grok, join(home, '.grok/sessions/plain'), { recursive: true })
     const badPath = join(home, '.claude/projects/bad/session.jsonl')
     const index = openSessionIndex({ file: join(home, 'index.sqlite') })
@@ -202,7 +205,7 @@ describe('session catalog', () => {
 
   it('serves the index rows at once on a second launch, then applies the discover pass', async () => {
     const home = await tempHome()
-    const claude = join(repo, 'packages/host-claude-code/fixtures/conformance')
+    const claude = join(repo, 'fixtures/sessions/claude-code/conformance')
     await mkdir(join(home, '.claude/projects/a'), { recursive: true })
     await mkdir(join(home, '.claude/projects/b'), { recursive: true })
     await cp(join(claude, 'plain/session.jsonl'), join(home, '.claude/projects/a/session.jsonl'))

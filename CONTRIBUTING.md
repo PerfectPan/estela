@@ -111,7 +111,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 ## File Conventions
 
 - File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.
-- Files under `packages/*/fixtures/` keep the host log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
+- Files under `fixtures/` keep the host log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
 - Names fixed by convention or a platform keep their form: `README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CHANGELOG.json`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, `.gitlab/merge_request_templates/`, and everything under `common/`, which Rush owns.
 - A code file (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, and their variants) under `apps/`, `packages/`, or `scripts/` has at most 500 lines, tests included. Fixtures and documentation have no line limit. A file near the limit splits along a responsibility, not at an arbitrary line.
 

@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { claudeCodeAdapter } from './index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const root = join(here, '../fixtures/conformance')
+const root = join(here, '../../../fixtures/sessions/claude-code/conformance')
 const overRoot = mkdtempSync(join(tmpdir(), 'at-m2f-claude-'))
 const overFile = writeOversized(
   overRoot,
@@ -216,7 +216,7 @@ describe('claude-code behavior', () => {
       toModel: 'claude-b',
     })
     expect(trace.events.filter(event => event.kind === 'unknown').map(event => event.payload.type)).toEqual(['widget'])
-    const bad = join(here, '../fixtures/unknown-generation/session.jsonl')
+    const bad = join(here, '../../../fixtures/sessions/claude-code/unknown-generation/session.jsonl')
     await expect(claudeCodeAdapter.load({ host: 'claude-code', path: bad }, nodeIO, {})).rejects.toThrow(
       `claude-code: ${bad}:1: unknown format generation`,
     )

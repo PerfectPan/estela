@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { codexAdapter } from './index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const root = join(here, '../fixtures/conformance')
+const root = join(here, '../../../fixtures/sessions/codex/conformance')
 const overRoot = mkdtempSync(join(tmpdir(), 'at-m2f-codex-'))
 const overFile = writeOversized(
   overRoot,
@@ -220,7 +220,7 @@ describe('codex behavior', () => {
     const result = trace.events.find(event => event.kind === 'tool_result')
     expect(result?.payload.callId).toBe('call-ts')
     expect(result?.payload.orphan).toBeUndefined()
-    const bad = join(here, '../fixtures/unknown-generation/rollout-bad.jsonl')
+    const bad = join(here, '../../../fixtures/sessions/codex/unknown-generation/rollout-bad.jsonl')
     await expect(codexAdapter.load({ host: 'codex', path: bad }, nodeIO, {})).rejects.toThrow(
       `codex: ${bad}:1: unknown format generation`,
     )

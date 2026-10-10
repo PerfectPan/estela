@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import type { LoadProgress } from '@rivus/agent-trace-rpc'
-import { writeLargeCodexSession } from '@rivus/agent-trace-host-codex/testing'
 import { VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vitest'
 import { createTraceStore } from './trace-store.ts'
+import { writeLargeCodexSession } from './testsupport/large-session.ts'
 
 // S12 size budget (plan 1.3, 5.2). Opt-in: it writes about 350 MB to a temp directory.
 //   AGENT_TRACE_SIZE_TEST=1 vitest run src/size-budget.test.ts

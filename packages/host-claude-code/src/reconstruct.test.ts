@@ -5,7 +5,7 @@ import { nodeIO } from '@rivus/agent-trace-runtime-node/io'
 import { describe, expect, it } from 'vitest'
 import { claudeCodeAdapter } from './index.ts'
 
-const path = join(dirname(fileURLToPath(import.meta.url)), '../fixtures/conformance/compaction/session.jsonl')
+const path = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/sessions/claude-code/conformance/compaction/session.jsonl')
 
 describe('claude-code reconstruct (S7)', () => {
   it('shows slots, recorded counts, and removed events at the first request after a compaction', async () => {

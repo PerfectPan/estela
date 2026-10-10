@@ -114,7 +114,7 @@ describe('loadSession', () => {
     const projects = join(dir, 'projects/app')
     await mkdir(projects, { recursive: true })
     await cp(
-      join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl'),
+      join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'),
       join(projects, 'session.jsonl'),
     )
     const platform = createNodePlatform({ home: dir, env: {} })

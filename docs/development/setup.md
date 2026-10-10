@@ -67,7 +67,7 @@ Never publish from a local checkout.
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `packages/host-*/fixtures/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 20 through `npx -y node@20`), S15, and S16 (in a pseudo-terminal through `node-pty`). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
+`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<host>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 20 through `npx -y node@20`), S15, and S16 (in a pseudo-terminal through `node-pty`). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
 
 ```bash
 cd apps/e2e
@@ -89,7 +89,7 @@ node ../../common/scripts/install-run-rushx.js test:e2e
 AGENT_TRACE_E2E_CHANNEL=chrome node ../../common/scripts/install-run-rushx.js test:e2e   # use the installed Google Chrome instead
 ```
 
-S8 runs `scripts/generate-trace.mjs` and S12 runs `packages/host-codex/testing/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `tarball` job on Node.js 24 only.
+S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `tarball` job on Node.js 24 only.
 
 ## Check in a real browser
 
@@ -108,15 +108,15 @@ H="$TMPDIR/agent-trace-home"; rm -rf "$H"
 mkdir -p "$H/.claude/projects" "$H/.codex/sessions/2026/09/25" "$H/.grok/sessions"
 for f in plain compaction subagent; do
   mkdir -p "$H/.claude/projects/app-$f"
-  cp -R packages/host-claude-code/fixtures/conformance/$f/* "$H/.claude/projects/app-$f/"
+  cp -R fixtures/sessions/claude-code/conformance/$f/* "$H/.claude/projects/app-$f/"
 done
 mkdir -p "$H/.claude/projects/app-bad"
-cp packages/host-claude-code/fixtures/unknown-generation/session.jsonl "$H/.claude/projects/app-bad/"
+cp fixtures/sessions/claude-code/unknown-generation/session.jsonl "$H/.claude/projects/app-bad/"
 for f in plain compaction token-count subagent; do
-  cp packages/host-codex/fixtures/conformance/rollout-$f.jsonl "$H/.codex/sessions/2026/09/25/"
+  cp fixtures/sessions/codex/conformance/rollout-$f.jsonl "$H/.codex/sessions/2026/09/25/"
 done
 for f in plain compaction subagent; do
-  cp -R packages/host-grok/fixtures/conformance/$f "$H/.grok/sessions/grok-$f"
+  cp -R fixtures/sessions/grok/conformance/$f "$H/.grok/sessions/grok-$f"
 done
 ```
 
@@ -133,7 +133,7 @@ For S12, write the 350 MB Codex-format file into a second home and open it from 
 
 ```bash
 mkdir -p "$TMPDIR/agent-trace-big/.codex/sessions/2026/09/25"
-node -e "import('./packages/host-codex/testing/large-session.ts').then(m => m.writeLargeCodexSession(process.argv[1], { targetBytes: 350e6 }))" \
+node -e "import('./apps/cli/src/testsupport/large-session.ts').then(m => m.writeLargeCodexSession(process.argv[1], { targetBytes: 350e6 }))" \
   "$TMPDIR/agent-trace-big/.codex/sessions/2026/09/25"
 HOME="$TMPDIR/agent-trace-big" XDG_CACHE_HOME="$TMPDIR/agent-trace-cache-big" node apps/cli/bin.mjs --no-auth --no-open --port 7464
 ```

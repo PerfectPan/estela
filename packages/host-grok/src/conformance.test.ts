@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { grokAdapter } from './index.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const root = join(here, '../fixtures/conformance')
+const root = join(here, '../../../fixtures/sessions/grok/conformance')
 const overRoot = mkdtempSync(join(tmpdir(), 'at-m2f-grok-'))
 const overFile = writeOversized(
   overRoot,
@@ -158,7 +158,7 @@ describe('grok behavior', () => {
   it('keeps an unknown record type and rejects an unknown generation', async () => {
     const trace = await load('unknown-type/updates.jsonl')
     expect(trace.events[0]?.payload.type).toBe('widget')
-    const bad = join(here, '../fixtures/unknown-generation/updates.jsonl')
+    const bad = join(here, '../../../fixtures/sessions/grok/unknown-generation/updates.jsonl')
     await expect(grokAdapter.load({ host: 'grok', path: bad }, nodeIO, {})).rejects.toThrow(
       `grok: ${bad}:1: unknown format generation`,
     )

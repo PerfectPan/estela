@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { claudeCodeAdapter } from './index.ts'
 import { parseClaudeRecords } from './parse-session.ts'
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '../fixtures/conformance')
+const root = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/sessions/claude-code/conformance')
 const load = (name: string) =>
   claudeCodeAdapter.load({ host: 'claude-code', path: join(root, name, 'session.jsonl') }, nodeIO, {})
 

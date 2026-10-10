@@ -265,10 +265,7 @@ describe('session catalog cache', () => {
     const dir = join(home, '.claude/projects/app')
     await mkdir(dir, { recursive: true })
     const path = join(dir, 'session.jsonl')
-    await writeFile(
-      path,
-      await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
-    )
+    await writeFile(path, await readFile(join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')))
     const platform = createNodePlatform({ home, env: {} })
     const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
     const trace = await loadSession(path, { platform })
@@ -294,10 +291,7 @@ describe('session catalog cache', () => {
     const dir = join(home, '.claude/projects/app')
     await mkdir(dir, { recursive: true })
     const path = join(dir, 'session.jsonl')
-    await writeFile(
-      path,
-      await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
-    )
+    await writeFile(path, await readFile(join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')))
     const platform = createNodePlatform({ home, env: {} })
     const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
     const [row] = (await catalog.listSessions()).rows
