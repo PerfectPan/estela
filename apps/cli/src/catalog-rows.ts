@@ -1,4 +1,5 @@
 import type { SessionRef, SessionSummary } from '@rivus/agent-trace-kernel'
+import { summaryOf } from '@rivus/agent-trace-kernel'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
@@ -81,8 +82,9 @@ export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | {
 /**
  * One read per session: the transcript loads once through the kit, and both the summary
  * (`foldTranscript`, what `summarizeSession` runs) and the search prompts come from it. The
- * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70. The kit
- * summary is the wire/index shape: the kernel `SessionSummary` type carries the same fields.
+ * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70. `summaryOf`
+ * copies only the summary fields the wire contract and the index know, so a kit-side
+ * addition cannot leak into rows unchecked.
  */
 export async function summarizeRow(
   platform: CatalogPlatform,
@@ -93,7 +95,7 @@ export async function summarizeRow(
   if (!loaded.ok) {
     return { error: loadFailure(loaded.error, platform.home, sessionRefLabel(target), target.path) }
   }
-  return { summary: foldTranscript(loaded.value), prompts: userPrompts(loaded.value) }
+  return { summary: summaryOf(foldTranscript(loaded.value)), prompts: userPrompts(loaded.value) }
 }
 
 function pad(value: number): string {
