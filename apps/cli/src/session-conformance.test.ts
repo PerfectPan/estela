@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { builtinSessionAdapters, type SessionAdapter } from '@rivus/agent-kit/sessions'
+import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import {
   oversizedSession,
   sessionAdapterConformance,
@@ -74,8 +74,6 @@ const GROK: ConformanceSession[] = [
   { path: 'unknown-type/updates.jsonl', records: 1, capabilities: [] },
 ]
 
-const SESSIONS: Record<string, ConformanceSession[]> = { 'claude-code': CLAUDE, codex: CODEX, grok: GROK }
-
 /** The oversized line each old conformance suite used, one temp root per adapter so a discover run lists only its own file. */
 const OVERSIZED_LINES: Record<string, string> = {
   'claude-code': '{"type":"user","timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"x"}}',
@@ -100,15 +98,22 @@ afterAll(() => {
   }
 })
 
+// The kit's runner contract is `for (const { name, run } of ...) it(name, run)`: titles and
+// assertions are dynamic by design, so the vitest valid-title and expect-expect rules are off
+// for this file (.oxlintrc.json) and each check still fails with the kit's message.
 describe('session adapter conformance', () => {
-  for (const [agent, adapter] of Object.entries(builtinSessionAdapters) as [string, SessionAdapter][]) {
+  for (const [agent, adapter, sessions] of [
+    ['claude-code', builtinSessionAdapters['claude-code'], CLAUDE],
+    ['codex', builtinSessionAdapters.codex, CODEX],
+    ['grok', builtinSessionAdapters.grok, GROK],
+  ] as const) {
     const fixtures: SessionAdapterFixtures = {
       platform,
       root: fixturesOf(agent),
-      sessions: sessionsOf(fixturesOf(agent), SESSIONS[agent]!),
+      sessions: sessionsOf(fixturesOf(agent), sessions),
       oversized: oversizedOf(agent),
     }
-    describe(`${agent}`, () => {
+    describe(agent, () => {
       for (const { name, run } of sessionAdapterConformance(adapter, fixtures)) {
         it(name, run)
       }
@@ -123,7 +128,7 @@ describe('unknown generations fail loud on the repo fixtures', () => {
     ['grok', 'fixtures/sessions/grok/unknown-generation'],
   ]
   for (const [agent, relative] of cases) {
-    it(`${agent}`, async () => {
+    it(agent, async () => {
       await expect(loadSession(join(repo, relative), { platform })).rejects.toThrow('unknown format generation')
     })
   }
