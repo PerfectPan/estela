@@ -25,16 +25,6 @@
   },
   "overrides": [
     {
-      // The kit's conformance runner contract is `for (const { name, run } of ...) it(name, run)`:
-      // the check supplies both the title and the assertions, so the two dynamic-title rules
-      // cannot see them.
-      "files": ["apps/cli/src/session-conformance.test.ts"],
-      "rules": {
-        "vitest/expect-expect": "off",
-        "vitest/valid-title": "off"
-      }
-    },
-    {
       "files": [
         "packages/schema/src/**/*.{ts,mts,cts,tsx}",
         "packages/kernel/src/**/*.{ts,mts,cts,tsx}",

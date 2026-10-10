@@ -98,9 +98,6 @@ afterAll(() => {
   }
 })
 
-// The kit's runner contract is `for (const { name, run } of ...) it(name, run)`: titles and
-// assertions are dynamic by design, so the vitest valid-title and expect-expect rules are off
-// for this file (.oxlintrc.json) and each check still fails with the kit's message.
 describe('session adapter conformance', () => {
   for (const [agent, adapter, sessions] of [
     ['claude-code', builtinSessionAdapters['claude-code'], CLAUDE],
@@ -113,9 +110,13 @@ describe('session adapter conformance', () => {
       sessions: sessionsOf(fixturesOf(agent), sessions),
       oversized: oversizedOf(agent),
     }
-    describe(agent, () => {
+    describe(`${agent} conformance`, () => {
+      // The kit's runner contract, as its own tests wire it: the check brings its title and
+      // its assertions, and a failure rejects with the kit's message.
       for (const { name, run } of sessionAdapterConformance(adapter, fixtures)) {
-        it(name, run)
+        it(`${agent} ${name}`, async () => {
+          await expect(run()).resolves.toBeUndefined()
+        })
       }
     })
   }
@@ -128,7 +129,7 @@ describe('unknown generations fail loud on the repo fixtures', () => {
     ['grok', 'fixtures/sessions/grok/unknown-generation'],
   ]
   for (const [agent, relative] of cases) {
-    it(agent, async () => {
+    it(`${agent} unknown generation`, async () => {
       await expect(loadSession(join(repo, relative), { platform })).rejects.toThrow('unknown format generation')
     })
   }
