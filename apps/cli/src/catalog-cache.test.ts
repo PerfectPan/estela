@@ -202,8 +202,8 @@ describe('session catalog cache', () => {
     const file = join(home, 'index.sqlite')
     const platform = createNodePlatform({ home, env: {} })
     const loads: string[] = []
-    // Summary version 2 is the previous production value: the shell's own prompt rule, which
-    // also indexed compact summaries, meta notes, commands, interruptions, and injected text.
+    // Summary version 2 identifies rows written before the index content revision.
+    // Keep the fixture version pinned so those rows must be recomputed.
     const old = new SessionCatalog({
       platform,
       adapters: { fake: fakeAdapter(home, loads) },
