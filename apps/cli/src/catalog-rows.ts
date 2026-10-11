@@ -5,11 +5,11 @@ import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
 import type { Platform } from '@rivus/agent-kit/platform'
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import { foldTranscript, loadTranscript } from '@rivus/agent-kit/transcript'
+import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
+import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadFailure } from './read-failure.ts'
 import { kitTargetOf, projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
-import { userPrompts } from './user-prompts.ts'
 
 /** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
 export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
@@ -81,22 +81,24 @@ export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
 export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | { error: SessionError }
 
 /**
- * One read per session: the transcript loads once through the kit, and both the summary
- * (`foldTranscript`, what `summarizeSession` runs) and the search prompts come from it. The
- * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70. `summaryOf`
- * copies only the summary fields the wire contract and the index know, so a kit-side
- * addition cannot leak into rows unchecked.
+ * One read per session: the kit's bounded summary pass (`adapter.summarize`, else the folded
+ * load) produces the numbers and, under the same caps as the index, the main lane's user
+ * prompts for search. `summaryOf` copies only the summary fields the wire contract and the
+ * index know, so a kit-side addition cannot leak into rows unchecked.
  */
 export async function summarizeRow(
   platform: CatalogPlatform,
   adapters: SessionAdapters,
   target: SessionRef,
 ): Promise<SummarizeResult> {
-  const loaded = await loadTranscript(platform, kitTargetOf(target), { adapters })
-  if (!loaded.ok) {
-    return { error: loadFailure(loaded.error, platform.home, sessionRefLabel(target), target.path) }
+  const result = await summarizeSession(platform, kitTargetOf(target), {
+    adapters,
+    prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
+  })
+  if (!result.ok) {
+    return { error: loadFailure(result.error, platform.home, sessionRefLabel(target), target.path) }
   }
-  return { summary: summaryOf(foldTranscript(loaded.value)), prompts: userPrompts(loaded.value) }
+  return { summary: summaryOf(result.value), prompts: (result.value.prompts ?? []).map(prompt => prompt.text) }
 }
 
 function pad(value: number): string {

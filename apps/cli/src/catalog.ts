@@ -44,7 +44,14 @@ const FLUSH_MS = 150
  * wrote and must stay; later bumps track the kit's SESSION_SUMMARY_VERSION.
  */
 const HOST_ERA_OFFSET = 1
-const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET
+/**
+ * What the index stores next to the numbers is versioned too. Revision 0 is the shell's own
+ * prompt rule, which also indexed compact summaries, meta notes, slash commands, interruptions,
+ * and host-injected text; the kit's prompt rule keeps the user's own prompts only (kit 0.10.0's
+ * bounded pass collects them), so rows written under the old rule are recomputed once.
+ */
+const INDEX_CONTENT_REVISION = 1
+const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION
 
 export interface CatalogOptions {
   adapters?: SessionAdapters
