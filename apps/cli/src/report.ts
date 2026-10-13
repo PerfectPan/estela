@@ -13,6 +13,7 @@ import { redact, redactText } from '@rivus/agent-kit/redact'
 import { bindReportSource, buildReport } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import { createBuild } from 'devframe/adapters/build'
+import * as z from 'zod/mini'
 import devframe from './devframe.ts'
 import { packForFile } from './report-site.ts'
 
@@ -59,6 +60,8 @@ function stamp(date: Date): string {
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
 }
 
+const fileExists = z.object({ code: z.literal('EEXIST') })
+
 /** A new directory, created here so no other export (or process) can take the same name. */
 async function reserveDir(base: string): Promise<string> {
   for (let n = 1; ; n++) {
@@ -67,7 +70,7 @@ async function reserveDir(base: string): Promise<string> {
       await mkdir(dir)
       return dir
     } catch (error) {
-      if ((error as { code?: unknown }).code !== 'EEXIST') {
+      if (!z.safeParse(fileExists, error).success) {
         throw error
       }
     }

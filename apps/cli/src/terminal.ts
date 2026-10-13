@@ -18,15 +18,9 @@ export function devframeTilde(homeDir: string): (text: string) => string {
       : text
 }
 
-function callbackArg(rest: readonly unknown[]): [] | [(error?: Error | null) => void] {
-  for (let i = rest.length - 1; i >= 0; i--) {
-    const item = rest[i]
-    if (typeof item === 'function') {
-      return [item as (error?: Error | null) => void]
-    }
-  }
-  return []
-}
+type WriteCallback = (error: Error | null | undefined) => void
+/** What follows the chunk in `Writable.write`'s two overloads. */
+type WriteTail = [callback?: WriteCallback] | [encoding: BufferEncoding, callback?: WriteCallback]
 
 function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string): void {
   const write = stream.write.bind(stream)
@@ -34,17 +28,23 @@ function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string
     const plain = strip ? stripVTControlCharacters(text) : text
     return tilde ? tilde(plain) : plain
   }
-  stream.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
-    if (typeof chunk !== 'string') {
-      const touched =
-        (strip && chunk.includes(0x1b)) || (tilde !== undefined && Buffer.from(chunk).includes('[devframe]'))
-      if (!touched) {
-        return write(chunk, ...(rest as []))
-      }
-      return write(clean(Buffer.from(chunk).toString('utf8')), ...callbackArg(rest))
+  const touched = (chunk: Uint8Array): boolean =>
+    (strip && chunk.includes(0x1b)) || (tilde !== undefined && Buffer.from(chunk).includes('[devframe]'))
+  stream.write = (chunk: string | Uint8Array, ...tail: WriteTail): boolean => {
+    // Known-union narrowing over the two overloads: a string after the chunk is the encoding.
+    const [first, second] = tail
+    if (typeof chunk !== 'string' && touched(chunk)) {
+      // Decoded as UTF-8, so the encoding no longer applies; only the callback is passed on.
+      const callback = typeof first === 'string' ? second : first
+      const text = clean(Buffer.from(chunk).toString('utf8'))
+      return callback ? write(text, callback) : write(text)
     }
-    return write(clean(chunk), ...(rest as []))
-  }) as typeof stream.write
+    const out = typeof chunk === 'string' ? clean(chunk) : chunk
+    if (typeof first === 'string') {
+      return write(out, first, second)
+    }
+    return first ? write(out, first) : write(out)
+  }
 }
 
 /**

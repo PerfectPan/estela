@@ -1,36 +1,37 @@
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { NAMESPACE } from '@rivus/agent-trace-rpc'
+import * as z from 'zod/mini'
 
 /** The `<script type="application/json">` id the SPA looks for (`apps/web/src/shell/report.ts`). */
 const REPORT_ELEMENT_ID = 'report-trace'
 const METHOD = `${NAMESPACE}:report-trace`
 
-interface DumpEntry {
-  type?: string
-  records?: Record<string, string>
-  fallback?: string
-}
+/** What is read of DevFrame's `__rpc-dump/index.json`: the query entry of `report-trace`, if there is one. */
+const dumpManifest = z.object({
+  [METHOD]: z.optional(
+    z.object({ records: z.optional(z.record(z.string(), z.string())), fallback: z.optional(z.string()) }),
+  ),
+})
+/** One baked call: the handler's output, embedded in the report as it is, or the error it threw. */
+const dumpRecord = z.object({ output: z.unknown(), error: z.optional(z.object({ message: z.optional(z.string()) })) })
 
 /** The output DevFrame baked for `report-trace`: its fallback record, else its only record. */
 async function bakedReport(outDir: string): Promise<unknown> {
-  const manifest = JSON.parse(await readFile(join(outDir, '__rpc-dump/index.json'), 'utf8')) as Record<
-    string,
-    DumpEntry
-  >
-  const entry = manifest[METHOD]
+  const manifest = z.safeParse(dumpManifest, JSON.parse(await readFile(join(outDir, '__rpc-dump/index.json'), 'utf8')))
+  const entry = manifest.data?.[METHOD]
   const path = entry?.fallback ?? Object.values(entry?.records ?? {})[0]
   if (!path) {
     throw new Error(`the static dump has no ${METHOD} record`)
   }
-  const record = JSON.parse(await readFile(join(outDir, path), 'utf8')) as {
-    output?: unknown
-    error?: { message?: string }
+  const record = z.safeParse(dumpRecord, JSON.parse(await readFile(join(outDir, path), 'utf8')))
+  if (!record.success) {
+    throw new Error(`the static dump's ${METHOD} record is not an output or an error`)
   }
-  if (record.error) {
-    throw new Error(`${METHOD} failed while baking: ${record.error.message ?? 'unknown error'}`)
+  if (record.data.error) {
+    throw new Error(`${METHOD} failed while baking: ${record.data.error.message ?? 'unknown error'}`)
   }
-  return record.output
+  return record.data.output
 }
 
 /**
