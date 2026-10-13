@@ -51,9 +51,12 @@ describe('list-sessions input', () => {
     [{ since: 1.5 }, 'list-sessions: since must be a non-negative integer'],
     [{ since: -1 }, 'list-sessions: since must be a non-negative integer'],
     [{ since: '3' }, 'list-sessions: since must be a non-negative integer'],
-    [{ first: 'a' }, 'list-sessions: first must be an array of at most 500 refs'],
-    [{ first: [1] }, 'list-sessions: first must be an array of at most 500 refs'],
-    [{ first: Array.from({ length: 501 }, () => 'a') }, 'list-sessions: first must be an array of at most 500 refs'],
+    [{ first: 'a' }, 'list-sessions: first must be an array of at most 500 trace ids'],
+    [{ first: [1] }, 'list-sessions: first must be an array of at most 500 trace ids'],
+    [
+      { first: Array.from({ length: 501 }, () => 'a') },
+      'list-sessions: first must be an array of at most 500 trace ids',
+    ],
     [{ query: 1, since: -1 }, 'list-sessions: query must be a string of at most 1000 characters'],
   ])('refuses %j with the message the browser shows', async (input, message) => {
     const handler = await wire(listSessions)
@@ -71,17 +74,17 @@ describe('export-report input', () => {
   it('ignores a locale it does not know', async () => {
     const handler = await wire(exportReport)
     seen.length = 0
-    await handler({ ref: 'r', locale: 'zh-CN' })
-    await handler({ ref: 'r', locale: 'fr' })
+    await handler({ traceId: 'r', locale: 'zh-CN' })
+    await handler({ traceId: 'r', locale: 'fr' })
     expect(seen).toEqual([
-      { ref: 'r', locale: 'zh-CN' },
-      { ref: 'r', locale: undefined },
+      { traceId: 'r', locale: 'zh-CN' },
+      { traceId: 'r', locale: undefined },
     ])
   })
 
-  it.each([undefined, null, 'r', {}, { ref: '' }, { ref: 1 }])('refuses %j without a session ref', async input => {
+  it.each([undefined, null, 'r', {}, { traceId: '' }, { traceId: 1 }])('refuses %j without a trace id', async input => {
     const handler = await wire(exportReport)
-    await expect(handler(input)).rejects.toEqual(new Error('export-report needs a session ref'))
+    await expect(handler(input)).rejects.toEqual(new Error('export-report needs a trace id'))
   })
 })
 
@@ -93,32 +96,35 @@ describe('trace handler input', () => {
   bindTraceStore(store)
 
   it.each([
-    [loadTrace, undefined, 'load-trace needs a session ref'],
-    [loadTrace, { ref: 1 }, 'load-trace needs a session ref'],
-    [getTraceView, {}, 'get-trace-view needs a session ref'],
-    [getEvent, null, 'get-event needs a session ref and an event id'],
-    [getEvent, { id: 'e1' }, 'get-event needs a session ref'],
-    [getEvent, { ref: 'a', id: 1 }, 'get-event needs an event id'],
+    [loadTrace, undefined, 'load-trace needs a trace id'],
+    [loadTrace, { traceId: 1 }, 'load-trace needs a trace id'],
+    [getTraceView, {}, 'get-trace-view needs a trace id'],
+    [getEvent, null, 'get-event needs a trace id and an event id'],
+    [getEvent, { id: 'e1' }, 'get-event needs a trace id'],
+    [getEvent, { traceId: 'a', id: 1 }, 'get-event needs an event id'],
     [reconstructAt, {}, 'reconstruct needs an event id'],
     [
       reconstructAt,
-      { ref: 1, eventId: 'e1' },
-      'reconstruct: ref must be a string; leave it out for the current session',
+      { traceId: 1, eventId: 'e1' },
+      'reconstruct: traceId must be a string; leave it out for the current session',
     ],
   ])('%#: refuses %j', async (definition, input, message) => {
     const handler = await wire(definition)
     await expect(handler(input)).rejects.toEqual(new TypeError(message))
   })
 
-  it('passes any string ref to the store, which names the unknown one', async () => {
+  it('passes any string trace id to the store, which names the unknown one', async () => {
     const handler = await wire(getEvent)
-    await expect(handler({ ref: 'missing', id: 'e1' })).rejects.toThrow('unknown session ref: missing')
-    await expect(handler({ ref: 'a', id: 'nope' })).rejects.toThrow('no event nope in a')
+    await expect(handler({ traceId: 'missing', id: 'e1' })).rejects.toThrow('unknown trace id: missing')
+    await expect(handler({ traceId: 'a', id: 'nope' })).rejects.toThrow('no event nope in a')
   })
 
-  it('reconstructs the launch session when MCP leaves the ref out or null', async () => {
+  it('reconstructs the launch session when MCP leaves the traceId out or null', async () => {
     const handler = await wire(reconstructAt)
     await expect(handler({ eventId: 'e1' })).resolves.toMatchObject({ eventId: 'e1', visibleIds: ['e1'] })
-    await expect(handler({ ref: null, eventId: 'e1' })).resolves.toMatchObject({ eventId: 'e1', visibleIds: ['e1'] })
+    await expect(handler({ traceId: null, eventId: 'e1' })).resolves.toMatchObject({
+      eventId: 'e1',
+      visibleIds: ['e1'],
+    })
   })
 })

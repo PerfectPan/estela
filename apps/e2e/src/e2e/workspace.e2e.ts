@@ -15,13 +15,13 @@ function elapsedMs(text: string): number {
   )
 }
 
-test('S2: the opened ?s=<ref> URL lands on #/s/<ref> through the one-time code', async ({ page, launch }) => {
+test('S2: the opened ?s=<traceId> URL lands on #/s/<traceId> through the one-time code', async ({ page, launch }) => {
   const server = await launch({ args: [sessions.claudePlain], waitOpened: true })
   const [opened] = server.opened()
-  expect(opened).toMatch(new RegExp(`\\?s=${server.ref}#devframe_otp=\\w+$`))
+  expect(opened).toMatch(new RegExp(`\\?s=${server.traceId}#devframe_otp=\\w+$`))
   await page.goto(opened!)
   await expect(page.getByTestId('ledger')).toBeVisible()
-  await expect.poll(() => page.evaluate(() => location.hash)).toBe(`#/s/${server.ref}`)
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe(`#/s/${server.traceId}`)
   expect(new URL(page.url()).searchParams.has('s')).toBe(false)
   await expect(page.getByTestId('export-report')).toBeVisible()
 })

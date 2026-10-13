@@ -18,18 +18,18 @@ import devframe from './devframe.ts'
 import { packForFile } from './report-site.ts'
 
 /**
- * The report payload for `ref`: the view from the store and the first events in full from `full`
+ * The report payload for `traceId`: the view from the store and the first events in full from `full`
  * (`build` passes the trace it loaded, so the file is read once; the export reads through the
  * store). Always redacted (plan D10), whatever `AGENT_TRACE_REDACT` says.
  */
 export async function reportOf(
   store: TraceStore,
-  ref: string,
+  traceId: string,
   full: (ids: readonly string[]) => Promise<EventDetail[]>,
   locale?: ReportLocale,
 ): Promise<ReportTrace> {
   const home = homeDir()
-  return buildReport({ view: await store.view(ref), full, redact: value => redact(value, { home }), locale })
+  return buildReport({ view: await store.view(traceId), full, redact: value => redact(value, { home }), locale })
 }
 
 let queue: Promise<unknown> = Promise.resolve()
@@ -78,7 +78,7 @@ async function reserveDir(base: string): Promise<string> {
 }
 
 /**
- * The dev server's "Export report": a new `agent-trace-report-<ref>-<time>` directory in the
+ * The dev server's "Export report": a new `agent-trace-report-<traceId>-<time>` directory in the
  * working directory. The error message reaches the browser, so it is redacted too.
  */
 export async function exportReport(
@@ -88,10 +88,13 @@ export async function exportReport(
 ): Promise<ExportReportResult> {
   const home = homeDir()
   try {
-    const report = await store.withEvents(input.ref, read => reportOf(store, input.ref, read, input.locale))
+    const report = await store.withEvents(input.traceId, read => reportOf(store, input.traceId, read, input.locale))
     const outDir = await serialized(async () => {
       const dir = await reserveDir(
-        resolve(process.cwd(), `agent-trace-report-${input.ref.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`),
+        resolve(
+          process.cwd(),
+          `agent-trace-report-${input.traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`,
+        ),
       )
       await buildSite(dir, report)
       return dir

@@ -12,7 +12,7 @@ export function SessionPreview(props: {
   row: SessionListRow
   agents: AgentListEntry[]
   now: number
-  onOpen: (ref: string) => void
+  onOpen: (traceId: string) => void
 }) {
   const num = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
   const agentName = () => props.agents.find(agent => agent.id === props.row.agent)?.displayName ?? props.row.agent
@@ -93,7 +93,7 @@ export function SessionPreview(props: {
         type="button"
         disabled={props.row.error !== undefined}
         class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-[9px] bg-foreground text-[14px] font-semibold text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        onClick={() => props.onOpen(props.row.ref)}
+        onClick={() => props.onOpen(props.row.traceId)}
       >
         {t('common.openSession')}
         <svg

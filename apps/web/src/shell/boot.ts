@@ -2,8 +2,8 @@ import { trustedClient } from './client.ts'
 
 /**
  * DevFrame's auth gate keeps its one-time code in the URL fragment, so the CLI opens a
- * session as `?s=<ref>`. After the client is trusted (DevFrame has read and removed the
- * code), the ref moves to the route `#/s/<ref>` and the query is removed.
+ * session as `?s=<traceId>`. After the client is trusted (DevFrame has read and removed the
+ * code), the trace id moves to the route `#/s/<traceId>` and the query is removed.
  */
 export async function bootLocation(): Promise<void> {
   const pending = new URLSearchParams(location.search).get('s')

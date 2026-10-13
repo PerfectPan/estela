@@ -34,7 +34,7 @@ describe('TraceStore lifecycle', () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: 'x' }])
     const store = new TraceStore({
-      resolve: ref => ({ key: ref, target: { path: '/logs/a.jsonl' } }),
+      resolve: traceId => ({ key: traceId, target: { path: '/logs/a.jsonl' } }),
       fs: f.fs,
       load: async session => ({ trace: f.parse(session.target.path), canonical: true }),
     })
@@ -99,7 +99,7 @@ describe('TraceStore lifecycle', () => {
   it('redacts load errors before they leave the store', async () => {
     const f = fixture()
     const store = new TraceStore({
-      resolve: ref => ({ key: ref, target: { path: `${HOME}/logs/${ref}.jsonl` } }),
+      resolve: traceId => ({ key: traceId, target: { path: `${HOME}/logs/${traceId}.jsonl` } }),
       fs: f.fs,
       present,
       load: async () => {
@@ -159,7 +159,7 @@ describe('TraceStore lifecycle', () => {
     }
     const logs: string[] = []
     const store = new TraceStore({
-      resolve: ref => ({ key: ref, target: { path: '/logs/big.jsonl' } }),
+      resolve: traceId => ({ key: traceId, target: { path: '/logs/big.jsonl' } }),
       fs: {
         read: async function* () {
           yield new Uint8Array()

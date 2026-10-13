@@ -17,8 +17,8 @@ const exec = promisify(execFile)
 export interface Launched {
   /** `http://localhost:<port>/__agent-trace/`. */
   base: string
-  /** The launch session's ref, when a path was given. */
-  ref?: string
+  /** The launch session's trace id, when a path was given. */
+  traceId?: string
   /** URLs the fake opener received (auth on: they carry the one-time code). */
   opened: () => string[]
   /** The server's working directory ("Export report" writes here). */
@@ -95,7 +95,7 @@ export const test = base.extend<Fixtures>({
         throw new Error(`${error.message}\nstdout:\n${server.output().stdout}\nstderr:\n${server.output().stderr}`)
       })
       const match = ready()!
-      return { base: match[1]!, ref: match[2], opened: () => openedUrls(openLog), cwd }
+      return { base: match[1]!, traceId: match[2], opened: () => openedUrls(openLog), cwd }
     })
     for (const server of servers) {
       await server.stop()
@@ -111,7 +111,7 @@ export async function openWorkspace(
   options: Omit<LaunchOptions, 'args'> = {},
 ): Promise<Launched> {
   const server = await launch({ ...options, args: [path, '--no-auth', '--no-open'] })
-  await page.goto(`${server.base}#/s/${server.ref}`)
+  await page.goto(`${server.base}#/s/${server.traceId}`)
   await expect(page.getByTestId('ledger')).toBeVisible()
   return server
 }

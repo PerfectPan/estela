@@ -12,6 +12,6 @@ export const COLUMNS = {
 } as const
 
 /** DOM id of a row, for `aria-activedescendant`. */
-export function optionId(ref: string): string {
-  return `session-${ref}`
+export function optionId(traceId: string): string {
+  return `session-${traceId}`
 }

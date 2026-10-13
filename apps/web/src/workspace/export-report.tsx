@@ -20,7 +20,7 @@ type ExportState =
  * "Export report" and its dialog (plan 3.9): what the report holds and what stays in it, then
  * `export-report` for this session, then where it was written.
  */
-export function ExportReport(props: { sessionRef: string }) {
+export function ExportReport(props: { traceId: string }) {
   const [open, setOpen] = createSignal(false)
   const [state, setState] = createSignal<ExportState>({ status: 'idle' })
   let confirm: HTMLButtonElement | undefined
@@ -42,7 +42,7 @@ export function ExportReport(props: { sessionRef: string }) {
     setState({ status: 'writing' })
     try {
       const ctx = await scopedClient()
-      const result = await ctx.rpc.call('export-report', { ref: props.sessionRef, locale: locale() })
+      const result = await ctx.rpc.call('export-report', { traceId: props.traceId, locale: locale() })
       setState({ status: 'done', result })
       // The Export button is gone now; keep focus in the dialog.
       dialog?.querySelector<HTMLElement>('button')?.focus()

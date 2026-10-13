@@ -3,11 +3,11 @@ import { basename } from 'node:path'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 
 /**
- * Opaque id: a hash of agent and path, plus the session id when the path addresses one session
- * inside a file that holds several (the `path#id` form). The server's map turns it back into a file.
- * URLs and the session index hold these ids, so the hashed input must stay exactly this.
+ * The trace id of a session: an opaque hash of agent and path, plus the session id when the path
+ * addresses one session inside a file that holds several (the `path#id` form). The catalog turns it
+ * back into a target. URLs and the session index hold these ids, so the hashed input must stay exactly this.
  */
-export function sessionRefId(target: { agent: string; path: string; sessionId?: string }): string {
+export function traceIdOf(target: { agent: string; path: string; sessionId?: string }): string {
   return createHash('sha256')
     .update(target.agent)
     .update('\0')

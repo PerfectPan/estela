@@ -37,9 +37,9 @@ node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 
 Open `http://localhost:7392/__agent-trace/`.
 
-With no path the app opens the session browser over every registered agent. A positional path (or `AGENT_TRACE_PATH`) is loaded before the server listens and opens `#/s/<ref>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
+With no path the app opens the session browser over every registered agent. A positional path (or `AGENT_TRACE_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
 
-`build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `agent-trace-report-<ref>-<time>/` directory under the server's working directory and shows the path.
+`build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `agent-trace-report-<traceId>-<time>/` directory under the server's working directory and shows the path.
 
 The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`, or `~/.cache/rivus-agent-trace/index.sqlite` when `XDG_CACHE_HOME` is unset. It is a cache: delete it at any time. `--no-index` runs without reading or writing it (search then covers titles and first prompts only). Point `HOME` at a directory with fixture sessions to run against synthetic data:
 
@@ -152,7 +152,7 @@ Drive it over stdio from an MCP client. Useful tools: `new_page`, `emulate` (`vi
 
 What to check for a workspace change:
 
-- Screenshots at 1440 × 900 of `#/s/<ref>` in dark and light, English and `zh-CN`, next to `docs/design/session-workspace-{dark,light}.html` at the same size. List every visible difference.
+- Screenshots at 1440 × 900 of `#/s/<traceId>` in dark and light, English and `zh-CN`, next to `docs/design/session-workspace-{dark,light}.html` at the same size. List every visible difference.
 - S5: on the Claude Code compaction fixture, the timeline has one `[data-marker=compaction]` whose `data-label` is `compacted  1k → 100`.
 - S6: drag on `[data-testid=timeline-plot]`; `[data-testid=timeline-range]` states the range and the event count. Focus `[data-testid=brush-from]` and press the arrow keys (Shift for 10 % steps); `aria-valuenow` changes.
 - S7: select the request after the compaction and open "Model saw": on a session without prompt snapshots `[data-slot=system]` and `[data-slot=tools]` have `data-status="unavailable"`; on one with snapshots (Claude Code, seen from 2.1.268) they have `data-status="present"`, and each row's `[data-testid=slot-source]` selects the snapshot. At request #1 of the snapshot session, tools are `unavailable` with the "only after this event" note. `[data-testid=dropped]` lists the removed events.

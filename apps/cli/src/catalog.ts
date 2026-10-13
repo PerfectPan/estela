@@ -25,7 +25,7 @@ import {
   type Redactor,
 } from './catalog-rows.ts'
 import { errorMessage, parseReadFailure } from './read-failure.ts'
-import { oneLine, sessionRefId } from './session-target.ts'
+import { oneLine, traceIdOf } from './session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
 
 export type { AgentProgress } from './catalog-discover.ts'
@@ -59,7 +59,7 @@ export interface CatalogOptions {
 
 /**
  * The shell's session catalog (plan 3.4): rows from the index and the latest `discover` pass,
- * summaries computed newest (or visible) first at 4 at a time, and ref → file resolution for
+ * summaries computed newest (or visible) first at 4 at a time, and trace id → target resolution for
  * the TraceStore, which loads and holds the traces.
  */
 export class SessionCatalog {
@@ -70,7 +70,7 @@ export class SessionCatalog {
   private readonly redact: Redactor
   private readonly agentStates: AgentState[]
   private rows = new Map<string, LiveRow>()
-  /** Refs the server resolves: discovered rows and paths opened from the command line. */
+  /** Trace ids the server resolves: discovered rows and sessions opened from the command line. */
   private readonly targets = new Map<string, SessionTarget>()
   /** Rows that disappeared in a re-read, by the revision they were removed at. */
   private readonly removed = new Map<string, number>()
@@ -101,7 +101,7 @@ export class SessionCatalog {
     this.queue = new SummaryQueue<LiveRow>(
       {
         concurrency: CONCURRENCY,
-        key: row => row.ref,
+        key: row => row.traceId,
         rank: row => row.lastActiveAt,
         heavy: row => row.size >= HEAVY_BYTES,
         run: row => this.summarize(row),
@@ -150,19 +150,19 @@ export class SessionCatalog {
 
   /**
    * Register a session given on the command line, already loaded as `trace` (the shell loads it
-   * before the server listens). Returns its ref, which is the file's list row ref when it has one.
+   * before the server listens). Returns its trace id, which is the file's list row trace id when it has one.
    */
   openPath(target: SessionTarget, trace: Trace): string {
-    // Same ref as the file's list row: the session id counts only in the `path#id` form.
-    const ref = sessionRefId({ ...target, agent: trace.agent || 'agent-trace' })
-    this.targets.set(ref, target)
-    return ref
+    // Same trace id as the file's list row: the session id counts only in the `path#id` form.
+    const traceId = traceIdOf({ ...target, agent: trace.agent || 'agent-trace' })
+    this.targets.set(traceId, target)
+    return traceId
   }
 
-  /** The TraceStore's resolver: every list row and every opened path. The ref is the cache key. */
-  resolve(ref: string): ResolvedSession | undefined {
-    const target = this.targets.get(ref)
-    return target === undefined ? undefined : { key: ref, target }
+  /** The TraceStore's resolver: every list row and every opened path. The trace id is the cache key. */
+  resolve(traceId: string): ResolvedSession | undefined {
+    const target = this.targets.get(traceId)
+    return target === undefined ? undefined : { key: traceId, target }
   }
 
   pickChoices(): { value: string; label: string }[] {
@@ -170,7 +170,7 @@ export class SessionCatalog {
     return this.sortedRows()
       .filter(row => !row.error)
       .map(row => ({
-        value: row.ref,
+        value: row.traceId,
         label: [
           row.title ? this.redact(row.title) : 'Untitled',
           names.get(row.target.agent) ?? row.target.agent,
@@ -192,7 +192,8 @@ export class SessionCatalog {
     const rows = this.sortedRows()
       .filter(row => since === undefined || row.revision > since)
       .map(row => publicRow(row, this.redact))
-    const removed = since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([ref]) => ref)
+    const removed =
+      since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([traceId]) => traceId)
     const query = input.query?.trim() ?? ''
     return {
       agents: this.agentEntries(),
@@ -224,8 +225,8 @@ export class SessionCatalog {
     for (const entry of stored) {
       const row = rowFromIndex(entry, this.platform.home)
       row.revision = this.bump()
-      this.rows.set(row.ref, row)
-      this.targets.set(row.ref, row.target)
+      this.rows.set(row.traceId, row)
+      this.targets.set(row.traceId, row.target)
     }
     this.cachedStart = true
     this.announce()
@@ -238,16 +239,16 @@ export class SessionCatalog {
       onProgress?.(progressOf(this.agentStates, this.platform.home)),
     )
     const gone: string[] = []
-    for (const [ref, old] of this.rows) {
-      if (!fresh.has(ref)) {
-        this.removed.set(ref, this.bump())
-        this.targets.delete(ref)
+    for (const [traceId, old] of this.rows) {
+      if (!fresh.has(traceId)) {
+        this.removed.set(traceId, this.bump())
+        this.targets.delete(traceId)
         gone.push(old.target.path)
       }
     }
     const pending: LiveRow[] = []
     for (const row of fresh.values()) {
-      const old = this.rows.get(row.ref)
+      const old = this.rows.get(row.traceId)
       if (!row.error) {
         // Same file (size and raw mtime): keep the summary; otherwise ask the index for this key.
         const summary =
@@ -263,7 +264,7 @@ export class SessionCatalog {
       }
       // Unchanged content keeps its revision, so a second launch's delta is empty.
       row.revision = old && sameRow(old, row) ? old.revision : this.bump()
-      this.targets.set(row.ref, row.target)
+      this.targets.set(row.traceId, row.target)
     }
     this.rows = fresh
     try {
@@ -322,7 +323,7 @@ export class SessionCatalog {
   private search(query: string): string[] {
     const hits = this.readIndex(() => this.index.search(query), undefined)
     if (hits) {
-      return hits.filter(ref => this.rows.has(ref))
+      return hits.filter(traceId => this.rows.has(traceId))
     }
     // --no-index, index unavailable or busy: the index's rule over titles and first prompts in memory.
     // Under 3 characters the index also matches substrings, so both lengths are a substring match here.
@@ -337,7 +338,7 @@ export class SessionCatalog {
       .filter(
         row => (row.title ?? '').toLowerCase().includes(text) || (row.firstPrompt ?? '').toLowerCase().includes(text),
       )
-      .map(row => row.ref)
+      .map(row => row.traceId)
   }
 
   /** An index error (busy, I/O) never stops the list: the row stays unsummarized or the search runs in memory. */

@@ -136,7 +136,7 @@ flowchart TB
 | `apps/cli` | `@rivus/agent-trace` | Composition root: session reading through the external `@rivus/agent-kit` (the only runtime kit importer), the DevFrame server, terminal output (D14), embeds the web build, `vp pack` bundle | every package; web's build output |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | Private test harness for the packed tarball: CLI smoke (5.3) and the browser suite (5.2) | nothing at runtime; test tooling only |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema`, `@rivus/agent-kit` (types) |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema`, `@rivus/agent-kit` (types) |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (trace id resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index in `node:sqlite` (D7) | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
 | `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types, with event payloads typed by the kit's payload types, and their `zod` schemas | `@rivus/agent-kit` (types); no workspace package; small browser-safe external libraries (`zod`) |
@@ -169,14 +169,14 @@ sequenceDiagram
   S-->>B: rows from head/tail reads (cached numbers when present)
   S-->>B: summary updates as full reads finish
   U->>B: open a session
-  B->>S: load-trace(ref) (action)
+  B->>S: load-trace(traceId) (action)
   S-->>B: loadId (progress stream id)
   B->>S: subscribe load-progress(loadId)
   S-->>B: progress chunks (bytes read of file size), then end
-  B->>S: get-trace-view(ref)
+  B->>S: get-trace-view(traceId)
   S-->>B: view trace (no originals, text capped to fit 12 MB)
   U->>B: select an event
-  B->>S: get-event(ref, id)
+  B->>S: get-event(traceId, id)
   S-->>B: full payload + original record (read by byte offset)
 ```
 
@@ -209,7 +209,7 @@ A full parse of 11.6 GB at launch is not possible. `discover` lists files and re
 Alternatives: a JSON cache file (no search, whole-file rewrites); DuckDB (`@duckdb/node-api` installs 115 MB on macOS arm64, and scans all 550 MB of Claude Code logs in 252 ms against 1,176 ms for a Node line scan, but it would restate each agent's parsing rules in SQL beside the adapters); `better-sqlite3` (a native addon per platform, where `node:sqlite` needs none). Node.js 22 prints an `ExperimentalWarning` for `node:sqlite`; `dist/bin.mjs` suppresses that one warning, verified in M1.
 
 **D8. RPC shape and the static report.**
-Queries: `list-sessions` (not a snapshot), `get-trace-view(ref)`, `get-event(ref, id)`, `reconstruct(ref, eventId)` (for MCP; `snapshot: true` removed, the measured cause of the `build` failure). Two actions: `load-trace(ref)` starts or joins the load and returns the id of a `load-progress` stream (2.3), and `export-report(ref, locale)` writes the same report as `build` for a session of the dev server. DevFrame's static dump only bakes argument-free snapshot queries, so `build <path>` registers one extra argument-free snapshot query, `report-trace`, bound to that session and registered only in DevFrame's build mode, and the SPA starts in report mode when it finds it. A report includes the view trace and the original records of at most the first 2,000 events or 20 MB, whichever is smaller, and says so in the report header when it truncates.
+Queries: `list-sessions` (not a snapshot), `get-trace-view(traceId)`, `get-event(traceId, id)`, `reconstruct(traceId, eventId)` (for MCP; `snapshot: true` removed, the measured cause of the `build` failure). Two actions: `load-trace(traceId)` starts or joins the load and returns the id of a `load-progress` stream (2.3), and `export-report(traceId, locale)` writes the same report as `build` for a session of the dev server. DevFrame's static dump only bakes argument-free snapshot queries, so `build <path>` registers one extra argument-free snapshot query, `report-trace`, bound to that session and registered only in DevFrame's build mode, and the SPA starts in report mode when it finds it. A report includes the view trace and the original records of at most the first 2,000 events or 20 MB, whichever is smaller, and says so in the report header when it truncates.
 
 **D9. UI stack and design contract.**
 Solid, Tailwind v4, and shadcn-solid stay. Tokens, palette, type, and encoding rules come from `docs/design/README.md` and become CSS variables in `styles.css` under `data-theme="dark|light"`. The ledger uses `@tanstack/solid-virtual` 3.13. The timeline and preview shape are SVG drawn from kernel projections; no chart library.
@@ -249,8 +249,8 @@ npx @rivus/agent-trace mcp <path>
 ```
 
 - No path: open `/__agent-trace/` (session browser).
-- Path: load it once through `loadSession`; on failure exit 1 with the message before listening; on success open `/__agent-trace/#/s/<ref>`.
-- `ref` is an opaque id the index assigns (a hash of agent and path). The absolute path never appears in a URL.
+- Path: load it once through `loadSession`; on failure exit 1 with the message before listening; on success open `/__agent-trace/#/s/<traceId>`.
+- `traceId` is an opaque id the index assigns (a hash of agent and path). The absolute path never appears in a URL.
 - `AGENT_TRACE_PATH` is used when no path argument is given.
 - `--pick` opens a clack `autocomplete` over the index rows (title, agent, project, last activity), then opens the workspace URL for the choice. Without a TTY on stdin it exits 1.
 
@@ -451,7 +451,7 @@ flowchart LR
   sum --> rows
 ```
 
-- Tables: `sessions` (ref, agent, path, size, mtime, head fields, summary numbers, flags, error), `prompts` (session ref, sequence, first 500 characters of each user prompt, at most 200 per session), and `search`, an FTS5 `trigram` table over titles and prompts.
+- Tables: `sessions` (trace id, agent, path, size, mtime, head fields, summary numbers, flags, error), `prompts` (trace id, sequence, first 500 characters of each user prompt, at most 200 per session), and `search`, an FTS5 `trigram` table over titles and prompts.
 - `list-sessions` reads rows from the index and the latest `discover` pass. The browser receives rows first and summary updates as they finish.
 - Search runs in the index, not in the browser. Queries shorter than 3 characters, which the `trigram` tokenizer cannot match, fall back to a substring match (`LIKE '%q%'`, escaped) over titles and the `prompts` table, so a 2-character Chinese word still finds its sessions.
 - The index is a cache. `PRAGMA user_version` records its layout; a different layout, or a file that fails to open, is deleted and rebuilt. Writes run in one transaction per batch of summaries.
@@ -460,7 +460,7 @@ flowchart LR
 
 ### 3.5 Loading a session
 
-- `load-trace(ref)` starts or joins the load through the adapter with `onProgress` and returns a stream id. The browser subscribes to `load-progress` with it at once (within 5 s) and receives bytes read out of file size, then calls `get-trace-view(ref)`, which returns when the load finishes.
+- `load-trace(traceId)` starts or joins the load through the adapter with `onProgress` and returns a stream id. The browser subscribes to `load-progress` with it at once (within 5 s) and receives bytes read out of file size, then calls `get-trace-view(traceId)`, which returns when the load finishes.
 - The server keeps the last 3 loaded traces in memory without originals; `get-event` reads the original from the source pointer, and returns `originalUnavailable` with a reason when the file changed and the bytes are no longer that record.
 - Each reader holds the load. The last release aborts it (`AbortSignal`): the browser cancels the stream when it navigates away, disconnects, never subscribes, or opens another session. Another tab or an MCP `reconstruct` holds its own, so it is not cancelled by one browser's navigation.
 - Error messages are redacted before they reach the browser.
@@ -514,7 +514,7 @@ Localization details (D13):
 ### 3.9 Security and privacy
 
 - The server binds `localhost`. DevFrame's authentication gate stays on by default; `--no-auth` stays opt-in. How the gate behaves with `--open` is an open question (section 7).
-- URLs carry opaque session refs, never paths.
+- URLs carry opaque trace ids, never paths.
 - The index holds titles, user prompts (first 500 characters each), paths, and numbers. It lives in the user's cache directory with mode 0600. `--no-index` runs without reading or writing it.
 - The report is always redacted (D10). Session text and file contents remain; the export dialog and the report header say so.
 - Nothing is sent off the machine.
@@ -616,10 +616,10 @@ Implemented as planned, except for these choices made during delivery:
 - `reconstruct` works on the target event's own lane: a subagent's request sees only that subagent's events.
 - System prompt and tools: the 1.1 table said Claude Code records neither. Claude Code writes `prompt_snapshot` attachments (seen from 2.1.268), and Codex rollouts carry `session_meta.base_instructions.text`; the adapters now read them (3.3), traces list `systemPrompt` / `toolSchemas` only when their files record them (3.2), and Model saw explains an unavailable slot from what that trace lacks and links a recorded one to its snapshot. The view keeps each distinct snapshot prompt and tool list once (3.3).
 - Report contents: the first events are included in full (normalized payload plus original record), not only their originals, so a shortened text is also complete for those events. The 2,000-event and 20 MB limits count those full events. `build` records no locale, so its report opens in the browser's language; an export records the UI locale.
-- Export: "Export report" writes into a new `agent-trace-report-<ref>-<time>/` directory in the server's working directory and shows the absolute path with `~` for the home directory. Exports run one at a time. DevFrame's build mode skips the session push, so a build inside the dev server does not rebind the live shared state.
+- Export: "Export report" writes into a new `agent-trace-report-<traceId>-<time>/` directory in the server's working directory and shows the absolute path with `~` for the home directory. Exports run one at a time. DevFrame's build mode skips the session push, so a build inside the dev server does not rebind the live shared state.
 - Legacy `get-trace` is removed. `mcp` keeps `reconstruct` over the TraceStore. Model saw computes `reconstruct` in the browser on the view trace, on the dev server and in a report.
-- S4: the session list does not open a "could not read" row. Its preview shows file, line, and reason, and the workspace URL of that ref shows agent, file, and line in the error panel.
-- S2: the CLI opens `<base>?s=<ref>#devframe_otp=<code>`, because DevFrame's one-time code uses the fragment; the SPA moves the ref to `#/s/<ref>`. The smoke test checks the opened URL; the browser suite checks the landing route.
+- S4: the session list does not open a "could not read" row. Its preview shows file, line, and reason, and the workspace URL of that trace id shows agent, file, and line in the error panel.
+- S2: the CLI opens `<base>?s=<traceId>#devframe_otp=<code>`, because DevFrame's one-time code uses the fragment; the SPA moves the trace id to `#/s/<traceId>`. The smoke test checks the opened URL; the browser suite checks the landing route.
 - Ledger: each subagent lane's events in a turn sit behind one subagent row at its spawn call; row sizes are fixed per row type (hook fold 30 px, compaction 44 px).
 - Tooling: `@clack/prompts` is bundled into `dist/cli.mjs`; `node-pty` is `1.2.0-beta.15` because 1.1.0 has no Linux prebuilds; `dist/THIRD-PARTY-NOTICES.txt` is written by a small Rolldown plugin in the pack config; `npm pack` keeps `workspace:*` in the packed `devDependencies`, which `npm install` ignores (the publish follow-up should pack with Rush or pnpm).
 - The browser suite runs Playwright's Chromium in CI. `AGENT_TRACE_E2E_CHANNEL=chrome` runs it on an installed Google Chrome where Playwright's download is not reachable.

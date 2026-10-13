@@ -5,7 +5,7 @@ export interface ListSessionsQuery {
   query?: string
   /** Return only rows that changed after this revision. Omit for every row. */
   since?: number
-  /** Refs to summarize before the rest, for example the rows on screen. Concurrency stays at 4. */
+  /** Trace ids of the rows to summarize before the rest, for example the rows on screen. Concurrency stays at 4. */
   first?: string[]
 }
 
@@ -32,8 +32,8 @@ export interface SessionError {
 export interface SessionListRow extends Omit<SessionSummary, 'contextShape'> {
   /** Input tokens per request, scaled to 0–100 (integers). */
   shape?: number[]
-  /** Opaque id (hash of agent and path). The server maps it back to a file. */
-  ref: string
+  /** Opaque id (hash of agent and path) the browser opens the session by. The server maps it back to a file. */
+  traceId: string
   agent: string
   title?: string
   project?: string
@@ -55,9 +55,9 @@ export interface ListSessionsResult {
   rows: SessionListRow[]
   /** `rows` is the full list, so the client replaces instead of merging. */
   complete: boolean
-  /** With `since`: refs removed after `since` (the file is gone). */
+  /** With `since`: trace ids of the rows removed after `since` (the file is gone). */
   removed?: string[]
-  /** With `query`: matching refs from the index. */
+  /** With `query`: trace ids of the matching rows, from the index. */
   matches?: string[]
   /** Rows whose summary is not done yet. */
   pending: number

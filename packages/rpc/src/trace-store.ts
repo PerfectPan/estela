@@ -12,9 +12,9 @@ const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024
 /** Concurrent source-pointer reads in `withEvents`. */
 const READ_BATCH = 32
 
-/** What a `ref` resolves to. The shell's resolver (its session catalog) supplies it. */
+/** What a `traceId` resolves to. The shell's resolver (its session catalog) supplies it. */
 export interface ResolvedSession {
-  /** Cache key: one per session (the catalog ref, or the launch path outside the dev server). */
+  /** Cache key: one per session (the trace id, or the launch session's `path#id` string outside the dev server). */
   key: string
   /** What the shell loads: a discovered `SessionRef`, or the target of a path given on the command line. */
   target: SessionTarget
@@ -32,7 +32,7 @@ export interface LoadOpts {
 }
 
 export interface TraceStoreDeps {
-  resolve: (ref: string) => ResolvedSession | undefined | Promise<ResolvedSession | undefined>
+  resolve: (traceId: string) => ResolvedSession | undefined | Promise<ResolvedSession | undefined>
   load: (session: ResolvedSession, opts: LoadOpts) => Promise<LoadedTrace>
   /** Reads for the source-pointer originals: stamps, `checkedOriginal`, and `totalBytes`. */
   fs: SessionFs
@@ -50,7 +50,7 @@ export interface LoadProgress {
 }
 
 export interface TraceViewResult {
-  ref: string
+  traceId: string
   /** View trace (`toView`); `trace.view` holds the cap used and whether the view fits the budget. */
   trace: Trace
   summary: SessionSummary
@@ -101,8 +101,8 @@ export interface LoadHandle {
 }
 
 export class LoadCancelledError extends Error {
-  constructor(ref: string) {
-    super(`load of ${ref} was cancelled`)
+  constructor(traceId: string) {
+    super(`load of ${traceId} was cancelled`)
     this.name = 'LoadCancelledError'
   }
 }
@@ -122,7 +122,7 @@ function withoutOriginals(trace: Trace): Trace {
 
 /**
  * Server side of `get-trace-view`, `get-event`, and `reconstruct`: resolves
- * refs, shares in-flight loads, keeps the last 3 traces without originals, and
+ * trace ids, shares in-flight loads, keeps the last 3 traces without originals, and
  * reads originals back from source pointers on demand.
  */
 export class TraceStore {
@@ -148,24 +148,24 @@ export class TraceStore {
   }
 
   /**
-   * Start or join the load of `ref`. With an `owner` (one browser connection),
+   * Start or join the load of `traceId`. With an `owner` (one browser connection),
    * a new `open` supersedes that owner's previous one: its hold is released,
    * which aborts the old load when nobody else holds it.
    */
-  async open(ref: string, owner?: object): Promise<LoadHandle> {
+  async open(traceId: string, owner?: object): Promise<LoadHandle> {
     const generation = owner ? (this.generations.get(owner) ?? 0) + 1 : 0
     if (owner) {
       this.generations.set(owner, generation)
     }
     const current = (): boolean => !owner || this.generations.get(owner) === generation
     return this.guard(async () => {
-      const session = await this.resolveOrThrow(ref)
-      const handle = await this.hold(ref, session, current)
+      const session = await this.resolveOrThrow(traceId)
+      const handle = await this.hold(traceId, session, current)
       if (owner) {
         if (!current()) {
           // A later `open` from this connection started while this one waited.
           handle.release()
-          throw new LoadCancelledError(ref)
+          throw new LoadCancelledError(traceId)
         }
         this.owners.get(owner)?.handle.release()
         this.owners.set(owner, { key: session.key, handle })
@@ -185,28 +185,28 @@ export class TraceStore {
    * same session, so its supersede or cancel also ends them. Any other caller
    * (another tab, MCP) takes its own hold.
    */
-  async view(ref: string, owner?: object): Promise<TraceViewResult> {
+  async view(traceId: string, owner?: object): Promise<TraceViewResult> {
     return this.guard(async () => {
-      const entry = await this.entryFor(ref, owner)
+      const entry = await this.entryFor(traceId, owner)
       if (!entry.view) {
         entry.view = fitView(this.present(entry.trace), { maxString: this.deps.maxString, maxBytes: VIEW_BYTES })
         if (entry.view.trace.view?.withinBudget === false) {
           this.deps.log?.(
-            `view of ${ref} is ${entry.view.bytes} bytes at the 256-character floor, over the ${VIEW_BYTES}-byte budget`,
+            `view of ${traceId} is ${entry.view.bytes} bytes at the 256-character floor, over the ${VIEW_BYTES}-byte budget`,
           )
         }
       }
-      return { ref, trace: entry.view.trace, summary: summaryOf(fold(entry.trace)), bytes: entry.view.bytes }
+      return { traceId, trace: entry.view.trace, summary: summaryOf(fold(entry.trace)), bytes: entry.view.bytes }
     })
   }
 
   /** The full event, with `original` read back from its source pointer (or `originalUnavailable`). */
-  async event(ref: string, id: string, owner?: object): Promise<EventDetail> {
+  async event(traceId: string, id: string, owner?: object): Promise<EventDetail> {
     return this.guard(async () => {
-      const entry = await this.entryFor(ref, owner)
+      const entry = await this.entryFor(traceId, owner)
       const index = entry.byId.get(id)
       if (index === undefined) {
-        throw new Error(`no event ${id} in ${ref}`)
+        throw new Error(`no event ${id} in ${traceId}`)
       }
       const event = entry.trace.events[index]!
       if (entry.canonical) {
@@ -231,19 +231,19 @@ export class TraceStore {
    * file is reloaded once for all of `run`'s reads and dropped when `run` ends.
    */
   async withEvents<T>(
-    ref: string,
+    traceId: string,
     run: (read: (ids: readonly string[]) => Promise<EventDetail[]>) => Promise<T>,
     owner?: object,
   ): Promise<T> {
-    const entry = await this.guard(() => this.entryFor(ref, owner))
+    const entry = await this.guard(() => this.entryFor(traceId, owner))
     entry.pinned += 1
     const read = async (ids: readonly string[]): Promise<EventDetail[]> => {
       if (entry.canonical) {
-        return Promise.all(ids.map(id => this.event(ref, id, owner)))
+        return Promise.all(ids.map(id => this.event(traceId, id, owner)))
       }
       const out: EventDetail[] = []
       for (let start = 0; start < ids.length; start += READ_BATCH) {
-        out.push(...(await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(ref, id, owner)))))
+        out.push(...(await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(traceId, id, owner)))))
       }
       return out
     }
@@ -257,8 +257,8 @@ export class TraceStore {
     }
   }
 
-  async reconstruct(ref: string, eventId: string, owner?: object): Promise<ReconstructResult> {
-    return this.guard(async () => reconstruct((await this.entryFor(ref, owner)).trace, eventId))
+  async reconstruct(traceId: string, eventId: string, owner?: object): Promise<ReconstructResult> {
+    return this.guard(async () => reconstruct((await this.entryFor(traceId, owner)).trace, eventId))
   }
 
   private present<T>(value: T): T {
@@ -285,10 +285,10 @@ export class TraceStore {
     }
   }
 
-  private async resolveOrThrow(ref: string): Promise<ResolvedSession> {
-    const session = await this.deps.resolve(ref)
+  private async resolveOrThrow(traceId: string): Promise<ResolvedSession> {
+    const session = await this.deps.resolve(traceId)
     if (!session) {
-      throw new Error(`unknown session ref: ${ref}`)
+      throw new Error(`unknown trace id: ${traceId}`)
     }
     return session
   }
@@ -297,8 +297,8 @@ export class TraceStore {
    * Through a hold, so another connection's supersede cannot cancel this read:
    * the owner's own open hold for this session, else a hold of its own.
    */
-  private async entryFor(ref: string, owner?: object): Promise<Entry> {
-    const session = await this.resolveOrThrow(ref)
+  private async entryFor(traceId: string, owner?: object): Promise<Entry> {
+    const session = await this.resolveOrThrow(traceId)
     const cached = this.touch(session.key)
     if (cached) {
       return cached
@@ -307,7 +307,7 @@ export class TraceStore {
     if (owned?.key === session.key) {
       await owned.handle.done
     } else {
-      const handle = await this.hold(ref, session)
+      const handle = await this.hold(traceId, session)
       try {
         await handle.done
       } finally {
@@ -316,7 +316,7 @@ export class TraceStore {
     }
     const entry = this.touch(session.key)
     if (!entry) {
-      throw new Error(`${ref} was evicted before it could be read`)
+      throw new Error(`${traceId} was evicted before it could be read`)
     }
     return entry
   }
@@ -365,7 +365,11 @@ export class TraceStore {
   }
 
   /** `current` is checked before a new load starts, so a superseded `open` never starts one. */
-  private async hold(ref: string, session: ResolvedSession, current: () => boolean = () => true): Promise<LoadHandle> {
+  private async hold(
+    traceId: string,
+    session: ResolvedSession,
+    current: () => boolean = () => true,
+  ): Promise<LoadHandle> {
     if (this.touch(session.key)) {
       const total = await this.totalBytes(session)
       const progress = { bytesRead: total, totalBytes: total }
@@ -383,9 +387,9 @@ export class TraceStore {
       pending = this.pending.get(session.key)
       if (!pending) {
         if (!current()) {
-          throw new LoadCancelledError(ref)
+          throw new LoadCancelledError(traceId)
         }
-        pending = this.start(ref, session, total)
+        pending = this.start(traceId, session, total)
       }
     }
     const state = pending.state
@@ -412,13 +416,13 @@ export class TraceStore {
         released = true
         state.holders -= 1
         if (state.holders <= 0 && !state.settled) {
-          state.controller.abort(new LoadCancelledError(ref))
+          state.controller.abort(new LoadCancelledError(traceId))
         }
       },
     }
   }
 
-  private start(ref: string, session: ResolvedSession, totalBytes: number): Pending {
+  private start(traceId: string, session: ResolvedSession, totalBytes: number): Pending {
     const state: HoldState = {
       controller: new AbortController(),
       holders: 0,
@@ -441,7 +445,7 @@ export class TraceStore {
         onProgress(totalBytes)
         return entry
       } catch (error) {
-        throw state.controller.signal.aborted ? new LoadCancelledError(ref) : this.scrub(error)
+        throw state.controller.signal.aborted ? new LoadCancelledError(traceId) : this.scrub(error)
       } finally {
         state.settled = true
         state.listeners.clear()

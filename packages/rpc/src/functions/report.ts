@@ -5,7 +5,7 @@ import { REPORT_LOCALES } from '../report.ts'
 import { parseInput } from './parse-input.ts'
 
 export interface ExportReportInput {
-  ref: string
+  traceId: string
   locale?: ReportLocale
 }
 
@@ -49,14 +49,17 @@ export const reportTrace = defineRpcFunction({
   }),
 })
 
-const NEEDS_REF = 'export-report needs a session ref'
+const NEEDS_TRACE_ID = 'export-report needs a trace id'
 const exportReportInput = z.object(
-  { ref: z.string({ error: NEEDS_REF }).check(z.minLength(1, { error: NEEDS_REF })), locale: z.unknown() },
-  { error: NEEDS_REF },
+  {
+    traceId: z.string({ error: NEEDS_TRACE_ID }).check(z.minLength(1, { error: NEEDS_TRACE_ID })),
+    locale: z.unknown(),
+  },
+  { error: NEEDS_TRACE_ID },
 )
 const reportLocale = z.enum(REPORT_LOCALES)
 
-/** "Export report" in the workspace: the same build as `build <path>`, for the session `ref`. */
+/** "Export report" in the workspace: the same build as `build <path>`, for the session `traceId`. */
 export const exportReport = defineRpcFunction({
   name: 'export-report',
   type: 'action',
@@ -66,9 +69,9 @@ export const exportReport = defineRpcFunction({
       if (!exporter) {
         throw new Error('export-report is available only on the dev server')
       }
-      const { ref, locale } = parseInput(exportReportInput, input, Error)
+      const { traceId, locale } = parseInput(exportReportInput, input, Error)
       // Any other locale is ignored, not refused: the report then follows the browser's language.
-      return exporter({ ref, locale: z.safeParse(reportLocale, locale).data })
+      return exporter({ traceId, locale: z.safeParse(reportLocale, locale).data })
     },
   }),
 })

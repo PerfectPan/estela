@@ -65,10 +65,12 @@ describe('installed tarball', () => {
         () => readyUrl(server.output().stdout) !== undefined && openedUrls(log).length > 0,
       )
       const ready = readyUrl(server.output().stdout)
-      expect(server.output().stdout).toContain(`Ready: ${ready!.base}#/s/${ready!.ref}`)
-      // The fragment carries DevFrame's one-time code, so the ref rides `?s=`; the SPA moves it to `#/s/<ref>`.
+      expect(server.output().stdout).toContain(`Ready: ${ready!.base}#/s/${ready!.traceId}`)
+      // The fragment carries DevFrame's one-time code, so the trace id rides `?s=`; the SPA moves it to `#/s/<traceId>`.
       const [opened] = openedUrls(log)
-      expect(opened).toMatch(new RegExp(`^${ready!.base.replaceAll('/', '\\/')}\\?s=${ready!.ref}#devframe_otp=\\w+$`))
+      expect(opened).toMatch(
+        new RegExp(`^${ready!.base.replaceAll('/', '\\/')}\\?s=${ready!.traceId}#devframe_otp=\\w+$`),
+      )
       expect(openedUrls(log)).toHaveLength(1)
       // The session index loads node:sqlite; `dist/bin.mjs` drops only its ExperimentalWarning.
       expect(server.output().stderr).not.toContain('ExperimentalWarning')

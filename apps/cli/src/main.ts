@@ -3,7 +3,7 @@ import type { Trace } from '@rivus/agent-trace-schema'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseSessionTarget } from '@rivus/agent-trace-kernel'
-import { bindReportExporter, bindSessionService, bindTraceStore, CURRENT_REF } from '@rivus/agent-trace-rpc'
+import { bindReportExporter, bindSessionService, bindTraceStore, CURRENT_TRACE_ID } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { Platform } from '@rivus/agent-kit/platform'
@@ -91,16 +91,16 @@ export async function main(): Promise<void> {
     process.exit(1)
   }
 
-  let readyRef: string | undefined
+  let readyTraceId: string | undefined
   let readyHook: (() => void) | undefined
-  let openRef = false
+  let openOnReady = false
   const handle = createCac(devframe, {
     async onReady({ origin }) {
       readyHook?.()
       const base = `${origin.replace(/\/$/, '')}${BASE_PATH}`
-      sayReady(readyRef ? `${base}#/s/${readyRef}` : `${base}#/`)
-      if (openRef && readyRef) {
-        await openBrowser(base, readyRef, !parsed.userArgs.includes('--no-auth'))
+      sayReady(readyTraceId ? `${base}#/s/${readyTraceId}` : `${base}#/`)
+      if (openOnReady && readyTraceId) {
+        await openBrowser(base, readyTraceId, !parsed.userArgs.includes('--no-auth'))
       }
     },
   })
@@ -135,7 +135,7 @@ export async function main(): Promise<void> {
         },
         redact: async () => {
           const byId = new Map((await load()).events.map(event => [event.id, event]))
-          report = await reportOf(traces.store, CURRENT_REF, async ids => ids.map(id => byId.get(id)!))
+          report = await reportOf(traces.store, CURRENT_TRACE_ID, async ids => ids.map(id => byId.get(id)!))
           const included = report.truncated ? `; original records for the first ${report.events.length}` : ''
           return `redacted ${report.total} events${included}`
         },
@@ -155,7 +155,7 @@ export async function main(): Promise<void> {
   const redacts = process.env.AGENT_TRACE_REDACT !== '0'
   const platform = createNodePlatform()
   const catalog = new SessionCatalog({ platform, noIndex: parsed.noIndex, deferSummaries: true })
-  const traces = createTraceStore({ platform, redacts, resolve: ref => catalog.resolve(ref) })
+  const traces = createTraceStore({ platform, redacts, resolve: traceId => catalog.resolve(traceId) })
   bindTraceStore(traces.store)
   bindSessionService({ listSessions: input => catalog.listSessions(input) })
   bindReportExporter(input => exportReport(traces.store, input))
@@ -168,8 +168,8 @@ export async function main(): Promise<void> {
   if (direct) {
     const target = sessionTargetOf(direct)
     const trace = await loadLaunch(platform, target, `Could not load ${direct}`)
-    readyRef = catalog.openPath(target, trace)
-    await traces.seed({ key: readyRef, target }, trace)
+    readyTraceId = catalog.openPath(target, trace)
+    await traces.seed({ key: readyTraceId, target }, trace)
   }
 
   const indexing = startSessionIndex()
@@ -201,17 +201,17 @@ export async function main(): Promise<void> {
       sayError('No sessions to pick.', FIX)
       process.exit(1)
     }
-    readyRef = await pickSession(options)
-    const picked = catalog.resolve(readyRef)!
+    readyTraceId = await pickSession(options)
+    const picked = catalog.resolve(readyTraceId)!
     const trace = await loadLaunch(platform, picked.target, 'Could not load the picked session')
     await traces.seed(picked, trace)
   }
 
   // DevFrame opens `/__agent-trace/` and puts its one-time code in the fragment, so it
-  // cannot open `#/s/<ref>` itself. With a session, the shell opens the browser instead.
+  // cannot open `#/s/<traceId>` itself. With a session, the shell opens the browser instead.
   const userArgs = parsed.userArgs.filter(arg => arg !== '--open')
-  if (readyRef && !userArgs.includes('--no-open')) {
-    openRef = true
+  if (readyTraceId && !userArgs.includes('--no-open')) {
+    openOnReady = true
     userArgs.push('--no-open')
   }
   await handle.parse(programArgv(userArgs))

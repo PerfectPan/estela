@@ -17,7 +17,7 @@ async function tempDir(): Promise<string> {
   return dir
 }
 
-function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'ref' | 'path'>): IndexSummary {
+function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'traceId' | 'path'>): IndexSummary {
   return {
     agent: 'claude-code',
     size: 10,
@@ -34,16 +34,16 @@ describe('session index rows that do not parse', () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([
-      summary({ ref: 'a', path: '/logs/a.jsonl', summary: { turns: 2, contextShape: [1, 2] } }),
-      summary({ ref: 'b', path: '/logs/b.jsonl', summary: { turns: 3, contextShape: [3] } }),
+      summary({ traceId: 'a', path: '/logs/a.jsonl', summary: { turns: 2, contextShape: [1, 2] } }),
+      summary({ traceId: 'b', path: '/logs/b.jsonl', summary: { turns: 3, contextShape: [3] } }),
     ])
     const raw = new DatabaseSync(file)
     // A damaged shape loses only the shape; a non-number count loses the cached summary.
-    raw.exec(`UPDATE sessions SET context_shape = '[1, "x"]' WHERE ref = 'a'`)
-    raw.exec(`UPDATE sessions SET turns = 'many' WHERE ref = 'b'`)
+    raw.exec(`UPDATE sessions SET context_shape = '[1, "x"]' WHERE trace_id = 'a'`)
+    raw.exec(`UPDATE sessions SET turns = 'many' WHERE trace_id = 'b'`)
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toEqual({ turns: 2 })
     expect(index.get('/logs/b.jsonl', 10, 1_000)).toBeUndefined()
-    raw.exec(`UPDATE sessions SET context_shape = 'not json' WHERE ref = 'a'`)
+    raw.exec(`UPDATE sessions SET context_shape = 'not json' WHERE trace_id = 'a'`)
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toEqual({ turns: 2 })
     raw.close()
     index.close()
@@ -53,33 +53,37 @@ describe('session index rows that do not parse', () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([
-      summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Alpha', prompts: ['find the needle'] }),
-      summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['other'] }),
-      summary({ ref: 'c', path: '/logs/c.jsonl', title: 'Gamma', prompts: ['stale haystack'] }),
+      summary({ traceId: 'a', path: '/logs/a.jsonl', title: 'Alpha', prompts: ['find the needle'] }),
+      summary({ traceId: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['other'] }),
+      summary({ traceId: 'c', path: '/logs/c.jsonl', title: 'Gamma', prompts: ['stale haystack'] }),
     ])
     const raw = new DatabaseSync(file)
-    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'a'`)
-    const left = (ref: string) => raw.prepare('SELECT count(*) AS n FROM prompts WHERE ref = ?').get(ref)?.n
-    expect(index.rows().map(row => row.ref)).toEqual(['b', 'c'])
-    expect(raw.prepare('SELECT ref FROM sessions ORDER BY ref').all()).toEqual([{ ref: 'b' }, { ref: 'c' }])
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE trace_id = 'a'`)
+    const left = (traceId: string) =>
+      raw.prepare('SELECT count(*) AS n FROM prompts WHERE trace_id = ?').get(traceId)?.n
+    expect(index.rows().map(row => row.traceId)).toEqual(['b', 'c'])
+    expect(raw.prepare('SELECT trace_id FROM sessions ORDER BY trace_id').all()).toEqual([
+      { trace_id: 'b' },
+      { trace_id: 'c' },
+    ])
     expect(left('a')).toBe(0)
     expect(index.search('needle')).toEqual([])
     expect(index.search('ph')).toEqual([])
     index.putHeads([
-      { ref: 'a', agent: 'claude-code', path: '/logs/a.jsonl', size: 10, mtimeMs: 1_000, title: 'Alpha' },
+      { traceId: 'a', agent: 'claude-code', path: '/logs/a.jsonl', size: 10, mtimeMs: 1_000, title: 'Alpha' },
     ])
     expect(index.search('Alpha')).toEqual(['a'])
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
-    // A write that finds an unparsable row, before any `rows` call, drops the old ref's prompts too.
-    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'c'`)
+    // A write that finds an unparsable row, before any `rows` call, drops the old trace id's prompts too.
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE trace_id = 'c'`)
     expect(left('c')).toBe(1)
-    index.putHeads([{ ref: 'c2', agent: 'claude-code', path: '/logs/c.jsonl', size: 10, mtimeMs: 1_000 }])
+    index.putHeads([{ traceId: 'c2', agent: 'claude-code', path: '/logs/c.jsonl', size: 10, mtimeMs: 1_000 }])
     expect(left('c')).toBe(0)
     expect(index.search('haystack')).toEqual([])
     expect(
       index
         .rows()
-        .map(row => row.ref)
+        .map(row => row.traceId)
         .toSorted(),
     ).toEqual(['a', 'b', 'c2'])
     raw.close()
@@ -90,12 +94,12 @@ describe('session index rows that do not parse', () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([
-      summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Alpha' }),
-      summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['find the needle'] }),
+      summary({ traceId: 'a', path: '/logs/a.jsonl', title: 'Alpha' }),
+      summary({ traceId: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['find the needle'] }),
     ])
     const raw = new DatabaseSync(file)
     // The damaged row has the highest id, so a fresh insert reuses it: `id` is an INTEGER PRIMARY KEY without AUTOINCREMENT.
-    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'b'`)
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE trace_id = 'b'`)
     const other = openSessionIndex({ summaryVersion: 1, file })
     let begun: string | undefined
     // The other process's discover pass commits after `rows` read the damaged row and before its cleanup begins.
@@ -106,7 +110,7 @@ describe('session index rows that do not parse', () => {
       begun = sql
       other.putHeads([
         {
-          ref: 'b',
+          traceId: 'b',
           agent: 'claude-code',
           path: '/logs/b.jsonl',
           size: 12,
@@ -118,20 +122,20 @@ describe('session index rows that do not parse', () => {
       this.exec(sql)
     })
     try {
-      expect(index.rows().map(row => row.ref)).toEqual(['a'])
+      expect(index.rows().map(row => row.traceId)).toEqual(['a'])
     } finally {
       spy.mockRestore()
     }
     expect(begun).toBe('BEGIN IMMEDIATE')
-    expect(raw.prepare('SELECT id, ref, size FROM sessions ORDER BY id').all()).toEqual([
-      { id: 1, ref: 'a', size: 10 },
-      { id: 2, ref: 'b', size: 12 },
+    expect(raw.prepare('SELECT id, trace_id, size FROM sessions ORDER BY id').all()).toEqual([
+      { id: 1, trace_id: 'a', size: 10 },
+      { id: 2, trace_id: 'b', size: 12 },
     ])
     expect(index.search('needle')).toEqual(['b'])
     expect(
       index
         .rows()
-        .map(row => row.ref)
+        .map(row => row.traceId)
         .toSorted(),
     ).toEqual(['a', 'b'])
     other.close()
@@ -143,17 +147,20 @@ describe('session index rows that do not parse', () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([
-      summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Alpha' }),
-      summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['find the needle'] }),
+      summary({ traceId: 'a', path: '/logs/a.jsonl', title: 'Alpha' }),
+      summary({ traceId: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['find the needle'] }),
     ])
     const raw = new DatabaseSync(file)
-    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'b'`)
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE trace_id = 'b'`)
     // The cleanup's delete fails with SQLITE_CONSTRAINT, standing in for SQLITE_FULL, READONLY, or IOERR.
     raw.exec(`CREATE TRIGGER refuse BEFORE DELETE ON sessions BEGIN SELECT RAISE(ABORT, 'refused'); END`)
-    expect(index.rows().map(row => row.ref)).toEqual(['a'])
+    expect(index.rows().map(row => row.traceId)).toEqual(['a'])
     // Rolled back: the damaged row and its prompts stay until discover writes its path.
-    expect(raw.prepare('SELECT ref FROM sessions ORDER BY ref').all()).toEqual([{ ref: 'a' }, { ref: 'b' }])
-    expect(raw.prepare('SELECT count(*) AS n FROM prompts WHERE ref = ?').get('b')).toEqual({ n: 1 })
+    expect(raw.prepare('SELECT trace_id FROM sessions ORDER BY trace_id').all()).toEqual([
+      { trace_id: 'a' },
+      { trace_id: 'b' },
+    ])
+    expect(raw.prepare('SELECT count(*) AS n FROM prompts WHERE trace_id = ?').get('b')).toEqual({ n: 1 })
     raw.close()
     index.close()
   })

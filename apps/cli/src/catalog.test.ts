@@ -64,9 +64,9 @@ describe('session catalog', () => {
     expect(codex?.checked).toBe('~/.codex/sessions, ~/.codex/archived_sessions')
     expect(first.rows.filter(row => row.agent === 'claude-code')).toHaveLength(3)
     expect(first.agents.find(agent => agent.id === 'claude-code')?.count).toBe(3)
-    // Refs are opaque and the list carries no absolute path.
+    // Trace ids are opaque and the list carries no absolute path.
     expect(JSON.stringify(first)).not.toContain(home)
-    expect(first.rows.every(row => /^[0-9a-f]{24}$/.test(row.ref))).toBe(true)
+    expect(first.rows.every(row => /^[0-9a-f]{24}$/.test(row.traceId))).toBe(true)
 
     await catalog.whenIdle()
     const done = await catalog.listSessions()
@@ -147,7 +147,7 @@ describe('session catalog', () => {
     expect(max).toBeLessThanOrEqual(4)
     expect(started.slice(0, 4).toSorted((a, b) => b - a)).toEqual([6, 5, 4, 3])
     const all = await catalog.listSessions()
-    const titleOf = (ref: string) => all.rows.find(row => row.ref === ref)?.title
+    const titleOf = (traceId: string) => all.rows.find(row => row.traceId === traceId)?.title
     const found = await catalog.listSessions({ query: '为什么失败' })
     expect(found.matches?.map(titleOf)).toEqual(['修复登录'])
     const prefix = await catalog.listSessions({ query: '修复' })
@@ -233,7 +233,7 @@ describe('session catalog', () => {
     await second.discovered()
     const delta = await second.listSessions({ since: cached.revision })
     const gone = firstList.rows.find(row => row.title !== 'Run the tests' && row.firstPrompt !== 'Run the tests')
-    expect(delta.removed).toEqual([gone?.ref])
+    expect(delta.removed).toEqual([gone?.traceId])
     expect((await second.listSessions()).rows).toHaveLength(1)
     second.close()
   })

@@ -18,7 +18,7 @@ export {
 export { bindSessionService, type SessionService } from './functions/service.ts'
 export {
   bindTraceStore,
-  CURRENT_REF,
+  CURRENT_TRACE_ID,
   LOAD_PROGRESS_CHANNEL,
   SUBSCRIBE_GRACE_MS,
   type LoadTraceResult,

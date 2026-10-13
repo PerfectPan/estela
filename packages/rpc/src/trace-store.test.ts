@@ -91,7 +91,7 @@ describe('TraceStore', () => {
     expect(signals.get('a')!.aborted).toBe(true)
     await expect(waiting).rejects.toBeInstanceOf(LoadCancelledError)
     await expect(first.done).rejects.toBeInstanceOf(LoadCancelledError)
-    await expect(store.view('b')).resolves.toMatchObject({ ref: 'b' })
+    await expect(store.view('b')).resolves.toMatchObject({ traceId: 'b' })
     expect(store.cachedKeys()).toEqual(['b'])
   })
 
@@ -109,7 +109,7 @@ describe('TraceStore', () => {
     expect(signals.get('a')!.aborted).toBe(true)
   })
 
-  it('reopening the same ref from one connection keeps the load running', async () => {
+  it('reopening the same trace id from one connection keeps the load running', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     const { store, signals, gates } = storeOf({ fs: f.fs, parse: f.parse })
@@ -122,12 +122,12 @@ describe('TraceStore', () => {
     await second.done
   })
 
-  it('reloads a canonical file once for its originals, and rejects unknown refs', async () => {
+  it('reloads a canonical file once for its originals, and rejects unknown trace ids', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     let loads = 0
     const store = new TraceStore({
-      resolve: ref => (ref === 'a' ? { key: 'a', target: { path: '/logs/a.jsonl' } } : undefined),
+      resolve: traceId => (traceId === 'a' ? { key: 'a', target: { path: '/logs/a.jsonl' } } : undefined),
       fs: f.fs,
       async load(session) {
         loads += 1
@@ -145,7 +145,7 @@ describe('TraceStore', () => {
     // Nothing is kept after a reload settles, so a later call reloads again.
     expect(loads).toBe(3)
     expect(f.reads).toEqual([])
-    await expect(store.view('missing')).rejects.toThrow('unknown session ref: missing')
+    await expect(store.view('missing')).rejects.toThrow('unknown trace id: missing')
   })
 
   it('seeds the launch session without copying originals into the cache', async () => {

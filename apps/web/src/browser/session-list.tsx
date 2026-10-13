@@ -35,8 +35,8 @@ export function SessionList(props: {
   now: number
   selected?: string
   empty: string
-  onSelect: (ref: string) => void
-  onOpen: (ref: string) => void
+  onSelect: (traceId: string) => void
+  onOpen: (traceId: string) => void
   onKeyDown: JSX.EventHandler<HTMLDivElement, KeyboardEvent>
   ref?: (element: HTMLDivElement) => void
 }) {
@@ -100,7 +100,7 @@ export function SessionList(props: {
                       row={row}
                       agentName={names().get(row.agent) ?? row.agent}
                       now={props.now}
-                      selected={props.selected === row.ref}
+                      selected={props.selected === row.traceId}
                       onSelect={props.onSelect}
                       onOpen={props.onOpen}
                     />

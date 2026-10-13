@@ -15,7 +15,7 @@ import { writeLargeCodexSession } from './testsupport/large-session.ts'
 const enabled = process.env.AGENT_TRACE_SIZE_TEST === '1'
 const realPath = process.env.AGENT_TRACE_SIZE_REAL
 const MB = 1024 * 1024
-const SIZE_REF = 'size-test'
+const SIZE_TRACE_ID = 'size-test'
 
 /** An independent read of the source line (plain `node:fs`), not the store's source-pointer read. */
 async function lineAt(path: string, offset: number, length: number): Promise<unknown> {
@@ -32,7 +32,7 @@ async function lineAt(path: string, offset: number, length: number): Promise<unk
 async function measure(path: string) {
   const { store } = createTraceStore({
     redacts: true,
-    resolve: ref => (ref === SIZE_REF ? { key: path, target: { path } } : undefined),
+    resolve: traceId => (traceId === SIZE_TRACE_ID ? { key: path, target: { path } } : undefined),
   })
   let peakRss = process.memoryUsage().rss
   const sampler = setInterval(() => {
@@ -41,11 +41,11 @@ async function measure(path: string) {
   const started = performance.now()
   const progress: LoadProgress[] = []
   try {
-    const handle = await store.open(SIZE_REF, {})
+    const handle = await store.open(SIZE_TRACE_ID, {})
     handle.onProgress(item => progress.push(item))
     await handle.done
     const loadMs = performance.now() - started
-    const view = await store.view(SIZE_REF)
+    const view = await store.view(SIZE_TRACE_ID)
     const viewMs = performance.now() - started - loadMs
     const payloadBytes = Buffer.byteLength(JSON.stringify(view))
     peakRss = Math.max(peakRss, process.memoryUsage().rss)
@@ -95,7 +95,7 @@ describe.skipIf(!enabled)('S12 size budget', () => {
       expect(longest.payload.$truncated).toEqual([['output']])
       expect((longest.payload.output as string).length).toBe(m.view.trace.view!.maxString)
       expect(m.view.bytes).toBeLessThan(m.payloadBytes)
-      const full = await m.store.event(SIZE_REF, longest.id)
+      const full = await m.store.event(SIZE_TRACE_ID, longest.id)
       expect((full.payload.output as string).length).toBe(session.longest.length)
       expect(full.original).toEqual(await lineAt(session.path, full.source.offset, full.source.length))
     } finally {
@@ -112,7 +112,7 @@ describe.skipIf(!realPath)('S12 on a local session (numbers only)', () => {
     const sample = shortened.find(event => event.kind === 'tool_result') ?? shortened[0]
     if (sample) {
       const started = performance.now()
-      const full = await m.store.event(SIZE_REF, sample.id)
+      const full = await m.store.event(SIZE_TRACE_ID, sample.id)
       console.log(
         `real get-event: ${JSON.stringify({ ms: Math.round(performance.now() - started), fullEventMB: +(Buffer.byteLength(JSON.stringify(full)) / MB).toFixed(2), hasOriginal: full.original !== undefined })}`,
       )

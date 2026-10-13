@@ -6,7 +6,7 @@ import { requireSessionService } from './service.ts'
 
 const QUERY = 'list-sessions: query must be a string of at most 1000 characters'
 const SINCE = 'list-sessions: since must be a non-negative integer'
-const FIRST = 'list-sessions: first must be an array of at most 500 refs'
+const FIRST = 'list-sessions: first must be an array of at most 500 trace ids'
 
 /**
  * The browser is a client like any other: check the shape before the index sees it. `z.int` stops at the

@@ -8,14 +8,14 @@ import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadFailure } from './read-failure.ts'
-import { projectName, sessionRefId, sessionTargetLabel } from './session-target.ts'
+import { projectName, traceIdOf, sessionTargetLabel } from './session-target.ts'
 
 /** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
 export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
 
-/** Server-side row. `path` never leaves the server; the browser gets `ref`. */
+/** Server-side row. `path` never leaves the server; the browser gets `traceId`. */
 export interface LiveRow {
-  ref: string
+  traceId: string
   target: SessionRef
   size: number
   mtimeMs: number
@@ -48,7 +48,7 @@ function clipPrompt(text: string): string {
 
 function summaryFields(
   summary: SessionSummary | undefined,
-): Omit<SessionListRow, 'ref' | 'agent' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
+): Omit<SessionListRow, 'traceId' | 'agent' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
   if (!summary) {
     return {}
   }
@@ -62,7 +62,7 @@ function summaryFields(
 
 export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
   return {
-    ref: row.ref,
+    traceId: row.traceId,
     agent: row.target.agent,
     lastActiveAt: row.lastActiveAt,
     sizeBytes: row.sizeBytes,
@@ -137,8 +137,8 @@ export function rowFromHead(
 ): LiveRow {
   return {
     ...headFields(head, homeDir),
-    // The session id is part of the ref only when several sessions share one file.
-    ref: sessionRefId(sharedFile ? target : { agent: target.agent, path: target.path }),
+    // The session id is part of the trace id only when several sessions share one file.
+    traceId: traceIdOf(sharedFile ? target : { agent: target.agent, path: target.path }),
     target,
     size: info.size,
     mtimeMs: info.mtimeMs,
@@ -154,7 +154,7 @@ export function rowFromHead(
 export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
   return {
     ...headFields(stored, homeDir),
-    ref: stored.ref,
+    traceId: stored.traceId,
     target: { agent: stored.agent, path: stored.path, ...(stored.sessionId ? { sessionId: stored.sessionId } : {}) },
     size: stored.size,
     mtimeMs: stored.mtimeMs,
@@ -169,7 +169,7 @@ export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
 /** A "could not read" row (S4), placed at the file's mtime (or now when the file is gone). */
 export function errorRow(target: SessionRef, error: SessionError, mtimeMs: number): LiveRow {
   return {
-    ref: sessionRefId({ agent: target.agent, path: target.path }),
+    traceId: traceIdOf({ agent: target.agent, path: target.path }),
     target,
     size: 0,
     mtimeMs,
@@ -183,7 +183,7 @@ export function errorRow(target: SessionRef, error: SessionError, mtimeMs: numbe
 
 export function indexHeadOf(row: LiveRow): IndexHead {
   return {
-    ref: row.ref,
+    traceId: row.traceId,
     agent: row.target.agent,
     path: row.target.path,
     size: row.size,

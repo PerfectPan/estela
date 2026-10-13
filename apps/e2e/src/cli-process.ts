@@ -137,8 +137,8 @@ export async function waitFor(what: string, check: () => boolean, timeoutMs = 30
   }
 }
 
-/** `Ready: <base>#/s/<ref>` in plain output, or the URL inside the Ready box in a terminal. */
-export function readyUrl(text: string): { base: string; ref: string } | undefined {
+/** `Ready: <base>#/s/<traceId>` in plain output, or the URL inside the Ready box in a terminal. */
+export function readyUrl(text: string): { base: string; traceId: string } | undefined {
   const match = /(http:\/\/localhost:\d+\/__agent-trace\/)#\/s\/([0-9a-f]+)/.exec(text)
-  return match ? { base: match[1]!, ref: match[2]! } : undefined
+  return match ? { base: match[1]!, traceId: match[2]! } : undefined
 }

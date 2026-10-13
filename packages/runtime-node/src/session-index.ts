@@ -11,7 +11,7 @@ export const PROMPT_CHARS = 500
 
 /** Head fields from `discover`, keyed by path. `size` and `mtimeMs` are the cache key. */
 export interface IndexHead {
-  ref: string
+  traceId: string
   agent: string
   path: string
   size: number
@@ -51,7 +51,7 @@ export interface SessionIndex {
   /** One transaction per batch. A failed summary is never passed in, so it is never cached. */
   putSummaries: (rows: readonly IndexSummary[]) => void
   /**
-   * Refs whose title or prompts match, newest first. `undefined` when the index is off or the
+   * Trace ids of the sessions whose title or prompts match, newest first. `undefined` when the index is off or the
    * query is blank. 3 or more characters use FTS5 `trigram`; shorter queries are a substring
    * match over titles and prompts, so a 2-character Chinese word works.
    */
@@ -115,7 +115,7 @@ const numberColumn = z.nullable(z.number())
  * discover pass writes it again; a summary that does not parse is not served and is recomputed.
  */
 const headRow = z.object({
-  ref: z.string(),
+  trace_id: z.string(),
   agent: z.string(),
   path: z.string(),
   size: z.number(),
@@ -140,7 +140,7 @@ const summaryRow = z.object({
   context_shape: textColumn,
 })
 const idRow = z.object({ id: z.number() })
-const refRow = z.object({ ref: z.string() })
+const traceIdRow = z.object({ trace_id: z.string() })
 const promptRow = z.object({ text: z.string() })
 const contextShape = z.array(z.number())
 
@@ -163,7 +163,8 @@ function isBusy(error: unknown): boolean {
 
 /** A NULL or empty column stays `undefined`. */
 function headOf(row: z.output<typeof headRow>): IndexHead {
-  const head: IndexHead = { ref: row.ref, agent: row.agent, path: row.path, size: row.size, mtimeMs: row.mtime }
+  const { trace_id: traceId, agent, path, size, mtime: mtimeMs } = row
+  const head: IndexHead = { traceId, agent, path, size, mtimeMs }
   for (const [column, key] of HEAD_TEXT) {
     const value = row[column]
     if (value) {
@@ -179,8 +180,8 @@ function headOf(row: z.output<typeof headRow>): IndexHead {
   return head
 }
 
-function refsOf(rows: readonly unknown[]): string[] {
-  return rows.flatMap(row => z.safeParse(refRow, row).data?.ref ?? [])
+function traceIdsOf(rows: readonly unknown[]): string[] {
+  return rows.flatMap(row => z.safeParse(traceIdRow, row).data?.trace_id ?? [])
 }
 
 /** A damaged shape is missing data; the other numbers stay. */
@@ -280,19 +281,19 @@ class SqliteIndex implements SessionIndex {
         const pattern = `%${casefold(text).replace(/[\\%_]/g, match => `\\${match}`)}%`
         // Two plain `?` parameters: node:sqlite in early Node 24 releases (24.0) cannot bind a positional argument to `?1`.
         const rows = this.sql(
-          `SELECT ref FROM sessions WHERE casefold(title) LIKE ? ESCAPE '\\'
-             OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ? ESCAPE '\\')
+          `SELECT trace_id FROM sessions WHERE casefold(title) LIKE ? ESCAPE '\\'
+             OR trace_id IN (SELECT trace_id FROM prompts WHERE casefold(text) LIKE ? ESCAPE '\\')
            ORDER BY last_active_at DESC`,
         ).all(pattern, pattern)
-        return refsOf(rows)
+        return traceIdsOf(rows)
       }
       // One quoted phrase: FTS5 operators in the query are plain text. `trigram` folds case itself.
       const phrase = `"${text.replaceAll('"', '""')}"`
       const rows = this.sql(
-        `SELECT sessions.ref AS ref FROM search JOIN sessions ON sessions.id = search.rowid
+        `SELECT sessions.trace_id AS trace_id FROM search JOIN sessions ON sessions.id = search.rowid
          WHERE search MATCH ? ORDER BY sessions.last_active_at DESC`,
       ).all(phrase)
-      return refsOf(rows)
+      return traceIdsOf(rows)
     } catch (error) {
       // Busy or locked: let the caller search in memory. Anything else is a query that matches nothing.
       return isBusy(error) ? undefined : []
@@ -337,7 +338,7 @@ class SqliteIndex implements SessionIndex {
     const found = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path)
     const stored = z.safeParse(headRow, found).data
     if (found && !stored) {
-      // Its old ref is unknown, so its prompts go with it here, and the row is written fresh below.
+      // Its old trace id is unknown, so its prompts go with it here, and the row is written fresh below.
       this.drop([found])
     }
     const next = { ...row, ...(row.firstPrompt ? { firstPrompt: clip(row.firstPrompt) } : {}) }
@@ -346,21 +347,21 @@ class SqliteIndex implements SessionIndex {
       existing !== undefined
       && existing.size === row.size
       && existing.mtimeMs === row.mtimeMs
-      && existing.ref === row.ref
+      && existing.traceId === row.traceId
     // Unchanged file and head: nothing to write. This is every row on a second launch.
     if (sameKey && [...HEAD_TEXT, ...HEAD_NUMBERS].every(([, key]) => existing[key] === next[key])) {
       return
     }
     this.sql(
-      `INSERT INTO sessions (path, ref, agent, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
+      `INSERT INTO sessions (path, trace_id, agent, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(path) DO UPDATE SET
-         ref = excluded.ref, agent = excluded.agent, size = excluded.size, mtime = excluded.mtime,
+         trace_id = excluded.trace_id, agent = excluded.agent, size = excluded.size, mtime = excluded.mtime,
          session_id = excluded.session_id, title = excluded.title, cwd = excluded.cwd,
          first_prompt = excluded.first_prompt, started_at = excluded.started_at, last_active_at = excluded.last_active_at`,
     ).run(
       row.path,
-      row.ref,
+      row.traceId,
       row.agent,
       row.size,
       row.mtimeMs,
@@ -368,18 +369,18 @@ class SqliteIndex implements SessionIndex {
       ...HEAD_NUMBERS.map(([, key]) => next[key] ?? null),
     )
     if (sameKey) {
-      this.rewriteSearch(row.path, next.title, this.promptsOf(row.ref))
+      this.rewriteSearch(row.path, next.title, this.promptsOf(row.traceId))
       return
     }
     this.sql(
       `UPDATE sessions SET summary_version = NULL, ${SUMMARY_COLUMNS.map(([column]) => `${column} = NULL`).join(', ')},
        context_shape = NULL WHERE path = ?`,
     ).run(row.path)
-    if (existing && existing.ref !== row.ref) {
-      this.sql('DELETE FROM prompts WHERE ref = ?').run(existing.ref)
+    if (existing && existing.traceId !== row.traceId) {
+      this.sql('DELETE FROM prompts WHERE trace_id = ?').run(existing.traceId)
     }
     const prompts = next.firstPrompt ? [next.firstPrompt] : []
-    this.replacePrompts(row.ref, prompts)
+    this.replacePrompts(row.traceId, prompts)
     this.rewriteSearch(row.path, next.title, prompts)
   }
 
@@ -399,13 +400,13 @@ class SqliteIndex implements SessionIndex {
       shape ? JSON.stringify(shape) : null,
       row.path,
     )
-    this.replacePrompts(row.ref, prompts)
+    this.replacePrompts(row.traceId, prompts)
     this.rewriteSearch(row.path, row.title, prompts)
   }
 
   /**
    * Deletes each found session row (`{ id }`; anything else is skipped) with its prompts and search row. Prompts are
-   * matched through the stored `ref` in SQL, so a row whose `ref` does not parse loses its prompts too.
+   * matched through the stored `trace_id` in SQL, so a row whose `trace_id` does not parse loses its prompts too.
    */
   private drop(found: readonly unknown[]): void {
     for (const row of found) {
@@ -414,7 +415,7 @@ class SqliteIndex implements SessionIndex {
         continue
       }
       this.sql('DELETE FROM search WHERE rowid = ?').run(id)
-      this.sql('DELETE FROM prompts WHERE ref IN (SELECT ref FROM sessions WHERE id = ?)').run(id)
+      this.sql('DELETE FROM prompts WHERE trace_id IN (SELECT trace_id FROM sessions WHERE id = ?)').run(id)
       this.sql('DELETE FROM sessions WHERE id = ?').run(id)
     }
   }
@@ -429,16 +430,16 @@ class SqliteIndex implements SessionIndex {
     this.drop(current.filter(row => row !== undefined && !z.safeParse(headRow, row).success))
   }
 
-  private promptsOf(ref: string): string[] {
-    return this.sql('SELECT text FROM prompts WHERE ref = ? ORDER BY seq')
-      .all(ref)
+  private promptsOf(traceId: string): string[] {
+    return this.sql('SELECT text FROM prompts WHERE trace_id = ? ORDER BY seq')
+      .all(traceId)
       .flatMap(row => z.safeParse(promptRow, row).data?.text ?? [])
   }
 
-  private replacePrompts(ref: string, prompts: readonly string[]): void {
-    this.sql('DELETE FROM prompts WHERE ref = ?').run(ref)
-    const insert = this.sql('INSERT INTO prompts (ref, seq, text) VALUES (?, ?, ?)')
-    prompts.forEach((text, seq) => insert.run(ref, seq, text))
+  private replacePrompts(traceId: string, prompts: readonly string[]): void {
+    this.sql('DELETE FROM prompts WHERE trace_id = ?').run(traceId)
+    const insert = this.sql('INSERT INTO prompts (trace_id, seq, text) VALUES (?, ?, ?)')
+    prompts.forEach((text, seq) => insert.run(traceId, seq, text))
   }
 
   /** One FTS row per session, keyed by `sessions.id`, so a rewrite is two lookups by rowid. */

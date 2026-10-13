@@ -1,6 +1,6 @@
 import { createSignal, onCleanup } from 'solid-js'
 
-export type Route = { name: 'browser' } | { name: 'workspace'; ref: string }
+export type Route = { name: 'browser' } | { name: 'workspace'; traceId: string }
 
 export function parseRoute(hash: string): Route {
   const match = /^#\/s\/([^/?#]+)$/.exec(hash)
@@ -8,7 +8,7 @@ export function parseRoute(hash: string): Route {
     return { name: 'browser' }
   }
   try {
-    return { name: 'workspace', ref: decodeURIComponent(match[1]) }
+    return { name: 'workspace', traceId: decodeURIComponent(match[1]) }
   } catch {
     // A malformed escape (`#/s/%E0`) is not a session.
     return { name: 'browser' }
@@ -23,6 +23,6 @@ export function useRoute(): () => Route {
   return route
 }
 
-export function openSession(ref: string): void {
-  location.hash = `#/s/${encodeURIComponent(ref)}`
+export function openSession(traceId: string): void {
+  location.hash = `#/s/${encodeURIComponent(traceId)}`
 }

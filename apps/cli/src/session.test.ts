@@ -56,7 +56,7 @@ describe('loadSession', () => {
     )
   })
 
-  it('the ref’s agent routes the read even when detection would pick another adapter', async () => {
+  it('the SessionRef’s agent routes the read even when detection would pick another adapter', async () => {
     const dir = await grokUnknownGeneration()
     // Named Claude Code, the Grok directory is read as a Claude file: the failure is Claude
     // Code's directory read failure (EISDIR), not Grok's summary handling — routing beat
@@ -66,14 +66,14 @@ describe('loadSession', () => {
     ).rejects.toThrow(/EISDIR/)
   })
 
-  it('a ref naming an agent without an adapter fails with capability-unsupported wording', async () => {
+  it('a SessionRef naming an agent without an adapter fails with capability-unsupported wording', async () => {
     const path = await unknownGeneration()
     await expect(
       loadSession({ agent: 'nosuch', path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
     ).rejects.toThrow('no session adapter for nosuch')
   })
 
-  it('a file no adapter recognizes fails detection with the ref label', async () => {
+  it('a file no adapter recognizes fails detection with the target label', async () => {
     const dir = await tempDir()
     const path = join(dir, 'notes.txt')
     await writeFile(path, 'not a session at all\n')

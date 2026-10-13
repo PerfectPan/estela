@@ -55,7 +55,7 @@ export function progressOf(states: readonly AgentState[], homeDir: string): Agen
 }
 
 /**
- * One `discover` pass over every agent: roots → head/tail reads → rows keyed by ref.
+ * One `discover` pass over every agent: roots → head/tail reads → rows keyed by trace id.
  * Agents run side by side; each adapter's own `discover` stays sequential.
  * A missing root is recorded on the agent (S3). An unreadable file becomes an error row (S4).
  */
@@ -66,8 +66,8 @@ export async function discoverRows(
 ): Promise<Map<string, LiveRow>> {
   const rows = new Map<string, LiveRow>()
   const add = (row: LiveRow) => {
-    if (!rows.has(row.ref)) {
-      rows.set(row.ref, row)
+    if (!rows.has(row.traceId)) {
+      rows.set(row.traceId, row)
     }
   }
   await Promise.all(

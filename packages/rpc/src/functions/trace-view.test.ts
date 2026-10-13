@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { TraceStore } from '../trace-store.ts'
 import {
   bindTraceStore,
-  CURRENT_REF,
+  CURRENT_TRACE_ID,
   getTraceView,
   loadTrace,
   reconstructAt,
@@ -41,7 +41,7 @@ function harness() {
   const releases = new Map<string, () => void>()
   const progress = new Map<string, (bytes: number) => void>()
   const store = new TraceStore({
-    resolve: ref => ({ key: ref, target: { path: ref } }),
+    resolve: traceId => ({ key: traceId, target: { path: traceId } }),
     fs: {
       read: async function* () {
         yield new Uint8Array()
@@ -81,15 +81,15 @@ function harness() {
 }
 
 async function handlers(ctx: unknown) {
-  const setup = loadTrace.setup as (
-    context: unknown,
-  ) => Promise<{ handler: (args: { ref: string }) => Promise<{ loadId: string; totalBytes: number; cached: boolean }> }>
+  const setup = loadTrace.setup as (context: unknown) => Promise<{
+    handler: (args: { traceId: string }) => Promise<{ loadId: string; totalBytes: number; cached: boolean }>
+  }>
   const view = getTraceView.setup as (
     context: unknown,
-  ) => Promise<{ handler: (args: { ref: string }) => Promise<{ ref: string; trace: Trace }> }>
+  ) => Promise<{ handler: (args: { traceId: string }) => Promise<{ traceId: string; trace: Trace }> }>
   const rebuild = reconstructAt.setup as (
     context: unknown,
-  ) => Promise<{ handler: (args: { ref?: string; eventId: string }) => Promise<{ visibleIds: string[] }> }>
+  ) => Promise<{ handler: (args: { traceId?: string; eventId: string }) => Promise<{ visibleIds: string[] }> }>
   return {
     load: (await setup(ctx)).handler,
     view: (await view(ctx)).handler,
@@ -103,9 +103,9 @@ describe('load-trace and get-trace-view', () => {
   it('streams progress before the view and closes the stream', async () => {
     const h = harness()
     const rpc = await handlers(h.ctx)
-    const started = await rpc.load({ ref: 'a' })
+    const started = await rpc.load({ traceId: 'a' })
     expect(started).toMatchObject({ cached: false, totalBytes: SIZE })
-    const viewing = rpc.view({ ref: 'a' })
+    const viewing = rpc.view({ traceId: 'a' })
     await new Promise(resolve => setTimeout(resolve, 120))
     h.progress.get('a')!(400)
     h.releases.get('a')!()
@@ -125,8 +125,8 @@ describe('load-trace and get-trace-view', () => {
   it('aborts the load when the browser cancels the progress stream (navigates away)', async () => {
     const h = harness()
     const rpc = await handlers(h.ctx)
-    await rpc.load({ ref: 'a' })
-    const viewing = rpc.view({ ref: 'a' })
+    await rpc.load({ traceId: 'a' })
+    const viewing = rpc.view({ traceId: 'a' })
     await tick()
     h.sinks[0]!.abort('cancelled by client')
     expect(h.signals.get('a')!.aborted).toBe(true)
@@ -136,26 +136,26 @@ describe('load-trace and get-trace-view', () => {
   it('aborts the previous load when the same connection opens another session', async () => {
     const h = harness()
     const rpc = await handlers(h.ctx)
-    await rpc.load({ ref: 'a' })
-    const oldView = rpc.view({ ref: 'a' })
-    await rpc.load({ ref: 'b' })
+    await rpc.load({ traceId: 'a' })
+    const oldView = rpc.view({ traceId: 'a' })
+    await rpc.load({ traceId: 'b' })
     expect(h.signals.get('a')!.aborted).toBe(true)
     expect(h.signals.get('b')!.aborted).toBe(false)
     await expect(oldView).rejects.toThrow('cancelled')
     await tick()
     expect(h.sinks[0]!.closed).toBe(true)
     h.releases.get('b')!()
-    await expect(rpc.view({ ref: 'b' })).resolves.toMatchObject({ ref: 'b' })
+    await expect(rpc.view({ traceId: 'b' })).resolves.toMatchObject({ traceId: 'b' })
   })
 
-  it('reports a cached session at once and reconstruct defaults to the current ref', async () => {
+  it('reports a cached session at once and reconstruct defaults to the current trace id', async () => {
     const h = harness()
     const rpc = await handlers(h.ctx)
-    const viewing = rpc.view({ ref: CURRENT_REF })
+    const viewing = rpc.view({ traceId: CURRENT_TRACE_ID })
     await tick()
-    h.releases.get(CURRENT_REF)!()
+    h.releases.get(CURRENT_TRACE_ID)!()
     await viewing
-    const again = await rpc.load({ ref: CURRENT_REF })
+    const again = await rpc.load({ traceId: CURRENT_TRACE_ID })
     expect(again.cached).toBe(true)
     await tick()
     expect(h.chunks.get(again.loadId)?.at(-1)).toEqual({ bytesRead: SIZE, totalBytes: SIZE })
@@ -171,12 +171,12 @@ describe('load-trace and get-trace-view', () => {
       vi.useFakeTimers()
       const h = harness()
       const rpc = await handlers(h.ctx)
-      const left = await rpc.load({ ref: 'a' })
+      const left = await rpc.load({ traceId: 'a' })
       vi.advanceTimersByTime(SUBSCRIBE_GRACE_MS + 1)
       expect(h.signals.get('a')!.aborted).toBe(true)
       expect(h.sinks[0]!.id).toBe(left.loadId)
 
-      const stays = await rpc.load({ ref: 'b' })
+      const stays = await rpc.load({ traceId: 'b' })
       h.owner.subscribedStreams = new Set([`agent-trace:load-progress\x1F${stays.loadId}`])
       vi.advanceTimersByTime(SUBSCRIBE_GRACE_MS + 1)
       expect(h.signals.get('b')!.aborted).toBe(false)
