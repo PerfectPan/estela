@@ -1,6 +1,7 @@
 import type { Rolldown } from 'vite-plus/pack'
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, join, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /** Web build tools whose own code lands in `apps/web/dist` (CSS layers). */
 const WEB_BUILD_TOOLS = ['tailwindcss', 'tw-animate-css']
@@ -94,29 +95,41 @@ function findPackage(name: string, dir: string): string | undefined {
   }
 }
 
+/** vite-plus-core, which bundles Vite and Rolldown: the `vite` dependency of the vite-plus that `root` resolves. */
+function vitePlusCoreOf(root: string): string {
+  const vitePlus = findPackage('vite-plus', root)
+  const core = vitePlus === undefined ? undefined : findPackage('vite', vitePlus)
+  if (core === undefined) {
+    throw new Error(`third-party-notices: no vite-plus core resolves from ${root}`)
+  }
+  return core
+}
+
 /**
- * Rolldown's THIRD-PARTY-LICENSE, the MIT notices of Rollup and esbuild, from which Rolldown's runtime helpers in
- * `apps/web/dist` derive (esbuild's `__esmMin` lazy-init helper among them). vite-plus-core's LICENSE records only
- * Rolldown's own license, so the web app has `rolldown` as a devDependency for this file alone. Its version must
- * equal the Rolldown that vite-plus-core bundles; anything else throws, so a vite-plus upgrade fails the build until
- * that devDependency follows instead of shipping another release's notices.
+ * Rolldown's notice as `core`'s LICENSE records it, followed by Rolldown's THIRD-PARTY-LICENSE: the MIT notices of
+ * Rollup and esbuild, from which the runtime helpers Rolldown writes into its output derive (esbuild's `__esmMin`
+ * lazy-init helper among them). vite-plus-core's LICENSE records only Rolldown's own license, so the web app has
+ * `rolldown` as a devDependency for that file alone. Its version must equal the Rolldown that `core` bundles; anything
+ * else throws, so a vite-plus upgrade fails the build until that devDependency follows instead of shipping another
+ * release's notices.
  */
-function rolldownThirdPartyLicense(webRoot: string, bundledVersion: string): string {
+function rolldownNotice(core: string, webRoot: string): PackageNotice {
+  const notice = bundledNoticeOf(core, 'rolldown')
   const pkg = findPackage('rolldown', webRoot)
   const installed = pkg === undefined ? undefined : readManifest(pkg).version
-  if (pkg === undefined || installed !== bundledVersion) {
+  if (pkg === undefined || installed !== notice.version) {
     throw new Error(
-      `third-party-notices: vite-plus-core bundles rolldown ${bundledVersion}, but ${webRoot} resolves rolldown ${installed ?? '(not installed)'}; set its rolldown devDependency to exactly ${bundledVersion}`,
+      `third-party-notices: vite-plus-core bundles rolldown ${notice.version}, but ${webRoot} resolves rolldown ${installed ?? '(not installed)'}; set its rolldown devDependency to exactly ${notice.version}`,
     )
   }
-  return readFileSync(join(pkg, 'THIRD-PARTY-LICENSE'), 'utf8').trim()
+  return { ...notice, texts: [...notice.texts, readFileSync(join(pkg, 'THIRD-PARTY-LICENSE'), 'utf8').trim()] }
 }
 
 /**
  * Every package reachable through `dependencies` from `root`, plus the listed build tools, plus vite-plus-core and the
  * Vite and Rolldown it bundles. The web app builds with vite-plus, whose `vite` dependency is vite-plus-core; Vite
  * adds the preload helper to `apps/web/dist` and Rolldown its runtime helpers, so both are listed with the version
- * and license text that vite-plus-core's LICENSE records for them, Rolldown's followed by its THIRD-PARTY-LICENSE.
+ * and license text that vite-plus-core's LICENSE records for them.
  */
 function webNotices(root: string): PackageNotice[] {
   const found = new Set<string>()
@@ -138,18 +151,9 @@ function webNotices(root: string): PackageNotice[] {
       found.add(pkg)
     }
   }
-  const vitePlus = findPackage('vite-plus', root)
-  const core = vitePlus === undefined ? undefined : findPackage('vite', vitePlus)
-  if (core === undefined) {
-    throw new Error(`third-party-notices: no vite-plus core resolves from ${root}`)
-  }
+  const core = vitePlusCoreOf(root)
   found.add(core)
-  const rolldown = bundledNoticeOf(core, 'rolldown')
-  return [
-    ...[...found].map(noticeOf),
-    bundledNoticeOf(core, 'vite'),
-    { ...rolldown, texts: [...rolldown.texts, rolldownThirdPartyLicense(root, rolldown.version)] },
-  ]
+  return [...[...found].map(noticeOf), bundledNoticeOf(core, 'vite'), rolldownNotice(core, root)]
 }
 
 function render(title: string, notices: PackageNotice[]): string {
@@ -179,7 +183,8 @@ function sorted(notices: Iterable<PackageNotice>): PackageNotice[] {
 
 /**
  * Emits `THIRD-PARTY-NOTICES.txt` next to `cli.mjs`: the license texts of the npm packages bundled into `cli.mjs`
- * (every module of the bundle graph under `node_modules`, tree-shaken ones included), then those of the web build
+ * (every module of the bundle graph under `node_modules`, tree-shaken ones included) and of the Rolldown whose
+ * runtime helpers `cli.mjs` and `bin.mjs` carry, then those of the web build
  * (the web app's `dependencies`, transitively, plus the tools in WEB_BUILD_TOOLS and those vite-plus-core bundles),
  * then `sourceNotices`, the notices for code adapted into the repository's own sources. External runtime dependencies
  * are installed with their own license files and are not listed. Both paths are absolute.
@@ -195,16 +200,19 @@ export function thirdPartyNotices(options: { webPackage: string; sourceNotices: 
           bundled.add(root)
         }
       }
+      // The vite-plus that resolves from this file is apps/cli's, the one running `vp pack`.
+      const rolldown = rolldownNotice(vitePlusCoreOf(dirname(fileURLToPath(import.meta.url))), options.webPackage)
       const adapted = readFileSync(options.sourceNotices, 'utf8').trim()
       const text = [
         'Third-party software in @rivus/agent-trace',
         '',
-        'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section. dist/web/ is built from',
-        'the packages in the second section; it may list a package whose code was tree-shaken away.',
+        'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section; rolldown is listed there',
+        'for the runtime helpers it writes into them. dist/web/ is built from the packages in the second',
+        'section; it may list a package whose code was tree-shaken away.',
         'devframe, @devframes/agentic, and cac are installed as dependencies with their own licenses.',
         'The last section covers code adapted into the agent-trace sources themselves.',
         '',
-        render('dist/cli.mjs', sorted([...bundled].map(noticeOf))),
+        render('dist/cli.mjs', sorted([...[...bundled].map(noticeOf), rolldown])),
         render('dist/web/', sorted(webNotices(options.webPackage))),
         '== Adapted source code ==',
         '',
