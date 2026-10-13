@@ -203,7 +203,8 @@ class SqliteIndex implements SessionIndex {
     this.file = file
     this.db = db
     this.version = version
-    // One case fold for the query and the stored text; SQLite's lower() folds ASCII only.
+    // One case fold for the query and the stored text; SQLite's lower() folds ASCII only. Known-union narrowing:
+    // `value` is node:sqlite's `SQLOutputValue`, and only its text member is folded.
     db.function('casefold', { deterministic: true }, value => (typeof value === 'string' ? casefold(value) : value))
   }
 
