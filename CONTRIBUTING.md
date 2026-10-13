@@ -157,7 +157,8 @@ runs the other packages' `tsc --noEmit` builds), packs it, and tests the install
 a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
 the committed lockfile; use Rush update locally only when dependency inputs change. pnpm rejects versions published
 less than a day ago (`minimumReleaseAgeMinutes` in `common/config/rush/pnpm-config.json`), so pick versions at least a
-day old when upgrading. A `vite-plus` upgrade also moves the vite-plus-core version in that file's `globalOverrides`.
+day old when upgrading. A `vite-plus` upgrade also moves the vite-plus-core version in that file's `globalOverrides`
+and `apps/web`'s `rolldown` devDependency to that core's `bundledVersions.rolldown`; the CLI build fails until they match.
 
 `actions/cache@v6` caches the pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at
 `~/.npm/_cacache`, keyed by runner OS and Rush/lockfile configuration. Every run still executes Rush install and the

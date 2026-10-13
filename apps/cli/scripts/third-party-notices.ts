@@ -4,12 +4,6 @@ import { dirname, join, sep } from 'node:path'
 
 /** Web build tools whose own code lands in `apps/web/dist` (CSS layers). */
 const WEB_BUILD_TOOLS = ['tailwindcss', 'tw-animate-css']
-/**
- * The web app builds with vite-plus, whose `vite` dependency is vite-plus-core: one package that bundles Vite and
- * Rolldown. Vite adds the preload helper to `apps/web/dist` and Rolldown its runtime helpers, so both are listed
- * with the version and license text that vite-plus-core's LICENSE records for them.
- */
-const VITE_PLUS_BUNDLED = ['vite', 'rolldown']
 const LICENSE_FILE = /^(?:licen[cs]e|copying|notice)(?:[.-].*)?$/i
 const NODE_MODULES = `${sep}node_modules${sep}`
 
@@ -101,8 +95,28 @@ function findPackage(name: string, dir: string): string | undefined {
 }
 
 /**
+ * Rolldown's THIRD-PARTY-LICENSE, the MIT notices of Rollup and esbuild, from which Rolldown's runtime helpers in
+ * `apps/web/dist` derive (esbuild's `__esmMin` lazy-init helper among them). vite-plus-core's LICENSE records only
+ * Rolldown's own license, so the web app has `rolldown` as a devDependency for this file alone. Its version must
+ * equal the Rolldown that vite-plus-core bundles; anything else throws, so a vite-plus upgrade fails the build until
+ * that devDependency follows instead of shipping another release's notices.
+ */
+function rolldownThirdPartyLicense(webRoot: string, bundledVersion: string): string {
+  const pkg = findPackage('rolldown', webRoot)
+  const installed = pkg === undefined ? undefined : readManifest(pkg).version
+  if (pkg === undefined || installed !== bundledVersion) {
+    throw new Error(
+      `third-party-notices: vite-plus-core bundles rolldown ${bundledVersion}, but ${webRoot} resolves rolldown ${installed ?? '(not installed)'}; set its rolldown devDependency to exactly ${bundledVersion}`,
+    )
+  }
+  return readFileSync(join(pkg, 'THIRD-PARTY-LICENSE'), 'utf8').trim()
+}
+
+/**
  * Every package reachable through `dependencies` from `root`, plus the listed build tools, plus vite-plus-core and the
- * packages it bundles.
+ * Vite and Rolldown it bundles. The web app builds with vite-plus, whose `vite` dependency is vite-plus-core; Vite
+ * adds the preload helper to `apps/web/dist` and Rolldown its runtime helpers, so both are listed with the version
+ * and license text that vite-plus-core's LICENSE records for them, Rolldown's followed by its THIRD-PARTY-LICENSE.
  */
 function webNotices(root: string): PackageNotice[] {
   const found = new Set<string>()
@@ -130,7 +144,12 @@ function webNotices(root: string): PackageNotice[] {
     throw new Error(`third-party-notices: no vite-plus core resolves from ${root}`)
   }
   found.add(core)
-  return [...[...found].map(noticeOf), ...VITE_PLUS_BUNDLED.map(name => bundledNoticeOf(core, name))]
+  const rolldown = bundledNoticeOf(core, 'rolldown')
+  return [
+    ...[...found].map(noticeOf),
+    bundledNoticeOf(core, 'vite'),
+    { ...rolldown, texts: [...rolldown.texts, rolldownThirdPartyLicense(root, rolldown.version)] },
+  ]
 }
 
 function render(title: string, notices: PackageNotice[]): string {
@@ -161,9 +180,9 @@ function sorted(notices: Iterable<PackageNotice>): PackageNotice[] {
 /**
  * Emits `THIRD-PARTY-NOTICES.txt` next to `cli.mjs`: the license texts of the npm packages bundled into `cli.mjs`
  * (every module of the bundle graph under `node_modules`, tree-shaken ones included), then those of the web build
- * (the web app's `dependencies`, transitively, plus the tools in WEB_BUILD_TOOLS and VITE_PLUS_BUNDLED), then
- * `sourceNotices`, the notices for code adapted into the repository's own sources. External runtime dependencies are
- * installed with their own license files and are not listed. Both paths are absolute.
+ * (the web app's `dependencies`, transitively, plus the tools in WEB_BUILD_TOOLS and those vite-plus-core bundles),
+ * then `sourceNotices`, the notices for code adapted into the repository's own sources. External runtime dependencies
+ * are installed with their own license files and are not listed. Both paths are absolute.
  */
 export function thirdPartyNotices(options: { webPackage: string; sourceNotices: string }): Rolldown.Plugin {
   return {
