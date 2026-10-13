@@ -369,6 +369,7 @@ export type EventKind =
   | 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
   | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
 
+// The kit's SourcePointer (@rivus/agent-kit/transcript)
 export interface SourcePointer { file: string, offset: number, length: number, line: number }
 
 export interface TraceEvent {
@@ -422,8 +423,8 @@ export interface Trace {
   schema: 'agent-trace'
   agent: string             // the kit's Transcript.agent
   agentVersion?: string     // the kit's Transcript.agentVersion
-  session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
-  capabilities: Capability[]
+  session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }  // the kit's TranscriptSession
+  capabilities: Capability[]  // the kit's Capability
   agents: Lane[]
   events: TraceEvent[]
   skipped: { line: number, file: string, reason: string }[]

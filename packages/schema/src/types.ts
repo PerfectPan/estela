@@ -1,9 +1,12 @@
 import type {
+  Capability,
   Lane,
   PromptSnapshotPayload as KitPromptSnapshotPayload,
+  SourcePointer,
   TranscriptEventKind,
   TranscriptEventOf,
   TranscriptEventPayloads,
+  TranscriptSession,
 } from '@rivus/agent-kit/transcript'
 import * as z from 'zod/mini'
 
@@ -28,8 +31,8 @@ export const EVENT_KINDS = [
 
 export type EventKind = (typeof EVENT_KINDS)[number]
 
-/** Fields an agent records. A number whose capability is absent is `undefined`, never 0. */
-export const CAPABILITIES = [
+/** One entry of `Trace.capabilities`: the kit's `Capability`, which the `satisfies` ties it to. */
+const capabilitySchema = z.enum([
   'requests',
   'usage',
   'durations',
@@ -40,18 +43,18 @@ export const CAPABILITIES = [
   'systemPrompt',
   'toolSchemas',
   'hooks',
-] as const
+]) satisfies z.ZodMiniType<Capability, Capability>
 
-export const capabilitySchema = z.enum(CAPABILITIES)
-export type Capability = z.infer<typeof capabilitySchema>
-
-export const sourcePointerSchema = z.object({
+/**
+ * An event's `source`: the kit's `SourcePointer`, which the `satisfies` ties it to. In a view trace `file` is an
+ * index into `Trace.sourceFiles`.
+ */
+const sourcePointerSchema = z.object({
   file: z.string(),
   offset: z.number(),
   length: z.number(),
   line: z.number(),
-})
-export type SourcePointer = z.infer<typeof sourcePointerSchema>
+}) satisfies z.ZodMiniType<SourcePointer, SourcePointer>
 
 /**
  * Path of a value `toView` shortened: object keys as strings, array indexes as
@@ -259,7 +262,13 @@ const laneSchema = z.object({
   systemPrompt: z.optional(z.string()),
 }) satisfies z.ZodMiniType<Lane, Lane>
 
-export const traceSessionSchema = z.object({
+/** `Trace.session`: the kit's `TranscriptSession`, plus the field a view trace adds. */
+export interface TraceSession extends TranscriptSession {
+  /** Set by `toView` on session fields it shortened; see `TruncatedPath`. */
+  $truncated?: TruncatedPath[]
+}
+
+const traceSessionSchema = z.object({
   id: z.string(),
   title: z.optional(z.string()),
   cwd: z.optional(z.string()),
@@ -267,10 +276,8 @@ export const traceSessionSchema = z.object({
   endedAt: z.optional(z.number()),
   systemPrompt: z.optional(z.string()),
   tools: z.optional(z.unknown()),
-  /** Set by `toView` on session fields it shortened; see `TruncatedPath`. */
-  $truncated: z.optional(z.array(truncatedPathSchema)),
-})
-export type TraceSession = z.infer<typeof traceSessionSchema>
+  ...viewFields,
+}) satisfies z.ZodMiniType<TraceSession, TraceSession>
 
 /**
  * One entry of `Trace.skipped`: a log record that became no event, named by file and line. The kit's `SkippedRecord`
