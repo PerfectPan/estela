@@ -31,7 +31,7 @@ const targetArg = z.union([z.string(), z.array(z.string())])
 /** The one argument that says what a tool call acts on (a path, a command), or a JSON preview. Already a preview. */
 export function toolTarget(args: unknown): string {
   const parsed = z.safeParse(toolArgs, args).data
-  // Narrowing the parsed union: a string, or a record of named arguments.
+  // The `typeof` tests below narrow the parsed unions (string or record; string or argv array).
   if (typeof parsed === 'string') {
     return previewText(parsed)
   }
