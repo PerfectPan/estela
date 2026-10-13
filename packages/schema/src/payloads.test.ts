@@ -1,7 +1,7 @@
 import type * as z from 'zod/mini'
 import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
-import { assertTrace, isTrace, traceEventSchema } from './index.ts'
-import { payloadSchemas, type EventKind, type TraceEvent, type TraceEventPayloads } from './types.ts'
+import { assertTrace, isTrace, traceEventSchema, traceSchema } from './index.ts'
+import { payloadSchemas, type EventKind, type Trace, type TraceEvent, type TraceEventPayloads } from './types.ts'
 
 const source = { file: 'f', offset: 0, length: 1, line: 1 }
 
@@ -76,6 +76,7 @@ describe('payload schemas', () => {
     expectTypeOf<TraceEventPayloads['hook']>().toExtend<z.input<typeof payloadSchemas.hook>>()
     expectTypeOf<TraceEventPayloads['unknown']>().toExtend<z.input<typeof payloadSchemas.unknown>>()
     expectTypeOf<TraceEvent>().toExtend<z.input<typeof traceEventSchema>>()
+    expectTypeOf<Trace>().toExtend<z.input<typeof traceSchema>>()
   })
 
   it("accept each kind in the kit's shape and keep the fields the kit does not declare", () => {

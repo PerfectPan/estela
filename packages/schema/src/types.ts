@@ -308,7 +308,10 @@ export interface Trace {
   view?: ViewInfo
 }
 
-/** A whole `Trace`, each event's payload checked against its kind; the `satisfies` keeps it equal to the type. */
+/**
+ * A whole `Trace`, each event's payload checked against its kind. The `satisfies` checks that what it accepts is a
+ * `Trace`; `payloads.test.ts` checks the other direction, that every `Trace` passes.
+ */
 export const traceSchema = z.object({
   schema: z.literal(TRACE_SCHEMA),
   agent: z.object({ id: z.string(), version: z.optional(z.string()) }),
