@@ -27,8 +27,8 @@
   ],
   "scripts": {
     "dev": "node bin.mjs",
-    "build": "rslib build",
-    "lint": "vp lint src scripts bin.mjs vite.config.ts rslib.config.ts 2>&1",
+    "build": "vp pack",
+    "lint": "vp lint src scripts bin.mjs vite.config.ts 2>&1",
     "test": "vp test 2>&1",
     "typecheck": "tsc --noEmit"
   },
@@ -46,7 +46,6 @@
     "@rivus/agent-trace-runtime-node": "workspace:*",
     "@rivus/agent-trace-schema": "workspace:*",
     "@rivus/agent-trace-web": "workspace:*",
-    "@rslib/core": "1.0.3",
     "@types/node": "^24.19.0",
     "typescript": "^7.0.2",
     "vite-plus": "1.1.0"
