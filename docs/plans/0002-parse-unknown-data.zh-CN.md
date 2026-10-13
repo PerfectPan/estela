@@ -30,7 +30,7 @@ agent-trace 在很多地方读取未知数据：来自 kit 和规范 JSON 文件
 在 `main` 的 `3f100ad` 上测量，并在 `a0aba04` 上复测；此前 #41 把 `host` 改名为 `agent`，#42 把工具链迁到 Vite+。
 
 - **事件 payload。** `TraceEvent.payload` 是 `z.record(z.string(), z.unknown())`。kernel 在 `fold`、`lanes`、`project-timeline`、`project-turns` 和 `reconstruct` 中通过 `asRecord`（lodash `isPlainObject` 加类型断言）、`asString` 和 `asNumber` 读取它；web 应用在 `event-text.ts`、`ledger-model.ts` 和 inspector 中做法相同。`prompt-snapshot.ts` 不经检查就把 payload 断言为 `PromptSnapshotPayload`，`view.ts` 的 `Capper.value` 用 lodash `isObjectLike` 加类型断言遍历 payload。
-- **kit。** trace 目前使用 0.11.0；到这个版本为止，kit 的 `TranscriptEvent.payload` 是 `Record<string, unknown>`，各 kind 的接口没有与 `kind` 绑定。kit #98 于 2026-10-13 随 0.13.0 发布，把 `TranscriptEvent` 改成按 `kind` 区分的联合类型：按 `kind` 收窄后，`payload` 的类型就是该 kind 的 `*Payload`（`TranscriptEventOf<K>`、`TranscriptEventPayloads`）。kit 在自己的边界用 `zod/mini` 解析 agent 记录。
+- **kit。** trace 目前使用 0.11.0；到这个版本为止，kit 的 `TranscriptEvent.payload` 是 `Record<string, unknown>`，各 kind 的接口没有与 `kind` 绑定。kit #98 于 2026-10-13 随 0.12.0 发布，把 `TranscriptEvent` 改成按 `kind` 区分的联合类型：按 `kind` 收窄后，`payload` 的类型就是该 kind 的 `*Payload`（`TranscriptEventOf<K>`、`TranscriptEventPayloads`）。同日发布的 0.13.0 是 PR B 要安装的版本，保留这些类型，只增加 opencode bridge 的改动（kit #99）。kit 在自己的边界用 `zod/mini` 解析 agent 记录。
 - **RPC 输入。** `list-sessions`（`checkQuery`）和 `export-report`（`checkInput`）用 `typeof` 级联和类型断言检查输入。`load-trace`、`get-trace-view`、`get-event` 和 `reconstruct` 不经检查直接解构输入。DevFrame 根据 handler 签名为 `call()` 定类型（`packages/rpc/src/index.ts` 中的模块扩充）。
 - **存储行和错误。** `runtime-node` 通过类型断言、`readNumber`、`String(row.x)` 和 `Number(row.x)` 读取 SQLite 行；通过 `typeof` 和 `every(typeof)` 读取 `context_shape`；通过 `(error as { … })` 读取 `errcode` 和 `EEXIST`。sqlite 警告过滤器把 `process.emitWarning` 的参数当作 `unknown` 读取并做类型断言。
 - **CLI 文件。** `report-site.ts` 对 DevFrame 的 dump 清单和记录做类型断言，`scripts/third-party-notices.ts` 把 `JSON.parse` 的输出当作有类型的清单返回，`terminal.ts` 对其 `stream.write` 包装函数的剩余参数做类型断言。
@@ -68,7 +68,7 @@ agent-trace 在很多地方读取未知数据：来自 kit 和规范 JSON 文件
 
 | 边界 | 负责方 | 解析方式 | PR |
 |---|---|---|---|
-| Agent 记录 → `TranscriptEvent` | kit adapter | kit 的 `zod/mini` schema；从 0.13.0 起按 kind 定类型 | kit #98 |
+| Agent 记录 → `TranscriptEvent` | kit adapter | kit 的 `zod/mini` schema；从 0.12.0 起按 kind 定类型 | kit #98 |
 | kit `Transcript` → `Trace` | `apps/cli` `transcript-trace.ts` | 不解析：kit 的类型已按 kind 携带 payload | B |
 | 规范 JSON 文件 → `Trace` | `apps/cli` `session.ts` | `isTrace`（schema 守卫），现在也检查 payload | B |
 | `Trace` → 视图 trace | kernel `toView` / `fitView` | 对选定的视图执行一次 `isTrace` | B |
@@ -98,13 +98,13 @@ SQLite rows / errors / warnings / dump files -- zod/mini or typed overloads -> t
 | D1 | `TraceEvent` 改为按 `kind` 区分的联合类型，由 kit 的 `TranscriptEventPayloads`（`import type`）加上 trace 的视图字段构成。`EventOf<K>` 指代某一个 kind。读取方按 `event.kind` 收窄（对已知联合类型的收窄，属于允许的例外）。 | 解析一次，之后有类型，每次读取没有额外开销。带类型的访问器要么每次读取都重新解析（投影在浏览器中对每个 trace 运行多次），要么缓存在 `WeakMap` 中，要么做类型断言，而且在调用处无法收窄。基于 kit 的类型让每种 payload 只有一份定义（AGENTS.md：不要复制 kit 类型）。 |
 | D2 | `packages/schema` 为 JSON trace 读取提供每个 kind 的 `zod/mini` schema：payload 用 `z.looseObject`，声明 kit 已声明的字段，未声明的字段保留给 Input 标签页；每个 payload 都有 `$truncated?`，`system` 还有 `systemPromptSameAs?` 和 `toolsSameAs?`。一个编译期检查把每个 payload schema 的输出与 kit 的 payload 类型绑定。`promptSnapshot()` 收窄 `kind === 'system'` 并像 kit 那样比较 `type`，不做类型断言。 | 规范文件和报告 JSON 是不可信的 JSON，需要 kit 类型给不了的运行时检查。payload 普查（附录 B）在 `system` 上发现 9 个未声明的键、在 `hook` 上发现 3 个，inspector 目前会显示它们。 |
 | D3 | trace schema 是纯校验器（没有默认值、`catch` 或转换）。调用方通过 schema 守卫（`isTrace`、`isTraceEvent`）保留已校验的输入，而不是使用 `.data`。 | zod 的输出会重排键（先 shape，再其他键）并复制每个 payload 外壳。守卫保留对象身份和键顺序，所以 Input 和 Output 标签页以及规范 fixture 的 `toEqual` 逐字节不变，开销相同。 |
-| D4 | 解析点：(a) 规范文件快速路径 `isTrace` 检查 payload，检查失败的文件仍然交给 kit；(b) `transcriptToTrace` 映射 kit 已定类型的事件，不解析也不做类型断言；(c) `toView` / `fitView` 对最终视图检查一次，而不是每个 `fitView` 步骤检查；(d) 报告模式对 `<script id="report-trace">` 做守卫检查。实时 RPC 结果不重新解析。 | (b) kit 在自己的边界解析，其 0.13.0 类型把每个 payload 与其 kind 绑定，再解析一次只是重复（见 D10）。(c) `Capper.value` 返回 `unknown`。(d) `JSON.parse` 的输出。RPC：两端在同一个 tarball 中发布，服务端已在 (a)、(b) 或 (c) 处检查过该值。 |
+| D4 | 解析点：(a) 规范文件快速路径 `isTrace` 检查 payload，检查失败的文件仍然交给 kit；(b) `transcriptToTrace` 映射 kit 已定类型的事件，不解析也不做类型断言；(c) `toView` / `fitView` 对最终视图检查一次，而不是每个 `fitView` 步骤检查；(d) 报告模式对 `<script id="report-trace">` 做守卫检查。实时 RPC 结果不重新解析。 | (b) kit 在自己的边界解析，其从 0.12.0 起的类型把每个 payload 与其 kind 绑定，再解析一次只是重复（见 D10）。(c) `Capper.value` 返回 `unknown`。(d) `JSON.parse` 的输出。RPC：两端在同一个 tarball 中发布，服务端已在 (a)、(b) 或 (c) 处检查过该值。 |
 | D5 | RPC 输入在每个 handler 内用 `zod/mini` 解析；每个检查上的 `error` 参数携带现有消息，抛出时使用第一个 issue 的消息和现有的错误类。此前不经检查接收 `{ ref }`、`{ ref, id }` 或 `{ ref?, eventId }` 的四个 handler 也获得 schema。handler 参数类型仍是客户端的接口定义。不使用 DevFrame 的 `args` 选项。 | DevFrame `args` 只做守卫式校验，并在 MCP 接口上公布位置参数 `arg0`：`reconstruct` 会因此期望 `{ arg0: { eventId } }`，破坏冒烟测试固定的 MCP 调用。它还会把消息包进 DF0043，并且不能做规整（`null` → `{}`、宽松的 `locale`）。 |
 | D6 | 对任意 JSON 的通用热路径遍历（`fingerprint`、`Capper.value`）使用 es-toolkit 的 `isPlainObject` 和 `isPrimitive`（类型守卫），然后做已知联合类型的 `typeof` 判断；在这里逐节点跑 zod 太慢。单个值（错误、RPC 输入、行、显示用参数）使用 `zod/mini`。kernel 去掉 lodash-es。 | 对 81k 条原始记录跑 `fingerprint`：es-toolkit 写法与手写写法相差不到 2%；每个值一个 zod schema 慢 2.7 倍（附录 B）。所有写法的哈希相同。 |
 | D7 | SQLite 行用每个 SELECT 一个的 `zod/mini` 行 schema 解析（可空列用 `z.nullable`）；`HEAD_SELECT` 和 `SUMMARY_SELECT` 由 schema 的键生成。解析失败的行是缺失数据：`rows` 跳过它，直到下一次 discover 重写它；`get` 找不到缓存的摘要。`context_shape` 在 `try` 中 `JSON.parse`，然后用 `z.array(z.number())`；损坏的 shape 只丢失 shape。`errcode` 和 `EEXIST` 通过 `z.object` schema 读取，`errcode` 通过唯一的 `sqliteErrcode`。 | 存储记录属于规则的输入范围；`node:sqlite` 把行的类型定为 `Record<string, SQLOutputValue>`，原来的类型断言未经检查就收窄了它。 |
 | D8 | zod/mini 在 PR B 中进入 web 包：`3f100ad` 时上限为 +39.3 KB 原始大小 / +9.5 KB gzip（trace 和报告的 schema 与解析），PR B 在 Vite+ 构建上重新测量。不设体积预算。 | 报告守卫在浏览器中解析 JSON，而从 schema 模块导入任何值都已经会带入 6.3 KB gzip（顶层的 schema 构造不会被 tree-shake）。负责人已接受。 |
 | D9 | 两个 PR：先 PR A（边缘的输入，不改共享类型），再 PR B（端到端的有类型 payload）。不设兼容垫片。 | 删除 kernel helper 并修改 `TraceEvent` 会让 web 应用编译失败，直到其读取方修改完毕，所以 PR B 是一个 PR；PR A 与它无关。 |
-| D10 | kit 优先：kit 先于 trace 按 kind 为 payload 定了类型（kit #98，0.13.0）。PR B 把 trace 升级到 kit 0.13.0，基于 `TranscriptEventPayloads` 构建 `TraceEvent`，并去掉本设计最初计划在 `transcriptToTrace` 中做的逐事件守卫。`packages/schema` 获得对 kit 的仅类型依赖，与其他包一致。 | 那个守卫只因 kit 的 payload 类型宽松而存在。有了 kit 的联合类型，守卫只会在加载时白白重新检查每个 kit 事件（每个约 2 µs，见附录 B）；本设计初稿当作风险接受的“kit payload 不匹配导致加载报错”，在出现 kit 类型错误之前不会发生。 |
+| D10 | kit 优先：kit 先于 trace 按 kind 为 payload 定了类型（kit #98，从 0.12.0 起）。PR B 把 trace 升级到 kit 0.13.0，基于 `TranscriptEventPayloads` 构建 `TraceEvent`，并去掉本设计最初计划在 `transcriptToTrace` 中做的逐事件守卫。`packages/schema` 获得对 kit 的仅类型依赖，与其他包一致。 | 那个守卫只因 kit 的 payload 类型宽松而存在。有了 kit 的联合类型，守卫只会在加载时白白重新检查每个 kit 事件（每个约 2 µs，见附录 B）；本设计初稿当作风险接受的“kit payload 不匹配导致加载报错”，在出现 kit 类型错误之前不会发生。 |
 
 ## 3. 详细设计
 
