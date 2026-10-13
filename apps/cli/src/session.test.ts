@@ -27,6 +27,19 @@ async function unknownGeneration(): Promise<string> {
   return path
 }
 
+/** A canonical trace file's text with one `hook` event carrying `payload`. */
+function canonicalHook(payload: Record<string, unknown>): string {
+  return JSON.stringify({
+    schema: 'agent-trace',
+    agent: { id: 'demo' },
+    session: { id: 's' },
+    capabilities: [],
+    agents: [],
+    events: [{ id: 'e1', seq: 0, ts: 1, kind: 'hook', payload, source: { file: 'f', offset: 0, length: 1, line: 1 } }],
+    skipped: [],
+  })
+}
+
 /** A Grok session directory whose summary names a chat format the adapter does not read. */
 async function grokUnknownGeneration(): Promise<string> {
   const dir = await tempDir()
@@ -120,24 +133,12 @@ describe('loadSession', () => {
   it('a canonical file with a payload that does not match its kind falls through to the kit', async () => {
     const dir = await tempDir()
     const platform = createNodePlatform({ home: '/u/me', env: {} })
-    const canonical = (payload: Record<string, unknown>) =>
-      JSON.stringify({
-        schema: 'agent-trace',
-        agent: { id: 'demo' },
-        session: { id: 's' },
-        capabilities: [],
-        agents: [],
-        events: [
-          { id: 'e1', seq: 0, ts: 1, kind: 'hook', payload, source: { file: 'f', offset: 0, length: 1, line: 1 } },
-        ],
-        skipped: [],
-      })
     const valid = join(dir, 'valid.trace.json')
-    await writeFile(valid, canonical({ type: 'hook_success', name: 'PreToolUse' }))
+    await writeFile(valid, canonicalHook({ type: 'hook_success', name: 'PreToolUse' }))
     expect((await loadSession(valid, { platform })).events).toHaveLength(1)
     // A hook without `type`, as older generated traces wrote it, is not a canonical trace.
     const broken = join(dir, 'broken.trace.json')
-    await writeFile(broken, canonical({ name: 'PreToolUse' }))
+    await writeFile(broken, canonicalHook({ name: 'PreToolUse' }))
     await expect(loadSession(broken, { platform })).rejects.toThrow(`No adapter accepted ${broken}`)
   })
 
