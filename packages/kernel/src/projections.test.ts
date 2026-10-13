@@ -1,12 +1,16 @@
-import type { EventKind, Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { TranscriptEventKind } from '@rivus/agent-kit/transcript'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { projectLanes, projectRequests } from './project-timeline.ts'
 import { foldHookRuns, hiddenAfterCompaction, projectTurns } from './project-turns.ts'
 
-type KindAndPayload = { [K in EventKind]: { kind: K; payload: TraceEventPayloads[K] } }[EventKind]
+type KindAndPayload = { [K in TranscriptEventKind]: { kind: K; payload: TraceEventPayloads[K] } }[TranscriptEventKind]
 
 /** A kind with that kind's payload. */
-function on<K extends EventKind>(kind: K, payload: TraceEventPayloads[K]): { kind: K; payload: TraceEventPayloads[K] } {
+function on<K extends TranscriptEventKind>(
+  kind: K,
+  payload: TraceEventPayloads[K],
+): { kind: K; payload: TraceEventPayloads[K] } {
   return { kind, payload }
 }
 

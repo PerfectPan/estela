@@ -67,7 +67,7 @@ describe('isTrace', () => {
     expect(isTrace({ ...rest, host: agent })).toBe(false)
   })
 
-  it('rejects an event kind outside EVENT_KINDS', () => {
+  it('rejects an event kind the kit does not have', () => {
     expect(isTrace(trace({ events: [event({ kind: 'nope' })] }))).toBe(false)
   })
 

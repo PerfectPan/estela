@@ -365,7 +365,8 @@ export interface HostAdapter {
 ### 3.3 规范 trace
 
 ```ts
-export type EventKind =
+// The kit's TranscriptEventKind (@rivus/agent-kit/transcript)
+export type TranscriptEventKind =
   | 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
   | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
 
@@ -377,7 +378,7 @@ export interface TraceEvent {
   /** Order within the trace; ties in `ts` keep the log's order. */
   seq: number
   ts: number
-  kind: EventKind
+  kind: TranscriptEventKind
   agentId?: string
   parentId?: string
   /** Groups events that belong to one model request. */

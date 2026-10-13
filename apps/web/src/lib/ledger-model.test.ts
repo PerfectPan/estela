@@ -1,4 +1,5 @@
-import type { EventKind, Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { TranscriptEventKind } from '@rivus/agent-kit/transcript'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import {
   anchorIndex,
@@ -12,8 +13,8 @@ import {
 
 /** An event's id, a kind with that kind's payload, and any other fields. */
 type EventInput = Partial<Omit<TraceEvent, 'kind' | 'payload'>> & { id: string } & {
-    [K in EventKind]: { kind: K; payload: TraceEventPayloads[K] }
-  }[EventKind]
+    [K in TranscriptEventKind]: { kind: K; payload: TraceEventPayloads[K] }
+  }[TranscriptEventKind]
 
 let seq = 0
 function event(input: EventInput): TraceEvent {

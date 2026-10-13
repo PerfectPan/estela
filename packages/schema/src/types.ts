@@ -12,25 +12,6 @@ import * as z from 'zod/mini'
 
 export const TRACE_SCHEMA = 'agent-trace' as const
 
-/**
- * Every event kind, in one place; `EventKind` and `traceEventSchema` both read it. They are the kit's
- * `TranscriptEventKind`: a kind the kit does not have fails here, and a kind the kit adds fails at `payloadSchemas`.
- */
-export const EVENT_KINDS = [
-  'user',
-  'assistant',
-  'reasoning',
-  'tool_call',
-  'tool_result',
-  'request',
-  'system',
-  'compaction',
-  'hook',
-  'unknown',
-] as const satisfies readonly TranscriptEventKind[]
-
-export type EventKind = (typeof EVENT_KINDS)[number]
-
 /** One entry of `Trace.capabilities`: the kit's `Capability`, which the `satisfies` ties it to. */
 const capabilitySchema = z.enum([
   'requests',
@@ -85,11 +66,11 @@ interface SystemViewFields extends PayloadViewFields {
  * view trace adds. Every kit payload keeps the fields an agent adds of its own, which read as `unknown`.
  */
 export type TraceEventPayloads = {
-  [K in EventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
+  [K in TranscriptEventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
 }
 
 /** A trace event of the kinds in `K`, such as `EventOf<'tool_call'>`; its payload is that kind's. */
-export type EventOf<K extends EventKind> = {
+export type EventOf<K extends TranscriptEventKind> = {
   [Kind in K]: Omit<TranscriptEventOf<Kind>, 'payload'> & { payload: TraceEventPayloads[Kind] }
 }[K]
 
@@ -97,7 +78,7 @@ export type EventOf<K extends EventKind> = {
  * One event of a trace: the kit's `TranscriptEvent` with view fields on its payload. The union is discriminated by
  * `kind`; narrowing on it types `payload`.
  */
-export type TraceEvent = EventOf<EventKind>
+export type TraceEvent = EventOf<TranscriptEventKind>
 
 /**
  * A `system` payload with `type: 'prompt_snapshot'`: the kit's `PromptSnapshotPayload`, the system prompt and tool
@@ -204,7 +185,8 @@ const unknownPayloadSchema = z.looseObject({
  * undeclared ones. The `satisfies` ties it to the kit at compile time: its output must be that kind's
  * `TraceEventPayloads` entry, so a declared field the kit narrows or a required field the kit adds fails to compile.
  * `payloads.test.ts` checks the other direction, that every payload of that type passes, so a declared field the kit
- * widens fails there. A new optional kit field passes both, and the loose object keeps it.
+ * widens fails there. A new optional kit field passes both, and the loose object keeps it. The mapped type also holds
+ * its keys to the kit's `TranscriptEventKind`, so a kind the kit adds or drops fails to compile here.
  */
 export const payloadSchemas = {
   user: messagePayloadSchema,

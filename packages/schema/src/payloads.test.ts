@@ -1,15 +1,8 @@
-import type { Capability, Lane, SourcePointer } from '@rivus/agent-kit/transcript'
+import type { Capability, Lane, SourcePointer, TranscriptEventKind } from '@rivus/agent-kit/transcript'
 import type * as z from 'zod/mini'
 import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
 import { assertTrace, isTrace, traceEventSchema, traceSchema } from './index.ts'
-import {
-  payloadSchemas,
-  type EventKind,
-  type Trace,
-  type TraceEvent,
-  type TraceEventPayloads,
-  type TraceSession,
-} from './types.ts'
+import { payloadSchemas, type Trace, type TraceEvent, type TraceEventPayloads, type TraceSession } from './types.ts'
 
 const source = { file: 'f', offset: 0, length: 1, line: 1 }
 
@@ -32,7 +25,7 @@ function trace(events: unknown[]) {
 const accepts = (kind: string, payload: unknown) => traceEventSchema.safeParse(event(kind, payload)).success
 
 /** One payload per kind in the shape the kit's adapters write it, each with a field the kit does not declare. */
-const KIT_SHAPES: { [K in EventKind]: TraceEventPayloads[K] } = {
+const KIT_SHAPES: { [K in TranscriptEventKind]: TraceEventPayloads[K] } = {
   user: { text: 'hi', meta: true, compactSummary: false, command: false, injected: false, continued: false, extra: 1 },
   assistant: { text: 'reply', image: true, mediaType: 'image/png', extra: [1] },
   reasoning: { text: 'thinking', redacted: false, extra: null },

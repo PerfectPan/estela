@@ -2,14 +2,12 @@ import * as z from 'zod/mini'
 import { traceSchema, type Trace } from './types.ts'
 
 export {
-  EVENT_KINDS,
   TRACE_SCHEMA,
   traceEventSchema,
   traceSchema,
   type ContextSlot,
   type ContextSlotName,
   type ContextTokens,
-  type EventKind,
   type EventOf,
   type ReconstructResult,
   type SkippedEntry,
