@@ -1,20 +1,26 @@
 import type { ListSessionsQuery } from '../list-types.ts'
 import type { ExportReportInput } from './report.ts'
 import { describe, expect, it } from 'vite-plus/test'
+import * as z from 'zod/mini'
 import { fixture, storeOf } from '../../testing/store-fixture.ts'
 import { listSessions } from './list-sessions.ts'
 import { bindReportExporter, exportReport } from './report.ts'
 import { bindSessionService } from './service.ts'
 import { bindTraceStore, getEvent, getTraceView, loadTrace, reconstructAt } from './trace-view.ts'
 
-type WireHandler = (input?: unknown) => Promise<unknown>
-
 /**
- * The handler as DevFrame calls it, with whatever the client sent; the parameter types promise more than the wire
- * does. A test double: the context carries only what the handlers read.
+ * A definition's `setup` read as DevFrame runs it: its handler takes whatever the client sent, since the parameter
+ * types promise more than the wire does. The context is a test double carrying only what the handlers read.
  */
-async function wire(definition: { setup?: unknown }): Promise<WireHandler> {
-  const setup = definition.setup as (context: unknown) => Promise<{ handler: WireHandler }>
+const wireSetup = z.function({
+  input: [z.unknown()],
+  output: z.promise(
+    z.object({ handler: z.function({ input: [z.optional(z.unknown())], output: z.promise(z.unknown()) }) }),
+  ),
+})
+
+async function wire(definition: { setup?: unknown }) {
+  const setup = z.parse(wireSetup, definition.setup)
   const owner = {}
   return (await setup({ rpc: { getCurrentRpcSession: () => ({ meta: owner }) } })).handler
 }
