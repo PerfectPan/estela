@@ -1,6 +1,7 @@
 import type { SourcePointer, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { SessionFs } from '@rivus/agent-trace-kernel'
 import { readRange } from '@rivus/agent-trace-kernel'
+import { isPlainObject, isPrimitive } from 'es-toolkit/predicate'
 
 /** Size and mtime of one source file when its trace was loaded. */
 export interface FileStamp {
@@ -27,12 +28,17 @@ function fnv(hash: number, text: string): number {
  * pointer are no longer the record that was loaded, without keeping originals.
  */
 export function fingerprint(original: unknown): number {
-  if (original == null || typeof original !== 'object' || Array.isArray(original)) {
+  // A predicate, not a schema: this runs for every event at load. Originals come from `JSON.parse`: plain objects.
+  if (!isPlainObject(original)) {
     return 0
   }
   let hash = FNV_OFFSET
   for (const key of Object.keys(original).toSorted()) {
-    const value = (original as Record<string, unknown>)[key]
+    const value: unknown = original[key]
+    if (!isPrimitive(value)) {
+      continue
+    }
+    // Known-union narrowing: `isPrimitive` leaves string | number | boolean | bigint | symbol | null | undefined.
     if (
       typeof value === 'number'
       || typeof value === 'boolean'

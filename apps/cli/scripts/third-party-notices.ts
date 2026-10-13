@@ -2,6 +2,7 @@ import type { Rolldown } from 'vite-plus/pack'
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as z from 'zod/mini'
 
 /** Web build tools whose own code lands in `apps/web/dist` (CSS layers). */
 const WEB_BUILD_TOOLS = ['tailwindcss', 'tw-animate-css']
@@ -15,15 +16,25 @@ interface PackageNotice {
   texts: string[]
 }
 
-function readManifest(dir: string): {
-  name?: string
-  version?: string
-  license?: unknown
-  dependencies?: Record<string, string>
-  optionalDependencies?: Record<string, string>
-  bundledVersions?: Record<string, string>
-} {
-  return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+const packageMap = z.optional(z.record(z.string(), z.string()))
+/** The package.json fields read here. `license` may be the older object form, so it is read on its own. */
+const packageManifest = z.object({
+  name: z.optional(z.string()),
+  version: z.optional(z.string()),
+  license: z.unknown(),
+  dependencies: packageMap,
+  optionalDependencies: packageMap,
+  bundledVersions: packageMap,
+})
+const spdxLicense = z.string()
+
+function readManifest(dir: string): z.output<typeof packageManifest> {
+  const parsed = z.safeParse(packageManifest, JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')))
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    throw new Error(`third-party-notices: ${join(dir, 'package.json')}: ${issue?.path.join('.')}: ${issue?.message}`)
+  }
+  return parsed.data
 }
 
 /** Vite's and Vite+'s licenses append those of their own bundled build-time dependencies; none ship here. */
@@ -41,7 +52,7 @@ function noticeOf(dir: string): PackageNotice {
   return {
     name: manifest.name ?? dir,
     version: manifest.version ?? '',
-    license: typeof manifest.license === 'string' ? manifest.license : 'see package',
+    license: z.safeParse(spdxLicense, manifest.license).data ?? 'see package',
     texts,
   }
 }

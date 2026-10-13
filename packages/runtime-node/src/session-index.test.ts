@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { sqliteErrcode } from './session-index-schema.ts'
 import { openSessionIndex, sessionIndexFile, type IndexSummary } from './session-index.ts'
 
 const dirs: string[] = []
@@ -212,6 +213,32 @@ describe('session index', () => {
     expect(current.rows()[0]?.summary).toBeUndefined()
     expect(current.rows()[0]?.title).toBe('Fix the auth refresh')
     current.close()
+  })
+
+  it('reads NULL head columns as absent fields', async () => {
+    const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
+    index.putHeads([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
+    expect(index.rows()).toEqual([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
+    index.close()
+  })
+
+  it('reads the SQLite result code off a node:sqlite error', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const holder = new DatabaseSync(file)
+    holder.exec('CREATE TABLE t (x); BEGIN IMMEDIATE')
+    const other = new DatabaseSync(file, { timeout: 0 })
+    let busy: unknown
+    try {
+      other.exec('BEGIN IMMEDIATE')
+    } catch (error) {
+      busy = error
+    }
+    expect(sqliteErrcode(busy)).toBe(5)
+    expect(sqliteErrcode(new Error('not from SQLite'))).toBeUndefined()
+    expect(sqliteErrcode(undefined)).toBeUndefined()
+    other.close()
+    holder.exec('ROLLBACK')
+    holder.close()
   })
 
   it('keeps a fractional mtime exact', async () => {

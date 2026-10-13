@@ -16,7 +16,9 @@
   "dependencies": {
     "@rivus/agent-trace-kernel": "workspace:*",
     "@rivus/agent-trace-schema": "workspace:*",
-    "devframe": "1.1.0"
+    "devframe": "1.1.0",
+    "es-toolkit": "1.52.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",

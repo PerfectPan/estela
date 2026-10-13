@@ -1,6 +1,7 @@
 import { chmodSync, closeSync, existsSync, fchmodSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import * as z from 'zod/mini'
 
 /** Bump when the table layout changes. A different `user_version` is deleted and rebuilt. */
 const INDEX_LAYOUT_VERSION = 2
@@ -34,28 +35,33 @@ function touchPrivate(file: string): void {
 
 class LayoutMismatch extends Error {}
 
-function errcode(error: unknown): unknown {
-  return (error as { errcode?: unknown } | null)?.errcode
+const sqliteError = z.object({ errcode: z.number() })
+const fileExists = z.object({ code: z.literal('EEXIST') })
+const versionRow = z.object({ user_version: z.number() })
+const countRow = z.object({ n: z.number() })
+
+/** The SQLite result code node:sqlite sets on its errors (extended codes included); `undefined` for other errors. */
+export function sqliteErrcode(error: unknown): number | undefined {
+  return z.safeParse(sqliteError, error).data?.errcode
 }
 
 function isBroken(error: unknown): boolean {
-  const code = errcode(error)
-  return typeof code === 'number' && BROKEN_CODES.has(code)
+  const code = sqliteErrcode(error)
+  return code !== undefined && BROKEN_CODES.has(code)
 }
 
 function isBusy(error: unknown): boolean {
-  const code = errcode(error)
-  return typeof code === 'number' && BUSY_CODES.has(code)
+  const code = sqliteErrcode(error)
+  return code !== undefined && BUSY_CODES.has(code)
 }
 
+/** 0 when the pragma returns no number: `prepare` then creates the schema in an empty file or rebuilds the file. */
 function readVersion(db: DatabaseSync): number {
-  const row = db.prepare('PRAGMA user_version').get() as { user_version?: number | bigint } | undefined
-  return Number(row?.user_version ?? 0)
+  return z.safeParse(versionRow, db.prepare('PRAGMA user_version').get()).data?.user_version ?? 0
 }
 
 function isEmpty(db: DatabaseSync): boolean {
-  const row = db.prepare('SELECT count(*) AS n FROM sqlite_master').get() as { n: number | bigint }
-  return Number(row.n) === 0
+  return z.safeParse(countRow, db.prepare('SELECT count(*) AS n FROM sqlite_master').get()).data?.n === 0
 }
 
 function createSchema(db: DatabaseSync): void {
@@ -160,7 +166,7 @@ function rebuildUnderLock(file: string, lock: string): DatabaseSync | undefined 
   try {
     closeSync(openSync(lock, 'wx', 0o600))
   } catch (error) {
-    if ((error as { code?: unknown }).code !== 'EEXIST') {
+    if (!z.safeParse(fileExists, error).success) {
       throw error
     }
     const age = Date.now() - (statSync(lock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())

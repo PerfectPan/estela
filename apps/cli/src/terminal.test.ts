@@ -1,5 +1,6 @@
+import { Writable } from 'node:stream'
 import { stripVTControlCharacters } from 'node:util'
-import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { installPlainFilter, sayReady } from './terminal.ts'
 import { startSessionIndex } from './terminal-index.ts'
 
@@ -122,6 +123,55 @@ describe('installPlainFilter', () => {
     expect(seen[1]?.[0]).toBe('red')
     expect(seen[1]?.length).toBe(1)
   })
+})
+
+/** A real `Writable` behind stdout, so its own argument handling decides whether the callback runs. */
+function sink(): (string | Uint8Array)[] {
+  const chunks: (string | Uint8Array)[] = []
+  const stream = new Writable({
+    decodeStrings: false,
+    write(chunk: string | Uint8Array, _encoding, done) {
+      chunks.push(chunk)
+      done()
+    },
+  })
+  stdout.isTTY = false
+  stdout.write = stream.write.bind(stream)
+  installPlainFilter()
+  return chunks
+}
+
+describe('installPlainFilter write callbacks', () => {
+  const binary = Buffer.from([0x00, 0x80, 0xfe, 0xff])
+  const cases: Record<string, { chunk: string | Uint8Array; expected: string | Uint8Array }> = {
+    string: { chunk: '\u001b[31mred\u001b[0m', expected: 'red' },
+    'rewritten buffer': { chunk: Buffer.from('\u001b[31mred\u001b[0m'), expected: 'red' },
+    // No ESC and not UTF-8: the bytes go on as they are, never decoded to text.
+    'binary buffer': { chunk: binary, expected: binary },
+  }
+
+  for (const [branch, { chunk, expected }] of Object.entries(cases)) {
+    it(`runs the callback of a ${branch} chunk written as write(chunk, callback)`, async () => {
+      const written = sink()
+      const callback = vi.fn<(error?: Error | null) => void>()
+      stdout.write(chunk, callback)
+      await new Promise(resolve => setImmediate(resolve))
+      expect(callback).toHaveBeenCalledOnce()
+      expect(written).toEqual([expected])
+    })
+
+    for (const encoding of [null, undefined, 'utf8']) {
+      it(`runs the callback of a ${branch} chunk written with a ${String(encoding)} encoding`, async () => {
+        const written = sink()
+        const callback = vi.fn<(error?: Error | null) => void>()
+        // Node accepts a null encoding, which the typed overloads leave out.
+        Reflect.apply(stdout.write.bind(stdout), undefined, [chunk, encoding, callback])
+        await new Promise(resolve => setImmediate(resolve))
+        expect(callback).toHaveBeenCalledOnce()
+        expect(written).toEqual([expected])
+      })
+    }
+  }
 })
 
 describe('DevFrame log lines', () => {

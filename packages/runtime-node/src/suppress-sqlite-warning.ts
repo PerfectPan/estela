@@ -8,20 +8,33 @@
  * Import this module first and load the code that uses `node:sqlite` afterwards with a dynamic
  * `import()`, as `apps/cli/bin.mjs` does.
  */
-export function isSqliteExperimentalWarning(warning: unknown, typeOrOptions: unknown): boolean {
-  const name =
-    typeof warning === 'string'
-      ? typeof typeOrOptions === 'string'
-        ? typeOrOptions
-        : (typeOrOptions as { type?: unknown } | undefined)?.type
-      : (warning as { name?: unknown } | undefined)?.name
-  const message = typeof warning === 'string' ? warning : (warning as { message?: unknown } | undefined)?.message
-  return name === 'ExperimentalWarning' && typeof message === 'string' && /\bSQLite\b/i.test(message)
+/** `emitWarning`'s arguments over its overloads: the warning, then a type, an options object, or a constructor. */
+type WarningArgs = [
+  warning: string | Error,
+  typeOrOptions?: string | NodeJS.EmitWarningOptions | NodeJS.EmitWarningOptions['ctor'],
+  ...rest: unknown[],
+]
+
+/** Node takes the type of an `Error` warning from its `name`, and otherwise from the argument after it. */
+function warningType(warning: WarningArgs[0], typeOrOptions: WarningArgs[1]): string | undefined {
+  // Known-union narrowing over the emitWarning overloads.
+  if (typeof warning !== 'string') {
+    return warning.name
+  }
+  if (typeOrOptions === undefined || typeof typeOrOptions === 'string') {
+    return typeOrOptions
+  }
+  return typeof typeOrOptions === 'function' ? undefined : typeOrOptions.type
 }
 
-const original = process.emitWarning.bind(process) as (...args: unknown[]) => void
-process.emitWarning = (warning: string | Error, ...rest: unknown[]) => {
-  if (!isSqliteExperimentalWarning(warning, rest[0])) {
-    original(warning, ...rest)
+export function isSqliteExperimentalWarning(warning: WarningArgs[0], typeOrOptions: WarningArgs[1]): boolean {
+  const message = typeof warning === 'string' ? warning : warning.message
+  return warningType(warning, typeOrOptions) === 'ExperimentalWarning' && /\bSQLite\b/i.test(message)
+}
+
+const original = process.emitWarning.bind(process)
+process.emitWarning = (...args: WarningArgs) => {
+  if (!isSqliteExperimentalWarning(args[0], args[1])) {
+    Reflect.apply(original, process, args)
   }
 }

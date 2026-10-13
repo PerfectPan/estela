@@ -2,7 +2,8 @@ import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { openDatabase } from './session-index-schema.ts'
+import * as z from 'zod/mini'
+import { openDatabase, sqliteErrcode } from './session-index-schema.ts'
 
 /** User prompts kept per session (plan 3.4): the first 200, 500 characters each. */
 export const PROMPT_LIMIT = 200
@@ -105,8 +106,46 @@ const HEAD_NUMBERS = [
   ['last_active_at', 'lastActiveAt'],
 ] as const
 
-const SUMMARY_SELECT = `summary_version, ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape`
-const HEAD_SELECT = `ref, agent, path, size, mtime, ${[...HEAD_TEXT, ...HEAD_NUMBERS].map(([column]) => column).join(', ')}`
+const textColumn = z.nullable(z.string())
+const numberColumn = z.nullable(z.number())
+
+/**
+ * Row schemas, one per SELECT: each SELECT names its schema's columns, plus `id` where a row that does not parse is
+ * dropped. The index is a cache, so a head that does not parse is deleted with its prompts and search row, and the next
+ * discover pass writes it again; a summary that does not parse is not served and is recomputed.
+ */
+const headRow = z.object({
+  ref: z.string(),
+  agent: z.string(),
+  path: z.string(),
+  size: z.number(),
+  mtime: z.number(),
+  session_id: textColumn,
+  title: textColumn,
+  cwd: textColumn,
+  first_prompt: textColumn,
+  started_at: numberColumn,
+  last_active_at: numberColumn,
+})
+const summaryRow = z.object({
+  summary_version: numberColumn,
+  turns: numberColumn,
+  requests: numberColumn,
+  tokens_in: numberColumn,
+  tokens_out: numberColumn,
+  duration_ms: numberColumn,
+  compactions: numberColumn,
+  subagents: numberColumn,
+  failed_tools: numberColumn,
+  context_shape: textColumn,
+})
+const idRow = z.object({ id: z.number() })
+const refRow = z.object({ ref: z.string() })
+const promptRow = z.object({ text: z.string() })
+const contextShape = z.array(z.number())
+
+const HEAD_SELECT = Object.keys(headRow.shape).join(', ')
+const SUMMARY_SELECT = Object.keys(summaryRow.shape).join(', ')
 
 function casefold(text: string): string {
   return text.toLowerCase()
@@ -116,41 +155,41 @@ function clip(text: string): string {
   return text.slice(0, PROMPT_CHARS)
 }
 
-function readNumber(value: unknown): number | undefined {
-  if (value == null) {
-    return undefined
-  }
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
 /** SQLITE_BUSY and SQLITE_LOCKED, including their extended codes. */
 function isBusy(error: unknown): boolean {
-  const code = (error as { errcode?: unknown } | null)?.errcode
-  return typeof code === 'number' && ((code & 0xff) === 5 || (code & 0xff) === 6)
+  const code = sqliteErrcode(error)
+  return code !== undefined && ((code & 0xff) === 5 || (code & 0xff) === 6)
 }
 
-function headOf(row: Record<string, unknown>): IndexHead {
-  const head: IndexHead = {
-    ref: String(row.ref),
-    agent: String(row.agent),
-    path: String(row.path),
-    size: Number(row.size),
-    mtimeMs: Number(row.mtime),
-  }
+/** A NULL or empty column stays `undefined`. */
+function headOf(row: z.output<typeof headRow>): IndexHead {
+  const head: IndexHead = { ref: row.ref, agent: row.agent, path: row.path, size: row.size, mtimeMs: row.mtime }
   for (const [column, key] of HEAD_TEXT) {
     const value = row[column]
-    if (typeof value === 'string' && value !== '') {
+    if (value) {
       head[key] = value
     }
   }
   for (const [column, key] of HEAD_NUMBERS) {
-    const value = readNumber(row[column])
-    if (value !== undefined) {
+    const value = row[column]
+    if (value !== null) {
       head[key] = value
     }
   }
   return head
+}
+
+function refsOf(rows: readonly unknown[]): string[] {
+  return rows.flatMap(row => z.safeParse(refRow, row).data?.ref ?? [])
+}
+
+/** A damaged shape is missing data; the other numbers stay. */
+function contextShapeOf(stored: string): number[] | undefined {
+  try {
+    return z.safeParse(contextShape, JSON.parse(stored)).data
+  } catch {
+    return undefined
+  }
 }
 
 class SqliteIndex implements SessionIndex {
@@ -164,31 +203,49 @@ class SqliteIndex implements SessionIndex {
     this.file = file
     this.db = db
     this.version = version
-    // One case fold for the query and the stored text; SQLite's lower() folds ASCII only.
+    // One case fold for the query and the stored text; SQLite's lower() folds ASCII only. Known-union narrowing:
+    // `value` is node:sqlite's `SQLOutputValue`, and only its text member is folded.
     db.function('casefold', { deterministic: true }, value => (typeof value === 'string' ? casefold(value) : value))
   }
 
   rows(): IndexRow[] {
     const rows = this.sql(
-      `SELECT ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`,
-    ).all() as Record<string, unknown>[]
-    return rows.map(row => {
-      const out: IndexRow = { ...headOf(row) }
+      `SELECT id, ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`,
+    ).all()
+    const out: IndexRow[] = []
+    const unparsable: unknown[] = []
+    for (const row of rows) {
+      const head = z.safeParse(headRow, row).data
+      if (!head) {
+        unparsable.push(row)
+        continue
+      }
+      const entry: IndexRow = headOf(head)
       const summary = this.summaryOf(row)
       if (summary) {
-        out.summary = summary
+        entry.summary = summary
       }
-      return out
-    })
+      out.push(entry)
+    }
+    if (unparsable.length > 0) {
+      try {
+        this.transaction(() => this.dropUnparsable(unparsable))
+      } catch {
+        // The cleanup is optional: on any error (busy, full, read-only, I/O) the rows read above are still returned,
+        // the damaged rows stay hidden, and `writeHead` drops each one when discover writes its path.
+      }
+    }
+    return out
   }
 
   get(path: string, size: number, mtimeMs: number): SessionSummary | undefined {
-    const row = this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE path = ? AND size = ? AND mtime = ?`).get(
-      path,
-      size,
-      mtimeMs,
-    ) as Record<string, unknown> | undefined
-    return row ? this.summaryOf(row) : undefined
+    return this.summaryOf(
+      this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE path = ? AND size = ? AND mtime = ?`).get(
+        path,
+        size,
+        mtimeMs,
+      ),
+    )
   }
 
   remove(paths: readonly string[]): void {
@@ -196,17 +253,7 @@ class SqliteIndex implements SessionIndex {
       return
     }
     this.transaction(() => {
-      for (const path of paths) {
-        const row = this.sql('SELECT id, ref FROM sessions WHERE path = ?').get(path) as
-          | { id: number | bigint; ref: string }
-          | undefined
-        if (!row) {
-          continue
-        }
-        this.sql('DELETE FROM search WHERE rowid = ?').run(row.id)
-        this.sql('DELETE FROM prompts WHERE ref = ?').run(row.ref)
-        this.sql('DELETE FROM sessions WHERE id = ?').run(row.id)
-      }
+      this.drop(paths.map(path => this.sql('SELECT id FROM sessions WHERE path = ?').get(path)))
     })
   }
 
@@ -236,16 +283,16 @@ class SqliteIndex implements SessionIndex {
           `SELECT ref FROM sessions WHERE casefold(title) LIKE ? ESCAPE '\\'
              OR ref IN (SELECT ref FROM prompts WHERE casefold(text) LIKE ? ESCAPE '\\')
            ORDER BY last_active_at DESC`,
-        ).all(pattern, pattern) as { ref: unknown }[]
-        return rows.map(row => String(row.ref))
+        ).all(pattern, pattern)
+        return refsOf(rows)
       }
       // One quoted phrase: FTS5 operators in the query are plain text. `trigram` folds case itself.
       const phrase = `"${text.replaceAll('"', '""')}"`
       const rows = this.sql(
         `SELECT sessions.ref AS ref FROM search JOIN sessions ON sessions.id = search.rowid
          WHERE search MATCH ? ORDER BY sessions.last_active_at DESC`,
-      ).all(phrase) as { ref: unknown }[]
-      return rows.map(row => String(row.ref))
+      ).all(phrase)
+      return refsOf(rows)
     } catch (error) {
       // Busy or locked: let the caller search in memory. Anything else is a query that matches nothing.
       return isBusy(error) ? undefined : []
@@ -267,34 +314,32 @@ class SqliteIndex implements SessionIndex {
   }
 
   /** A NULL column is a capability the agent does not record: it stays `undefined`, never 0. */
-  private summaryOf(row: Record<string, unknown>): SessionSummary | undefined {
-    if (readNumber(row.summary_version) !== this.version) {
+  private summaryOf(stored: unknown): SessionSummary | undefined {
+    const row = z.safeParse(summaryRow, stored).data
+    if (row?.summary_version !== this.version) {
       return undefined
     }
     const summary: SessionSummary = {}
     for (const [column, key] of SUMMARY_COLUMNS) {
-      const value = readNumber(row[column])
-      if (value !== undefined) {
+      const value = row[column]
+      if (value !== null) {
         summary[key] = value
       }
     }
-    if (typeof row.context_shape === 'string') {
-      try {
-        const parsed: unknown = JSON.parse(row.context_shape)
-        if (Array.isArray(parsed) && parsed.every(item => typeof item === 'number')) {
-          summary.contextShape = parsed
-        }
-      } catch {
-        // A damaged shape is missing data.
-      }
+    const shape = row.context_shape === null ? undefined : contextShapeOf(row.context_shape)
+    if (shape) {
+      summary.contextShape = shape
     }
     return summary
   }
 
   private writeHead(row: IndexHead): void {
-    const stored = this.sql(`SELECT ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path) as
-      | Record<string, unknown>
-      | undefined
+    const found = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path)
+    const stored = z.safeParse(headRow, found).data
+    if (found && !stored) {
+      // Its old ref is unknown, so its prompts go with it here, and the row is written fresh below.
+      this.drop([found])
+    }
     const next = { ...row, ...(row.firstPrompt ? { firstPrompt: clip(row.firstPrompt) } : {}) }
     const existing = stored ? headOf(stored) : undefined
     const sameKey =
@@ -358,9 +403,36 @@ class SqliteIndex implements SessionIndex {
     this.rewriteSearch(row.path, row.title, prompts)
   }
 
+  /**
+   * Deletes each found session row (`{ id }`; anything else is skipped) with its prompts and search row. Prompts are
+   * matched through the stored `ref` in SQL, so a row whose `ref` does not parse loses its prompts too.
+   */
+  private drop(found: readonly unknown[]): void {
+    for (const row of found) {
+      const id = z.safeParse(idRow, row).data?.id
+      if (id === undefined) {
+        continue
+      }
+      this.sql('DELETE FROM search WHERE rowid = ?').run(id)
+      this.sql('DELETE FROM prompts WHERE ref IN (SELECT ref FROM sessions WHERE id = ?)').run(id)
+      this.sql('DELETE FROM sessions WHERE id = ?').run(id)
+    }
+  }
+
+  /**
+   * Re-reads each stale row by id inside the transaction and drops it only if its head still does not parse: since the
+   * caller read it, another process's `writeHead` may have written a valid row under the same id (no AUTOINCREMENT).
+   */
+  private dropUnparsable(stale: readonly unknown[]): void {
+    const select = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE id = ?`)
+    const current = stale.flatMap(row => z.safeParse(idRow, row).data?.id ?? []).map(id => select.get(id))
+    this.drop(current.filter(row => row !== undefined && !z.safeParse(headRow, row).success))
+  }
+
   private promptsOf(ref: string): string[] {
-    const rows = this.sql('SELECT text FROM prompts WHERE ref = ? ORDER BY seq').all(ref) as { text: unknown }[]
-    return rows.map(row => String(row.text))
+    return this.sql('SELECT text FROM prompts WHERE ref = ? ORDER BY seq')
+      .all(ref)
+      .flatMap(row => z.safeParse(promptRow, row).data?.text ?? [])
   }
 
   private replacePrompts(ref: string, prompts: readonly string[]): void {
@@ -371,7 +443,7 @@ class SqliteIndex implements SessionIndex {
 
   /** One FTS row per session, keyed by `sessions.id`, so a rewrite is two lookups by rowid. */
   private rewriteSearch(path: string, title: string | undefined, prompts: readonly string[]): void {
-    const session = this.sql('SELECT id FROM sessions WHERE path = ?').get(path) as { id: number | bigint } | undefined
+    const session = z.safeParse(idRow, this.sql('SELECT id FROM sessions WHERE path = ?').get(path)).data
     if (!session) {
       return
     }
