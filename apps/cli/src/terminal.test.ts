@@ -126,12 +126,12 @@ describe('installPlainFilter', () => {
 })
 
 /** A real `Writable` behind stdout, so its own argument handling decides whether the callback runs. */
-function sink(): string[] {
-  const chunks: string[] = []
+function sink(): (string | Uint8Array)[] {
+  const chunks: (string | Uint8Array)[] = []
   const stream = new Writable({
     decodeStrings: false,
     write(chunk: string | Uint8Array, _encoding, done) {
-      chunks.push(String(chunk))
+      chunks.push(chunk)
       done()
     },
   })
@@ -142,12 +142,24 @@ function sink(): string[] {
 }
 
 describe('installPlainFilter write callbacks', () => {
-  const chunks = {
-    string: '\u001b[31mred\u001b[0m',
-    'rewritten buffer': Buffer.from('\u001b[31mred\u001b[0m'),
+  const binary = Buffer.from([0x00, 0x80, 0xfe, 0xff])
+  const cases: Record<string, { chunk: string | Uint8Array; expected: string | Uint8Array }> = {
+    string: { chunk: '\u001b[31mred\u001b[0m', expected: 'red' },
+    'rewritten buffer': { chunk: Buffer.from('\u001b[31mred\u001b[0m'), expected: 'red' },
+    // No ESC and not UTF-8: the bytes go on as they are, never decoded to text.
+    'binary buffer': { chunk: binary, expected: binary },
   }
 
-  for (const [branch, chunk] of Object.entries(chunks)) {
+  for (const [branch, { chunk, expected }] of Object.entries(cases)) {
+    it(`runs the callback of a ${branch} chunk written as write(chunk, callback)`, async () => {
+      const written = sink()
+      const callback = vi.fn<(error?: Error | null) => void>()
+      stdout.write(chunk, callback)
+      await new Promise(resolve => setImmediate(resolve))
+      expect(callback).toHaveBeenCalledOnce()
+      expect(written).toEqual([expected])
+    })
+
     for (const encoding of [null, undefined, 'utf8']) {
       it(`runs the callback of a ${branch} chunk written with a ${String(encoding)} encoding`, async () => {
         const written = sink()
@@ -156,7 +168,7 @@ describe('installPlainFilter write callbacks', () => {
         Reflect.apply(stdout.write.bind(stdout), undefined, [chunk, encoding, callback])
         await new Promise(resolve => setImmediate(resolve))
         expect(callback).toHaveBeenCalledOnce()
-        expect(written).toEqual(['red'])
+        expect(written).toEqual([expected])
       })
     }
   }
