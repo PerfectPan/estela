@@ -139,7 +139,7 @@ flowchart TB
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index in `node:sqlite` (D7) | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
-| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types and their `zod` schemas | no workspace package; small browser-safe external libraries (`zod`) |
+| `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types, with event payloads typed by the kit's payload types, and their `zod` schemas | `@rivus/agent-kit` (types); no workspace package; small browser-safe external libraries (`zod`) |
 
 Rules:
 

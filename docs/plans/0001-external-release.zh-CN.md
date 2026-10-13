@@ -141,7 +141,7 @@ flowchart TB
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | 规范文件头部检查、`fold`、`reconstruct`、`toView`、投影、`SessionFs` 读取形态 | `schema`、`@rivus/agent-kit`（类型） |
-| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型及其 `zod` schema | 不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
+| `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型（事件 payload 的类型取自 kit 的 payload 类型）及其 `zod` schema | `@rivus/agent-kit`（类型）；不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
 
 规则：
 

@@ -30,7 +30,7 @@ agent-trace 在很多地方读取未知数据：来自 kit 和规范 JSON 文件
 在 `main` 的 `3f100ad` 上测量，并在 `a0aba04` 上复测；此前 #41 把 `host` 改名为 `agent`，#42 把工具链迁到 Vite+。
 
 - **事件 payload。** `TraceEvent.payload` 是 `z.record(z.string(), z.unknown())`。kernel 在 `fold`、`lanes`、`project-timeline`、`project-turns` 和 `reconstruct` 中通过 `asRecord`（lodash `isPlainObject` 加类型断言）、`asString` 和 `asNumber` 读取它；web 应用在 `event-text.ts`、`ledger-model.ts` 和 inspector 中做法相同。`prompt-snapshot.ts` 不经检查就把 payload 断言为 `PromptSnapshotPayload`，`view.ts` 的 `Capper.value` 用 lodash `isObjectLike` 加类型断言遍历 payload。
-- **kit。** trace 目前使用 0.11.0；到这个版本为止，kit 的 `TranscriptEvent.payload` 是 `Record<string, unknown>`，各 kind 的接口没有与 `kind` 绑定。kit #98 于 2026-10-13 随 0.12.0 发布，把 `TranscriptEvent` 改成按 `kind` 区分的联合类型：按 `kind` 收窄后，`payload` 的类型就是该 kind 的 `*Payload`（`TranscriptEventOf<K>`、`TranscriptEventPayloads`）。同日发布的 0.13.0 是 PR B 要安装的版本，保留这些类型，只增加 kit #89 的 opencode bridge 改动：通过 bridge 传递当前会话 id。kit 在自己的边界用 `zod/mini` 解析 agent 记录。
+- **kit。** trace 目前使用 0.11.0；到这个版本为止，kit 的 `TranscriptEvent.payload` 是 `Record<string, unknown>`，各 kind 的接口没有与 `kind` 绑定。kit #98 于 2026-10-13 随 0.12.0 发布，把 `TranscriptEvent` 改成按 `kind` 区分的联合类型：按 `kind` 收窄后，`payload` 的类型就是该 kind 的 `*Payload`（`TranscriptEventOf<K>`、`TranscriptEventPayloads`）。同日发布的 0.13.0 和 0.14.0 保留这些类型：0.13.0 增加 kit #89 的 opencode bridge 改动，通过 bridge 传递当前会话 id；0.14.0 是 PR B 要安装的版本，增加检查进程锁是否被持有的能力（kit #108）。kit 在自己的边界用 `zod/mini` 解析 agent 记录。
 - **RPC 输入。** `list-sessions`（`checkQuery`）和 `export-report`（`checkInput`）用 `typeof` 级联和类型断言检查输入。`load-trace`、`get-trace-view`、`get-event` 和 `reconstruct` 不经检查直接解构输入。DevFrame 根据 handler 签名为 `call()` 定类型（`packages/rpc/src/index.ts` 中的模块扩充）。
 - **存储行和错误。** `runtime-node` 通过类型断言、`readNumber`、`String(row.x)` 和 `Number(row.x)` 读取 SQLite 行；通过 `typeof` 和 `every(typeof)` 读取 `context_shape`；通过 `(error as { … })` 读取 `errcode` 和 `EEXIST`。sqlite 警告过滤器把 `process.emitWarning` 的参数当作 `unknown` 读取并做类型断言。
 - **CLI 文件。** `report-site.ts` 对 DevFrame 的 dump 清单和记录做类型断言，`scripts/third-party-notices.ts` 把 `JSON.parse` 的输出当作有类型的清单返回，`terminal.ts` 对其 `stream.write` 包装函数的剩余参数做类型断言。
@@ -104,7 +104,7 @@ SQLite rows / errors / warnings / dump files -- zod/mini or typed overloads -> t
 | D7 | SQLite 行用每个 SELECT 一个的 `zod/mini` 行 schema 解析（可空列用 `z.nullable`）；`HEAD_SELECT` 和 `SUMMARY_SELECT` 由 schema 的键生成。索引是缓存：头部解析失败的行由 `rows` 或遇到它的 `writeHead` 连同其 prompt 和搜索行一起删除，下一次 discover 重新写入；摘要解析失败时 `get` 不返回它。`context_shape` 在 `try` 中 `JSON.parse`，然后用 `z.array(z.number())`；损坏的 shape 只丢失 shape。`errcode` 和 `EEXIST` 通过 `z.object` schema 读取，`errcode` 通过唯一的 `sqliteErrcode`。 | 存储记录属于规则的输入范围；`node:sqlite` 把行的类型定为 `Record<string, SQLOutputValue>`，原来的类型断言未经检查就收窄了它。 |
 | D8 | zod/mini 在 PR B 中进入 web 包：`3f100ad` 时上限为 +39.3 KB 原始大小 / +9.5 KB gzip（trace 和报告的 schema 与解析），PR B 在 Vite+ 构建上重新测量。不设体积预算。 | 报告守卫在浏览器中解析 JSON，而从 schema 模块导入任何值都已经会带入 6.3 KB gzip（顶层的 schema 构造不会被 tree-shake）。负责人已接受。 |
 | D9 | 两个 PR：先 PR A（边缘的输入，不改共享类型），再 PR B（端到端的有类型 payload）。不设兼容垫片。 | 删除 kernel helper 并修改 `TraceEvent` 会让 web 应用编译失败，直到其读取方修改完毕，所以 PR B 是一个 PR；PR A 与它无关。 |
-| D10 | kit 优先：kit 先于 trace 按 kind 为 payload 定了类型（kit #98，从 0.12.0 起）。PR B 把 trace 升级到 kit 0.13.0，基于 `TranscriptEventPayloads` 构建 `TraceEvent`，并去掉本设计最初计划在 `transcriptToTrace` 中做的逐事件守卫。`packages/schema` 获得对 kit 的仅类型依赖，与其他包一致。 | 那个守卫只因 kit 的 payload 类型宽松而存在。有了 kit 的联合类型，守卫只会在加载时白白重新检查每个 kit 事件（每个约 2 µs，见附录 B）；本设计初稿当作风险接受的“kit payload 不匹配导致加载报错”，在出现 kit 类型错误之前不会发生。 |
+| D10 | kit 优先：kit 先于 trace 按 kind 为 payload 定了类型（kit #98，从 0.12.0 起）。PR B 把 trace 升级到 kit 0.14.0，基于 `TranscriptEventPayloads` 构建 `TraceEvent`，并去掉本设计最初计划在 `transcriptToTrace` 中做的逐事件守卫。`packages/schema` 获得对 kit 的仅类型依赖，与其他包一致。 | 那个守卫只因 kit 的 payload 类型宽松而存在。有了 kit 的联合类型，守卫只会在加载时白白重新检查每个 kit 事件（每个约 2 µs，见附录 B）；本设计初稿当作风险接受的“kit payload 不匹配导致加载报错”，在出现 kit 类型错误之前不会发生。 |
 
 ## 3. 详细设计
 
@@ -241,7 +241,7 @@ CLI 冒烟套件（S2、带 MCP `reconstruct { eventId }` 调用的 S10、S13、
 ### 6.1 前置条件
 
 - PR A：`main` 在 `a0aba04` 或之后（agent 改名和 Vite+ 已合入）。
-- PR B：PR A 已合入。`@rivus/agent-kit` 0.13.0 可以立即安装：kit 在 `minimumReleaseAgeExclude` 中（`common/config/rush/pnpm-config.json`）。
+- PR B：PR A 已合入。`@rivus/agent-kit` 0.14.0 可以立即安装：kit 在 `minimumReleaseAgeExclude` 中（`common/config/rush/pnpm-config.json`）。
 
 ### 6.2 完成约定
 
@@ -285,10 +285,10 @@ CLI 冒烟套件（S2、带 MCP `reconstruct { eventId }` 调用的 S10、S13、
 - 测试：`check-doc-translations`。
 - 退出条件：6.4 的门禁通过。
 
-#### 任务 B1：kit 0.13.0 与 schema 层
+#### 任务 B1：kit 0.14.0 与 schema 层
 
 - 文件：每个列出 `@rivus/agent-kit` 的 `package.json`、`packages/schema/package.json`、`scripts/check-layers.mjs`、`AGENTS.md`（分层表）、`docs/plans/0001-external-release.md` 2.2。
-- 改动：kit 0.13.0；`packages/schema` 可以为了类型依赖 kit（只用 `import type`，lint 规则已在 `apps/cli` 以外强制这一点）。
+- 改动：kit 0.14.0；`packages/schema` 可以为了类型依赖 kit（只用 `import type`，lint 规则已在 `apps/cli` 以外强制这一点）。
 - 测试：在新 kit 上运行现有套件。
 - 退出条件：`rush install`、typecheck 和测试通过；`check-layers` 通过。
 
@@ -385,7 +385,7 @@ CLI 冒烟套件（S2、带 MCP `reconstruct { eventId }` 调用的 S10、S13、
 | cli `report-site.ts` `bakedReport` | dump 清单和记录：`JSON.parse(...) as {...}` | V | `zod/mini` schema；`output` 保持 `unknown` | A，已完成 |
 | cli `terminal.ts` `wrap` | 对 `unknown[]` 剩余参数做 `typeof item === 'function'` 加类型断言；`rest as []` | V | 剩余参数类型按 `Writable.write` 的重载定义；已知联合类型收窄 | A，已完成 |
 | cli `scripts/third-party-notices.ts` `readManifest` | 把 `JSON.parse` 的结果当作有类型的清单返回 | V | `z.object` 清单 schema | A，已完成 |
-| cli `transcript-trace.ts` | `events.map(e => ({ ...e }))`：宽松的 payload 进入 `Trace` | – | kit 0.13.0 的事件原样赋值（D4b、D10） | B |
+| cli `transcript-trace.ts` | `events.map(e => ({ ...e }))`：宽松的 payload 进入 `Trace` | – | kit 0.14.0 的事件原样赋值（D4b、D10） | B |
 | web `lib/event-text.ts` `toolTarget` | `asRecord(args)` 加 `typeof` 级联 | V | 显示用 schema（3.5） | B |
 | web `lib/event-text.ts` 行文本、`numberField` | `$truncated` isArray，用 helper 读取 name、model、finishReason、text、type | R | 按 kind 的 `switch`；删除 `numberField` | B |
 | web `lib/event-text.ts`、`tab-text.ts`、`event-row.tsx` | 读取 `tool_result.text`、`compaction.summary`、`tool_result.durationMs` | R | 删除：没有生产方写入它们 | B |

@@ -32,8 +32,8 @@ importers:
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.14.0
+        version: 0.14.0
       '@rivus/agent-trace-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
@@ -129,8 +129,8 @@ importers:
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.14.0
+        version: 0.14.0
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(@types/node@24.19.0)(jiti@2.7.0)(typescript@7.0.2)
@@ -172,8 +172,8 @@ importers:
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.14.0
+        version: 0.14.0
       '@types/lodash-es':
         specifier: ^4.17.12
         version: 4.17.12
@@ -209,8 +209,8 @@ importers:
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.14.0
+        version: 0.14.0
       '@types/node':
         specifier: ^24.19.0
         version: 24.19.0
@@ -234,8 +234,8 @@ importers:
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
-        specifier: 0.11.0
-        version: 0.11.0
+        specifier: 0.14.0
+        version: 0.14.0
       '@types/node':
         specifier: ^24.19.0
         version: 24.19.0
@@ -255,6 +255,9 @@ importers:
       '@perfectpan/lint-config':
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
+      '@rivus/agent-kit':
+        specifier: 0.14.0
+        version: 0.14.0
       '@types/node':
         specifier: ^24.19.0
         version: 24.19.0
@@ -755,8 +758,8 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
-  '@rivus/agent-kit@0.11.0':
-    resolution: {integrity: sha512-IAff/z1WSJevyT515mbWlf6YJmnynxSm853JUr2arOzN5X4+Cb9o22EtOZUhcuDRLOpAUMc4Cd5EykYqRgNJgw==}
+  '@rivus/agent-kit@0.14.0':
+    resolution: {integrity: sha512-KF05LHzKfFSPwskHy9q8hDhs7rFJZ7clhXsZaTuRuPP/DIxKOT8Uo36+4BlBnc0eM8/1kTE1xde3/iQHTpWpTQ==}
     engines: {node: '>=22.13'}
     peerDependencies:
       effect: 4.0.1
@@ -2617,7 +2620,7 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@rivus/agent-kit@0.11.0':
+  '@rivus/agent-kit@0.14.0':
     dependencies:
       '@agentclientprotocol/sdk': 1.7.0(zod@4.6.5)
       '@decimalturn/toml-patch': 3.3.0

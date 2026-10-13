@@ -20,7 +20,7 @@ const ALLOW = {
   [RPC]: [KIT, KERNEL, SCHEMA],
   '@rivus/agent-trace-runtime-node': [KIT, KERNEL, SCHEMA],
   [KERNEL]: [KIT, SCHEMA],
-  [SCHEMA]: [],
+  [SCHEMA]: [KIT],
 }
 
 const HELP = `Usage:

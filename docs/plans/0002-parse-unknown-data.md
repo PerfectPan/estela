@@ -28,7 +28,7 @@ agent-trace reads unknown data in many places: event payloads from the kit and f
 Measured on `main` at `3f100ad` and again at `a0aba04`, after #41 renamed `host` to `agent` and #42 moved the toolchain to Vite+.
 
 - **Event payloads.** `TraceEvent.payload` is `z.record(z.string(), z.unknown())`. The kernel reads it through `asRecord` (lodash `isPlainObject` plus a cast), `asString`, and `asNumber` in `fold`, `lanes`, `project-timeline`, `project-turns`, and `reconstruct`; the web app does the same in `event-text.ts`, `ledger-model.ts`, and the inspector. `prompt-snapshot.ts` casts the payload to `PromptSnapshotPayload` without a check, and `view.ts`'s `Capper.value` walks payloads with lodash `isObjectLike` plus casts.
-- **The kit.** Up to 0.11.0, which trace uses today, the kit's `TranscriptEvent.payload` is `Record<string, unknown>`, and its per-kind interfaces are not tied to `kind`. Kit #98, released in 0.12.0 on 2026-10-13, makes `TranscriptEvent` a union discriminated by `kind`: narrowing on `kind` types `payload` as that kind's `*Payload` (`TranscriptEventOf<K>`, `TranscriptEventPayloads`). 0.13.0, released the same day and the version PR B installs, keeps these types and adds only the opencode bridge change of kit #89, which carries the current session id through the bridge. The kit parses agent records with `zod/mini` at its own boundary.
+- **The kit.** Up to 0.11.0, which trace uses today, the kit's `TranscriptEvent.payload` is `Record<string, unknown>`, and its per-kind interfaces are not tied to `kind`. Kit #98, released in 0.12.0 on 2026-10-13, makes `TranscriptEvent` a union discriminated by `kind`: narrowing on `kind` types `payload` as that kind's `*Payload` (`TranscriptEventOf<K>`, `TranscriptEventPayloads`). 0.13.0 and 0.14.0, released the same day, keep these types: 0.13.0 adds the opencode bridge change of kit #89, which carries the current session id through the bridge, and 0.14.0, the version PR B installs, adds a check whether a process lock is held (kit #108). The kit parses agent records with `zod/mini` at its own boundary.
 - **RPC inputs.** `list-sessions` (`checkQuery`) and `export-report` (`checkInput`) check their input with `typeof` cascades and casts. `load-trace`, `get-trace-view`, `get-event`, and `reconstruct` destructure their input unchecked. DevFrame types `call()` from the handler signatures (module augmentation in `packages/rpc/src/index.ts`).
 - **Stored rows and errors.** `runtime-node` reads SQLite rows through casts, `readNumber`, `String(row.x)`, and `Number(row.x)`; `context_shape` through `typeof` and `every(typeof)`; `errcode` and `EEXIST` through `(error as { … })`. The sqlite warning filter reads `process.emitWarning`'s arguments as `unknown` and casts them.
 - **CLI files.** `report-site.ts` casts DevFrame's dump manifest and record, `scripts/third-party-notices.ts` returns `JSON.parse` output as a typed manifest, and `terminal.ts` casts the rest arguments of its `stream.write` wrapper.
@@ -102,7 +102,7 @@ SQLite rows / errors / warnings / dump files -- zod/mini or typed overloads -> t
 | D7 | SQLite rows are parsed with one `zod/mini` row schema per SELECT (`z.nullable` for nullable columns); `HEAD_SELECT` and `SUMMARY_SELECT` are built from the schemas' keys. The index is a cache: a row whose head does not parse is deleted, with its prompts and search row, by `rows` or by the `writeHead` that finds it, and the next discover pass writes it again; a summary that does not parse is not served by `get`. `context_shape` is `JSON.parse` in `try`, then `z.array(z.number())`; a damaged shape loses only the shape. `errcode` and `EEXIST` are read through `z.object` schemas, `errcode` through one `sqliteErrcode`. | Stored records are in the rule's input list; `node:sqlite` types rows as `Record<string, SQLOutputValue>`, and the casts narrowed that without a check. |
 | D8 | zod/mini enters the web bundle in PR B: at most +39.3 KB raw / +9.5 KB gzip at `3f100ad` (trace and report schemas and parse), re-measured on the Vite+ build in PR B. No size budget is set. | The report guard parses JSON in the browser, and importing any value from the schema module already pulls 6.3 KB gzip (top-level schema construction is not tree-shaken). The owner accepted it. |
 | D9 | Two PRs: PR A (inputs at the edges, no shared type changes), then PR B (typed payloads end to end). No compatibility shims. | Deleting the kernel helpers and changing `TraceEvent` breaks the web app's compile until its readers change, so PR B is one PR; PR A is independent of it. |
-| D10 | Kit first: the kit typed its payloads by kind (kit #98, since 0.12.0) before trace does. PR B moves trace to kit 0.13.0, builds `TraceEvent` on `TranscriptEventPayloads`, and drops the per-event guard in `transcriptToTrace` that this design first planned. `packages/schema` gets a type-only dependency on the kit, like the other packages. | The guard existed only because the kit's payload type was loose. With the kit's union, a guard would re-check every kit event at load (about 2 µs each, Appendix B) for nothing, and a load error on a mismatched kit payload, which the first draft of this design accepted as a risk, cannot happen without a kit type error first. |
+| D10 | Kit first: the kit typed its payloads by kind (kit #98, since 0.12.0) before trace does. PR B moves trace to kit 0.14.0, builds `TraceEvent` on `TranscriptEventPayloads`, and drops the per-event guard in `transcriptToTrace` that this design first planned. `packages/schema` gets a type-only dependency on the kit, like the other packages. | The guard existed only because the kit's payload type was loose. With the kit's union, a guard would re-check every kit event at load (about 2 µs each, Appendix B) for nothing, and a load error on a mismatched kit payload, which the first draft of this design accepted as a risk, cannot happen without a kit type error first. |
 
 ## 3. Detailed design
 
@@ -239,7 +239,7 @@ The CLI smoke suite (S2, S10 with the MCP `reconstruct { eventId }` call, S13, S
 ### 6.1 Preconditions
 
 - PR A: `main` at `a0aba04` or later (agent rename and Vite+ merged).
-- PR B: PR A merged. `@rivus/agent-kit` 0.13.0 installs at once: the kit is in `minimumReleaseAgeExclude` (`common/config/rush/pnpm-config.json`).
+- PR B: PR A merged. `@rivus/agent-kit` 0.14.0 installs at once: the kit is in `minimumReleaseAgeExclude` (`common/config/rush/pnpm-config.json`).
 
 ### 6.2 Completion contract
 
@@ -283,10 +283,10 @@ The CLI smoke suite (S2, S10 with the MCP `reconstruct { eventId }` call, S13, S
 - Tests: `check-doc-translations`.
 - Exit condition: the gates in 6.4 pass.
 
-#### Task B1: kit 0.13.0 and the schema layer
+#### Task B1: kit 0.14.0 and the schema layer
 
 - Files: every `package.json` that lists `@rivus/agent-kit`, `packages/schema/package.json`, `scripts/check-layers.mjs`, `AGENTS.md` (layer table), `docs/plans/0001-external-release.md` 2.2.
-- Change: kit 0.13.0; `packages/schema` may depend on the kit for types (`import type` only, which the lint rule already enforces outside `apps/cli`).
+- Change: kit 0.14.0; `packages/schema` may depend on the kit for types (`import type` only, which the lint rule already enforces outside `apps/cli`).
 - Tests: existing suites on the new kit.
 - Exit condition: `rush install`, typecheck, and tests pass; `check-layers` passes.
 
@@ -383,7 +383,7 @@ Class: **V** violation, **R** payload read that becomes typed, **E** allowed exc
 | cli `report-site.ts` `bakedReport` | dump manifest and record: `JSON.parse(...) as {...}` | V | `zod/mini` schemas; `output` stays `unknown` | A, done |
 | cli `terminal.ts` `wrap` | `typeof item === 'function'` plus a cast on an `unknown[]` rest; `rest as []` | V | Rest typed after `Writable.write`'s overloads; known-union narrowing | A, done |
 | cli `scripts/third-party-notices.ts` `readManifest` | `JSON.parse` returned as a typed manifest | V | `z.object` manifest schema | A, done |
-| cli `transcript-trace.ts` | `events.map(e => ({ ...e }))`: loose payloads into `Trace` | – | Kit 0.13.0 events assigned as they are (D4b, D10) | B |
+| cli `transcript-trace.ts` | `events.map(e => ({ ...e }))`: loose payloads into `Trace` | – | Kit 0.14.0 events assigned as they are (D4b, D10) | B |
 | web `lib/event-text.ts` `toolTarget` | `asRecord(args)` plus a `typeof` cascade | V | Display schemas (3.5) | B |
 | web `lib/event-text.ts` row text, `numberField` | `$truncated` isArray, helpers on name, model, finishReason, text, type | R | Per-kind `switch`; `numberField` deleted | B |
 | web `lib/event-text.ts`, `tab-text.ts`, `event-row.tsx` | reads of `tool_result.text`, `compaction.summary`, `tool_result.durationMs` | R | Delete: no producer writes them | B |

@@ -12,7 +12,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, `export-report`, and `report-trace` in build mode only), `buildReport`, server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected reads (`SessionFs`), resolver, and session service | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index (`node:sqlite`) | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `fold`, `reconstruct`, `toView`/`fitView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
-| `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy`, `zod` schemas | no workspace package (external: `zod`) |
+| `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy`, `zod` schemas | `@rivus/agent-kit` (types); no workspace package (external: `zod`) |
 
 ## Rules
 
