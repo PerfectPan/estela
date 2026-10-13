@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Internal: names follow @rivus/agent-kit. A canonical trace file stores the agent id as \"agent\" with \"agentVersion\" beside it; RPC inputs and session list rows name the opaque session id traceId, and the session index is rebuilt once for its renamed columns; the ledger labels reasoning events REASONING / 推理 and shows a request's finish reason as \"finish <reason>\".",
+      "type": "none"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}
