@@ -1,4 +1,4 @@
-export { homeDir, nodeIO } from './node-io.ts'
+export { homedir as homeDir } from 'node:os'
 export {
   openSessionIndex,
   PROMPT_CHARS,

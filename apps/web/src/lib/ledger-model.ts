@@ -77,7 +77,7 @@ function rowKind(event: TraceEvent): RowKind {
       return 'user'
     case 'assistant':
       return 'reply'
-    case 'thinking':
+    case 'reasoning':
       return 'thinking'
     case 'tool_call':
     case 'tool_result':

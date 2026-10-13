@@ -1,8 +1,10 @@
-import type { SessionRef, SessionSummary } from '@rivus/agent-trace-kernel'
+import type { SessionRef } from '@rivus/agent-trace-kernel'
+import { summaryOf } from '@rivus/agent-trace-kernel'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
 import type { Platform } from '@rivus/agent-kit/platform'
+import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import { foldTranscript, loadTranscript } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadFailure } from './read-failure.ts'
@@ -79,46 +81,11 @@ export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
 export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | { error: SessionError }
 
 /**
- * Kit summary → the wire/index shape: same numbers, but the kit names the token totals
- * `inputTokens`/`outputTokens` where the `SessionListRow` contract and the session index
- * say `tokensIn`/`tokensOut` (the contract rename is PR 2b's). Undefined stays undefined.
- */
-function summaryOf(summary: ReturnType<typeof foldTranscript>): SessionSummary {
-  const out: SessionSummary = {}
-  if (summary.turns !== undefined) {
-    out.turns = summary.turns
-  }
-  if (summary.requests !== undefined) {
-    out.requests = summary.requests
-  }
-  if (summary.inputTokens !== undefined) {
-    out.tokensIn = summary.inputTokens
-  }
-  if (summary.outputTokens !== undefined) {
-    out.tokensOut = summary.outputTokens
-  }
-  if (summary.durationMs !== undefined) {
-    out.durationMs = summary.durationMs
-  }
-  if (summary.compactions !== undefined) {
-    out.compactions = summary.compactions
-  }
-  if (summary.subagents !== undefined) {
-    out.subagents = summary.subagents
-  }
-  if (summary.failedTools !== undefined) {
-    out.failedTools = summary.failedTools
-  }
-  if (summary.contextShape !== undefined) {
-    out.contextShape = summary.contextShape
-  }
-  return out
-}
-
-/**
  * One read per session: the transcript loads once through the kit, and both the summary
  * (`foldTranscript`, what `summarizeSession` runs) and the search prompts come from it. The
- * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70.
+ * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70. `summaryOf`
+ * copies only the summary fields the wire contract and the index know, so a kit-side
+ * addition cannot leak into rows unchecked.
  */
 export async function summarizeRow(
   platform: CatalogPlatform,

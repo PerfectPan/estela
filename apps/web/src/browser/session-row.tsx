@@ -75,7 +75,7 @@ export function SessionRow(props: {
       />
       <SessionCell class={COLUMNS.turns} text={count(props.row.turns)} />
       <SessionCell class={COLUMNS.requests} text={count(props.row.requests)} />
-      <SessionCell class={COLUMNS.tokens} text={formatOptional(props.row.tokensIn, formatTokens, dash())} />
+      <SessionCell class={COLUMNS.tokens} text={formatOptional(props.row.inputTokens, formatTokens, dash())} />
       <SessionCell
         class={COLUMNS.duration}
         text={formatOptional(props.row.durationMs, v => formatDuration(v, locale()), dash())}

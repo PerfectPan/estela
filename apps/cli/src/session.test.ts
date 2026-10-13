@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -109,12 +109,20 @@ describe('loadSession', () => {
     ).rejects.toThrow(`${path}#s1 does not exist`)
   })
 
+  it('a canonical agent-trace file loads as the parsed file, originals included', async () => {
+    const path = join(repo, 'fixtures/demo.trace.json')
+    // No kit adapter accepts this file, so only the canonical fast path can return it.
+    const expected: unknown = JSON.parse(await readFile(path, 'utf8'))
+    const trace = await loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })
+    expect(trace).toEqual(expected)
+  })
+
   it('a real Claude Code fixture loads with its events and originals', async () => {
     const dir = await tempDir()
     const projects = join(dir, 'projects/app')
     await mkdir(projects, { recursive: true })
     await cp(
-      join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl'),
+      join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'),
       join(projects, 'session.jsonl'),
     )
     const platform = createNodePlatform({ home: dir, env: {} })

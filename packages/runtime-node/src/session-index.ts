@@ -1,8 +1,7 @@
-import type { SessionSummary } from '@rivus/agent-trace-kernel'
+import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { SUMMARY_VERSION } from '@rivus/agent-trace-kernel'
 import { openDatabase } from './session-index-schema.ts'
 
 /** User prompts kept per session (plan 3.4): the first 200, 500 characters each. */
@@ -66,8 +65,12 @@ export interface OpenIndexOptions {
   file?: string
   homeDir?: string
   env?: Readonly<Record<string, string | undefined>>
-  /** Tests only: pretend the summary numbers have another version. */
-  summaryVersion?: number
+  /**
+   * Summary version of the numbers the caller writes; the CLI derives it from the kit's
+   * `SESSION_SUMMARY_VERSION`, which owns the summary semantics. A row at another version
+   * is recomputed, never served.
+   */
+  summaryVersion: number
 }
 
 /** `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`, else `~/.cache/rivus-agent-trace/index.sqlite`. */
@@ -83,8 +86,8 @@ export function sessionIndexFile(
 const SUMMARY_COLUMNS = [
   ['turns', 'turns'],
   ['requests', 'requests'],
-  ['tokens_in', 'tokensIn'],
-  ['tokens_out', 'tokensOut'],
+  ['tokens_in', 'inputTokens'],
+  ['tokens_out', 'outputTokens'],
   ['duration_ms', 'durationMs'],
   ['compactions', 'compactions'],
   ['subagents', 'subagents'],
@@ -410,13 +413,13 @@ function disabledIndex(file: string, unavailable?: string): SessionIndex {
 }
 
 /** Never throws: an index that cannot be opened (EACCES, read-only home) is returned disabled, with the reason. */
-export function openSessionIndex(options: OpenIndexOptions = {}): SessionIndex {
+export function openSessionIndex(options: OpenIndexOptions): SessionIndex {
   const file = options.file ?? sessionIndexFile(options.env ?? process.env, options.homeDir ?? homedir())
   if (options.enabled === false) {
     return disabledIndex(file)
   }
   try {
-    return new SqliteIndex(file, openDatabase(file), options.summaryVersion ?? SUMMARY_VERSION)
+    return new SqliteIndex(file, openDatabase(file), options.summaryVersion)
   } catch (error) {
     return disabledIndex(file, error instanceof Error ? error.message : String(error))
   }

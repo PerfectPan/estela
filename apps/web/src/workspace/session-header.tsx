@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@rivus/agent-trace-kernel'
+import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { Show } from 'solid-js'
 import { HostMark } from '@/browser/host-mark.tsx'
@@ -16,7 +16,7 @@ const dash = () => t('common.dash')
 
 export function SessionHeader(props: { trace: Trace; summary: SessionSummary }) {
   const num = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
-  const tokens = () => formatInOut(props.summary.tokensIn, props.summary.tokensOut, dash())
+  const tokens = () => formatInOut(props.summary.inputTokens, props.summary.outputTokens, dash())
   const started = () => props.trace.session.startedAt ?? props.trace.events[0]?.ts
   const failed = () => props.summary.failedTools ?? 0
   return (

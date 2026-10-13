@@ -13,7 +13,7 @@ const HELP = `Usage:
 Writes <dir>/<file> (default: $TMPDIR/agent-trace-generated/generated.trace.json), a
 canonical agent-trace JSON trace shaped like a Claude Code session: turns with
 requests whose input tokens grow, tool calls with results (a few failed, a few
-with outputs longer than the 4,096-character view cap), thinking, replies, hook
+with outputs longer than the 4,096-character view cap), reasoning, replies, hook
 runs, two subagent lanes, and an automatic compaction after about 55 % of the
 requests (and again whenever the context passes 160k tokens). Prints the path. Open it with:
 
@@ -151,7 +151,7 @@ function request(agentId, grow = true) {
       model: 'claude-sonnet-5',
       usage: { inputTokens: input, outputTokens: between(120, 1_600) },
       durationMs: between(1_500, 9_000),
-      stopReason: 'tool_use',
+      finishReason: 'tool_use',
     },
     extra,
   )
@@ -230,7 +230,7 @@ while (events.length < target) {
     tick(3_000, 12_000)
     const requestId = request(undefined)
     if (random() < 0.3) {
-      push('thinking', { text: pick(THOUGHTS) }, { requestId })
+      push('reasoning', { text: pick(THOUGHTS) }, { requestId })
     }
     const fail = failures < Math.max(3, Math.round(target / 900)) && random() < 0.05
     if (fail) {
@@ -288,7 +288,7 @@ const trace = {
     startedAt,
     endedAt: clock,
   },
-  capabilities: ['requests', 'usage', 'durations', 'thinking', 'compaction', 'compactionTokens', 'subagents', 'hooks'],
+  capabilities: ['requests', 'usage', 'durations', 'reasoning', 'compaction', 'compactionTokens', 'subagents', 'hooks'],
   agents,
   events,
   skipped: [],

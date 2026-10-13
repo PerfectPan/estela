@@ -18,7 +18,7 @@ export function SessionPreview(props: {
   const hostName = () => props.hosts.find(host => host.id === props.row.host)?.displayName ?? props.row.host
   const when = () => (props.row.lastActiveAt ? formatWhen(props.row.lastActiveAt, locale(), props.now) : '')
   const pair = (left: string, right: string) => (left === dash() && right === dash() ? dash() : `${left} · ${right}`)
-  const inOut = () => formatInOut(props.row.tokensIn, props.row.tokensOut, dash())
+  const inOut = () => formatInOut(props.row.inputTokens, props.row.outputTokens, dash())
   const shape = () => props.row.shape ?? []
 
   return (

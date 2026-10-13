@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 // Dependency direction for @rivus/* packages. See docs/plans/0001-external-release.md section 2.2.
-// host-opencode stays in the allow-list; plan section 7, "OpenCode needs SqliteIO".
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
@@ -9,36 +8,19 @@ const FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optional
 const KERNEL = '@rivus/agent-trace-kernel'
 const SCHEMA = '@rivus/agent-trace-schema'
 const RPC = '@rivus/agent-trace-rpc'
+const KIT = '@rivus/agent-kit'
 const CORE = [RPC, KERNEL, SCHEMA]
-const HOSTS = [
-  '@rivus/agent-trace-host-claude-code',
-  '@rivus/agent-trace-host-codex',
-  '@rivus/agent-trace-host-grok',
-  '@rivus/agent-trace-host-opencode',
-  '@rivus/agent-trace-host-dsh',
-]
-const HOST_DEPS = [KERNEL, SCHEMA]
-const RUNTIME = '@rivus/agent-trace-runtime-node'
 
 const ALLOW = {
-  // @rivus/agent-kit is an external npm package bundled into the CLI, not a workspace package.
-  '@rivus/agent-trace': [
-    '@rivus/agent-kit',
-    '@rivus/agent-trace-web',
-    '@rivus/agent-trace-runtime-node',
-    ...CORE,
-    ...HOSTS,
-  ],
-  '@rivus/agent-trace-web': CORE,
+  // Only the CLI imports the kit at runtime; oxlint enforces type-only imports elsewhere.
+  '@rivus/agent-trace': [KIT, '@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE],
+  '@rivus/agent-trace-web': [KIT, ...CORE],
   // Tests the packed tarball from outside; it depends on no workspace package.
   '@rivus/agent-trace-e2e': [],
-  [RPC]: [KERNEL, SCHEMA],
-  '@rivus/agent-trace-runtime-node': HOST_DEPS,
-  [KERNEL]: [SCHEMA],
+  [RPC]: [KIT, KERNEL, SCHEMA],
+  '@rivus/agent-trace-runtime-node': [KIT, KERNEL, SCHEMA],
+  [KERNEL]: [KIT, SCHEMA],
   [SCHEMA]: [],
-}
-for (const host of HOSTS) {
-  ALLOW[host] = HOST_DEPS
 }
 
 const HELP = `Usage:
@@ -79,9 +61,6 @@ for (const project of rush.projects) {
       continue
     }
     const allowed = new Set(ALLOW[manifest.name] ?? [])
-    if (field === 'devDependencies' && HOSTS.includes(manifest.name)) {
-      allowed.add(RUNTIME)
-    }
     for (const name of Object.keys(deps)) {
       if (!name.startsWith('@rivus/')) {
         continue

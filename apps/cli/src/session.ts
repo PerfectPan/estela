@@ -1,7 +1,6 @@
 import type { SessionRef } from '@rivus/agent-trace-kernel'
+import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
-import { isCanonicalTraceFile } from '@rivus/agent-trace-kernel'
-import { nodeIO } from '@rivus/agent-trace-runtime-node'
 import type { SessionAdapters } from '@rivus/agent-kit/sessions'
 import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
@@ -29,11 +28,12 @@ export interface LoadSessionOptions {
  */
 export async function loadSession(target: string | SessionRef, options: LoadSessionOptions): Promise<Trace> {
   const kitTarget = kitTargetOf(target)
+  const fs = options.platform.fs
   try {
-    if (await isCanonicalTraceFile(kitTarget.path, nodeIO)) {
-      const text = await nodeIO.readText(kitTarget.path)
-      options.onProgress?.(new TextEncoder().encode(text).byteLength)
-      const value: unknown = JSON.parse(text)
+    if (await isCanonicalTraceFile(kitTarget.path, fs)) {
+      const bytes = await readRange(fs, kitTarget.path)
+      options.onProgress?.(bytes.byteLength)
+      const value: unknown = JSON.parse(new TextDecoder().decode(bytes))
       if (isTrace(value)) {
         return value
       }

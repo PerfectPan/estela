@@ -116,43 +116,40 @@ flowchart TB
   subgraph packages["packages: libraries"]
     rpc["rpc"]
     rt["runtime-node"]
-    hosts["host-claude-code<br/>host-codex<br/>host-grok"]
     kernel["kernel"]
     schema["schema"]
   end
+  kit["@rivus/agent-kit (external npm)"]
   logs["Host logs on disk (read only)"]
   cli --> rpc
   cli --> rt
-  cli --> hosts
+  cli --> kit
   cli -. "embeds build output" .-> web
   web --> rpc
   web --> kernel
   rpc --> kernel
   rt --> kernel
-  hosts --> kernel
   kernel --> schema
-  rt -. "reads" .-> logs
+  kit -. "reads" .-> logs
 ```
 
 | 目录 | 包 | 负责 | 允许依赖 |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | 组合根：注册 host、提供 Node 运行时、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
+| `apps/cli` | `@rivus/agent-trace` | 组合根：通过外部 `@rivus/agent-kit` 读取会话（唯一在运行时导入 kit 的包）、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3）和浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
-| `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
-| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | `NodeIO`（基于 `node:fs` 的 `TraceIO`）、home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
-| `packages/host-claude-code`, `host-codex`, `host-grok` | `@rivus/agent-trace-host-<id>` | 每个包对应一个 host：目录布局知识、解析、capability | `kernel`、`schema` |
-| `packages/host-opencode`, `host-dsh` | `@rivus/agent-trace-host-<id>` | 保留，本次发布中不注册 | `kernel`、`schema` |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | host 协议类型、`loadTrace`、`fold`、`reconstruct`、`redact`、`toView`、投影、一致性测试 | `schema` |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | 规范文件头部检查、`SessionRef` 类型、`fold`、`reconstruct`、`toView`、投影、`SessionFs` 读取形态 | `schema`、`@rivus/agent-kit`（类型） |
 | `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型及其 `zod` schema | 不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
 
 规则：
 
 - 应用依赖包；包从不依赖应用。两个应用之间不共享代码；`cli` 通过 Rush 构建依赖，以文件形式获取 `web` 的构建产物。
-- `apps/cli` 是唯一的组合根。只有它知道注册了哪些 host，以及运行时是 Node。
-- 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel`、`rpc` 和每个 `host-*` 都不导入（D5）。
+- `apps/cli` 是唯一的组合根。只有它知道运行时是 Node，也只有它在运行时导入 `@rivus/agent-kit`——其内置 session adapter 取代了原来的 `packages/host-*`（issue #32）。其他包可以用 `import type` 使用 kit 的类型。
+- 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel` 和 `rpc` 都不导入（D5）。
 - UI 组件留在 `apps/web` 内，直到出现第二个使用方。
-- “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，`apps/cli` 打包外部的 `@rivus/agent-kit`，由 `scripts/check-layers.mjs` 按名称加入白名单。
+- “允许依赖”列列出工作区包及允许的 `@rivus/agent-kit` 类型依赖。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，`apps/cli` 打包外部的 kit。`scripts/check-layers.mjs` 按名称将 kit 加入白名单；oxlint 将 `apps/cli` 之外对 kit 的导入限制为类型。
 - `apps/e2e` 从外部测试打包后的 tarball：它不依赖任何工作区包，也没有运行时依赖。
 - `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
 
@@ -204,7 +201,7 @@ sequenceDiagram
 Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已有可移植的 adapter。OpenCode 需要 `SqliteIO`，是同一协议上的下一个 host；dsh 需要 zstd 及其格式目录。
 
 **D5. 核心包的 I/O 通过注入传入。**
-`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 `packages/runtime-node` 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。
+`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 `packages/runtime-node` 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。自 agent-kit 采纳（issue #32）起，会话读取走 kit 的 `SessionPlatform`，读取的 Node 实现归 kit 所有，面向浏览器的打包检查覆盖 kernel 和 rpc（`scripts/check-browser-bundle.mjs`）。
 
 **D6. 浏览器接收视图版 trace，原始记录和完整文本按需加载。**
 这改变了 `AGENTS.md` 中的两条现行规则：“规范存储是 `events[]` 加 `original`”变为“每个事件都能返回其原始记录”，“`getTrace` 是一个 snapshot blob”变为“`get-trace-view` 是一个 snapshot blob；`get-event` 返回一个完整事件”。在 355 MB 的会话上测得：完整为 360 MB，去掉原始记录为 37.9 MB，字符串截断到 4 KB 的视图为 14.0 MB，使用 `fitView` 选定的上限为 11.4 MB（A.6）。备选方案：对事件分页（未采用：timeline 和 ledger 需要每个事件的结构，`reconstruct` 需要完整序列），以及压缩完整 blob（未采用：server 仍需占用 3.2 GB）。server 保存每个事件的 source pointer（文件、字节偏移、长度），在 `get-event` 请求时重新读取该行。`AGENTS.md` 在同一变更中更新。
@@ -254,7 +251,7 @@ npx @rivus/agent-trace mcp <path>
 ```
 
 - 无路径：打开 `/__agent-trace/`（会话浏览器）。
-- 有路径：通过 `loadTrace` 加载一次；失败时在监听之前输出消息并以 1 退出；成功时打开 `/__agent-trace/#/s/<ref>`。
+- 有路径：通过 `loadSession` 加载一次；失败时在监听之前输出消息并以 1 退出；成功时打开 `/__agent-trace/#/s/<ref>`。
 - `ref` 是索引分配的不透明 id（host 和路径的哈希）。绝对路径从不出现在 URL 中。
 - 未提供路径参数时使用 `AGENT_TRACE_PATH`。
 - `--pick` 在索引行（标题、host、项目、最后活动）上打开一个 clack `autocomplete`，然后打开所选项的工作区 URL。stdin 不是 TTY 时以 1 退出。
@@ -273,7 +270,9 @@ npx @rivus/agent-trace mcp <path>
 
 ### 3.2 Host 协议
 
-从 `@rivus/agent-trace-kernel` 导出：
+自 agent-kit 采纳（issue #32）起，会话读取归 kit 所有：`@rivus/agent-kit/sessions` 拥有 adapter 协议（`SessionAdapter`、`SessionPlatform`、`builtinSessionAdapters`），`/transcript` 拥有读取（`loadTranscript`、`summarizeSession`、`readOriginal`、`foldTranscript`）、`Transcript` 模型和 `SessionSummary`，`/testing` 拥有一致性测试套件（`sessionAdapterConformance`）。使用方通过 `import type` 直接从 kit 导入 `SessionSummary`。trace 侧保留的是规范文件头部检查、`SessionRef`（trace 的 wire 和 index 使用 `host`，而 kit 的 ref 使用 `agent`），以及 TraceStore 依赖的 `SessionFs` 读取形态。下面列出的接口是采纳前的协议，保留作为该决定的记录；列表下的持久规则（capability 语义、输入记录记账、未知格式代失败、稳定事件 id）现在由 kit 的 conformance 套件在 `fixtures/sessions/<host>/conformance` 的 fixture 上保证。
+
+采纳前从 `@rivus/agent-trace-kernel` 导出的接口：
 
 ```ts
 export interface TraceIO {
@@ -367,7 +366,7 @@ export interface HostAdapter {
 
 ```ts
 export type EventKind =
-  | 'user' | 'assistant' | 'thinking' | 'tool_call' | 'tool_result'
+  | 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
   | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
 
 export interface SourcePointer { file: string, offset: number, length: number, line: number }
@@ -401,7 +400,7 @@ export interface RequestPayload {
   }
   startedAt?: number
   durationMs?: number
-  stopReason?: string     // gen_ai.response.finish_reasons[0]
+  finishReason?: string   // gen_ai.response.finish_reasons[0]
 }
 
 export interface CompactionPayload {
@@ -429,7 +428,7 @@ export interface Trace {
 }
 ```
 
-一个 `request` 事件是一次模型调用。只记录每轮合计的 host 每轮发出一个 request，并在 adapter 里说明。轮次耗时放在 `type: 'turn_duration'` 的 `system` 事件上，从不写进 request 的 `durationMs`。
+一个 `request` 事件是一次模型调用。只记录每轮合计的 host 每轮发出一个 request，并标记 `granularity: 'turn'`（带 `modelCalls`，以及记录了的按模型拆分的 `usageByModel`）。轮次耗时放在 `type: 'turn_duration'` 的 `system` 事件上，从不写进 request 的 `durationMs`。
 
 在会话过程中记录 system prompt 或工具列表的 host，把每条这样的记录作为其泳道上 `type: 'prompt_snapshot'` 的 `system` 事件（`PromptSnapshotPayload`）发出；该事件保留 source pointer 和原始记录，上下文压缩不会遮蔽它。`reconstruct` 用该泳道上、位于该事件处或之前、记录了相应字段的最新 snapshot 填充 `system` 和 `tools` 槽位，并在 `slot.recordedBy` 中给出它；没有这样的 snapshot 的槽位为 `unavailable`，即使之后有 snapshot。`session.systemPrompt` 和 `session.tools` 保存主泳道最新的 snapshot，`AgentInfo.systemPrompt` 保存子代理泳道自己的。没有 snapshot 的 trace 对每个事件都使用这些会话和泳道字段。Claude Code 用一个空行连接记录的 `systemPrompt` 各块。视图版 trace 对每个不同的 snapshot system prompt 和非空工具列表只保留一份，放在第一个含有它的 snapshot 上；之后内容相同的 snapshot 带有指向该 snapshot 的 `systemPromptSameAs` / `toolsSameAs`，并在 `payload.$truncated` 中列出该字段，因此 `get-event` 返回完整内容，`reconstruct` 在视图上给出相同结果。记录为空的工具列表是 `empty` 槽位。
 
@@ -443,7 +442,7 @@ export interface Trace {
 
 ```mermaid
 flowchart LR
-  roots["HostAdapter.roots(env)"] --> disc["discover<br/>list + head/tail 64 KB"]
+  roots["adapter.roots(home)"] --> disc["discover<br/>list + head/tail 64 KB"]
   disc --> rows["rows sent to the browser"]
   disc --> q{"summary in index.sqlite<br/>for path+size+mtime?"}
   q -- "yes" --> rows
@@ -556,9 +555,9 @@ M2 之后 M3 和 M4 可以并行。
 
 ### 5.1 单元测试与一致性测试
 
-- Kernel：`toView`、`redact`、`fold`、`reconstruct` 的 slot 计数、投影。
-- 每个 host：在 `packages/host-*/fixtures/` 下的合成 fixture 上运行 `describeHostConformance`。fixture 依据 1.1 中的记录结构手写，不包含真实会话文本。
-- D5：oxlint `node:*` 规则，以及对 kernel 和 adapter 的面向浏览器的 rslib 打包。
+- Kernel：`toView`、`fold`、`reconstruct` 的 slot 计数、投影。
+- 在 `apps/cli` 里对三个内置 adapter 在 `fixtures/sessions/<host>/conformance/` 的 fixture 上运行 kit 的 `sessionAdapterConformance`。fixture 依据 1.1 中的记录结构手写，不包含真实会话文本。
+- D5：oxlint `node:*` 规则，以及对 kernel 和 rpc 的面向浏览器的 rslib 打包。
 
 ### 5.2 浏览器端到端测试
 
@@ -755,7 +754,7 @@ A.8 规范 trace 到 ATIF v1.8 的映射（ATIF 导出后续工作的约束）�
 | `RequestPayload.model` | `agent.model_name`，或 step 上的 `model_name` |
 | `user` 事件 | `source: "user"`、`message` 的 step |
 | `assistant` 事件 | `source: "agent"`、`message` 的 step |
-| `thinking` 事件 | agent step 上的 `reasoning_content` |
+| `reasoning` 事件 | agent step 上的 `reasoning_content` |
 | `tool_call`（`callId`, `name`, `args`） | `tool_calls[]`（`tool_call_id`, `function_name`, `arguments`） |
 | `tool_result`（`callId`, `output`） | `observation.results[]`（`source_call_id`, `content`） |
 | `usage.inputTokens`, `outputTokens`, `cacheReadTokens` | `metrics.prompt_tokens`, `completion_tokens`, `cached_tokens` |

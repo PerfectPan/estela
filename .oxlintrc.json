@@ -4,7 +4,6 @@
   // the same version; packages/schema is used because every project depends on
   // it, so any install includes its node_modules.
   "extends": ["./packages/schema/node_modules/@perfectpan/lint-config/oxlint.json"],
-  // host-opencode is excluded: plan section 7, "OpenCode needs SqliteIO".
   "ignorePatterns": ["**/dist/**", "**/node_modules/**", "common/temp/**", "common/deploy/**"],
   "categories": {
     "suspicious": "warn"
@@ -22,19 +21,36 @@
     "promise/always-return": ["warn", { "ignoreLastCallback": true }],
     "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
     // agent-kit's Result errors carry their discriminator as `_tag`.
-    "eslint/no-underscore-dangle": ["warn", { "allow": ["_tag"] }]
+    "eslint/no-underscore-dangle": ["warn", { "allow": ["_tag"] }],
+    // Under verbatimModuleSyntax, `import { type X } from 'm'` compiles to `import 'm'`, so the
+    // module still loads at runtime. `allowTypeImports` in the agent-kit override below accepts
+    // that form; this rule requires `import type { X }` instead.
+    "typescript/no-import-type-side-effects": "error"
   },
   "overrides": [
     {
+      // Only apps/cli imports the kit at runtime; elsewhere its types come in through `import type`.
+      // A later override that sets no-restricted-imports replaces these options, so it repeats this pattern.
+      "files": ["**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "excludeFiles": ["apps/cli/**"],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "patterns": [{
+            "group": ["@rivus/agent-kit", "@rivus/agent-kit/**"],
+            "allowTypeImports": true,
+            "message": "Only apps/cli may import agent-kit at runtime; use import type."
+          }]
+        }]
+      }
+    },
+    {
+      // No Node built-ins in the browser-safe core outside tests (D5).
       "files": [
         "packages/schema/src/**/*.{ts,mts,cts,tsx}",
         "packages/kernel/src/**/*.{ts,mts,cts,tsx}",
-        "packages/rpc/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-claude-code/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-codex/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-grok/src/**/*.{ts,mts,cts,tsx}",
-        "packages/host-dsh/src/**/*.{ts,mts,cts,tsx}"
+        "packages/rpc/src/**/*.{ts,mts,cts,tsx}"
       ],
+      "excludeFiles": ["**/*.test.{ts,mts,cts,tsx}"],
       "rules": {
         "no-restricted-imports": ["error", {
           "paths": [
@@ -49,7 +65,14 @@
             "stream", "stream/promises",
             "buffer", "buffer/promises"
           ],
-          "patterns": ["node:*", "node:*/**"]
+          "patterns": [
+            { "group": ["node:*", "node:*/**"] },
+            {
+              "group": ["@rivus/agent-kit", "@rivus/agent-kit/**"],
+              "allowTypeImports": true,
+              "message": "Only apps/cli may import agent-kit at runtime; use import type."
+            }
+          ]
         }],
         "no-restricted-globals": ["error", "process", "Buffer"]
       }
@@ -64,7 +87,6 @@
     {
       "files": ["**/*.test.{ts,mts,cts,tsx}"],
       "rules": {
-        "no-restricted-imports": "off",
         "no-restricted-globals": "off"
       }
     }

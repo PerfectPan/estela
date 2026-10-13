@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const cliDir = join(dirname(fileURLToPath(import.meta.url)), '..')
-const compaction = join(cliDir, '../../packages/host-claude-code/fixtures/conformance/compaction/session.jsonl')
+const compaction = join(cliDir, '../../fixtures/sessions/claude-code/conformance/compaction/session.jsonl')
 
 function build(path: string, outDir: string): Promise<number> {
   return new Promise((resolve, reject) => {

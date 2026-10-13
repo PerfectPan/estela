@@ -125,7 +125,8 @@ export function risingSession(cwd: string, prompts: string[] = [], snapshots = f
 
 /** Builds `home` with Claude Code, Codex, and Grok sessions in their default locations. */
 export async function buildFixtureHome(home: string, repo: string, options: FixtureOptions = {}): Promise<FixtureHome> {
-  const fixtures = (host: string) => join(repo, 'packages', `host-${host}`, 'fixtures/conformance')
+  const fixtures = (host: string) => join(repo, 'fixtures/sessions', host, 'conformance')
+  const unknownGeneration = (host: string) => join(repo, 'fixtures/sessions', host, 'unknown-generation')
   const projects = join(home, '.claude/projects')
   const claude = options.browser ? [...CLAUDE, 'unknown-type'] : CLAUDE
   for (const name of claude) {
@@ -138,11 +139,7 @@ export async function buildFixtureHome(home: string, repo: string, options: Fixt
   const claudeSnapshot = join(projects, 'app-snapshot/session.jsonl')
   if (options.browser) {
     // S4: records of a format generation the adapter does not know.
-    await cp(
-      join(repo, 'packages/host-claude-code/fixtures/unknown-generation'),
-      join(projects, 'app-unknown-generation'),
-      { recursive: true },
-    )
+    await cp(unknownGeneration('claude-code'), join(projects, 'app-unknown-generation'), { recursive: true })
     await mkdir(join(claudeRising, '..'), { recursive: true })
     await writeFile(claudeRising, risingSession('/work/app'))
     await mkdir(join(claudeSnapshot, '..'), { recursive: true })

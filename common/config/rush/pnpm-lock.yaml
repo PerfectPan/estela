@@ -31,15 +31,6 @@ importers:
       '@rivus/agent-kit':
         specifier: 0.9.0
         version: 0.9.0
-      '@rivus/agent-trace-host-claude-code':
-        specifier: workspace:*
-        version: link:../../packages/host-claude-code
-      '@rivus/agent-trace-host-codex':
-        specifier: workspace:*
-        version: link:../../packages/host-codex
-      '@rivus/agent-trace-host-grok':
-        specifier: workspace:*
-        version: link:../../packages/host-grok
       '@rivus/agent-trace-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
@@ -149,6 +140,9 @@ importers:
       '@perfectpan/lint-config':
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
+      '@rivus/agent-kit':
+        specifier: 0.9.0
+        version: 0.9.0
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.1(@types/node@24.19.0)(jiti@2.7.0))
@@ -183,152 +177,6 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.19.0)(vite@8.3.1(@types/node@24.19.0))
 
-  ../../packages/host-claude-code:
-    dependencies:
-      '@rivus/agent-trace-kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@rivus/agent-trace-schema':
-        specifier: workspace:*
-        version: link:../schema
-    devDependencies:
-      '@perfectpan/lint-config':
-        specifier: github:PerfectPan/lint-config#v0.6.0
-        version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
-      '@rivus/agent-trace-runtime-node':
-        specifier: workspace:*
-        version: link:../runtime-node
-      '@types/node':
-        specifier: ^24.19.0
-        version: 24.19.0
-      oxlint:
-        specifier: ^1.86.0
-        version: 1.86.0(oxlint-tsgolint@7.0.2003)
-      oxlint-tsgolint:
-        specifier: ^7.0.2003
-        version: 7.0.2003
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@24.19.0)(vite@8.3.1(@types/node@24.19.0))
-
-  ../../packages/host-codex:
-    dependencies:
-      '@rivus/agent-trace-kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@rivus/agent-trace-schema':
-        specifier: workspace:*
-        version: link:../schema
-    devDependencies:
-      '@perfectpan/lint-config':
-        specifier: github:PerfectPan/lint-config#v0.6.0
-        version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
-      '@rivus/agent-trace-runtime-node':
-        specifier: workspace:*
-        version: link:../runtime-node
-      '@types/node':
-        specifier: ^24.19.0
-        version: 24.19.0
-      oxlint:
-        specifier: ^1.86.0
-        version: 1.86.0(oxlint-tsgolint@7.0.2003)
-      oxlint-tsgolint:
-        specifier: ^7.0.2003
-        version: 7.0.2003
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@24.19.0)(vite@8.3.1(@types/node@24.19.0))
-
-  ../../packages/host-dsh:
-    dependencies:
-      '@rivus/agent-trace-kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@rivus/agent-trace-schema':
-        specifier: workspace:*
-        version: link:../schema
-    devDependencies:
-      '@perfectpan/lint-config':
-        specifier: github:PerfectPan/lint-config#v0.6.0
-        version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
-      '@types/node':
-        specifier: ^24.19.0
-        version: 24.19.0
-      oxlint:
-        specifier: ^1.86.0
-        version: 1.86.0(oxlint-tsgolint@7.0.2003)
-      oxlint-tsgolint:
-        specifier: ^7.0.2003
-        version: 7.0.2003
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-
-  ../../packages/host-grok:
-    dependencies:
-      '@rivus/agent-trace-kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@rivus/agent-trace-schema':
-        specifier: workspace:*
-        version: link:../schema
-    devDependencies:
-      '@perfectpan/lint-config':
-        specifier: github:PerfectPan/lint-config#v0.6.0
-        version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
-      '@rivus/agent-trace-runtime-node':
-        specifier: workspace:*
-        version: link:../runtime-node
-      '@types/node':
-        specifier: ^24.19.0
-        version: 24.19.0
-      oxlint:
-        specifier: ^1.86.0
-        version: 1.86.0(oxlint-tsgolint@7.0.2003)
-      oxlint-tsgolint:
-        specifier: ^7.0.2003
-        version: 7.0.2003
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@24.19.0)(vite@8.3.1(@types/node@24.19.0))
-
-  ../../packages/host-opencode:
-    dependencies:
-      '@rivus/agent-trace-kernel':
-        specifier: workspace:*
-        version: link:../kernel
-      '@rivus/agent-trace-schema':
-        specifier: workspace:*
-        version: link:../schema
-    devDependencies:
-      '@perfectpan/lint-config':
-        specifier: github:PerfectPan/lint-config#v0.6.0
-        version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
-      '@types/node':
-        specifier: ^24.19.0
-        version: 24.19.0
-      oxlint:
-        specifier: ^1.86.0
-        version: 1.86.0(oxlint-tsgolint@7.0.2003)
-      oxlint-tsgolint:
-        specifier: ^7.0.2003
-        version: 7.0.2003
-      typescript:
-        specifier: ^7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: ^5.0.3
-        version: 5.0.3(@types/node@24.19.0)(vite@8.3.1(@types/node@24.19.0))
-
   ../../packages/kernel:
     dependencies:
       '@rivus/agent-trace-schema':
@@ -341,6 +189,9 @@ importers:
       '@perfectpan/lint-config':
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
+      '@rivus/agent-kit':
+        specifier: 0.9.0
+        version: 0.9.0
       '@types/lodash-es':
         specifier: ^4.17.12
         version: 4.17.12
@@ -375,6 +226,9 @@ importers:
       '@perfectpan/lint-config':
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
+      '@rivus/agent-kit':
+        specifier: 0.9.0
+        version: 0.9.0
       '@types/node':
         specifier: ^24.19.0
         version: 24.19.0
@@ -400,6 +254,9 @@ importers:
       '@perfectpan/lint-config':
         specifier: github:PerfectPan/lint-config#v0.6.0
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.71.0)(oxlint-tsgolint@7.0.2003)(oxlint@1.86.0(oxlint-tsgolint@7.0.2003))(typescript@7.0.2)
+      '@rivus/agent-kit':
+        specifier: 0.9.0
+        version: 0.9.0
       '@types/node':
         specifier: ^24.19.0
         version: 24.19.0

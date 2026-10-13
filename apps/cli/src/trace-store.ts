@@ -6,7 +6,7 @@ import { redact } from '@rivus/agent-kit/redact'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { builtinSessionAdapters, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_REF, TraceStore } from '@rivus/agent-trace-rpc'
-import { homeDir, nodeIO } from '@rivus/agent-trace-runtime-node'
+import { homeDir } from '@rivus/agent-trace-runtime-node'
 import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadSession } from './session.ts'
 
@@ -30,21 +30,19 @@ export interface ShellTraceStore {
   seed: (session: ResolvedSession, trace: Trace) => Promise<void>
 }
 
-function canonicalOf(path: ResolvedSession['path']): Promise<boolean> {
-  return isCanonicalTraceFile(typeof path === 'string' ? path : path.path, nodeIO)
-}
-
 /** Store for `get-trace-view`, `get-event`, and `reconstruct` over Node file I/O. */
 export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   const home = homeDir()
   const platform = options.platform ?? createNodePlatform()
+  // The store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`, `totalBytes`)
+  // and the canonical fast path (`canonicalOf`, `loadSession`) all read through the platform.
+  const fs = platform.fs
+  const canonicalOf = (path: ResolvedSession['path']): Promise<boolean> =>
+    isCanonicalTraceFile(typeof path === 'string' ? path : path.path, fs)
   let current: ResolvedSession | undefined
   const store = new TraceStore({
     resolve: ref => (ref === CURRENT_REF ? current : options.resolve?.(ref)),
-    // `io` serves the store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`,
-    // `totalBytes`), and the canonical fast path (`canonicalOf`, `loadSession`) reads through
-    // `nodeIO` too. Everything here moves onto the kit platform in 2b.
-    io: nodeIO,
+    fs,
     async load(session, opts) {
       const [trace, canonical] = await Promise.all([
         loadSession(session.path, {

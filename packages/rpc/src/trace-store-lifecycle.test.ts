@@ -23,7 +23,7 @@ describe('TraceStore lifecycle', () => {
       { id: 'u1', kind: 'user', text: 'x' },
       { id: 'r1', kind: 'request' },
     ])
-    const { store } = storeOf({ io: f.io, parse: f.parse })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
     await store.view('a')
     const trace = cachedTrace(store, 'a')
     expect(trace.events).toHaveLength(2)
@@ -35,7 +35,7 @@ describe('TraceStore lifecycle', () => {
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: 'x' }])
     const store = new TraceStore({
       resolve: ref => ({ key: ref, path: '/logs/a.jsonl' }),
-      io: f.io,
+      fs: f.fs,
       load: async session => ({ trace: f.parse(session.path as string), canonical: true }),
     })
     expect((await store.event('a', 'u1')).original).toEqual({ id: 'u1', kind: 'user', text: 'x' })
@@ -54,16 +54,16 @@ describe('TraceStore lifecycle', () => {
     f.write('/logs/b.jsonl', [{ id: 'u1', kind: 'user' }])
     const slow = deferred()
     let slowDone = false
-    const io = {
-      ...f.io,
+    const fs = {
+      ...f.fs,
       async stat(file: string) {
         if (file === '/logs/a.jsonl' && !slowDone) {
           await slow.promise
         }
-        return f.io.stat(file)
+        return f.fs.stat(file)
       },
     }
-    const { store, signals, gates } = storeOf({ io, parse: f.parse })
+    const { store, signals, gates } = storeOf({ fs, parse: f.parse })
     gates.set('b', deferred())
     const browser = {}
     const first = store.open('a', browser)
@@ -83,7 +83,7 @@ describe('TraceStore lifecycle', () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     f.write('/logs/b.jsonl', [{ id: 'u1', kind: 'user' }])
-    const { store, signals, gates } = storeOf({ io: f.io, parse: f.parse })
+    const { store, signals, gates } = storeOf({ fs: f.fs, parse: f.parse })
     gates.set('a', deferred())
     const browser = {}
     await store.open('a', browser)
@@ -100,7 +100,7 @@ describe('TraceStore lifecycle', () => {
     const f = fixture()
     const store = new TraceStore({
       resolve: ref => ({ key: ref, path: `${HOME}/logs/${ref}.jsonl` }),
-      io: f.io,
+      fs: f.fs,
       present,
       load: async () => {
         throw new Error(`codex: ${HOME}/logs/a.jsonl:3: invalid JSON`)
@@ -122,7 +122,7 @@ describe('TraceStore lifecycle', () => {
     const second = { id: 'r1', kind: 'request', text: 'BBBB', uuid: 'two' }
     const body = `${JSON.stringify(first)}\n${JSON.stringify(second)}\n`
     f.put('/logs/a.jsonl', body)
-    const { store } = storeOf({ io: f.io, parse: f.parse })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
     await store.view('a')
 
     f.put('/logs/a.jsonl', `${body}${JSON.stringify({ id: 'x', kind: 'user' })}\n`)
@@ -160,7 +160,12 @@ describe('TraceStore lifecycle', () => {
     const logs: string[] = []
     const store = new TraceStore({
       resolve: ref => ({ key: ref, path: '/logs/big.jsonl' }),
-      io: { readBytes: async () => new Uint8Array(), stat: async () => ({ kind: 'file', size: 1, mtimeMs: 0 }) },
+      fs: {
+        read: async function* () {
+          yield new Uint8Array()
+        },
+        stat: async () => ({ kind: 'file', size: 1, mtimeMs: 0 }),
+      },
       load: async () => ({ trace, canonical: false }),
       log: message => logs.push(message),
     })

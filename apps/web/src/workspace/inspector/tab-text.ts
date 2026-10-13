@@ -28,7 +28,7 @@ export function inputText(entry: Entry, primary: TraceEvent | undefined, lookup:
       return pretty(payload.args)
     case 'user':
     case 'assistant':
-    case 'thinking':
+    case 'reasoning':
       return typeof payload.text === 'string' ? payload.text : pretty(without(payload))
     default:
       return pretty(without(payload))

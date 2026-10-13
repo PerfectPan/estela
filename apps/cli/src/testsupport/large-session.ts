@@ -4,7 +4,8 @@ import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 /**
- * Test helper for S12 (plan 5.2, 1.3): writes a synthetic Codex rollout of at
+ * Test support for S12 (plan 5.2, 1.3), shared by the CLI size-budget test and the e2e
+ * browser suite, which runs this file by path. Writes a synthetic Codex rollout of at
  * least `targetBytes`, shaped like the largest local session (A.6) but with
  * generated text only. Per turn: a prompt, nine tool calls with usage records,
  * outputs from 900 characters to 45 KB (one 2 MB output every 40 turns),

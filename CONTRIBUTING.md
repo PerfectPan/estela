@@ -111,7 +111,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 ## File Conventions
 
 - File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.
-- Files under `packages/*/fixtures/` keep the host log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
+- Files under `fixtures/` keep the host log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
 - Names fixed by convention or a platform keep their form: `README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CHANGELOG.json`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, `.gitlab/merge_request_templates/`, and everything under `common/`, which Rush owns.
 - A code file (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, and their variants) under `apps/`, `packages/`, or `scripts/` has at most 500 lines, tests included. Fixtures and documentation have no line limit. A file near the limit splits along a responsibility, not at an arbitrary line.
 
@@ -122,18 +122,18 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 ## Repository Architecture
 
 - `packages/schema` and `packages/kernel` are domain rules. They must not import DevFrame or UI.
-- Host packages under `packages/host-*` parse one host each. `host-opencode` and `host-dsh` are kept and not registered.
+- Session reading is the external `@rivus/agent-kit`; `apps/cli` is the only package that imports it at runtime. Other packages may use its types with `import type`.
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
-- Fixtures live in `fixtures/` and next to host tests.
+- Fixtures live in `fixtures/` (`fixtures/sessions/<host>/` for the session logs the conformance suites read).
 - Shared oxlint and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. `.oxlintrc.json` and `tsconfig.base.json` extend them and keep only this repository's rules. Change a shared default upstream, not here.
 - `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. CI and the pre-commit hook run it.
 
 ## Runtime checks
 
-`schema`, `kernel`, `rpc`, and every `host-*` package except `host-opencode` must not import `node:*` outside tests. `host-opencode` is excluded because plan section 7 says OpenCode needs SqliteIO; it is not registered. Two checks enforce the rule, and the CI test job runs both:
+`schema`, `kernel`, and `rpc` must not import `node:*` outside tests. Two checks enforce the rule, and the CI test job runs both:
 
 1. oxlint `no-restricted-imports` on `node:*` in `.oxlintrc.json` (test files are excluded).
-2. `node scripts/check-browser-bundle.mjs` bundles kernel, rpc, and the registered hosts with rslib `output.target: 'web'` and fails on an unresolved `node:*` import.
+2. `node scripts/check-browser-bundle.mjs` bundles kernel and rpc with rslib `output.target: 'web'` and fails on an unresolved `node:*` import.
 
 See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 

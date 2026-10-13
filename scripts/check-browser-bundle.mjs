@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// D5: bundle kernel, rpc, and the registered hosts for the web target.
-// host-opencode is excluded: plan section 7, "OpenCode needs SqliteIO".
+// D5: bundle kernel and rpc for the web target, which keeps node:* out of them.
 // @rslib/core is owned by apps/cli. This script resolves it from that package.
 import { mkdtemp, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -12,10 +11,8 @@ import process from 'node:process'
 const HELP = `Usage:
   node scripts/check-browser-bundle.mjs [--help]
 
-Bundles @rivus/agent-trace-kernel, @rivus/agent-trace-rpc, host-dsh, and the
-registered hosts (claude-code, codex, grok) with rslib output.target "web".
-Fails when a node:* import is unresolved. host-opencode is excluded
-(plan section 7, "OpenCode needs SqliteIO").
+Bundles @rivus/agent-trace-kernel and @rivus/agent-trace-rpc with rslib
+output.target "web". Fails when a node:* import is unresolved.
 `
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -45,10 +42,6 @@ const rslib = await createRslib({
       entry: {
         kernel: 'packages/kernel/src/index.ts',
         rpc: 'packages/rpc/src/index.ts',
-        'host-claude-code': 'packages/host-claude-code/src/index.ts',
-        'host-codex': 'packages/host-codex/src/index.ts',
-        'host-grok': 'packages/host-grok/src/index.ts',
-        'host-dsh': 'packages/host-dsh/src/index.ts',
       },
     },
     output: {

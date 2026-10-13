@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import type { LoadProgress } from '@rivus/agent-trace-rpc'
-import { writeLargeCodexSession } from '@rivus/agent-trace-host-codex/testing'
 import { VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vitest'
 import { createTraceStore } from './trace-store.ts'
+import { writeLargeCodexSession } from './testsupport/large-session.ts'
 
 // S12 size budget (plan 1.3, 5.2). Opt-in: it writes about 350 MB to a temp directory.
 //   AGENT_TRACE_SIZE_TEST=1 vitest run src/size-budget.test.ts
@@ -17,7 +17,7 @@ const realPath = process.env.AGENT_TRACE_SIZE_REAL
 const MB = 1024 * 1024
 const SIZE_REF = 'size-test'
 
-/** An independent read of the source line (plain `node:fs`), not the store's `readOriginal`. */
+/** An independent read of the source line (plain `node:fs`), not the store's source-pointer read. */
 async function lineAt(path: string, offset: number, length: number): Promise<unknown> {
   const handle = await open(path, 'r')
   try {
