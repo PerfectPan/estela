@@ -1,5 +1,7 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { LoadedTrace, TraceStoreDeps } from '../src/trace-store.ts'
+import { cloneDeepWith } from 'es-toolkit/object'
+import * as z from 'zod/mini'
 import { TraceStore } from '../src/trace-store.ts'
 
 const encoder = new TextEncoder()
@@ -8,8 +10,11 @@ const encoder = new TextEncoder()
 export const HOME = ['', 'home', 'u'].join('/')
 
 export function present<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value).replaceAll(HOME, '~')) as T
+  return cloneDeepWith(value, item => (typeof item === 'string' ? item.replaceAll(HOME, '~') : undefined))
 }
+
+/** The records the tests write: an id, one of the kinds the fixture maps, and optional text. */
+const fixtureRecord = z.looseObject({ id: z.string(), kind: z.enum(['user', 'request']), text: z.optional(z.string()) })
 
 /** Synthetic JSONL files in memory with size and mtime, and a loader that points each event at its line. */
 export function fixture() {
@@ -32,16 +37,19 @@ export function fixture() {
     for (const text of new TextDecoder().decode(bytes).split('\n')) {
       const length = encoder.encode(text).byteLength
       if (text) {
-        const original = JSON.parse(text) as { id: string; kind: TraceEvent['kind']; text?: string }
-        events.push({
-          id: original.id,
+        const original: unknown = JSON.parse(text)
+        const record = z.parse(fixtureRecord, original)
+        const at = {
+          id: record.id,
           seq: events.length,
           ts: events.length,
-          kind: original.kind,
-          payload: original.text === undefined ? {} : { text: original.text },
           source: { file, offset, length, line },
           original,
-        })
+        }
+        const payload = record.text === undefined ? {} : { text: record.text }
+        events.push(
+          record.kind === 'user' ? { ...at, kind: record.kind, payload } : { ...at, kind: record.kind, payload },
+        )
       }
       offset += length + 1
       line += 1
@@ -107,7 +115,7 @@ export function storeOf(
         ])
       }
       opts.onProgress(1e9)
-      return { trace: parse(session.path as string), canonical: false }
+      return { trace: parse(typeof session.path === 'string' ? session.path : session.path.path), canonical: false }
     },
     ...deps,
   })
