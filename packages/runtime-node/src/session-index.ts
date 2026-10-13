@@ -11,7 +11,7 @@ export const PROMPT_CHARS = 500
 /** Head fields from `discover`, keyed by path. `size` and `mtimeMs` are the cache key. */
 export interface IndexHead {
   ref: string
-  host: string
+  agent: string
   path: string
   size: number
   mtimeMs: number
@@ -106,7 +106,7 @@ const HEAD_NUMBERS = [
 ] as const
 
 const SUMMARY_SELECT = `summary_version, ${SUMMARY_COLUMNS.map(([column]) => column).join(', ')}, context_shape`
-const HEAD_SELECT = `ref, host, path, size, mtime, ${[...HEAD_TEXT, ...HEAD_NUMBERS].map(([column]) => column).join(', ')}`
+const HEAD_SELECT = `ref, agent, path, size, mtime, ${[...HEAD_TEXT, ...HEAD_NUMBERS].map(([column]) => column).join(', ')}`
 
 function casefold(text: string): string {
   return text.toLowerCase()
@@ -133,7 +133,7 @@ function isBusy(error: unknown): boolean {
 function headOf(row: Record<string, unknown>): IndexHead {
   const head: IndexHead = {
     ref: String(row.ref),
-    host: String(row.host),
+    agent: String(row.agent),
     path: String(row.path),
     size: Number(row.size),
     mtimeMs: Number(row.mtime),
@@ -266,7 +266,7 @@ class SqliteIndex implements SessionIndex {
     return statement
   }
 
-  /** A NULL column is a capability the host does not record: it stays `undefined`, never 0. */
+  /** A NULL column is a capability the agent does not record: it stays `undefined`, never 0. */
   private summaryOf(row: Record<string, unknown>): SessionSummary | undefined {
     if (readNumber(row.summary_version) !== this.version) {
       return undefined
@@ -307,16 +307,16 @@ class SqliteIndex implements SessionIndex {
       return
     }
     this.sql(
-      `INSERT INTO sessions (path, ref, host, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
+      `INSERT INTO sessions (path, ref, agent, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(path) DO UPDATE SET
-         ref = excluded.ref, host = excluded.host, size = excluded.size, mtime = excluded.mtime,
+         ref = excluded.ref, agent = excluded.agent, size = excluded.size, mtime = excluded.mtime,
          session_id = excluded.session_id, title = excluded.title, cwd = excluded.cwd,
          first_prompt = excluded.first_prompt, started_at = excluded.started_at, last_active_at = excluded.last_active_at`,
     ).run(
       row.path,
       row.ref,
-      row.host,
+      row.agent,
       row.size,
       row.mtimeMs,
       ...HEAD_TEXT.map(([, key]) => next[key] ?? null),

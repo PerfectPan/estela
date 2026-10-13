@@ -58,12 +58,12 @@ describe('session catalog', () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(home, 'index.sqlite') })
     const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: {} }), index })
     const first = await catalog.listSessions()
-    const codex = first.hosts.find(host => host.id === 'codex')
+    const codex = first.agents.find(agent => agent.id === 'codex')
     expect(codex?.count).toBe(0)
     // The kit's Codex roots also cover archived sessions (design note §3.2 X7).
     expect(codex?.checked).toBe('~/.codex/sessions, ~/.codex/archived_sessions')
-    expect(first.rows.filter(row => row.host === 'claude-code')).toHaveLength(3)
-    expect(first.hosts.find(host => host.id === 'claude-code')?.count).toBe(3)
+    expect(first.rows.filter(row => row.agent === 'claude-code')).toHaveLength(3)
+    expect(first.agents.find(agent => agent.id === 'claude-code')?.count).toBe(3)
     // Refs are opaque and the list carries no absolute path.
     expect(JSON.stringify(first)).not.toContain(home)
     expect(first.rows.every(row => /^[0-9a-f]{24}$/.test(row.ref))).toBe(true)

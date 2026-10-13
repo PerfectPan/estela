@@ -22,7 +22,7 @@ function fnv(hash: number, text: string): number {
 }
 
 /**
- * Cheap identity of a host record: its top-level short scalar fields (type,
+ * Cheap identity of a log record: its top-level short scalar fields (type,
  * uuid, timestamp, …), hashed. Enough to tell that the bytes at a source
  * pointer are no longer the record that was loaded, without keeping originals.
  */

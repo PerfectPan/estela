@@ -6,7 +6,7 @@ import type { Dictionary } from './dictionary.en.ts'
  * | English | 中文 | Note |
  * |---|---|---|
  * | session | 会话 | |
- * | host | 来源 | Host names (Claude Code, Codex, Grok) stay in English. |
+ * | agent | 代理 | The coding agent whose logs are read. Agent names (Claude Code, Codex, Grok) stay in English. |
  * | project | 项目 | The last folder of the working directory. |
  * | turn | 轮次 | One user prompt and what follows it. |
  * | request | 请求 | One model call. |
@@ -69,8 +69,8 @@ export const zhCN = {
   browser: {
     title: '会话',
     onThisMachine: '本机共 {{ count }} 个',
-    hosts: '来源',
-    allHosts: '全部来源',
+    agents: '代理',
+    allAgents: '全部代理',
     checked: '已检查 {{ path }}',
     projects: '项目',
     showOnly: '只显示',
@@ -86,12 +86,12 @@ export const zhCN = {
     duration: '时长',
     active: '最近活动',
     earlierThisWeek: '本周早些时候',
-    noSessions: '没有找到会话。左侧列出了已检查的来源目录。',
+    noSessions: '没有找到会话。左侧列出了已检查的代理目录。',
     noMatches: '没有匹配的会话。',
     summarizing: '正在读取 {{ count }} 个会话…',
     shape: '上下文变化',
     shapePending: '正在读取会话…',
-    shapeMissing: '这个来源没有记录每个请求的输入 Token。',
+    shapeMissing: '这个代理没有记录每个请求的输入 Token。',
     firstPrompt: '首条提示词',
     durationLabel: '时长',
     requestsLabel: '请求',
@@ -107,7 +107,7 @@ export const zhCN = {
     opening: '正在打开会话',
     bytesOf: '{{ read }} / {{ total }}',
     preparing: '正在生成视图…',
-    errorHost: '来源',
+    errorAgent: '代理',
     errorFile: '文件',
     errorLine: '行',
     errorReason: '原因',

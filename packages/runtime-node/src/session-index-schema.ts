@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** Bump when the table layout changes. A different `user_version` is deleted and rebuilt. */
-const INDEX_LAYOUT_VERSION = 1
+const INDEX_LAYOUT_VERSION = 2
 /**
  * node:sqlite is synchronous: a busy wait blocks the event loop. Under WAL, readers never
  * wait; a writer waits at most this long for another process's write lock, then gives up
@@ -64,7 +64,7 @@ function createSchema(db: DatabaseSync): void {
       id INTEGER PRIMARY KEY,
       path TEXT NOT NULL UNIQUE,
       ref TEXT NOT NULL,
-      host TEXT NOT NULL,
+      agent TEXT NOT NULL,
       size INTEGER NOT NULL,
       mtime REAL NOT NULL,
       session_id TEXT,

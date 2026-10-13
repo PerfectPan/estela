@@ -1,13 +1,12 @@
-import type { SessionRef } from '@rivus/agent-trace-kernel'
 import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
-import type { SessionAdapters } from '@rivus/agent-kit/sessions'
+import type { SessionAdapters, SessionRef } from '@rivus/agent-kit/sessions'
 import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { isTrace } from '@rivus/agent-trace-schema'
 import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadErrorMessage } from './read-failure.ts'
-import { kitTargetOf, sessionRefLabel } from './session-ref.ts'
+import { sessionRefLabel, targetOfPath } from './session-ref.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
 
 export interface LoadSessionOptions {
@@ -23,11 +22,11 @@ export interface LoadSessionOptions {
  * (`isCanonicalTraceFile` + `isTrace`; originals live in the file), everything else reads
  * through the kit and maps to the canonical `Trace`. The kit's expected failures throw with
  * the wording the shell showed before it: missing file (with the `path#id` label),
- * `No adapter accepted …`, the hosts' `agent: file:line: unknown format generation`, and the
+ * `No adapter accepted …`, `agent: file:line: unknown format generation`, and the
  * IO error's own message.
  */
 export async function loadSession(target: string | SessionRef, options: LoadSessionOptions): Promise<Trace> {
-  const kitTarget = kitTargetOf(target)
+  const kitTarget = typeof target === 'string' ? targetOfPath(target) : target
   const fs = options.platform.fs
   try {
     if (await isCanonicalTraceFile(kitTarget.path, fs)) {

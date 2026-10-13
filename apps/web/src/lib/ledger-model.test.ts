@@ -20,7 +20,7 @@ function sample(): Trace {
   seq = 0
   return {
     schema: 'agent-trace',
-    host: { id: 'claude-code' },
+    agent: { id: 'claude-code' },
     session: { id: 's' },
     capabilities: ['requests', 'usage', 'subagents', 'hooks', 'compaction'],
     agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Explore' }],

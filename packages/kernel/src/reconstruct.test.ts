@@ -56,11 +56,11 @@ describe('reconstruct', () => {
     expect(before.slots?.find(item => item.name === 'summary')?.status).toBe('empty')
   })
 
-  it('stays on the event lane and records no count the host did not log', () => {
+  it('stays on the event lane and records no count the agent did not log', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
       schema: 'agent-trace',
-      host: { id: 'test' },
+      agent: { id: 'test' },
       session: { id: 's' },
       capabilities: ['requests'],
       agents: [{ id: 'main' }, { id: 'sub', parentId: 'main' }],
@@ -92,10 +92,10 @@ describe('reconstruct', () => {
     ])
   })
 
-  it('reports system unavailable unless the host declares and recorded a system prompt', () => {
+  it('reports system unavailable unless the agent declares and recorded a system prompt', () => {
     const base = {
       schema: 'agent-trace' as const,
-      host: { id: 'test' },
+      agent: { id: 'test' },
       session: { id: 's' },
       capabilities: [] as Trace['capabilities'],
       agents: [],
@@ -123,7 +123,7 @@ describe('reconstruct', () => {
     const result = reconstruct(
       {
         schema: 'agent-trace',
-        host: { id: 'test' },
+        agent: { id: 'test' },
         session: { id: 's' },
         capabilities: [],
         agents: [],
@@ -140,7 +140,7 @@ describe('reconstruct', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
       schema: 'agent-trace',
-      host: { id: 'test' },
+      agent: { id: 'test' },
       session: { id: 's', systemPrompt: 'main prompt' },
       capabilities: ['systemPrompt'],
       agents: [
@@ -177,7 +177,7 @@ describe('reconstruct', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
       schema: 'agent-trace',
-      host: { id: 'test' },
+      agent: { id: 'test' },
       session: { id: 's' },
       capabilities: [],
       agents: [{ id: 'main' }],
@@ -218,7 +218,7 @@ describe('reconstruct', () => {
     })
     const trace: Trace = {
       schema: 'agent-trace',
-      host: { id: 'test' },
+      agent: { id: 'test' },
       // Session fields hold the latest snapshot; they must not leak to earlier events.
       session: { id: 's', systemPrompt: 'two', tools: [{ name: 'b' }] },
       capabilities: ['systemPrompt', 'toolSchemas'],

@@ -3,14 +3,14 @@ import type { Transcript } from '@rivus/agent-kit/transcript'
 
 /**
  * Maps a kit `Transcript` onto the repo's canonical `Trace`: the kit's `Transcript` is what
- * reading produces, `Trace` is the repo-internal model (schema head, `host` block,
+ * reading produces, `Trace` is the repo-internal model (schema head, `agent` block,
  * flattened `skipped`). Event kinds, capabilities, and payload names are the kit's since
  * the schema adopted them.
  */
 export function transcriptToTrace(transcript: Transcript): Trace {
   return {
     schema: 'agent-trace',
-    host: {
+    agent: {
       id: transcript.agent,
       ...(transcript.agentVersion !== undefined ? { version: transcript.agentVersion } : {}),
     },

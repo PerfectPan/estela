@@ -8,7 +8,7 @@ import { prepareRun, repo } from '../prepare-run.ts'
 export interface E2eContext extends Run {
   repo: string
   homes: {
-    /** All three hosts plus the browser suite's extra sessions. */
+    /** All three agents plus the browser suite's extra sessions. */
     main: FixtureHome
     /** The same without `~/.codex` (S3). */
     noCodex: FixtureHome

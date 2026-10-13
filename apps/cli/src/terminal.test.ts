@@ -81,7 +81,7 @@ describe('sayReady', () => {
 })
 
 describe('startSessionIndex', () => {
-  it('prints one line per host when it is done, when stdout is not a TTY', () => {
+  it('prints one line per agent when it is done, when stdout is not a TTY', () => {
     const chunks: string[] = []
     stdout.isTTY = false
     delete process.env.NO_COLOR

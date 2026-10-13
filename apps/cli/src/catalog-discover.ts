@@ -1,11 +1,10 @@
-import type { SessionRef } from '@rivus/agent-trace-kernel'
 import {
   isSessionHead,
   sessionAdapterHome,
   type SessionAdapter,
   type SessionHead,
   type SessionListError,
-  type SessionRef as KitSessionRef,
+  type SessionRef,
 } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 import { errorRow, rowFromHead, type CatalogPlatform, type LiveRow } from './catalog-rows.ts'
@@ -14,7 +13,7 @@ import { errorMessage, listError } from './read-failure.ts'
 /** Parallel `stat` calls while building rows. */
 const STAT_BATCH = 64
 
-export interface HostState {
+export interface AgentState {
   adapter: SessionAdapter
   /** Files whose head and tail were read. */
   read: number
@@ -25,21 +24,21 @@ export interface HostState {
   missing: string[]
 }
 
-export interface HostProgress {
+export interface AgentProgress {
   name: string
   read: number
-  /** Known once the host has listed its files. */
+  /** Known once the agent's roots have been listed. */
   total?: number
   done: boolean
   /** Set when no root exists: the paths that were checked, with `~`. */
   checked?: string
 }
 
-export function hostState(adapter: SessionAdapter): HostState {
+export function agentState(adapter: SessionAdapter): AgentState {
   return { adapter, read: 0, done: false, found: [], missing: [] }
 }
 
-export function progressOf(states: readonly HostState[], homeDir: string): HostProgress[] {
+export function progressOf(states: readonly AgentState[], homeDir: string): AgentProgress[] {
   return states.map(state => {
     const checked =
       state.done && state.found.length === 0
@@ -55,18 +54,13 @@ export function progressOf(states: readonly HostState[], homeDir: string): HostP
   })
 }
 
-/** The kit ref of a head or failure, in the row/target shape (`ref.agent` reads as `host`). */
-function kitRef(ref: KitSessionRef): SessionRef {
-  return { host: ref.agent, path: ref.path, ...(ref.sessionId ? { sessionId: ref.sessionId } : {}) }
-}
-
 /**
- * One `discover` pass over every host: roots → head/tail reads → rows keyed by ref.
- * Hosts run side by side; each adapter's own `discover` stays sequential.
- * A missing root is recorded on the host (S3). An unreadable file becomes an error row (S4).
+ * One `discover` pass over every agent: roots → head/tail reads → rows keyed by ref.
+ * Agents run side by side; each adapter's own `discover` stays sequential.
+ * A missing root is recorded on the agent (S3). An unreadable file becomes an error row (S4).
  */
 export async function discoverRows(
-  states: readonly HostState[],
+  states: readonly AgentState[],
   platform: CatalogPlatform,
   report: () => void,
 ): Promise<Map<string, LiveRow>> {
@@ -105,7 +99,7 @@ export async function discoverRows(
             if (item.error._tag !== 'ReadFailed') {
               continue
             }
-            const target = kitRef(item.ref)
+            const target = item.ref
             // A directory failure keeps its error row but is not a file read: `read` counts
             // head-and-tail reads, and `total` lists files, so counting dirs shows 12/11.
             const probed = await platform.fs.stat(target.path, { followSymlinks: true })
@@ -121,7 +115,7 @@ export async function discoverRows(
           }
         } catch (error) {
           failed.push({
-            target: { host: state.adapter.agent, path: root },
+            target: { agent: state.adapter.agent, path: root },
             error: { _tag: 'ReadFailed', path: root, message: errorMessage(error) },
           })
         }
@@ -136,7 +130,7 @@ export async function discoverRows(
         const infos = await Promise.all(batch.map(head => platform.fs.stat(head.ref.path, { followSymlinks: true })))
         batch.forEach((head, index) => {
           const info = infos[index]
-          const target = kitRef(head.ref)
+          const target = head.ref
           if (info !== undefined && info.kind === 'file') {
             add(
               rowFromHead(

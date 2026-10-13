@@ -137,10 +137,10 @@ describe('session catalog cache', () => {
     third.close()
   })
 
-  it('does not serve a summary cached by the host implementations, and recomputes it', async () => {
+  it('does not serve a summary cached by the former host-* readers, and recomputes it', async () => {
     const home = await tempHome()
     await session(home, 'a.jsonl', 'Alpha')
-    // A host-era cache: the production cache path, written at summary version 1.
+    // A cache from the former `host-*` readers: the production cache path, written at summary version 1.
     const cache = join(home, 'cache')
     const eraFile = join(cache, 'rivus-agent-trace/index.sqlite')
     await mkdir(dirname(eraFile), { recursive: true })

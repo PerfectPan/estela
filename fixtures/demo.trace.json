@@ -1,6 +1,6 @@
 {
   "schema": "agent-trace",
-  "host": { "id": "demo" },
+  "agent": { "id": "demo" },
   "session": {
     "id": "demo-compaction",
     "title": "Fix auth, then compact"

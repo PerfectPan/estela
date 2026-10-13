@@ -20,7 +20,7 @@ const PENDING_POLL_MS = 3_000
 export function SessionBrowser() {
   const store = createSessionStore()
   const [input, setInput] = createSignal('')
-  const [host, setHost] = createSignal<string>()
+  const [agent, setAgent] = createSignal<string>()
   const [project, setProject] = createSignal<string>()
   const [flags, setFlags] = createSignal<Flags>({ compaction: false, subagents: false, failed: false })
   const [selected, setSelected] = createSignal<string>()
@@ -29,7 +29,7 @@ export function SessionBrowser() {
   let listElement: HTMLDivElement | undefined
   let searchTimer: ReturnType<typeof setTimeout> | undefined
 
-  // Host, project, and flag filters are client-side over rows; search is the server's index (3.4, 3.6).
+  // Agent, project, and flag filters are client-side over rows; search is the server's index (3.4, 3.6).
   const visible = createMemo((): SessionListRow[] => {
     const matches = store.matches()
     const f = flags()
@@ -38,7 +38,7 @@ export function SessionBrowser() {
       .filter(
         row =>
           (!matches || matches.has(row.ref))
-          && (!host() || row.host === host())
+          && (!agent() || row.agent === agent())
           && (!project() || row.project === project())
           && (!f.compaction || (row.compactions ?? 0) > 0)
           && (!f.subagents || (row.subagents ?? 0) > 0)
@@ -71,7 +71,7 @@ export function SessionBrowser() {
 
   createEffect(
     on(
-      () => [host(), project(), flags(), store.matches(), store.loaded()],
+      () => [agent(), project(), flags(), store.matches(), store.loaded()],
       () => {
         store.prioritize(pendingOnScreen())
       },
@@ -155,12 +155,12 @@ export function SessionBrowser() {
       <TopBar onJump={() => searchBox?.focus()} />
       <div class="flex min-h-0 flex-1">
         <Rail
-          hosts={store.hosts()}
+          agents={store.agents()}
           rows={store.rows()}
-          host={host()}
+          agent={agent()}
           project={project()}
           flags={flags()}
-          onHost={setHost}
+          onAgent={setAgent}
           onProject={setProject}
           onFlag={(flag, value) => setFlags(previous => ({ ...previous, [flag]: value }))}
         />
@@ -223,7 +223,7 @@ export function SessionBrowser() {
             ref={element => {
               listElement = element
             }}
-            hosts={store.hosts()}
+            agents={store.agents()}
             rows={visible()}
             now={now()}
             selected={selected()}
@@ -251,7 +251,7 @@ export function SessionBrowser() {
             <span>· {t('common.nothingLeaves')}</span>
           </footer>
         </main>
-        <PreviewPane row={selectedRow()} hosts={store.hosts()} now={now()} onOpen={openRow} />
+        <PreviewPane row={selectedRow()} agents={store.agents()} now={now()} onOpen={openRow} />
       </div>
     </div>
   )

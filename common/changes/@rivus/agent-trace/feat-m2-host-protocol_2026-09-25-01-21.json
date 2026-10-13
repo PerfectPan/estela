@@ -2,7 +2,7 @@
   "changes": [
     {
       "packageName": "@rivus/agent-trace",
-      "comment": "Sessions from Claude Code, Codex, and Grok load through one host protocol, including request usage, compaction, subagents, and hooks.",
+      "comment": "Sessions from Claude Code, Codex, and Grok load through one adapter protocol, including request usage, compaction, subagents, and hooks.",
       "type": "minor"
     }
   ],

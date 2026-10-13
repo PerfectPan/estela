@@ -19,7 +19,7 @@ export const EVENT_KINDS = [
 export const eventKindSchema = z.enum(EVENT_KINDS)
 export type EventKind = z.infer<typeof eventKindSchema>
 
-/** Fields a host records. A number whose capability is absent is `undefined`, never 0. */
+/** Fields an agent records. A number whose capability is absent is `undefined`, never 0. */
 export const CAPABILITIES = [
   'requests',
   'usage',
@@ -46,7 +46,7 @@ export type SourcePointer = z.infer<typeof sourcePointerSchema>
 
 export const traceEventSchema = z.object({
   id: z.string(),
-  /** Order within the trace; ties in `ts` keep host order. */
+  /** Order within the trace; ties in `ts` keep the log's order. */
   seq: z.number(),
   ts: z.number(),
   kind: eventKindSchema,
@@ -73,7 +73,7 @@ export const requestPayloadSchema = z.object({
       inputTokens: z.optional(z.number()),
       /** gen_ai.usage.output_tokens */
       outputTokens: z.optional(z.number()),
-      /** Recorded total, when the host writes one; not input + output invented. */
+      /** Recorded total, when the agent writes one; not input + output invented. */
       totalTokens: z.optional(z.number()),
       /** gen_ai.usage.cache_read.input_tokens */
       cacheReadTokens: z.optional(z.number()),
@@ -130,7 +130,7 @@ export type ToolResultPayload = z.infer<typeof toolResultPayloadSchema>
 
 /**
  * A `system` event with `type: 'prompt_snapshot'`: the system prompt and tool
- * definitions the host recorded at that point on the event's lane. A later
+ * definitions the agent recorded at that point on the event's lane. A later
  * snapshot on the same lane replaces an earlier one; a field left out was not
  * recorded by that snapshot.
  */
@@ -153,7 +153,7 @@ export const agentInfoSchema = z.object({
   parentId: z.optional(z.string()),
   spawnEventId: z.optional(z.string()),
   title: z.optional(z.string()),
-  /** This agent's own system prompt, when the host records one per lane. */
+  /** This lane's own system prompt, when the agent records one per lane. */
   systemPrompt: z.optional(z.string()),
 })
 export type AgentInfo = z.infer<typeof agentInfoSchema>
@@ -199,11 +199,12 @@ export type ViewInfo = z.infer<typeof viewInfoSchema>
 
 /**
  * The canonical trace. Payloads stay loose records: their typed shapes above
- * describe what hosts write, but a trace is not rejected for payload content.
+ * describe what agents write, but a trace is not rejected for payload content.
  */
 export const traceSchema = z.object({
   schema: z.literal(TRACE_SCHEMA),
-  host: z.object({ id: z.string(), version: z.optional(z.string()) }),
+  /** The coding agent whose log this is, such as `claude-code`, and the version the log records. */
+  agent: z.object({ id: z.string(), version: z.optional(z.string()) }),
   session: traceSessionSchema,
   capabilities: z.array(capabilitySchema),
   agents: z.array(agentInfoSchema),
@@ -224,7 +225,7 @@ export interface ReconstructResult {
   /** Event ids still on the model-visible surface at `eventId`. */
   visibleIds: string[]
   /**
-   * Named slots that could not be recovered from this host's log
+   * Named slots that could not be recovered from this agent's log
    * (`system`, `tools`, `messages`, …).
    */
   unavailable: string[]
@@ -233,8 +234,8 @@ export interface ReconstructResult {
   /** Context composition at the event, in prompt order. */
   slots?: ContextSlot[]
   /**
-   * Token counts the host recorded, each covering one or more slots together.
-   * Never estimated from text length. Empty when the host recorded none.
+   * Token counts the agent recorded, each covering one or more slots together.
+   * Never estimated from text length. Empty when the agent recorded none.
    */
   tokens?: ContextTokens[]
   /** Events of the same agent that a compaction before `eventId` removed. */
@@ -247,7 +248,7 @@ export interface ContextSlot {
   name: ContextSlotName
   /**
    * `present`: recorded and non-empty. `empty`: recorded, nothing in it
-   * (no compaction yet, for example). `unavailable`: the host does not record it.
+   * (no compaction yet, for example). `unavailable`: the agent does not record it.
    */
   status: 'present' | 'empty' | 'unavailable'
   /** Visible events in this slot, in order. Empty for `system` and `tools`. */

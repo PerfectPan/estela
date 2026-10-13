@@ -73,10 +73,10 @@ html[data-theme="dark"] {
   --selection-ring: color-mix(in srgb, var(--kind-request) 55%, transparent);
   --ring: var(--selection-ring);
   --link: var(--kind-request);
-  /* Host marks. The Claude Code orange is the host's brand color from the design; it has no token. */
-  --host-claude-code: #d97757;
-  --host-codex: var(--foreground);
-  --host-grok: var(--muted-foreground);
+  /* Agent marks. The Claude Code orange is the agent's brand color from the design; it has no token. */
+  --agent-claude-code: #d97757;
+  --agent-codex: var(--foreground);
+  --agent-grok: var(--muted-foreground);
   /* "Unavailable" hatching and its edge, the muted thinking text, and the subagent "open lane" link (design mockup values). */
   --hatch: #3a434c;
   --hatch-edge: #4a545e;
@@ -108,7 +108,7 @@ html[data-theme="light"] {
   --selection: color-mix(in srgb, var(--kind-request) 8%, transparent);
   --selection-ring: color-mix(in srgb, var(--kind-request) 50%, transparent);
   /* Brand color, as in the light design. */
-  --host-claude-code: #c15f3c;
+  --agent-claude-code: #c15f3c;
   --hatch: #c9c6bf;
   --hatch-edge: #b4b1aa;
   --thinking-text: #4a5057;
@@ -160,7 +160,7 @@ body {
   contain-intrinsic-size: auto 52px;
 }
 
-/* A slot or segment the host does not record: hatched, never filled with an estimate. */
+/* A slot or segment the agent does not record: hatched, never filled with an estimate. */
 .hatched {
   --stripe-width: 3px;
   --hatch-ring: var(--hatch);

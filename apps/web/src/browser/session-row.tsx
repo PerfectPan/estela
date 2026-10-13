@@ -3,7 +3,7 @@ import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatActive, formatDuration, formatNumber, formatOptional, formatTokens } from '@/lib/format.ts'
 import { FlagIcons } from '@/browser/flag-icons.tsx'
-import { HostMark } from '@/browser/host-mark.tsx'
+import { AgentMark } from '@/browser/agent-mark.tsx'
 import { COLUMNS, optionId } from '@/browser/session-list-layout.ts'
 import { SessionCell } from '@/browser/session-cell.tsx'
 
@@ -21,7 +21,7 @@ function errorTitle(row: SessionListRow): string {
 
 export function SessionRow(props: {
   row: SessionListRow
-  hostName: string
+  agentName: string
   now: number
   selected: boolean
   onSelect: (ref: string) => void
@@ -43,13 +43,13 @@ export function SessionRow(props: {
       role="option"
       aria-selected={props.selected}
       data-ref={props.row.ref}
-      data-host={props.row.host}
+      data-agent={props.row.agent}
       title={props.row.error ? errorTitle(props.row) : undefined}
       class={`session-row flex h-[52px] cursor-default items-center gap-3.5 border-b border-border px-[18px] ${props.selected ? 'bg-selection shadow-[inset_0_0_0_1px_var(--selection-ring)]' : 'hover:bg-accent'}`}
       onClick={() => props.onSelect(props.row.ref)}
       onDblClick={() => props.onOpen(props.row.ref)}
     >
-      <HostMark id={props.row.host} />
+      <AgentMark id={props.row.agent} />
       <div class="flex min-w-0 flex-1 flex-col gap-[3px]">
         <span
           class={`truncate text-[14px] ${props.row.error && !props.row.title ? 'text-muted-foreground' : 'text-foreground'}`}
@@ -57,7 +57,7 @@ export function SessionRow(props: {
           {title()}
         </span>
         <span class="truncate text-[12px] text-subtle">
-          {props.hostName}
+          {props.agentName}
           <Show when={subtitle()}>
             {text => (
               <>

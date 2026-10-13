@@ -280,7 +280,7 @@ while (events.length < target) {
 
 const trace = {
   schema: 'agent-trace',
-  host: { id: 'claude-code' },
+  agent: { id: 'claude-code' },
   session: {
     id: `generated-${values.seed}`,
     title: 'Fix flaky auth refresh test',

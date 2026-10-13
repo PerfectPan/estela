@@ -1,4 +1,4 @@
-import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
 import type { JSX } from 'solid-js'
 import { createMemo, For, Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
@@ -30,7 +30,7 @@ function groupRows(rows: readonly SessionListRow[], now: number): Groups {
 }
 
 export function SessionList(props: {
-  hosts: HostListEntry[]
+  agents: AgentListEntry[]
   rows: SessionListRow[]
   now: number
   selected?: string
@@ -40,7 +40,7 @@ export function SessionList(props: {
   onKeyDown: JSX.EventHandler<HTMLDivElement, KeyboardEvent>
   ref?: (element: HTMLDivElement) => void
 }) {
-  const names = createMemo(() => new Map(props.hosts.map(host => [host.id, host.displayName])))
+  const names = createMemo(() => new Map(props.agents.map(agent => [agent.id, agent.displayName])))
   // Groups are keyed by day (strings), and rows keep their objects, so a push that changes a
   // few rows re-renders only those rows.
   const groups = createMemo(() => groupRows(props.rows, props.now))
@@ -98,7 +98,7 @@ export function SessionList(props: {
                   {row => (
                     <SessionRow
                       row={row}
-                      hostName={names().get(row.host) ?? row.host}
+                      agentName={names().get(row.agent) ?? row.agent}
                       now={props.now}
                       selected={props.selected === row.ref}
                       onSelect={props.onSelect}

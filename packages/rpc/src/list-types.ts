@@ -9,11 +9,11 @@ export interface ListSessionsQuery {
   first?: string[]
 }
 
-export interface HostListEntry {
+export interface AgentListEntry {
   id: string
   displayName: string
   count: number
-  /** Set when the host has no sessions: the root that was checked, with `~` for the home directory. */
+  /** Set when the agent has no sessions: the root that was checked, with `~` for the home directory. */
   checked?: string
 }
 
@@ -25,16 +25,16 @@ export interface SessionError {
 }
 
 /**
- * Head fields, then summary numbers. A number is `undefined` until a summary exists or when the host
+ * Head fields, then summary numbers. A number is `undefined` until a summary exists or when the agent
  * does not record it. `contextShape` is sent as `shape`: the same points scaled to 0–100 of the
  * session's largest request, which is all the preview draws and a third of the bytes.
  */
 export interface SessionListRow extends Omit<SessionSummary, 'contextShape'> {
   /** Input tokens per request, scaled to 0–100 (integers). */
   shape?: number[]
-  /** Opaque id (hash of host and path). The server maps it back to a file. */
+  /** Opaque id (hash of agent and path). The server maps it back to a file. */
   ref: string
-  host: string
+  agent: string
   title?: string
   project?: string
   /** Working directory with `~` for the home directory. */
@@ -50,7 +50,7 @@ export interface SessionListRow extends Omit<SessionSummary, 'contextShape'> {
 }
 
 export interface ListSessionsResult {
-  hosts: HostListEntry[]
+  agents: AgentListEntry[]
   /** Every row without `since`; otherwise only rows changed after `since`. */
   rows: SessionListRow[]
   /** `rows` is the full list, so the client replaces instead of merging. */
