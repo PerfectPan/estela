@@ -13,8 +13,11 @@ const dumpManifest = z.object({
     z.object({ records: z.optional(z.record(z.string(), z.string())), fallback: z.optional(z.string()) }),
   ),
 })
-/** One baked call: the handler's output, embedded in the report as it is, or the error it threw. */
-const dumpRecord = z.object({ output: z.unknown(), error: z.optional(z.object({ message: z.optional(z.string()) })) })
+/** One baked call: the error the handler threw, or its output (any JSON value), embedded in the report as it is. */
+const dumpRecord = z.union([
+  z.object({ error: z.object({ message: z.optional(z.string()) }) }),
+  z.object({ output: z.nonoptional(z.unknown()) }),
+])
 
 /** The output DevFrame baked for `report-trace`: its fallback record, else its only record. */
 async function bakedReport(outDir: string): Promise<unknown> {
@@ -28,7 +31,8 @@ async function bakedReport(outDir: string): Promise<unknown> {
   if (!record.success) {
     throw new Error(`the static dump's ${METHOD} record is not an output or an error`)
   }
-  if (record.data.error) {
+  // Known-union narrowing: the parsed record is one of the two members above.
+  if ('error' in record.data) {
     throw new Error(`${METHOD} failed while baking: ${record.data.error.message ?? 'unknown error'}`)
   }
   return record.data.output
