@@ -1,10 +1,9 @@
-import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
-import { defineConfig } from 'vite'
 import solid from 'vite-plugin-solid'
+import { defineConfig } from 'vite-plus'
 
-const clientRoot = dirname(fileURLToPath(import.meta.url))
+const clientRoot = fileURLToPath(new URL('src', import.meta.url))
 
 export default defineConfig({
   base: './',
@@ -16,12 +15,18 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: join(clientRoot, '../dist'),
+    outDir: fileURLToPath(new URL('dist', import.meta.url)),
     emptyOutDir: true,
     rolldownOptions: {
       // One script: the report inlines it into `index.html`, and a page opened from `file://` cannot
       // load a split chunk (DevFrame's client imports its browser-agent bridge lazily).
       output: { codeSplitting: false },
     },
+  },
+  test: {
+    // vite-plugin-solid would pick jsdom; the tests exercise plain modules.
+    environment: 'node',
+    // Relative to `root`, which is `src`.
+    include: ['**/*.test.ts'],
   },
 })

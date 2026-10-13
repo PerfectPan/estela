@@ -1,5 +1,5 @@
 import type { Trace } from '@rivus/agent-trace-schema'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { fitView, toView } from './view.ts'
 
 function traceOf(payload: Record<string, unknown>, session: Trace['session'] = { id: 's' }): Trace {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { en } from './dictionary.en.ts'
 import { zhCN } from './dictionary.zh-CN.ts'
 

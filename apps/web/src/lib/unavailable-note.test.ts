@@ -1,5 +1,5 @@
 import type { ContextSlot } from '@rivus/agent-trace-schema'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { applyLocale } from '@/i18n/locale.ts'
 import { unavailableNote } from './unavailable-note.ts'
 

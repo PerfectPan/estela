@@ -3,7 +3,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 const cliDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const compaction = join(cliDir, '../../fixtures/sessions/claude-code/conformance/compaction/session.jsonl')

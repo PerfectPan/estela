@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { isTrace } from '@rivus/agent-trace-schema'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { reconstruct } from './reconstruct.ts'
 
 const fixturePath = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/demo.trace.json')

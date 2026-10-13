@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, inject, it } from 'vitest'
+import { describe, expect, inject, it } from 'vite-plus/test'
 import { openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
 
 const ctx = inject('smoke')

@@ -10,7 +10,7 @@ import {
   type ConformanceSession,
   type SessionAdapterFixtures,
 } from '@rivus/agent-kit/testing'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vite-plus/test'
 import { loadSession } from './session.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))

@@ -1,5 +1,5 @@
 import type { ReportInput } from './report.ts'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
 import { buildReport } from './report.ts'
 

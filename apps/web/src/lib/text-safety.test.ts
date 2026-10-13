@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { escapeBidi, previewText } from './preview.ts'
 import { cutAt, textChunks } from './text-chunks.ts'
 

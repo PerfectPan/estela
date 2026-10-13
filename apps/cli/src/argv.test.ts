@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { parseCommand, wantsUsage } from './argv.ts'
 
 function parse(...args: string[]) {

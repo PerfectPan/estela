@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { createEventCache, rawFetchKey } from './event-cache.ts'
 
 describe('inspector event cache', () => {

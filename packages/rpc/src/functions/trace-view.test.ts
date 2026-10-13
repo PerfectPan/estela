@@ -2,7 +2,7 @@ import type { Trace } from '@rivus/agent-trace-schema'
 import type { StreamSink } from 'devframe/utils/streaming-channel'
 import type { LoadProgress } from '../trace-store.ts'
 import { createStreamSink } from 'devframe/utils/streaming-channel'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { TraceStore } from '../trace-store.ts'
 import {
   bindTraceStore,
