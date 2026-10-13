@@ -272,14 +272,18 @@ export const traceSessionSchema = z.object({
 })
 export type TraceSession = z.infer<typeof traceSessionSchema>
 
-export const skippedRecordSchema = z.object({
+/**
+ * One entry of `Trace.skipped`: a log record that became no event, named by file and line. The kit's `SkippedRecord`
+ * carries a whole source pointer instead; a view trace merges the entries of one file and reason into one.
+ */
+export const skippedEntrySchema = z.object({
   line: z.number(),
   file: z.string(),
   reason: z.string(),
   /** View traces only: records merged into this entry (same file and reason); `line` is the first. */
   count: z.optional(z.number()),
 })
-export type SkippedRecord = z.infer<typeof skippedRecordSchema>
+export type SkippedEntry = z.infer<typeof skippedEntrySchema>
 
 export const viewInfoSchema = z.object({
   /** String cap used: 4,096 unless the view would exceed `budgetBytes`. */
@@ -300,7 +304,7 @@ export interface Trace {
   capabilities: Capability[]
   agents: Lane[]
   events: TraceEvent[]
-  skipped: SkippedRecord[]
+  skipped: SkippedEntry[]
   /**
    * View traces only (`toView`): the distinct source files. Each view event's
    * `source.file` is then its index in this list, as a decimal string.
@@ -321,7 +325,7 @@ export const traceSchema = z.object({
   capabilities: z.array(capabilitySchema),
   agents: z.array(laneSchema),
   events: z.array(traceEventSchema),
-  skipped: z.array(skippedRecordSchema),
+  skipped: z.array(skippedEntrySchema),
   sourceFiles: z.optional(z.array(z.string())),
   view: z.optional(viewInfoSchema),
 }) satisfies z.ZodMiniType<Trace, Trace>

@@ -1,5 +1,5 @@
 import type { Lane } from '@rivus/agent-kit/transcript'
-import type { SkippedRecord, Trace, TraceEvent, TruncatedPath, ViewInfo } from '@rivus/agent-trace-schema'
+import type { SkippedEntry, Trace, TraceEvent, TruncatedPath, ViewInfo } from '@rivus/agent-trace-schema'
 import { assertTrace } from '@rivus/agent-trace-schema'
 import { isPlainObject } from 'es-toolkit/predicate'
 import { promptSnapshot } from './prompt-snapshot.ts'
@@ -143,8 +143,8 @@ function capEvent(event: TraceEvent, max: number, fileIndex: (file: string) => s
 }
 
 /** One entry per file and reason, with the first line and a count. */
-function groupSkipped(skipped: readonly SkippedRecord[], max: number): SkippedRecord[] {
-  const groups = new Map<string, SkippedRecord>()
+function groupSkipped(skipped: readonly SkippedEntry[], max: number): SkippedEntry[] {
+  const groups = new Map<string, SkippedEntry>()
   for (const entry of skipped) {
     const key = `${entry.file}\0${entry.reason}`
     const group = groups.get(key)

@@ -16,7 +16,7 @@ export {
   type PromptSnapshotPayload,
   type ReconstructResult,
   type RequestPayload,
-  type SkippedRecord,
+  type SkippedEntry,
   type SourcePointer,
   type ToolCallPayload,
   type ToolResultPayload,
