@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** `true` in `dist/cli.mjs` (rslib `source.define`); undeclared when Node runs `src/` directly. */
+/** `true` in `dist/cli.mjs` (`define` in the pack config); undeclared when Node runs `src/` directly. */
 declare const AGENT_TRACE_BUNDLE: true
 
 const bundled = typeof AGENT_TRACE_BUNDLE !== 'undefined'

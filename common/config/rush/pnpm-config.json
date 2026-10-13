@@ -303,6 +303,11 @@
   "globalOverrides": {
     // "example1": "^1.0.0",
     // "example2": "npm:@company/example2@^1.0.0"
+    //
+    // Vite+ supplies Vite: every `vite` in the graph (the web plugins' peer included) resolves to the core that
+    // vite-plus ships. The pinned version must equal the projects' `vite-plus` version; a lone vite-plus bump
+    // leaves this override on the old core.
+    "vite@*": "npm:@voidzero-dev/vite-plus-core@1.1.0"
   },
 
   /**
@@ -321,6 +326,10 @@
     // "ignoreMissing": ["@eslint/*"],
     // "allowedVersions": { "react": "17" },
     // "allowAny": ["@babel/*"]
+    //
+    // The vitest inside vite-plus and the web plugins peer on a real `vite` range, which the core's version
+    // (see globalOverrides) does not satisfy.
+    "allowAny": ["vite"]
   },
 
   /**

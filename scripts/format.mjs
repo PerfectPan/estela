@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Formats the repository's JS and TS code with oxfmt and the root .oxfmtrc.json.
-// oxfmt is owned by apps/cli, like @rslib/core for check-browser-bundle.mjs. This script resolves it from that package.
+// Formats the repository's JS and TS code with `vp fmt` and the `fmt` block of the root vite.config.ts.
+// vite-plus is resolved from apps/cli, like the other root scripts that need a Rush-installed tool.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -12,13 +12,13 @@ const HELP = `Usage:
   node scripts/format.mjs [--check] [--help]
 
 Formats the JS and TS files (.js .jsx .mjs .cjs .ts .tsx .mts .cts) that git
-tracks or would track under apps/, packages/, and scripts/, with oxfmt and the
-root .oxfmtrc.json. Fixtures are skipped; Markdown, JSON, HTML, CSS, and
-common/ are not formatted.
+tracks or would track under apps/, packages/, and scripts/, plus the root
+vite.config.ts, with "vp fmt" and the fmt block of the root vite.config.ts.
+Fixtures are skipped; Markdown, JSON, HTML, CSS, and common/ are not formatted.
 
   --check  Write nothing. Exit 1 when a file is not formatted.
 
-oxfmt comes from apps/cli's devDependencies; run
+vite-plus comes from apps/cli's devDependencies; run
 "node common/scripts/install-run-rush.js install" first.
 `
 
@@ -38,11 +38,11 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const CODE = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/
 const FIXTURES = /(?:^|\/)fixtures\//
 
-const listed = execFileSync(
-  'git',
-  ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', 'apps', 'packages', 'scripts'],
-  { cwd: root, encoding: 'utf8' },
-)
+const SCOPE = ['apps', 'packages', 'scripts', 'vite.config.ts']
+const listed = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...SCOPE], {
+  cwd: root,
+  encoding: 'utf8',
+})
 const files = [...new Set(listed.split('\0'))]
   .filter(path => CODE.test(path) && !FIXTURES.test(path) && existsSync(join(root, path)))
   .toSorted((a, b) => a.localeCompare(b))
@@ -50,13 +50,13 @@ const files = [...new Set(listed.split('\0'))]
 let bin
 try {
   const require = createRequire(join(root, 'apps/cli/package.json'))
-  bin = join(dirname(require.resolve('oxfmt/package.json')), 'bin/oxfmt')
+  bin = join(dirname(require.resolve('vite-plus/package.json')), 'bin/vp')
 } catch {
-  process.stderr.write('format: oxfmt is not installed. Run "node common/scripts/install-run-rush.js install".\n')
+  process.stderr.write('format: vite-plus is not installed. Run "node common/scripts/install-run-rush.js install".\n')
   process.exit(1)
 }
 
-const result = spawnSync(process.execPath, [bin, '-c', '.oxfmtrc.json', check ? '--check' : '--write', ...files], {
+const result = spawnSync(process.execPath, [bin, 'fmt', check ? '--check' : '--write', ...files], {
   cwd: root,
   stdio: 'inherit',
 })

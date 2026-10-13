@@ -5,7 +5,7 @@ import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { createMemoryPlatform } from '@rivus/agent-kit/testing'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { summarizeRow } from './catalog-rows.ts'
 
 // A Claude Code session whose turns are one 40 KB prompt, one request and one turn duration:

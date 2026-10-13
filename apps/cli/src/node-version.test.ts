@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { unsupportedNodeMessage } from './node-version.mjs'
 
 const message = 'agent-trace requires Node.js 24 or later.'

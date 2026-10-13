@@ -1,4 +1,4 @@
-import type { TestProject } from 'vitest/node'
+import type { TestProject } from 'vite-plus/test/node'
 import type { FixtureHome } from './fixture-home.ts'
 import type { Run } from './prepare-run.ts'
 import { mkdir } from 'node:fs/promises'
@@ -12,7 +12,7 @@ export interface SmokeContext extends Run, FixtureHome {
   cache: string
 }
 
-declare module 'vitest' {
+declare module 'vite-plus/test' {
   export interface ProvidedContext {
     smoke: SmokeContext
   }

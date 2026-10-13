@@ -1,5 +1,5 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { downsample, fold } from './fold.ts'
 
 const source = { file: 'fixture.json', offset: 0, length: 1, line: 1 }

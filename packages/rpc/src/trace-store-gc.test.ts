@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { fixture, storeOf } from '../testing/store-fixture.ts'
 
-// Needs `--expose-gc`; `vitest.config.ts` passes it to the test workers.
+// Needs `--expose-gc`; `vite.config.ts` passes it to the test workers.
 const gc = (globalThis as { gc?: () => void }).gc
 
 async function collect(): Promise<void> {

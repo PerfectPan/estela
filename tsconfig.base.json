@@ -1,7 +1,7 @@
 {
   // A relative path, not the package name: TypeScript resolves `extends` from
   // this file's folder, and Rush installs no root node_modules. See the note in
-  // .oxlintrc.json for why packages/schema.
+  // the root vite.config.ts for why packages/schema.
   "extends": "./packages/schema/node_modules/@perfectpan/lint-config/tsconfig/bundler.json",
   "compilerOptions": {
     "target": "ESNext",

@@ -1,16 +1,10 @@
-import type { Rspack } from '@rslib/core'
+import type { Rolldown } from 'vite-plus/pack'
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
-import { dirname, join, resolve, sep } from 'node:path'
+import { dirname, join, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-/** Web build tools whose own code lands in `apps/web/dist` (CSS layers, the preload helper). */
-const WEB_BUILD_TOOLS = ['tailwindcss', 'tw-animate-css', 'vite']
-/**
- * Dependencies of those tools that also put code there, resolved from the tool. Vite 8's bundler adds its runtime
- * helpers; the lazy-init helper among them is esbuild's `__esmMin`, whose MIT notice rolldown keeps in
- * THIRD-PARTY-LICENSE next to Rollup's, so that file is listed too.
- */
-const WEB_BUILD_TOOL_DEPS = [{ tool: 'vite', name: 'rolldown', extraFiles: ['THIRD-PARTY-LICENSE'] }]
-const EXTRA_LICENSE_FILES = new Map(WEB_BUILD_TOOL_DEPS.map(dep => [dep.name, dep.extraFiles]))
+/** Web build tools whose own code lands in `apps/web/dist` (CSS layers). */
+const WEB_BUILD_TOOLS = ['tailwindcss', 'tw-animate-css']
 const LICENSE_FILE = /^(?:licen[cs]e|copying|notice)(?:[.-].*)?$/i
 const NODE_MODULES = `${sep}node_modules${sep}`
 
@@ -27,11 +21,12 @@ function readManifest(dir: string): {
   license?: unknown
   dependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
+  bundledVersions?: Record<string, string>
 } {
   return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
 }
 
-/** Vite's LICENSE.md appends the licenses of its own bundled build-time dependencies; none ship here. */
+/** Vite's and Vite+'s licenses append those of their own bundled build-time dependencies; none ship here. */
 function ownLicense(text: string): string {
   const bundled = text.search(/^#+ Licenses of bundled dependencies/m)
   return (bundled === -1 ? text : text.slice(0, bundled)).trim()
@@ -39,9 +34,8 @@ function ownLicense(text: string): string {
 
 function noticeOf(dir: string): PackageNotice {
   const manifest = readManifest(dir)
-  const extra = EXTRA_LICENSE_FILES.get(manifest.name ?? '') ?? []
   const texts = readdirSync(dir)
-    .filter(name => LICENSE_FILE.test(name) || extra.includes(name))
+    .filter(name => LICENSE_FILE.test(name))
     .toSorted()
     .map(name => ownLicense(readFileSync(join(dir, name), 'utf8')))
   return {
@@ -52,7 +46,32 @@ function noticeOf(dir: string): PackageNotice {
   }
 }
 
-/** Package root of a file under `node_modules`, or undefined for workspace sources. */
+/**
+ * The notice of a package that `coreDir` bundles, from the core's LICENSE. Each bundled package there is one section,
+ * between dashed rules: `## <name>`, then `License:` and other header lines, then its license text quoted with `> `.
+ * Throws when the section or version is missing, so a change in that format fails the build instead of dropping
+ * the notice.
+ */
+function bundledNoticeOf(coreDir: string, name: string): PackageNotice {
+  const core = readManifest(coreDir)
+  const version = core.bundledVersions?.[name]
+  const section = readFileSync(join(coreDir, 'LICENSE'), 'utf8')
+    .split(/^-{10,}$/m)
+    .map(part => part.trim())
+    .find(part => part.startsWith(`## ${name}\n`))
+  if (version === undefined || section === undefined) {
+    throw new Error(`third-party-notices: ${core.name ?? coreDir} records no bundled ${name}`)
+  }
+  const lines = section.split('\n')
+  const license = lines.find(line => line.startsWith('License: '))?.slice('License: '.length) ?? 'see package'
+  const text = lines
+    .filter(line => line.startsWith('>'))
+    .map(line => line.replace(/^> ?/, ''))
+    .join('\n')
+  return { name, version, license, texts: [ownLicense(text)] }
+}
+
+/** Package root of a file under `node_modules`, or undefined for workspace sources and external imports. */
 function packageRootOf(file: string): string | undefined {
   const at = file.lastIndexOf(NODE_MODULES)
   if (at === -1) {
@@ -76,8 +95,43 @@ function findPackage(name: string, dir: string): string | undefined {
   }
 }
 
-/** Every package reachable through `dependencies` from `root`, plus the listed build tools and their listed dependencies. */
-function webPackages(root: string): string[] {
+/** vite-plus-core, which bundles Vite and Rolldown: the `vite` dependency of the vite-plus that `root` resolves. */
+function vitePlusCoreOf(root: string): string {
+  const vitePlus = findPackage('vite-plus', root)
+  const core = vitePlus === undefined ? undefined : findPackage('vite', vitePlus)
+  if (core === undefined) {
+    throw new Error(`third-party-notices: no vite-plus core resolves from ${root}`)
+  }
+  return core
+}
+
+/**
+ * Rolldown's notice as `core`'s LICENSE records it, followed by Rolldown's THIRD-PARTY-LICENSE: the MIT notices of
+ * Rollup and esbuild, from which the runtime helpers Rolldown writes into its output derive (esbuild's `__esmMin`
+ * lazy-init helper among them). vite-plus-core's LICENSE records only Rolldown's own license, so the web app has
+ * `rolldown` as a devDependency for that file alone. Its version must equal the Rolldown that `core` bundles; anything
+ * else throws, so a vite-plus upgrade fails the build until that devDependency follows instead of shipping another
+ * release's notices.
+ */
+function rolldownNotice(core: string, webRoot: string): PackageNotice {
+  const notice = bundledNoticeOf(core, 'rolldown')
+  const pkg = findPackage('rolldown', webRoot)
+  const installed = pkg === undefined ? undefined : readManifest(pkg).version
+  if (pkg === undefined || installed !== notice.version) {
+    throw new Error(
+      `third-party-notices: vite-plus-core bundles rolldown ${notice.version}, but ${webRoot} resolves rolldown ${installed ?? '(not installed)'}; set its rolldown devDependency to exactly ${notice.version}`,
+    )
+  }
+  return { ...notice, texts: [...notice.texts, readFileSync(join(pkg, 'THIRD-PARTY-LICENSE'), 'utf8').trim()] }
+}
+
+/**
+ * Every package reachable through `dependencies` from `root`, plus the listed build tools, plus vite-plus-core and the
+ * Vite and Rolldown it bundles. The web app builds with vite-plus, whose `vite` dependency is vite-plus-core; Vite
+ * adds the preload helper to `apps/web/dist` and Rolldown its runtime helpers, so both are listed with the version
+ * and license text that vite-plus-core's LICENSE records for them.
+ */
+function webNotices(root: string): PackageNotice[] {
   const found = new Set<string>()
   const visit = (dir: string) => {
     const manifest = readManifest(dir)
@@ -97,14 +151,9 @@ function webPackages(root: string): string[] {
       found.add(pkg)
     }
   }
-  for (const { tool, name } of WEB_BUILD_TOOL_DEPS) {
-    const toolPkg = findPackage(tool, root)
-    const pkg = toolPkg === undefined ? undefined : findPackage(name, toolPkg)
-    if (pkg) {
-      found.add(pkg)
-    }
-  }
-  return [...found]
+  const core = vitePlusCoreOf(root)
+  found.add(core)
+  return [...[...found].map(noticeOf), bundledNoticeOf(core, 'vite'), rolldownNotice(core, root)]
 }
 
 function render(title: string, notices: PackageNotice[]): string {
@@ -121,10 +170,9 @@ function render(title: string, notices: PackageNotice[]): string {
   return lines.join('\n')
 }
 
-function sorted(dirs: Iterable<string>): PackageNotice[] {
+function sorted(notices: Iterable<PackageNotice>): PackageNotice[] {
   const byId = new Map<string, PackageNotice>()
-  for (const dir of dirs) {
-    const notice = noticeOf(dir)
+  for (const notice of notices) {
     // Workspace packages are this repository's own GPL code; @rivus/agent-kit is an external MIT package.
     if (!notice.name.startsWith('@rivus/agent-trace')) {
       byId.set(`${notice.name}@${notice.version}`, notice)
@@ -134,52 +182,44 @@ function sorted(dirs: Iterable<string>): PackageNotice[] {
 }
 
 /**
- * Writes `THIRD-PARTY-NOTICES.txt` next to `cli.mjs`: the license texts of the npm packages
- * bundled into `cli.mjs` (every file the compilation read under `node_modules`), then those of
- * the web build (the web app's `dependencies`, transitively, plus the tools in WEB_BUILD_TOOLS),
- * then `sourceNotices`, the notices for code adapted into the repository's own sources.
- * External runtime dependencies are installed with their own license files and are not listed.
+ * Emits `THIRD-PARTY-NOTICES.txt` next to `cli.mjs`: the license texts of the npm packages bundled into `cli.mjs`
+ * (every module of the bundle graph under `node_modules`, tree-shaken ones included) and of the Rolldown whose
+ * runtime helpers `cli.mjs` and `bin.mjs` carry, then those of the web build
+ * (the web app's `dependencies`, transitively, plus the tools in WEB_BUILD_TOOLS and those vite-plus-core bundles),
+ * then `sourceNotices`, the notices for code adapted into the repository's own sources. External runtime dependencies
+ * are installed with their own license files and are not listed. Both paths are absolute.
  */
-export class ThirdPartyNotices {
-  readonly options: { webPackage: string; sourceNotices: string }
-
-  constructor(options: { webPackage: string; sourceNotices: string }) {
-    this.options = options
-  }
-
-  apply(compiler: Rspack.Compiler): void {
-    const { RawSource } = compiler.webpack.sources
-    compiler.hooks.thisCompilation.tap('ThirdPartyNotices', compilation => {
-      compilation.hooks.processAssets.tap(
-        { name: 'ThirdPartyNotices', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT },
-        () => {
-          const bundled = new Set<string>()
-          for (const file of compilation.fileDependencies) {
-            const root = packageRootOf(file)
-            if (root && !file.endsWith(`${sep}package.json`)) {
-              bundled.add(root)
-            }
-          }
-          const web = webPackages(resolve(compiler.context, this.options.webPackage))
-          const adapted = readFileSync(resolve(compiler.context, this.options.sourceNotices), 'utf8').trim()
-          const text = [
-            'Third-party software in @rivus/agent-trace',
-            '',
-            'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section. dist/web/ is built from',
-            'the packages in the second section; it may list a package whose code was tree-shaken away.',
-            'devframe, @devframes/agentic, and cac are installed as dependencies with their own licenses.',
-            'The last section covers code adapted into the agent-trace sources themselves.',
-            '',
-            render('dist/cli.mjs', sorted(bundled)),
-            render('dist/web/', sorted(web)),
-            '== Adapted source code ==',
-            '',
-            adapted,
-            '',
-          ].join('\n')
-          compilation.emitAsset('THIRD-PARTY-NOTICES.txt', new RawSource(text))
-        },
-      )
-    })
+export function thirdPartyNotices(options: { webPackage: string; sourceNotices: string }): Rolldown.Plugin {
+  return {
+    name: 'third-party-notices',
+    generateBundle() {
+      const bundled = new Set<string>()
+      for (const id of this.getModuleIds()) {
+        const root = packageRootOf(id)
+        if (root) {
+          bundled.add(root)
+        }
+      }
+      // The vite-plus that resolves from this file is apps/cli's, the one running `vp pack`.
+      const rolldown = rolldownNotice(vitePlusCoreOf(dirname(fileURLToPath(import.meta.url))), options.webPackage)
+      const adapted = readFileSync(options.sourceNotices, 'utf8').trim()
+      const text = [
+        'Third-party software in @rivus/agent-trace',
+        '',
+        'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section; rolldown is listed there',
+        'for the runtime helpers it writes into them. dist/web/ is built from the packages in the second',
+        'section; it may list a package whose code was tree-shaken away.',
+        'devframe, @devframes/agentic, and cac are installed as dependencies with their own licenses.',
+        'The last section covers code adapted into the agent-trace sources themselves.',
+        '',
+        render('dist/cli.mjs', sorted([...[...bundled].map(noticeOf), rolldown])),
+        render('dist/web/', sorted(webNotices(options.webPackage))),
+        '== Adapted source code ==',
+        '',
+        adapted,
+        '',
+      ].join('\n')
+      this.emitFile({ type: 'asset', fileName: 'THIRD-PARTY-NOTICES.txt', source: text })
+    },
   }
 }

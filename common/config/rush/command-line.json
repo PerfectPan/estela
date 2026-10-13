@@ -11,7 +11,7 @@
     {
       "commandKind": "bulk",
       "name": "lint",
-      "summary": "Run oxlint",
+      "summary": "Run vp lint (oxlint)",
       "enableParallelism": true,
       "ignoreMissingScript": false
     },

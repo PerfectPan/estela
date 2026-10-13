@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { loadSession } from './session.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')

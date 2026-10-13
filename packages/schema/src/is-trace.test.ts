@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { isTrace } from './index.ts'
 import { traceSchema } from './types.ts'
 

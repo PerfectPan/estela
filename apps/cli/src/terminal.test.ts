@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { installPlainFilter, sayReady } from './terminal.ts'
 import { startSessionIndex } from './terminal-index.ts'
 

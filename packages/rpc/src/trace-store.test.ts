@@ -1,5 +1,5 @@
 import type { LoadProgress } from './trace-store.ts'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { deferred, fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
 import { LoadCancelledError, TraceStore } from './trace-store.ts'
 

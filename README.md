@@ -76,7 +76,7 @@ An agent whose folder does not exist shows 0 sessions and the path it checked. A
 
 ## Development
 
-Rush monorepo; the UI is Solid, Tailwind v4, and shadcn-solid; lint is oxlint. Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands, the tarball, and the smoke and browser test suites: [docs/development/setup.md](docs/development/setup.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
+Rush monorepo; the UI is Solid, Tailwind v4, and shadcn-solid; build, lint, format, and test run through Vite+ (`vp`). Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands, the tarball, and the smoke and browser test suites: [docs/development/setup.md](docs/development/setup.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

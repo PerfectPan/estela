@@ -25,7 +25,9 @@ node common/scripts/install-run-rush.js build
 cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 ```
 
-`node scripts/format.mjs` formats the JS and TS files under `apps/`, `packages/`, and `scripts/` with oxfmt and `.oxfmtrc.json`; `--check` writes nothing and fails on an unformatted file. It needs the Rush install, because `apps/cli` owns oxfmt. Markdown, JSON, fixtures, and `common/` are not formatted. oxlint's `curly: all` requires a braced block for every `if`, `else`, `for`, `while`, and `do` body. `node scripts/lint-scripts.mjs` lints the root `scripts/`, which no Rush project covers, with the same `.oxlintrc.json`. The CI `test` job and the pre-commit hook run the format check and the scripts lint.
+The toolchain is Vite+ (`vp`): every Rush project lints with `vp lint` and tests with `vp test`, `apps/cli` builds with `vp pack` and `apps/web` with `vp build`, each from the project's one `vite.config.ts`. `tsc` stays the type check. The lint and format settings are the `lint` and `fmt` blocks of the root `vite.config.ts`; `vp lint` and `vp fmt` use the nearest config with such a block, and project configs have none.
+
+`node scripts/format.mjs` formats the JS and TS files under `apps/`, `packages/`, and `scripts/`, and the root `vite.config.ts`, with `vp fmt`; `--check` writes nothing and fails on an unformatted file. It needs the Rush install, because it runs the vite-plus that `apps/cli` owns. Markdown, JSON, fixtures, and `common/` are not formatted. oxlint's `curly: all` requires a braced block for every `if`, `else`, `for`, `while`, and `do` body. `node scripts/lint-scripts.mjs` lints the root `scripts/` and `vite.config.ts`, which no Rush project covers, with the same settings. The CI `test` job and the pre-commit hook run the format check and the scripts lint.
 
 There is no package publish command.
 
@@ -117,7 +119,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 
 `node scripts/check-conventions.mjs` checks every tracked file. CI and the pre-commit hook run it.
 
-The shared lint config adds three file rules: kebab-case names, at most 1000 lines, and one component per `.tsx` file (`react/no-multi-comp`, tests excluded). `check-conventions.mjs` stays, because its names and 500-line limit are stricter. A component used by one parent still gets its own file next to that parent. `apps/web/src/components/icons.tsx` is exempt in `.oxlintrc.json`: it is one family of stroke icons on a shared `Icon` base.
+The shared lint config adds three file rules: kebab-case names, at most 1000 lines, and one component per `.tsx` file (`react/no-multi-comp`, tests excluded). `check-conventions.mjs` stays, because its names and 500-line limit are stricter. A component used by one parent still gets its own file next to that parent. `apps/web/src/components/icons.tsx` is exempt in the root `vite.config.ts`: it is one family of stroke icons on a shared `Icon` base.
 
 ## Repository Architecture
 
@@ -125,15 +127,15 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 - Session reading is the external `@rivus/agent-kit`; `apps/cli` is the only package that imports it at runtime. Other packages may use its types with `import type`.
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<agent>/` for the session logs the conformance suites read).
-- Shared oxlint and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. `.oxlintrc.json` and `tsconfig.base.json` extend them and keep only this repository's rules. Change a shared default upstream, not here.
+- Shared lint, format, and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. The `lint` and `fmt` blocks of the root `vite.config.ts` spread its `vite-plus` export and `tsconfig.base.json` extends its tsconfig; both keep only this repository's rules. Change a shared default upstream, not here.
 - `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. CI and the pre-commit hook run it.
 
 ## Runtime checks
 
 `schema`, `kernel`, and `rpc` must not import `node:*` outside tests. Two checks enforce the rule, and the CI test job runs both:
 
-1. oxlint `no-restricted-imports` on `node:*` in `.oxlintrc.json` (test files are excluded).
-2. `node scripts/check-browser-bundle.mjs` bundles kernel and rpc with rslib `output.target: 'web'` and fails on an unresolved `node:*` import.
+1. oxlint `no-restricted-imports` on `node:*` in the root `vite.config.ts` (test files are excluded).
+2. `node scripts/check-browser-bundle.mjs` bundles kernel and rpc with vite-plus's tsdown for platform `browser` and fails when the bundle imports anything but `devframe`, such as an unresolved `node:*` import.
 
 See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
@@ -150,12 +152,14 @@ for diagnosis, without the PR title, description, or release intent checks, and 
 runs until the blocker is resolved.
 
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
-The tarball smoke step then builds `@rivus/agent-trace` with rslib (`rush build --to @rivus/agent-trace`, which also
+The tarball smoke step then builds `@rivus/agent-trace` with `vp pack` (`rush build --to @rivus/agent-trace`, which also
 runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
 a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
 the committed lockfile; use Rush update locally only when dependency inputs change. pnpm rejects versions published
 less than a day ago (`minimumReleaseAgeMinutes` in `common/config/rush/pnpm-config.json`), so pick versions at least a
-day old when upgrading.
+day old when upgrading. A `vite-plus` upgrade also moves the vite-plus-core version in that file's `globalOverrides`
+to the same version, and `apps/web`'s `rolldown` devDependency to that core's `bundledVersions.rolldown`; the CLI
+build fails while the `rolldown` pin differs.
 
 `actions/cache@v6` caches the pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at
 `~/.npm/_cacache`, keyed by runner OS and Rush/lockfile configuration. Every run still executes Rush install and the

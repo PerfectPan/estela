@@ -135,7 +135,7 @@ flowchart TB
 
 | 目录 | 包 | 负责 | 允许依赖 |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | 组合根：通过外部 `@rivus/agent-kit` 读取会话（唯一在运行时导入 kit 的包）、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
+| `apps/cli` | `@rivus/agent-trace` | 组合根：通过外部 `@rivus/agent-kit` 读取会话（唯一在运行时导入 kit 的包）、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、`vp pack` 打包 | 所有包；web 的构建产物 |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3）和浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema`、`@rivus/agent-kit`（类型） |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
@@ -201,7 +201,7 @@ sequenceDiagram
 Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已有可移植的 adapter。OpenCode 需要 `SqliteIO`，是同一协议上的下一个 agent；dsh 需要 zstd 及其格式目录。
 
 **D5. 核心包的 I/O 通过注入传入。**
-`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 `packages/runtime-node` 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。自 agent-kit 采纳（issue #32）起，会话读取走 kit 的 `SessionPlatform`，读取的 Node 实现归 kit 所有，面向浏览器的打包检查覆盖 kernel 和 rpc（`scripts/check-browser-bundle.mjs`）。
+`TraceIO`（读取文本、读取字节范围、列出目录、stat）和 `homeDir` 由外部传入；Node 实现位于 `packages/runtime-node` 中。通过 oxlint 在测试之外对 `node:*` 应用 `no-restricted-imports` 来强制，并在 CI 中对 kernel 和 adapter 做 `esbuild --platform=browser` 打包来强制。两项检查都已在 `main` 上运行，目前均失败（A.5，用 esbuild 测得；M1 用 rslib `output.target: 'web'` 运行面向浏览器的打包）。自 agent-kit 采纳（issue #32）起，会话读取走 kit 的 `SessionPlatform`，读取的 Node 实现归 kit 所有，面向浏览器的打包检查覆盖 kernel 和 rpc（`scripts/check-browser-bundle.mjs`）。自 issue #31 起，该检查用 vite-plus 的 tsdown 以 `browser` 平台打包。
 
 **D6. 浏览器接收视图版 trace，原始记录和完整文本按需加载。**
 这改变了 `AGENTS.md` 中的两条现行规则：“规范存储是 `events[]` 加 `original`”变为“每个事件都能返回其原始记录”，“`getTrace` 是一个 snapshot blob”变为“`get-trace-view` 是一个 snapshot blob；`get-event` 返回一个完整事件”。在 355 MB 的会话上测得：完整为 360 MB，去掉原始记录为 37.9 MB，字符串截断到 4 KB 的视图为 14.0 MB，使用 `fitView` 选定的上限为 11.4 MB（A.6）。备选方案：对事件分页（未采用：timeline 和 ledger 需要每个事件的结构，`reconstruct` 需要完整序列），以及压缩完整 blob（未采用：server 仍需占用 3.2 GB）。server 保存每个事件的 source pointer（文件、字节偏移、长度），在 `get-event` 请求时重新读取该行。`AGENTS.md` 在同一变更中更新。
@@ -219,8 +219,8 @@ Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已�
 **D10. 脱敏。**
 `redact(trace, { homeDir })` 在每个字符串中把 home 目录替换为 `~`，并替换已知的 token 模式。报告路径始终脱敏。`AGENT_TRACE_REDACT=0` 只影响本地 server。
 
-**D11. 单一打包产物 `@rivus/agent-trace`，用 rslib 构建。**
-rslib 1.0 把 shell 和所有 workspace 包打包进 `dist/cli.mjs`（ESM，`output.target: 'node'`，`bundle: true`），`devframe`、`@devframes/agentic` 和 `cac` 作为 external 和运行时依赖。Rspack 把 `new URL('<literal>', import.meta.url)` 解析为资源导入，而在探针中设置 `module.parser.javascript.url: false` 并未关闭这一行为；因此没有任何模块用这种方式定位文件。`apps/cli/src/paths.ts` 用 `join(dirname(fileURLToPath(import.meta.url)), …)` 构造路径，并用一个构建期常量表示打包后的目录布局。`dist/bin.mjs` 在动态导入之前检查 Node.js `>=24`，因为静态导入会先加载 `node:sqlite`。`devframe` 和 `@devframes/agentic` 固定为同一个精确版本（`1.1.0`），因为 `@devframes/agentic` 声明了对 `devframe` 的精确 peer 依赖。探针（A.9）：rslib 打包产物为 20.8 KB，构建耗时 0.12 s，从其 tarball 安装到空目录后，运行了 `build`（以 0 退出）和 `mcp`（reconstruct 返回 `completeness: partial`）。备选方案：esbuild，它同样可用（A.4）；选择 rslib 是为了留在 Rspack 工具链上。
+**D11. 单一打包产物 `@rivus/agent-trace`，用 `vp pack` 构建。**
+`vp pack`（Vite+，基于 Rolldown 的 tsdown）把 shell 和所有 workspace 包打包进 `dist/cli.mjs`（ESM，平台 `node`），`devframe`、`@devframes/agentic` 和 `cac` 作为 external 和运行时依赖。最初的构建使用 rslib 1.0；Rspack 把 `new URL('<literal>', import.meta.url)` 解析为资源导入，而在探针中设置 `module.parser.javascript.url: false` 并未关闭这一行为；因此没有任何模块用这种方式定位文件。`apps/cli/src/paths.ts` 用 `join(dirname(fileURLToPath(import.meta.url)), …)` 构造路径，并用一个构建期常量表示打包后的目录布局。`dist/bin.mjs` 在动态导入之前检查 Node.js `>=24`，因为静态导入会先加载 `node:sqlite`。`devframe` 和 `@devframes/agentic` 固定为同一个精确版本（`1.1.0`），因为 `@devframes/agentic` 声明了对 `devframe` 的精确 peer 依赖。探针（A.9）：rslib 打包产物为 20.8 KB，构建耗时 0.12 s，从其 tarball 安装到空目录后，运行了 `build`（以 0 退出）和 `mcp`（reconstruct 返回 `completeness: partial`）。备选方案：esbuild，它同样可用（A.4）；以及 rslib，它一直负责构建打包产物，直到 issue #31 把所有者的 TypeScript 仓库迁到 Vite+。
 
 **D12. 现在通过 Rush change file 记录发布意图，发布放到以后。**
 `@rivus/agent-trace` 获得一个 Rush version policy，每个改变该包所发布内容的 PR 都附带一个由 `rush change` 生成的 change file，在 CI 中用 `rush change --verify` 检查。发布时，`rush version` 把这些文件转成该包的 `CHANGELOG.md`。版本号提升和 npm 发布 workflow 是后续计划；参考 `PerfectPan/rivus-agent`（dispatch 时运行 Version Packages，GitHub release 时以 `id-token: write` 发布）。这套机制在 M1 之前以单独的 PR 落地。
@@ -557,7 +557,7 @@ M2 之后 M3 和 M4 可以并行。
 
 - Kernel：`toView`、`fold`、`reconstruct` 的 slot 计数、投影。
 - 在 `apps/cli` 里对三个内置 adapter 在 `fixtures/sessions/<agent>/conformance/` 的 fixture 上运行 kit 的 `sessionAdapterConformance`。fixture 依据 1.1 中的记录结构手写，不包含真实会话文本。
-- D5：oxlint `node:*` 规则，以及对 kernel 和 rpc 的面向浏览器的 rslib 打包。
+- D5：oxlint `node:*` 规则，以及对 kernel 和 rpc 的面向浏览器的打包（vite-plus 的 tsdown）。
 
 ### 5.2 浏览器端到端测试
 
@@ -621,7 +621,7 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 - S4：会话列表不会打开“无法读取”的行。它的预览显示文件、行号和原因；该 ref 的工作区 URL 在错误面板中显示 agent、文件和行号。
 - S2：CLI 打开 `<base>?s=<ref>#devframe_otp=<code>`，因为 DevFrame 的一次性码使用 fragment；SPA 把 ref 移到 `#/s/<ref>`。冒烟测试检查打开的 URL；浏览器测试检查落地的路由。
 - Ledger：一个轮次中每个子代理泳道的事件收在该泳道 spawn 调用处的一行子代理行之后；行高按行类型固定（hook 折叠行 30 px，上下文压缩行 44 px）。
-- 工具：`@clack/prompts` 打包进 `dist/cli.mjs`；`node-pty` 使用 `1.2.0-beta.15`，因为 1.1.0 没有 Linux 预编译包；`dist/THIRD-PARTY-NOTICES.txt` 由一个小的 rspack 插件写出；`npm pack` 在打包后的 `devDependencies` 中保留 `workspace:*`，`npm install` 会忽略它（发布的后续工作应使用 Rush 或 pnpm 打包）。
+- 工具：`@clack/prompts` 打包进 `dist/cli.mjs`；`node-pty` 使用 `1.2.0-beta.15`，因为 1.1.0 没有 Linux 预编译包；`dist/THIRD-PARTY-NOTICES.txt` 由 pack 配置中的一个小 Rolldown 插件写出；`npm pack` 在打包后的 `devDependencies` 中保留 `workspace:*`，`npm install` 会忽略它（发布的后续工作应使用 Rush 或 pnpm 打包）。
 - 浏览器测试在 CI 中使用 Playwright 的 Chromium。在无法访问 Playwright 下载地址的机器上，`AGENT_TRACE_E2E_CHANNEL=chrome` 让它在已安装的 Google Chrome 上运行。
 
 ## 7. 风险、待定问题与后续工作

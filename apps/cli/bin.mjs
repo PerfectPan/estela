@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The one launcher. From source (`node bin.mjs`) it loads `src/main.ts`; rslib builds it into
+// The one launcher. From source (`node bin.mjs`) it loads `src/main.ts`; `vp pack` builds it into
 // `dist/bin.mjs` with `AGENT_TRACE_BUNDLE` defined, where it loads `./cli.mjs`. Only the version
 // check is imported statically: Node 20 must reach it before any `.ts` file or `node:sqlite` loads.
 import { unsupportedNodeMessage } from './src/node-version.mjs'

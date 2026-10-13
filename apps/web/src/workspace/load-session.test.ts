@@ -2,7 +2,7 @@ import type { ReportTrace } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { LoadClient } from './load-session.ts'
 import { createRoot } from 'solid-js'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { createSessionLoad, reportSession } from './load-session.ts'
 
 type Status = LoadClient['status']

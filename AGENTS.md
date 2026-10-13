@@ -6,7 +6,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: session reading through `@rivus/agent-kit` (the only runtime kit importer), the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, the report writer (`build` and `export-report` → one `index.html`), embeds the web build, rslib bundle (`dist/bin.mjs`, `dist/cli.mjs`, `dist/web/`) | every package; web's build output |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: session reading through `@rivus/agent-kit` (the only runtime kit importer), the session catalog (discover, summaries, ref → file map that resolves TraceStore refs), starts the DevFrame server, terminal output, the report writer (`build` and `export-report` → one `index.html`), embeds the web build, `vp pack` bundle (`dist/bin.mjs`, `dist/cli.mjs`, `dist/web/`) | every package; web's build output |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | Private. CLI smoke (`test:smoke`) and Playwright (`test:e2e`) suites on the packed tarball, synthetic fixture homes | nothing at runtime; test tooling only |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, tokens, dictionaries | `rpc` (types), `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, `export-report`, and `report-trace` in build mode only), `buildReport`, server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected reads (`SessionFs`), resolver, and session service | `kernel`, `schema`, `@rivus/agent-kit` (types) |
@@ -35,8 +35,10 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 - Rush + pnpm. Do not use a root `pnpm-workspace.yaml`.
 - UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
-- Lint is oxlint: `rush lint` per project, and `node scripts/lint-scripts.mjs` for the root `scripts/`. `curly: all` is on: every `if`, `else`, `for`, `while`, and `do` body is a braced block.
-- Format is oxfmt (`.oxfmtrc.json`; `apps/cli` owns the devDependency) over JS and TS under `apps/`, `packages/`, and `scripts/`. `node scripts/format.mjs` writes; `--check` verifies. Markdown, JSON, and fixtures are not formatted.
+- The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each Rush project has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web`); `tsc` stays the type check. Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
+- Lint and format settings live only in the `lint` and `fmt` blocks of the root `vite.config.ts`, built on `@perfectpan/lint-config/vite-plus`; a project's `vite.config.ts` has neither block, so `vp lint` and `vp fmt` find the root one.
+- Lint is oxlint through `vp lint`: `rush lint` per project, and `node scripts/lint-scripts.mjs` for the root `scripts/` and `vite.config.ts`. `curly: all` is on: every `if`, `else`, `for`, `while`, and `do` body is a braced block.
+- Format is oxfmt through `vp fmt` (`apps/cli` owns the vite-plus that the root scripts run) over JS and TS under `apps/`, `packages/`, and `scripts/`, and the root `vite.config.ts`. `node scripts/format.mjs` writes; `--check` verifies. Markdown, JSON, and fixtures are not formatted.
 - A PR that changes shipped files under `apps/` or `packages/` carries a Rush change file; rules in `CONTRIBUTING.md#release-intent`. Do not edit generated changelogs or add a hand-written root `CHANGELOG.md`.
 - Contribution workflow, Specs, and Plans live in `CONTRIBUTING.md`, `docs/specs/`, and `docs/plans/`. Do not copy the `technical-design-docs` skill into this repo.
 - File and directory names are kebab-case, and a code file has at most 500 lines; rules in `CONTRIBUTING.md#file-conventions`.

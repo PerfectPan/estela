@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { stripVTControlCharacters } from 'node:util'
 import { spawn as spawnPty } from 'node-pty'
-import { describe, expect, inject, it } from 'vitest'
+import { describe, expect, inject, it } from 'vite-plus/test'
 import { openedUrls, openLogPath, readyUrl, smokeEnv, start, waitFor } from './cli-process.ts'
 
 const ctx = inject('smoke')

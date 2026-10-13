@@ -1,5 +1,5 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { projectLanes, projectRequests } from './project-timeline.ts'
 import { foldHookRuns, hiddenAfterCompaction, projectTurns } from './project-turns.ts'
 
