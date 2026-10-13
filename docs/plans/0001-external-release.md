@@ -363,32 +363,43 @@ Rules:
 ### 3.3 Canonical trace
 
 ```ts
-// The kit's TranscriptEventKind (@rivus/agent-kit/transcript)
-export type TranscriptEventKind =
+// `export` marks what @rivus/agent-trace-schema exports; a type marked as the kit's comes from @rivus/agent-kit/transcript.
+
+// The kit's TranscriptEventKind
+type TranscriptEventKind =
   | 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
   | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
 
-// The kit's SourcePointer (@rivus/agent-kit/transcript)
-export interface SourcePointer { file: string, offset: number, length: number, line: number }
+// The kit's SourcePointer
+interface SourcePointer { file: string, offset: number, length: number, line: number }
 
-export interface TraceEvent {
+// The kit's TranscriptEventOf<K>: for each kind in K, an event of that kind
+type TranscriptEventOf<K extends TranscriptEventKind> = { [Kind in K]: {
   id: string
   /** Order within the trace; ties in `ts` keep the log's order. */
   seq: number
   ts: number
-  kind: TranscriptEventKind
+  kind: Kind
   agentId?: string
   parentId?: string
   /** Groups events that belong to one model request. */
   requestId?: string
   shadowedBy?: string
-  payload: Record<string, unknown>
+  payload: TranscriptEventPayloads[Kind]
   source: SourcePointer
   /** Present in memory and in `get-event`; absent in the view trace. */
   original?: unknown
+} }[K]
+
+// The kit's payload of each kind; every payload also keeps the fields an agent adds of its own
+interface TranscriptEventPayloads {
+  user: MessagePayload, assistant: MessagePayload, reasoning: ReasoningPayload
+  tool_call: ToolCallPayload, tool_result: ToolResultPayload, request: RequestPayload
+  system: SystemPayload, compaction: CompactionPayload, hook: HookPayload, unknown: UnknownPayload
 }
 
-export interface RequestPayload {
+// The kit's RequestPayload
+interface RequestPayload {
   model?: string          // gen_ai.request.model
   responseId?: string     // gen_ai.response.id
   usage?: {
@@ -403,20 +414,37 @@ export interface RequestPayload {
   finishReason?: string   // gen_ai.response.finish_reasons[0]
 }
 
-export interface CompactionPayload {
+// The kit's CompactionPayload, ToolCallPayload, and ToolResultPayload
+interface CompactionPayload {
   trigger?: 'auto' | 'manual'
   preTokens?: number
   postTokens?: number
   summaryEventId?: string
 }
+interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
+interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
 
-export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
-export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
+// The kit's PromptSnapshotPayload: a SystemPayload on a `system` event
+interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }
 
-export interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }  // on a `system` event
+// What a view trace adds to a payload
+interface PayloadViewFields { $truncated?: TruncatedPath[] }
+interface SystemViewFields extends PayloadViewFields { systemPromptSameAs?: string, toolsSameAs?: string }
 
-// The kit's Lane (@rivus/agent-kit/transcript)
-export interface Lane { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
+// Each kind's payload in a trace: the kit's, plus the view fields
+export type TraceEventPayloads = {
+  [K in TranscriptEventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
+}
+
+// A trace event of the kinds in K, such as EventOf<'tool_call'>; narrowing on `kind` types `payload`
+export type EventOf<K extends TranscriptEventKind> = {
+  [Kind in K]: Omit<TranscriptEventOf<Kind>, 'payload'> & { payload: TraceEventPayloads[Kind] }
+}[K]
+export type TraceEvent = EventOf<TranscriptEventKind>
+export type TracePromptSnapshotPayload = PromptSnapshotPayload & SystemViewFields
+
+// The kit's Lane
+interface Lane { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
   schema: 'agent-trace'
@@ -753,7 +781,7 @@ A.8 Canonical trace to ATIF v1.8 (constraint for the export follow-up):
 |---|---|
 | `session.id` | `session_id`; `trajectory_id` for the document |
 | `agent`, `agentVersion` | `agent.name`, `agent.version` |
-| `RequestPayload.model` | `agent.model_name`, or `model_name` on the step |
+| `request` (`model`) | `agent.model_name`, or `model_name` on the step |
 | `user` event | step with `source: "user"`, `message` |
 | `assistant` event | step with `source: "agent"`, `message` |
 | `reasoning` event | `reasoning_content` on the agent step |
