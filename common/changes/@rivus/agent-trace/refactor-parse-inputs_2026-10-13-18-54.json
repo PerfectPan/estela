@@ -2,7 +2,7 @@
   "changes": [
     {
       "packageName": "@rivus/agent-trace",
-      "comment": "",
+      "comment": "Internal: RPC inputs, index rows, dump files, and package manifests are parsed with zod/mini schemas. Malformed input now gets an error: reconstruct without eventId throws instead of returning unavailable, list-sessions rejects a since above 2^53, and a baked report record with neither output nor error fails the build.",
       "type": "none"
     }
   ],
