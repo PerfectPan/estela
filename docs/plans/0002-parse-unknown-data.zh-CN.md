@@ -30,7 +30,7 @@ agent-trace 在很多地方读取未知数据：来自 kit 和规范 JSON 文件
 在 `main` 的 `3f100ad` 上测量，并在 `a0aba04` 上复测；此前 #41 把 `host` 改名为 `agent`，#42 把工具链迁到 Vite+。
 
 - **事件 payload。** `TraceEvent.payload` 是 `z.record(z.string(), z.unknown())`。kernel 在 `fold`、`lanes`、`project-timeline`、`project-turns` 和 `reconstruct` 中通过 `asRecord`（lodash `isPlainObject` 加类型断言）、`asString` 和 `asNumber` 读取它；web 应用在 `event-text.ts`、`ledger-model.ts` 和 inspector 中做法相同。`prompt-snapshot.ts` 不经检查就把 payload 断言为 `PromptSnapshotPayload`，`view.ts` 的 `Capper.value` 用 lodash `isObjectLike` 加类型断言遍历 payload。
-- **kit。** trace 目前使用 0.11.0；到这个版本为止，kit 的 `TranscriptEvent.payload` 是 `Record<string, unknown>`，各 kind 的接口没有与 `kind` 绑定。kit #98 于 2026-10-13 随 0.12.0 发布，把 `TranscriptEvent` 改成按 `kind` 区分的联合类型：按 `kind` 收窄后，`payload` 的类型就是该 kind 的 `*Payload`（`TranscriptEventOf<K>`、`TranscriptEventPayloads`）。同日发布的 0.13.0 是 PR B 要安装的版本，保留这些类型，只增加 opencode bridge 的改动（kit #99）。kit 在自己的边界用 `zod/mini` 解析 agent 记录。
+- **kit。** trace 目前使用 0.11.0；到这个版本为止，kit 的 `TranscriptEvent.payload` 是 `Record<string, unknown>`，各 kind 的接口没有与 `kind` 绑定。kit #98 于 2026-10-13 随 0.12.0 发布，把 `TranscriptEvent` 改成按 `kind` 区分的联合类型：按 `kind` 收窄后，`payload` 的类型就是该 kind 的 `*Payload`（`TranscriptEventOf<K>`、`TranscriptEventPayloads`）。同日发布的 0.13.0 是 PR B 要安装的版本，保留这些类型，只增加 kit #89 的 opencode bridge 改动：通过 bridge 传递当前会话 id。kit 在自己的边界用 `zod/mini` 解析 agent 记录。
 - **RPC 输入。** `list-sessions`（`checkQuery`）和 `export-report`（`checkInput`）用 `typeof` 级联和类型断言检查输入。`load-trace`、`get-trace-view`、`get-event` 和 `reconstruct` 不经检查直接解构输入。DevFrame 根据 handler 签名为 `call()` 定类型（`packages/rpc/src/index.ts` 中的模块扩充）。
 - **存储行和错误。** `runtime-node` 通过类型断言、`readNumber`、`String(row.x)` 和 `Number(row.x)` 读取 SQLite 行；通过 `typeof` 和 `every(typeof)` 读取 `context_shape`；通过 `(error as { … })` 读取 `errcode` 和 `EEXIST`。sqlite 警告过滤器把 `process.emitWarning` 的参数当作 `unknown` 读取并做类型断言。
 - **CLI 文件。** `report-site.ts` 对 DevFrame 的 dump 清单和记录做类型断言，`scripts/third-party-notices.ts` 把 `JSON.parse` 的输出当作有类型的清单返回，`terminal.ts` 对其 `stream.write` 包装函数的剩余参数做类型断言。
@@ -148,7 +148,7 @@ const summaryRow = z.object({
 const HEAD_SELECT = Object.keys(headRow.shape).join(', ')
 ```
 
-`rows` 分别用 `headRow` 和 `summaryRow` 解析每一行：头部有问题就删除这一行，摘要有问题只丢弃摘要。`rows` 和 `writeHead` 也查询 `id`，删除时在 SQL 中通过存储的 `ref` 匹配 prompt，所以 `ref` 解析失败的行也会删掉它的 prompt；写入遇到忙时，该行保持隐藏，由 `writeHead` 删除。较小的 SELECT（`id`；`ref`；`text`）各有自己的行 schema；解析失败的搜索行或 prompt 行被跳过。`PRAGMA user_version` 和 `count(*)` 也经过行 schema；解析失败的版本号视为 0，于是 `prepare` 在空文件中创建 schema，或者重建文件。`sqliteErrcode(error)` 就是 `z.safeParse(z.object({ errcode: z.number() }), error).data?.errcode`，打开路径（精确错误码）和搜索（用 `0xff` 屏蔽的扩展错误码）都使用它。重建锁上的 `EEXIST` 用 `z.object({ code: z.literal('EEXIST') })` 判断。
+`rows` 分别用 `headRow` 和 `summaryRow` 解析每一行：头部有问题就删除这一行，摘要有问题只丢弃摘要。`rows` 和 `writeHead` 也查询 `id`，删除时在 SQL 中通过存储的 `ref` 匹配 prompt，所以 `ref` 解析失败的行也会删掉它的 prompt。`rows` 的删除在读取之后才开始的写事务中进行，所以它在该事务内按 `id` 重新读取每个这样的行，只有头部仍解析失败时才删除：在此期间，另一个进程的 `writeHead` 可能已在同一 `id` 下写入了有效的行。这次删除是可选的：无论因何失败（忙、磁盘满、只读、I/O），`rows` 都仍返回已读到的行，该行保持隐藏，由 `writeHead` 删除。较小的 SELECT（`id`；`ref`；`text`）各有自己的行 schema；解析失败的搜索行或 prompt 行被跳过。`PRAGMA user_version` 和 `count(*)` 也经过行 schema；解析失败的版本号视为 0，于是 `prepare` 在空文件中创建 schema，或者重建文件。`sqliteErrcode(error)` 就是 `z.safeParse(z.object({ errcode: z.number() }), error).data?.errcode`，打开路径（精确错误码）和搜索（用 `0xff` 屏蔽的扩展错误码）都使用它。重建锁上的 `EEXIST` 用 `z.object({ code: z.literal('EEXIST') })` 判断。
 
 ### 3.4 CLI 文件和进程 API（PR A）
 
@@ -193,7 +193,7 @@ export function isTraceEvent(value: unknown): value is TraceEvent {
 
 ### 3.6 兼容性与失败
 
-- 两个 PR 中，格式正确的输入行为都与以前相同。以前蒙混过关的格式错误输入现在会得到消息：不带 `eventId` 的 `reconstruct` 调用以前返回 `eventId: undefined` 的 `completeness: 'unavailable'`，现在抛出 `reconstruct needs an event id`；`list-sessions` 拒绝超过 2^53 的 `since`；既没有 `output` 也没有 `error` 的 `report-trace` 烘焙记录让构建失败，消息为 `… is not an output or an error`。
+- 两个 PR 中，格式正确的输入行为都与以前相同。以前蒙混过关的格式错误输入现在会得到消息：不带 `eventId` 的 `reconstruct` 调用以前返回 `eventId: undefined` 的 `completeness: 'unavailable'`，现在抛出 `reconstruct needs an event id`；`list-sessions` 拒绝超过 2^53 的 `since`。既没有 `output` 也没有 `error` 的 `report-trace` 烘焙记录以前就会让构建失败，报的是 `jsonSafe(undefined).replaceAll` 处的 `TypeError`；新增的只是消息 `… is not an output or an error`。`report-trace` 以快照 dump 烘焙，handler 抛错时构建在写出任何记录之前就已失败，所以对它来说错误记录分支只是一道保险。
 - 存储的索引行中某个值类型不对时（只有损坏或手工编辑过的缓存才会这样），以前读出时该字段缺失；现在不返回该摘要，或删除头部有问题的行，由下一次 discover 或摘要计算重写。
 - PR B：payload 与其 kind 不匹配的规范文件（例如没有 `type` 的 hook，只有旧的 `generate-trace.mjs` 会写出）无法通过 `isTrace`，像任何非 trace JSON 一样交给 kit。不设兼容垫片：目前没有任何发布。
 
@@ -224,7 +224,7 @@ git grep -nE "as unknown as|as Record<string, ?unknown>|error as \{|JSON\.parse\
 PR A 新增：
 
 - rpc `handler-input.test.ts`：3.1 中的每条消息和错误类，`list-sessions` 的 `null` / `undefined` / 未知键，被忽略的 locale，原样传给 store 的字符串 ref，以及不带 ref 或带 `ref: null` 的 `reconstruct`。`list-sessions` 和 `export-report` 的用例对它们所替换的手写检查同样通过。
-- runtime-node：为 NULL 的头部列读作缺失字段；损坏的 `context_shape` 只丢失 shape；非数字的计数丢失缓存的摘要；有问题的头部让该行连同其 prompt 和搜索行被删除（由 `rows` 删除，或由在新 ref 下遇到它的 `putHeads` 删除），直到 `putHeads` 重写它；`sqliteErrcode` 从真实的 `node:sqlite` 错误上读出 `SQLITE_BUSY`（5）。警告过滤器的测试不加修改，在新的类型签名下运行。
+- runtime-node：为 NULL 的头部列读作缺失字段；损坏的 `context_shape` 只丢失 shape；非数字的计数丢失缓存的摘要；有问题的头部让该行连同其 prompt 和搜索行被删除（由 `rows` 删除，或由在新 ref 下遇到它的 `putHeads` 删除），直到 `putHeads` 重写它；另一个索引在 `rows` 读取与删除之间于同一 `id` 下重写的行会被保留，删除因忙以外的错误失败时 `rows` 仍返回已读到的行；`sqliteErrcode` 从真实的 `node:sqlite` 错误上读出 `SQLITE_BUSY`（5）。警告过滤器的测试不加修改，在新的类型签名下运行。
 
 PR B 新增：
 
