@@ -1,8 +1,17 @@
+import type {
+  PromptSnapshotPayload as KitPromptSnapshotPayload,
+  TranscriptEventKind,
+  TranscriptEventOf,
+  TranscriptEventPayloads,
+} from '@rivus/agent-kit/transcript'
 import * as z from 'zod/mini'
 
 export const TRACE_SCHEMA = 'agent-trace' as const
 
-/** Every event kind, in one place; `EventKind` and `traceSchema` both read it. */
+/**
+ * Every event kind, in one place; `EventKind` and `traceEventSchema` both read it. They are the kit's
+ * `TranscriptEventKind`: a kind the kit does not have fails here, and a kind the kit adds fails at `payloadSchemas`.
+ */
 export const EVENT_KINDS = [
   'user',
   'assistant',
@@ -14,10 +23,9 @@ export const EVENT_KINDS = [
   'compaction',
   'hook',
   'unknown',
-] as const
+] as const satisfies readonly TranscriptEventKind[]
 
-export const eventKindSchema = z.enum(EVENT_KINDS)
-export type EventKind = z.infer<typeof eventKindSchema>
+export type EventKind = (typeof EVENT_KINDS)[number]
 
 /** Fields an agent records. A number whose capability is absent is `undefined`, never 0. */
 export const CAPABILITIES = [
@@ -44,109 +52,200 @@ export const sourcePointerSchema = z.object({
 })
 export type SourcePointer = z.infer<typeof sourcePointerSchema>
 
-export const traceEventSchema = z.object({
-  id: z.string(),
-  /** Order within the trace; ties in `ts` keep the log's order. */
-  seq: z.number(),
-  ts: z.number(),
-  kind: eventKindSchema,
-  agentId: z.optional(z.string()),
-  parentId: z.optional(z.string()),
-  /** Groups events that belong to one model request. */
-  requestId: z.optional(z.string()),
-  shadowedBy: z.optional(z.string()),
-  payload: z.record(z.string(), z.unknown()),
-  source: sourcePointerSchema,
-  /** Present in memory and in `get-event`; absent in the view trace. */
-  original: z.optional(z.unknown()),
-})
-export type TraceEvent = z.infer<typeof traceEventSchema>
+/**
+ * Path of a value `toView` shortened: object keys as strings, array indexes as
+ * numbers. `payload.$truncated` holds these for each shortened event.
+ */
+export const truncatedPathSchema = z.array(z.union([z.string(), z.number()]))
+export type TruncatedPath = z.infer<typeof truncatedPathSchema>
 
-export const requestPayloadSchema = z.object({
-  /** gen_ai.request.model */
-  model: z.optional(z.string()),
-  /** gen_ai.response.id */
-  responseId: z.optional(z.string()),
-  usage: z.optional(
-    z.object({
-      /** gen_ai.usage.input_tokens — total input, including cached tokens. cacheReadTokens and cacheWriteTokens are breakdowns. */
-      inputTokens: z.optional(z.number()),
-      /** gen_ai.usage.output_tokens */
-      outputTokens: z.optional(z.number()),
-      /** Recorded total, when the agent writes one; not input + output invented. */
-      totalTokens: z.optional(z.number()),
-      /** gen_ai.usage.cache_read.input_tokens */
-      cacheReadTokens: z.optional(z.number()),
-      /** gen_ai.usage.cache_write.input_tokens */
-      cacheWriteTokens: z.optional(z.number()),
-      /** Anthropic's one-hour ephemeral cache writes; part of `cacheWriteTokens`. */
-      cacheWrite1hTokens: z.optional(z.number()),
-      /** gen_ai.usage.reasoning.output_tokens */
-      reasoningTokens: z.optional(z.number()),
-    }),
-  ),
-  startedAt: z.optional(z.number()),
-  durationMs: z.optional(z.number()),
-  /** gen_ai.response.finish_reasons[0] */
-  finishReason: z.optional(z.string()),
+/** What a view trace (`toView`) adds to every payload. */
+interface PayloadViewFields {
+  /** The paths `toView` shortened in this payload. */
+  $truncated?: TruncatedPath[]
+}
+
+/** What a view trace adds to a `system` payload besides `$truncated`. */
+interface SystemViewFields extends PayloadViewFields {
   /**
-   * What `usage` covers: one model request, one turn, or the whole session. Absent means one
-   * request. An aggregate stays an aggregate and is not split into invented per-request records.
+   * View traces only: this snapshot's `systemPrompt` equals the one on the
+   * named earlier snapshot, which holds the text; `get-event` returns it in full.
    */
-  granularity: z.optional(z.enum(['request', 'turn', 'session'])),
-  /** How many model calls a `turn` or `session` aggregate covers. */
-  modelCalls: z.optional(z.number()),
-  /** The same usage split by model. A total uses `usage` or this split, not the two added together. */
-  usageByModel: z.optional(z.record(z.string(), z.object({ usage: z.unknown(), modelCalls: z.optional(z.number()) }))),
-})
-export type RequestPayload = z.infer<typeof requestPayloadSchema>
+  systemPromptSameAs?: string
+  /** View traces only: the same for a non-empty `tools`. */
+  toolsSameAs?: string
+}
 
-export const compactionPayloadSchema = z.object({
-  trigger: z.optional(z.enum(['auto', 'manual'])),
-  preTokens: z.optional(z.number()),
-  postTokens: z.optional(z.number()),
-  summaryEventId: z.optional(z.string()),
-})
-export type CompactionPayload = z.infer<typeof compactionPayloadSchema>
+/**
+ * Each kind's payload: the kit's payload type for that kind, which the kit's adapters produce, plus the fields a
+ * view trace adds. Every kit payload keeps the fields an agent adds of its own, which read as `unknown`.
+ */
+export type TraceEventPayloads = {
+  [K in EventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
+}
 
-/** gen_ai.tool.call.id, gen_ai.tool.name */
-export const toolCallPayloadSchema = z.object({
+/** A trace event of the kinds in `K`, such as `EventOf<'tool_call'>`; its payload is that kind's. */
+export type EventOf<K extends EventKind> = {
+  [Kind in K]: Omit<TranscriptEventOf<Kind>, 'payload'> & { payload: TraceEventPayloads[Kind] }
+}[K]
+
+/**
+ * One event of a trace: the kit's `TranscriptEvent` with view fields on its payload. The union is discriminated by
+ * `kind`; narrowing on it types `payload`.
+ */
+export type TraceEvent = EventOf<EventKind>
+
+export type ToolCallPayload = TraceEventPayloads['tool_call']
+export type ToolResultPayload = TraceEventPayloads['tool_result']
+export type RequestPayload = TraceEventPayloads['request']
+export type CompactionPayload = TraceEventPayloads['compaction']
+
+/**
+ * A `system` payload with `type: 'prompt_snapshot'`: the system prompt and tool definitions the agent recorded at
+ * that point on the event's lane. A later snapshot on the same lane replaces an earlier one; a field left out was
+ * not recorded by that snapshot.
+ */
+export type PromptSnapshotPayload = KitPromptSnapshotPayload & SystemViewFields
+
+const viewFields = { $truncated: z.optional(z.array(truncatedPathSchema)) }
+
+const usageSchema = z.object({
+  inputTokens: z.optional(z.number()),
+  outputTokens: z.optional(z.number()),
+  totalTokens: z.optional(z.number()),
+  cacheReadTokens: z.optional(z.number()),
+  cacheWriteTokens: z.optional(z.number()),
+  cacheWrite1hTokens: z.optional(z.number()),
+  reasoningTokens: z.optional(z.number()),
+})
+
+const messagePayloadSchema = z.looseObject({
+  text: z.optional(z.string()),
+  image: z.optional(z.boolean()),
+  mediaType: z.optional(z.string()),
+  meta: z.optional(z.boolean()),
+  compactSummary: z.optional(z.boolean()),
+  command: z.optional(z.boolean()),
+  injected: z.optional(z.boolean()),
+  continued: z.optional(z.boolean()),
+  ...viewFields,
+})
+
+const reasoningPayloadSchema = z.looseObject({
+  text: z.optional(z.string()),
+  redacted: z.optional(z.boolean()),
+  ...viewFields,
+})
+
+const toolCallPayloadSchema = z.looseObject({
   callId: z.string(),
   name: z.string(),
-  /** A later update's display title; the tool name itself never changes. */
   title: z.optional(z.string()),
   args: z.optional(z.unknown()),
+  ...viewFields,
 })
-export type ToolCallPayload = z.infer<typeof toolCallPayloadSchema>
 
-export const toolResultPayloadSchema = z.object({
+const toolResultPayloadSchema = z.looseObject({
   callId: z.string(),
   output: z.optional(z.unknown()),
   isError: z.optional(z.boolean()),
   exitCode: z.optional(z.number()),
   orphan: z.optional(z.boolean()),
+  ...viewFields,
 })
-export type ToolResultPayload = z.infer<typeof toolResultPayloadSchema>
 
-/**
- * A `system` event with `type: 'prompt_snapshot'`: the system prompt and tool
- * definitions the agent recorded at that point on the event's lane. A later
- * snapshot on the same lane replaces an earlier one; a field left out was not
- * recorded by that snapshot.
- */
-export const promptSnapshotPayloadSchema = z.object({
-  type: z.literal('prompt_snapshot'),
+const requestPayloadSchema = z.looseObject({
+  model: z.optional(z.string()),
+  responseId: z.optional(z.string()),
+  usage: z.optional(usageSchema),
+  startedAt: z.optional(z.number()),
+  durationMs: z.optional(z.number()),
+  finishReason: z.optional(z.string()),
+  granularity: z.optional(z.enum(['request', 'turn', 'session'])),
+  modelCalls: z.optional(z.number()),
+  usageByModel: z.optional(z.record(z.string(), z.object({ usage: usageSchema, modelCalls: z.optional(z.number()) }))),
+  ...viewFields,
+})
+
+const systemPayloadSchema = z.looseObject({
+  type: z.optional(z.string()),
+  text: z.optional(z.string()),
+  durationMs: z.optional(z.number()),
   systemPrompt: z.optional(z.string()),
   tools: z.optional(z.array(z.unknown())),
-  /**
-   * View traces only: this snapshot's `systemPrompt` equals the one on the
-   * named earlier snapshot, which holds the text; `get-event` returns it in full.
-   */
   systemPromptSameAs: z.optional(z.string()),
-  /** View traces only: the same for a non-empty `tools`. */
   toolsSameAs: z.optional(z.string()),
+  ...viewFields,
 })
-export type PromptSnapshotPayload = z.infer<typeof promptSnapshotPayloadSchema>
+
+const compactionPayloadSchema = z.looseObject({
+  trigger: z.optional(z.enum(['auto', 'manual'])),
+  preTokens: z.optional(z.number()),
+  postTokens: z.optional(z.number()),
+  summaryEventId: z.optional(z.string()),
+  ...viewFields,
+})
+
+const hookPayloadSchema = z.looseObject({
+  type: z.string(),
+  name: z.optional(z.string()),
+  event: z.optional(z.string()),
+  exitCode: z.optional(z.number()),
+  ...viewFields,
+})
+
+const unknownPayloadSchema = z.looseObject({
+  type: z.string(),
+  ...viewFields,
+})
+
+/**
+ * The payload schema of each kind, for the JSON that reaches trace from outside the kit (canonical files, the
+ * report), which the kit's types cannot check at runtime. Each one declares the kit's fields for that kind and keeps
+ * undeclared ones. The `satisfies` ties it to the kit at compile time: its output must be that kind's
+ * `TraceEventPayloads` entry, so a kit field that changes type or a required field the kit adds fails to compile;
+ * `payloads.test.ts` checks the other direction, that every payload of that type passes.
+ */
+export const payloadSchemas = {
+  user: messagePayloadSchema,
+  assistant: messagePayloadSchema,
+  reasoning: reasoningPayloadSchema,
+  tool_call: toolCallPayloadSchema,
+  tool_result: toolResultPayloadSchema,
+  request: requestPayloadSchema,
+  system: systemPayloadSchema,
+  compaction: compactionPayloadSchema,
+  hook: hookPayloadSchema,
+  unknown: unknownPayloadSchema,
+} satisfies { [K in TranscriptEventKind]: z.ZodMiniType<TraceEventPayloads[K], TraceEventPayloads[K]> }
+
+const eventFields = {
+  id: z.string(),
+  /** Order within the trace; ties in `ts` keep the log's order. */
+  seq: z.number(),
+  ts: z.number(),
+  agentId: z.optional(z.string()),
+  parentId: z.optional(z.string()),
+  /** Groups events that belong to one model request. */
+  requestId: z.optional(z.string()),
+  shadowedBy: z.optional(z.string()),
+  source: sourcePointerSchema,
+  /** Present in memory and in `get-event`; absent in the view trace. */
+  original: z.optional(z.unknown()),
+}
+
+export const traceEventSchema = z.discriminatedUnion('kind', [
+  z.object({ ...eventFields, kind: z.literal('user'), payload: payloadSchemas.user }),
+  z.object({ ...eventFields, kind: z.literal('assistant'), payload: payloadSchemas.assistant }),
+  z.object({ ...eventFields, kind: z.literal('reasoning'), payload: payloadSchemas.reasoning }),
+  z.object({ ...eventFields, kind: z.literal('tool_call'), payload: payloadSchemas.tool_call }),
+  z.object({ ...eventFields, kind: z.literal('tool_result'), payload: payloadSchemas.tool_result }),
+  z.object({ ...eventFields, kind: z.literal('request'), payload: payloadSchemas.request }),
+  z.object({ ...eventFields, kind: z.literal('system'), payload: payloadSchemas.system }),
+  z.object({ ...eventFields, kind: z.literal('compaction'), payload: payloadSchemas.compaction }),
+  z.object({ ...eventFields, kind: z.literal('hook'), payload: payloadSchemas.hook }),
+  z.object({ ...eventFields, kind: z.literal('unknown'), payload: payloadSchemas.unknown }),
+]) satisfies z.ZodMiniType<TraceEvent, TraceEvent>
 
 export const agentInfoSchema = z.object({
   id: z.string(),
@@ -157,13 +256,6 @@ export const agentInfoSchema = z.object({
   systemPrompt: z.optional(z.string()),
 })
 export type AgentInfo = z.infer<typeof agentInfoSchema>
-
-/**
- * Path of a value `toView` shortened: object keys as strings, array indexes as
- * numbers. `payload.$truncated` holds these for each shortened event.
- */
-export const truncatedPathSchema = z.array(z.union([z.string(), z.number()]))
-export type TruncatedPath = z.infer<typeof truncatedPathSchema>
 
 export const traceSessionSchema = z.object({
   id: z.string(),
@@ -197,28 +289,37 @@ export const viewInfoSchema = z.object({
 })
 export type ViewInfo = z.infer<typeof viewInfoSchema>
 
-/**
- * The canonical trace. Payloads stay loose records: their typed shapes above
- * describe what agents write, but a trace is not rejected for payload content.
- */
+/** The canonical trace. A view trace (`toView`) is one too, with view fields set. */
+export interface Trace {
+  schema: typeof TRACE_SCHEMA
+  /** The coding agent whose log this is, such as `claude-code`, and the version the log records. */
+  agent: { id: string; version?: string }
+  session: TraceSession
+  capabilities: Capability[]
+  agents: AgentInfo[]
+  events: TraceEvent[]
+  skipped: SkippedRecord[]
+  /**
+   * View traces only (`toView`): the distinct source files. Each view event's
+   * `source.file` is then its index in this list, as a decimal string.
+   */
+  sourceFiles?: string[]
+  /** View traces only: how `toView` / `fitView` built this view. */
+  view?: ViewInfo
+}
+
+/** A whole `Trace`, each event's payload checked against its kind; the `satisfies` keeps it equal to the type. */
 export const traceSchema = z.object({
   schema: z.literal(TRACE_SCHEMA),
-  /** The coding agent whose log this is, such as `claude-code`, and the version the log records. */
   agent: z.object({ id: z.string(), version: z.optional(z.string()) }),
   session: traceSessionSchema,
   capabilities: z.array(capabilitySchema),
   agents: z.array(agentInfoSchema),
   events: z.array(traceEventSchema),
   skipped: z.array(skippedRecordSchema),
-  /**
-   * View traces only (`toView`): the distinct source files. Each view event's
-   * `source.file` is then its index in this list, as a decimal string.
-   */
   sourceFiles: z.optional(z.array(z.string())),
-  /** View traces only: how `toView` / `fitView` built this view. */
   view: z.optional(viewInfoSchema),
-})
-export type Trace = z.infer<typeof traceSchema>
+}) satisfies z.ZodMiniType<Trace, Trace>
 
 export interface ReconstructResult {
   eventId: string
