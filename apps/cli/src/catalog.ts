@@ -158,7 +158,7 @@ export class SessionCatalog {
     const { file, sessionId } = splitSessionRef(input)
     // Same ref as the file's list row: the session id counts only in the `path#id` form.
     const ref = sessionRefId({
-      agent: trace.agent.id || 'agent-trace',
+      agent: trace.agent || 'agent-trace',
       path: file,
       ...(sessionId ? { sessionId } : {}),
     })

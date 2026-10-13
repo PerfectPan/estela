@@ -30,7 +30,7 @@ function synthetic(specs: Spec[]): Trace {
   })
   return {
     schema: 'agent-trace',
-    agent: { id: 'test' },
+    agent: 'test',
     session: { id: 's' },
     capabilities: ['requests', 'usage', 'compaction', 'compactionTokens', 'subagents'],
     agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 't1', title: 'Helper' }],

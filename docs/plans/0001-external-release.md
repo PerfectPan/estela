@@ -418,7 +418,8 @@ export interface Lane { id: string, parentId?: string, spawnEventId?: string, ti
 
 export interface Trace {
   schema: 'agent-trace'
-  agent: { id: string, version?: string }
+  agent: string             // the kit's Transcript.agent
+  agentVersion?: string     // the kit's Transcript.agentVersion
   session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
   capabilities: Capability[]
   agents: Lane[]
@@ -749,7 +750,7 @@ A.8 Canonical trace to ATIF v1.8 (constraint for the export follow-up):
 | Canonical | ATIF |
 |---|---|
 | `session.id` | `session_id`; `trajectory_id` for the document |
-| `agent.id`, `agent.version` | `agent.name`, `agent.version` |
+| `agent`, `agentVersion` | `agent.name`, `agent.version` |
 | `RequestPayload.model` | `agent.model_name`, or `model_name` on the step |
 | `user` event | step with `source: "user"`, `message` |
 | `assistant` event | step with `source: "agent"`, `message` |

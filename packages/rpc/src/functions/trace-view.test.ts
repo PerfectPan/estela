@@ -18,7 +18,7 @@ const SIZE = 1000
 function emptyTrace(id: string): Trace {
   return {
     schema: 'agent-trace',
-    agent: { id: 'test' },
+    agent: 'test',
     session: { id },
     capabilities: [],
     agents: [],

@@ -31,7 +31,7 @@ async function unknownGeneration(): Promise<string> {
 function canonicalHook(payload: Record<string, unknown>): string {
   return JSON.stringify({
     schema: 'agent-trace',
-    agent: { id: 'demo' },
+    agent: 'demo',
     session: { id: 's' },
     capabilities: [],
     agents: [],
@@ -156,7 +156,7 @@ describe('loadSession', () => {
       { platform },
     )
     expect(trace.schema).toBe('agent-trace')
-    expect(trace.agent.id).toBe('claude-code')
+    expect(trace.agent).toBe('claude-code')
     expect(trace.events.length).toBeGreaterThan(0)
     expect(trace.events[0]!.original).toBeDefined()
   })

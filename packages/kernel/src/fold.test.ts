@@ -16,7 +16,7 @@ function event(input: EventInput): TraceEvent {
 function trace(partial: Partial<Trace> & Pick<Trace, 'events' | 'capabilities'>): Trace {
   return {
     schema: 'agent-trace',
-    agent: { id: 'demo' },
+    agent: 'demo',
     session: { id: 's' },
     agents: [{ id: 'main' }],
     skipped: [],

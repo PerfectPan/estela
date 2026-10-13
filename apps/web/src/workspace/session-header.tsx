@@ -26,8 +26,8 @@ export function SessionHeader(props: { trace: Trace; summary: SessionSummary }) 
     >
       <div class="flex min-w-0 flex-col gap-2">
         <div class="flex min-w-0 items-center gap-2.5 text-[13px] text-muted-foreground">
-          <AgentMark id={props.trace.agent.id} />
-          <span class="shrink-0">{agentName(props.trace.agent.id)}</span>
+          <AgentMark id={props.trace.agent} />
+          <span class="shrink-0">{agentName(props.trace.agent)}</span>
           <Show when={props.trace.session.cwd}>
             {cwd => (
               <>

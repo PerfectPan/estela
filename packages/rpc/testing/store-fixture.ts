@@ -56,7 +56,7 @@ export function fixture() {
     }
     return {
       schema: 'agent-trace',
-      agent: { id: 'test' },
+      agent: 'test',
       session: { id: file },
       capabilities: ['requests'],
       agents: [{ id: 'main' }],

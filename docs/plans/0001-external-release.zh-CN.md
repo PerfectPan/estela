@@ -420,7 +420,8 @@ export interface Lane { id: string, parentId?: string, spawnEventId?: string, ti
 
 export interface Trace {
   schema: 'agent-trace'
-  agent: { id: string, version?: string }
+  agent: string             // the kit's Transcript.agent
+  agentVersion?: string     // the kit's Transcript.agentVersion
   session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
   capabilities: Capability[]
   agents: Lane[]
@@ -751,7 +752,7 @@ A.8 规范 trace 到 ATIF v1.8 的映射（ATIF 导出后续工作的约束）�
 | 规范 trace | ATIF |
 |---|---|
 | `session.id` | `session_id`；文档使用 `trajectory_id` |
-| `agent.id`, `agent.version` | `agent.name`, `agent.version` |
+| `agent`, `agentVersion` | `agent.name`, `agent.version` |
 | `RequestPayload.model` | `agent.model_name`，或 step 上的 `model_name` |
 | `user` 事件 | `source: "user"`、`message` 的 step |
 | `assistant` 事件 | `source: "agent"`、`message` 的 step |

@@ -9,7 +9,7 @@ type Status = LoadClient['status']
 
 const trace: Trace = {
   schema: 'agent-trace',
-  agent: { id: 'claude-code' },
+  agent: 'claude-code',
   session: { id: 's' },
   capabilities: [],
   agents: [],

@@ -11,7 +11,7 @@ function event(partial: Record<string, unknown> = {}) {
 function trace(partial: Record<string, unknown> = {}) {
   return {
     schema: 'agent-trace',
-    agent: { id: 'demo' },
+    agent: 'demo',
     session: { id: 's' },
     capabilities: [],
     agents: [],
@@ -30,7 +30,8 @@ describe('isTrace', () => {
     expect(
       isTrace(
         trace({
-          agent: { id: 'demo', version: '1.0.0' },
+          agent: 'demo',
+          agentVersion: '1.0.0',
           session: { id: 's', title: 't', cwd: '/w', startedAt: 1, endedAt: 2 },
           capabilities: ['requests', 'usage'],
           agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'e', title: 'x' }],
@@ -57,7 +58,7 @@ describe('isTrace', () => {
     expect(isTrace([])).toBe(false)
     expect(isTrace('agent-trace')).toBe(false)
     expect(isTrace(trace({ schema: 'other' }))).toBe(false)
-    expect(isTrace(trace({ agent: {} }))).toBe(false)
+    expect(isTrace(trace({ agent: { id: 'demo' } }))).toBe(false)
     expect(isTrace(trace({ session: { id: 1 } }))).toBe(false)
   })
 
