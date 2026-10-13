@@ -125,7 +125,7 @@ describe('view rules on the loaded fixtures', () => {
 
   it('reconstructs the same result from the view trace, which keeps each repeated prompt once', async () => {
     const trace = await claudeLoad('prompt-snapshot/session.jsonl')
-    const view = toView(trace, { maxString: 16 })
+    const view = toView(trace, { maxString: 256 })
     for (const event of trace.events) {
       expect(reconstruct(view, event.id), event.id).toEqual(reconstruct(trace, event.id))
     }

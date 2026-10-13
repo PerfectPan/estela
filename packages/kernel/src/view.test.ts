@@ -27,13 +27,13 @@ function traceOf(payload: TraceEventPayloads['user'], session: Trace['session'] 
 
 describe('toView', () => {
   it('drops original and caps long strings', () => {
-    const trace = traceOf({ text: 'x'.repeat(20) })
-    const view = toView(trace, { maxString: 8 })
+    const trace = traceOf({ text: 'x'.repeat(300) })
+    const view = toView(trace, { maxString: 256 })
     expect(view.events[0]?.original).toBeUndefined()
     expect('original' in view.events[0]!).toBe(false)
-    expect(view.events[0]?.payload.text).toBe('xxxxxxxx')
+    expect(view.events[0]?.payload.text).toBe('x'.repeat(256))
     expect(view.events[0]?.payload.$truncated).toEqual([['text']])
-    expect(view.view).toEqual({ maxString: 8 })
+    expect(view.view).toEqual({ maxString: 256 })
     expect(trace.events[0]?.original).toEqual({ secret: 'keep-me-out' })
   })
 
@@ -67,17 +67,17 @@ describe('toView', () => {
 
   it('caps session strings and marks them on the session', () => {
     const view = toView(
-      traceOf({}, { id: 's', systemPrompt: 'p'.repeat(20), tools: [{ description: 'd'.repeat(20) }] }),
-      { maxString: 12 },
+      traceOf({}, { id: 's', systemPrompt: 'p'.repeat(300), tools: [{ description: 'd'.repeat(300) }] }),
+      { maxString: 256 },
     )
-    expect(view.session.systemPrompt).toBe('p'.repeat(12))
+    expect(view.session.systemPrompt).toBe('p'.repeat(256))
     expect(view.session.$truncated).toEqual([['systemPrompt'], ['tools', 0, 'description']])
   })
 
   it('does not mutate the input, and replaces a stale marker', () => {
-    const trace = traceOf({ text: 'x'.repeat(20), $truncated: [['stale']] })
+    const trace = traceOf({ text: 'x'.repeat(300), $truncated: [['stale']] })
     const before = structuredClone(trace)
-    const view = toView(trace, { maxString: 8 })
+    const view = toView(trace, { maxString: 256 })
     expect(trace).toEqual(before)
     expect(view.events[0]?.payload.$truncated).toEqual([['text']])
     expect(view.events[0]).not.toBe(trace.events[0])
@@ -152,43 +152,67 @@ describe('fitView', () => {
 describe('toView edge cases', () => {
   it('keeps dotted keys unambiguous, caps long keys, and never splits a surrogate pair', () => {
     const emoji = '\u{1F600}'
-    const view = toView(traceOf({ 'a.b': 'x'.repeat(10), ['k'.repeat(10)]: 1, face: `abc${emoji}` }), { maxString: 4 })
+    const key = 'k'.repeat(256)
+    const face = `${'a'.repeat(255)}${emoji}`
+    const view = toView(traceOf({ 'a.b': 'x'.repeat(300), [`${key}k`]: 1, face }), { maxString: 256 })
     const payload = view.events[0]!.payload
-    expect(payload['a.b']).toBe('xxxx')
-    expect(payload.kkkk).toBe(1)
-    expect(payload.face).toBe('abc')
-    expect(payload.$truncated).toEqual([['a.b'], ['kkkk'], ['face']])
-    expect(toView(traceOf({ face: `abcd${emoji}` }), { maxString: 6 }).events[0]!.payload.face).toBe(`abcd${emoji}`)
+    expect(payload['a.b']).toBe('x'.repeat(256))
+    expect(payload[key]).toBe(1)
+    expect(payload.face).toBe('a'.repeat(255))
+    expect(payload.$truncated).toEqual([['a.b'], [key], ['face']])
+    const fits = `${'a'.repeat(254)}${emoji}`
+    expect(toView(traceOf({ face: fits }), { maxString: 256 }).events[0]!.payload.face).toBe(fits)
   })
 
   it('caps agent titles and skipped reasons', () => {
     const trace = traceOf({})
-    trace.agents = [{ id: 'sub', parentId: 'main', title: 't'.repeat(10) }]
-    trace.skipped = [{ file: 'f', line: 1, reason: 'r'.repeat(10) }]
-    const view = toView(trace, { maxString: 3 })
-    expect(view.agents[0]!.title).toBe('ttt')
-    expect(view.skipped[0]!.reason).toBe('rrr')
-    expect(trace.agents[0]!.title).toHaveLength(10)
+    trace.agents = [{ id: 'sub', parentId: 'main', title: 't'.repeat(300) }]
+    trace.skipped = [{ file: 'f', line: 1, reason: 'r'.repeat(300) }]
+    const view = toView(trace, { maxString: 256 })
+    expect(view.agents[0]!.title).toBe('t'.repeat(256))
+    expect(view.skipped[0]!.reason).toBe('r'.repeat(256))
+    expect(trace.agents[0]!.title).toHaveLength(300)
   })
 })
 
 describe('toView key collisions', () => {
   it('suffixes long keys that share a prefix after cutting', () => {
-    const view = toView(traceOf({ ['a'.repeat(10) + '1']: 1, ['a'.repeat(10) + '2']: 2, aaaa: 0 }), { maxString: 4 })
+    const key = 'a'.repeat(256)
+    const view = toView(traceOf({ [`${key}1`]: 1, [`${key}2`]: 2, [key]: 0 }), { maxString: 256 })
     const payload = view.events[0]!.payload
-    expect(payload).toMatchObject({ 'aaaa#2': 1, 'aaaa#3': 2, aaaa: 0 })
-    expect(payload.$truncated).toEqual([['aaaa#2'], ['aaaa#3']])
+    expect(payload).toMatchObject({ [`${key}#2`]: 1, [`${key}#3`]: 2, [key]: 0 })
+    expect(payload.$truncated).toEqual([[`${key}#2`], [`${key}#3`]])
+  })
+})
+
+describe('toView floor', () => {
+  it('raises a cap below 256 to 256, so a tool result keeps its callId and the view stays valid', () => {
+    const trace = traceOf({})
+    trace.events = [
+      { ...trace.events[0]!, kind: 'tool_result', payload: { callId: 'call-1', output: 'o'.repeat(300) } },
+    ]
+    for (const maxString of [0, 5]) {
+      const view = toView(trace, { maxString })
+      expect(view.view, String(maxString)).toEqual({ maxString: 256 })
+      expect(view.events[0]!.payload, String(maxString)).toEqual({
+        callId: 'call-1',
+        output: 'o'.repeat(256),
+        $truncated: [['output']],
+      })
+      expect(fitView(trace, { maxString }).trace.view, String(maxString)).toMatchObject({
+        maxString: 256,
+        withinBudget: true,
+      })
+    }
   })
 })
 
 describe('toView check', () => {
-  it('throws with the first issue when capping leaves no valid trace', () => {
-    // Below the 256-character floor `fitView` keeps, a cap can cut a declared key.
+  it('throws with the first issue when the input already breaks the schema', () => {
+    // Capping at 256 or more cannot break a view; a timestamp that did not parse can.
     const trace = traceOf({})
-    trace.events = [{ ...trace.events[0]!, kind: 'tool_call', payload: { callId: 'c', name: 'Bash' } }]
-    expect(() => toView(trace, { maxString: 4 })).toThrow(
-      new TypeError('toView: events.0.payload.callId: Invalid input'),
-    )
-    expect(toView(trace, { maxString: 6 }).events[0]!.payload).toEqual({ callId: 'c', name: 'Bash' })
+    trace.events = [{ ...trace.events[0]!, ts: Number.NaN }]
+    expect(() => toView(trace)).toThrow(new TypeError('toView: events.0.ts: Invalid input'))
+    expect(() => fitView(trace)).toThrow(new TypeError('fitView: events.0.ts: Invalid input'))
   })
 })

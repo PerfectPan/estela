@@ -6,8 +6,17 @@ import { promptSnapshot } from './prompt-snapshot.ts'
 const DEFAULT_MAX = 4096
 /** Plan 1.3: at most 12 MB reaches the browser before an event is selected. */
 export const VIEW_BUDGET_BYTES = 12 * 1000 * 1000
+/**
+ * The lowest cap, whatever a caller asks for: `fitView` stops lowering here. Capping cuts keys and string values, and
+ * the view schema needs its declared keys (such as `callId`) and enum values (such as `granularity: 'session'`)
+ * whole; all of them are far shorter than this.
+ */
 const MIN_STRING = 256
 const STEP = 0.75
+
+function capFor(maxString: number | undefined): number {
+  return Math.max(MIN_STRING, maxString ?? DEFAULT_MAX)
+}
 
 /** `value` cut to at most `max` UTF-16 units, never between the two halves of a surrogate pair. */
 function cut(value: string, max: number): string {
@@ -198,9 +207,10 @@ function draftView(trace: Trace, max: number): ViewDraft {
  *
  * - Drops `original`; `get-event` reads it back from the source pointer.
  * - Caps every string and object key at `maxString` UTF-16 units (default
- *   4,096), never splitting a surrogate pair, and lists the shortened paths in
- *   `payload.$truncated` (and `session.$truncated`) as key/index arrays.
- *   `agents[].title` and `skipped[].reason` are capped too.
+ *   4,096; a value below 256 is raised to 256), never splitting a surrogate
+ *   pair, and lists the shortened paths in `payload.$truncated` (and
+ *   `session.$truncated`) as key/index arrays. `agents[].title` and
+ *   `skipped[].reason` are capped too.
  * - Interns source files: `sourceFiles` lists them once and each event's
  *   `source.file` is its index, so `file` + `line` still names one record.
  * - Merges `skipped` entries per file and reason, with a count.
@@ -211,11 +221,12 @@ function draftView(trace: Trace, max: number): ViewDraft {
  * - Records the cap in `view.maxString`, so the UI can say how text was shortened.
  *
  * The result is checked against the trace schema before it is returned, and a
- * failed check throws: capping keeps every string a string and renames only keys
- * longer than the cap, which no declared key is at the 256-character floor.
+ * failed check throws. Capping keeps every string a string and, at 256 or more
+ * (`MIN_STRING`), cuts no declared key or enum value, so the check fails only
+ * when the input already breaks the schema, such as a `NaN` timestamp.
  */
 export function toView(trace: Trace, opts?: { maxString?: number }): Trace {
-  const draft = draftView(trace, opts?.maxString ?? DEFAULT_MAX)
+  const draft = draftView(trace, capFor(opts?.maxString))
   assertTrace(draft, 'toView')
   return draft
 }
@@ -237,14 +248,15 @@ function fitted(draft: ViewDraft, bytes: number): FittedView {
 }
 
 /**
- * `toView` within a byte budget. Sessions whose view fits keep the 4,096 cap;
- * larger ones get a lower cap, in steps of 0.75, down to 256 characters. At the
- * floor the view is returned anyway with `view.withinBudget: false`. Only the
- * view it returns is checked, not every cap it measures on the way.
+ * `toView` within a byte budget. Sessions whose view fits keep the starting cap
+ * (`maxString`, 4,096 by default, never below 256); larger ones get a lower cap,
+ * in steps of 0.75, down to 256 characters. At the floor the view is returned
+ * anyway with `view.withinBudget: false`. Only the view it returns is checked,
+ * not every cap it measures on the way.
  */
 export function fitView(trace: Trace, opts?: { maxString?: number; maxBytes?: number }): FittedView {
   const budget = opts?.maxBytes ?? VIEW_BUDGET_BYTES
-  let max = opts?.maxString ?? DEFAULT_MAX
+  let max = capFor(opts?.maxString)
   while (true) {
     const draft = draftView(trace, max)
     draft.view = { maxString: max, budgetBytes: budget, withinBudget: true }
