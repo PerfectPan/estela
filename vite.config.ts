@@ -22,8 +22,8 @@ export default {
     categories: { ...lint.categories, suspicious: 'warn' },
     rules: {
       ...lint.rules,
-      // Casts sit at parse boundaries (JSONL records, SQLite rows, DevFrame payloads);
-      // replacing them needs runtime validation, which is a separate change.
+      // Off while the kernel and the web app read event payloads through casts (plan 0002 PR B parses them) and
+      // the web app and tests cast DOM, library, and test-double types. Unknown data elsewhere is parsed by schema.
       'typescript/no-unsafe-type-assertion': 'off',
       // Declared return types already cover this, and the rule does not follow
       // `never` calls such as `process.exit` or exhaustive switches.
