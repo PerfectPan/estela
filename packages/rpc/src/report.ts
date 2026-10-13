@@ -9,7 +9,8 @@ export const REPORT_MAX_BYTES = 20 * 1000 * 1000
 /** Events asked for per call while filling the report (bounds memory before the byte check). */
 const BATCH = 250
 
-export type ReportLocale = 'en' | 'zh-CN'
+export const REPORT_LOCALES = ['en', 'zh-CN'] as const
+export type ReportLocale = (typeof REPORT_LOCALES)[number]
 
 /** `report-trace`: everything the SPA's report mode needs, redacted. */
 export interface ReportTrace {

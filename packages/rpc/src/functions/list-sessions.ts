@@ -1,37 +1,29 @@
 import type { ListSessionsQuery, ListSessionsResult } from '../list-types.ts'
 import { defineRpcFunction } from 'devframe'
+import * as z from 'zod/mini'
+import { parseInput } from './parse-input.ts'
 import { requireSessionService } from './service.ts'
 
-/** The browser is a client like any other: check the shape before the index sees it. */
-export function checkQuery(input: unknown): ListSessionsQuery {
-  if (input == null) {
-    return {}
-  }
-  if (typeof input !== 'object' || Array.isArray(input)) {
-    throw new TypeError('list-sessions: expected an object')
-  }
-  const { query, since, first } = input as Record<string, unknown>
-  const out: ListSessionsQuery = {}
-  if (query !== undefined) {
-    if (typeof query !== 'string' || query.length > 1000) {
-      throw new TypeError('list-sessions: query must be a string of at most 1000 characters')
-    }
-    out.query = query
-  }
-  if (since !== undefined) {
-    if (typeof since !== 'number' || !Number.isInteger(since) || since < 0) {
-      throw new TypeError('list-sessions: since must be a non-negative integer')
-    }
-    out.since = since
-  }
-  if (first !== undefined) {
-    if (!Array.isArray(first) || first.length > 500 || !first.every(ref => typeof ref === 'string')) {
-      throw new TypeError('list-sessions: first must be an array of at most 500 refs')
-    }
-    out.first = first
-  }
-  return out
-}
+const QUERY = 'list-sessions: query must be a string of at most 1000 characters'
+const SINCE = 'list-sessions: since must be a non-negative integer'
+const FIRST = 'list-sessions: first must be an array of at most 500 refs'
+
+/**
+ * The browser is a client like any other: check the shape before the index sees it. `z.int` stops at the
+ * safe-integer range; revisions count up from 0 and never get near it.
+ */
+const listSessionsQuery = z.nullish(
+  z.object(
+    {
+      query: z.optional(z.string({ error: QUERY }).check(z.maxLength(1000, { error: QUERY }))),
+      since: z.optional(z.int({ error: SINCE }).check(z.nonnegative({ error: SINCE }))),
+      first: z.optional(
+        z.array(z.string({ error: FIRST }), { error: FIRST }).check(z.maxLength(500, { error: FIRST })),
+      ),
+    },
+    { error: 'list-sessions: expected an object' },
+  ),
+)
 
 export const listSessions = defineRpcFunction({
   name: 'list-sessions',
@@ -43,7 +35,7 @@ export const listSessions = defineRpcFunction({
       if (!service.listSessions) {
         throw new Error('list-sessions is not available')
       }
-      return service.listSessions(checkQuery(input))
+      return service.listSessions(parseInput(listSessionsQuery, input) ?? {})
     },
   }),
 })
