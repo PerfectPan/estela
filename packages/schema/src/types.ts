@@ -1,4 +1,5 @@
 import type {
+  Lane,
   PromptSnapshotPayload as KitPromptSnapshotPayload,
   TranscriptEventKind,
   TranscriptEventOf,
@@ -248,15 +249,15 @@ export const traceEventSchema = z.discriminatedUnion('kind', [
   z.object({ ...eventFields, kind: z.literal('unknown'), payload: payloadSchemas.unknown }),
 ]) satisfies z.ZodMiniType<TraceEvent, TraceEvent>
 
-export const agentInfoSchema = z.object({
+/** One entry of `Trace.agents`: the kit's `Lane`, which the `satisfies` ties it to. */
+const laneSchema = z.object({
   id: z.string(),
   parentId: z.optional(z.string()),
   spawnEventId: z.optional(z.string()),
   title: z.optional(z.string()),
   /** This lane's own system prompt, when the agent records one per lane. */
   systemPrompt: z.optional(z.string()),
-})
-export type AgentInfo = z.infer<typeof agentInfoSchema>
+}) satisfies z.ZodMiniType<Lane, Lane>
 
 export const traceSessionSchema = z.object({
   id: z.string(),
@@ -297,7 +298,7 @@ export interface Trace {
   agent: { id: string; version?: string }
   session: TraceSession
   capabilities: Capability[]
-  agents: AgentInfo[]
+  agents: Lane[]
   events: TraceEvent[]
   skipped: SkippedRecord[]
   /**
@@ -318,7 +319,7 @@ export const traceSchema = z.object({
   agent: z.object({ id: z.string(), version: z.optional(z.string()) }),
   session: traceSessionSchema,
   capabilities: z.array(capabilitySchema),
-  agents: z.array(agentInfoSchema),
+  agents: z.array(laneSchema),
   events: z.array(traceEventSchema),
   skipped: z.array(skippedRecordSchema),
   sourceFiles: z.optional(z.array(z.string())),

@@ -1,4 +1,5 @@
-import type { AgentInfo, SkippedRecord, Trace, TraceEvent, TruncatedPath, ViewInfo } from '@rivus/agent-trace-schema'
+import type { Lane } from '@rivus/agent-kit/transcript'
+import type { SkippedRecord, Trace, TraceEvent, TruncatedPath, ViewInfo } from '@rivus/agent-trace-schema'
 import { assertTrace } from '@rivus/agent-trace-schema'
 import { isPlainObject } from 'es-toolkit/predicate'
 import { promptSnapshot } from './prompt-snapshot.ts'
@@ -156,8 +157,8 @@ function groupSkipped(skipped: readonly SkippedRecord[], max: number): SkippedRe
   return [...groups.values()]
 }
 
-function capAgent(agent: AgentInfo, max: number): AgentInfo {
-  const out = { ...agent }
+function capLane(lane: Lane, max: number): Lane {
+  const out = { ...lane }
   if (out.title !== undefined && out.title.length > max) {
     out.title = cut(out.title, max)
   }
@@ -194,7 +195,7 @@ function draftView(trace: Trace, max: number): ViewDraft {
   return {
     ...base,
     session,
-    agents: trace.agents.map(agent => capAgent(agent, max)),
+    agents: trace.agents.map(lane => capLane(lane, max)),
     events: trace.events.map(event => capEvent(event, max, fileIndex, refs)),
     skipped: groupSkipped(trace.skipped, max),
     sourceFiles: [...files.keys()],

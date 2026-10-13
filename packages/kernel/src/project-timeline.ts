@@ -1,3 +1,4 @@
+import type { Lane } from '@rivus/agent-kit/transcript'
 import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { laneOf, mainAgentId, promptStarts, requestUsage } from './lanes.ts'
 
@@ -21,7 +22,8 @@ export type LaneMarker =
   | { kind: 'failed-tool'; eventId: string; ts: number; callId?: string; name?: string }
   | { kind: 'compaction'; eventId: string; ts: number; trigger?: string; preTokens?: number; postTokens?: number }
 
-export interface Lane {
+/** A lane as the timeline draws it: the trace's `Lane` fields it shows, plus its depth, requests, and markers. */
+export interface TimelineLane {
   id: string
   parentId?: string
   spawnEventId?: string
@@ -131,15 +133,15 @@ function depthOf(id: string, parents: Map<string, string | undefined>): number {
  * The main lane, then one lane per subagent in `agents[]` order, then any lane
  * that only appears on events. Each lane carries its requests and markers.
  */
-export function projectLanes(trace: Trace): Lane[] {
+export function projectLanes(trace: Trace): TimelineLane[] {
   const mainId = mainAgentId(trace)
-  const lanes = new Map<string, Lane>()
+  const lanes = new Map<string, TimelineLane>()
   const parents = new Map<string, string | undefined>()
-  const add = (id: string, info?: Trace['agents'][number]): void => {
+  const add = (id: string, info?: Lane): void => {
     if (lanes.has(id)) {
       return
     }
-    const lane: Lane = { id, depth: 0, requests: [], markers: [] }
+    const lane: TimelineLane = { id, depth: 0, requests: [], markers: [] }
     if (info?.parentId) {
       lane.parentId = info.parentId
     }

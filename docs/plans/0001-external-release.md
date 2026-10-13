@@ -413,14 +413,15 @@ export interface ToolResultPayload { callId: string, output?: unknown, isError?:
 
 export interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }  // on a `system` event
 
-export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
+// The kit's Lane (@rivus/agent-kit/transcript)
+export interface Lane { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
   schema: 'agent-trace'
   agent: { id: string, version?: string }
   session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
   capabilities: Capability[]
-  agents: AgentInfo[]
+  agents: Lane[]
   events: TraceEvent[]
   skipped: { line: number, file: string, reason: string }[]
 }
@@ -428,7 +429,7 @@ export interface Trace {
 
 A `request` event is one model call. An agent that records only per-turn totals emits one request per turn and marks it `granularity: 'turn'` (with `modelCalls` and, when recorded, a per-model `usageByModel` split). A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
 
-An agent that records the system prompt or tool list during the session emits each record as a `system` event with `type: 'prompt_snapshot'` (`PromptSnapshotPayload`) on its lane; the event keeps its source pointer and original, and a compaction does not shadow it. `reconstruct` fills the `system` and `tools` slots from the latest snapshot at or before the event on that lane that recorded each field, and names it in `slot.recordedBy`; a slot with no such snapshot is `unavailable`, even when a later snapshot exists. `session.systemPrompt` and `session.tools` hold the main lane's latest snapshot, and `AgentInfo.systemPrompt` a subagent lane's own. A trace without snapshots uses those session and lane fields for every event. Claude Code joins the recorded `systemPrompt` blocks with a blank line. The view trace keeps each distinct snapshot system prompt and non-empty tool list once, on the first snapshot with it; a later snapshot with the same content carries `systemPromptSameAs` / `toolsSameAs` naming that snapshot and lists the field in `payload.$truncated`, so `get-event` returns it in full and `reconstruct` gives the same result on the view. A recorded empty tool list is an `empty` slot.
+An agent that records the system prompt or tool list during the session emits each record as a `system` event with `type: 'prompt_snapshot'` (`PromptSnapshotPayload`) on its lane; the event keeps its source pointer and original, and a compaction does not shadow it. `reconstruct` fills the `system` and `tools` slots from the latest snapshot at or before the event on that lane that recorded each field, and names it in `slot.recordedBy`; a slot with no such snapshot is `unavailable`, even when a later snapshot exists. `session.systemPrompt` and `session.tools` hold the main lane's latest snapshot, and `Lane.systemPrompt` a subagent lane's own. A trace without snapshots uses those session and lane fields for every event. Claude Code joins the recorded `systemPrompt` blocks with a blank line. The view trace keeps each distinct snapshot system prompt and non-empty tool list once, on the first snapshot with it; a later snapshot with the same content carries `systemPromptSameAs` / `toolsSameAs` naming that snapshot and lists the field in `payload.$truncated`, so `get-event` returns it in full and `reconstruct` gives the same result on the view. A recorded empty tool list is an `empty` slot.
 
 - `schema: 'agent-trace'` marks a canonical JSON file. The demo fixture is rewritten to this shape; no reader for the MVP shape is kept.
 - Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.

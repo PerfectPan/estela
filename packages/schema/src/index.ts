@@ -6,7 +6,6 @@ export {
   TRACE_SCHEMA,
   traceEventSchema,
   traceSchema,
-  type AgentInfo,
   type Capability,
   type CompactionPayload,
   type ContextSlot,
