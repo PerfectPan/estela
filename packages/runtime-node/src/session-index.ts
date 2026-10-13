@@ -230,11 +230,9 @@ class SqliteIndex implements SessionIndex {
     if (unparsable.length > 0) {
       try {
         this.transaction(() => this.dropUnparsable(unparsable))
-      } catch (error) {
-        // Busy: the rows stay hidden, and `writeHead` drops each one when discover writes its path.
-        if (!isBusy(error)) {
-          throw error
-        }
+      } catch {
+        // The cleanup is optional: on any error (busy, full, read-only, I/O) the rows read above are still returned,
+        // the damaged rows stay hidden, and `writeHead` drops each one when discover writes its path.
       }
     }
     return out

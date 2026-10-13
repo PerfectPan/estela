@@ -138,4 +138,23 @@ describe('session index rows that do not parse', () => {
     raw.close()
     index.close()
   })
+
+  it('returns the rows it read when the cleanup fails with an error that is not busy', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const index = openSessionIndex({ summaryVersion: 1, file })
+    index.putSummaries([
+      summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Alpha' }),
+      summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['find the needle'] }),
+    ])
+    const raw = new DatabaseSync(file)
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'b'`)
+    // The cleanup's delete fails with SQLITE_CONSTRAINT, standing in for SQLITE_FULL, READONLY, or IOERR.
+    raw.exec(`CREATE TRIGGER refuse BEFORE DELETE ON sessions BEGIN SELECT RAISE(ABORT, 'refused'); END`)
+    expect(index.rows().map(row => row.ref)).toEqual(['a'])
+    // Rolled back: the damaged row and its prompts stay until discover writes its path.
+    expect(raw.prepare('SELECT ref FROM sessions ORDER BY ref').all()).toEqual([{ ref: 'a' }, { ref: 'b' }])
+    expect(raw.prepare('SELECT count(*) AS n FROM prompts WHERE ref = ?').get('b')).toEqual({ n: 1 })
+    raw.close()
+    index.close()
+  })
 })
