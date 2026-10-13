@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { sqliteErrcode } from './session-index-schema.ts'
 import { openSessionIndex, sessionIndexFile, type IndexSummary } from './session-index.ts'
 
 const dirs: string[] = []
@@ -212,6 +213,60 @@ describe('session index', () => {
     expect(current.rows()[0]?.summary).toBeUndefined()
     expect(current.rows()[0]?.title).toBe('Fix the auth refresh')
     current.close()
+  })
+
+  it('reads NULL head columns as absent fields', async () => {
+    const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
+    index.putHeads([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
+    expect(index.rows()).toEqual([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
+    index.close()
+  })
+
+  it('treats stored values of the wrong type as missing data', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const index = openSessionIndex({ summaryVersion: 1, file })
+    index.putSummaries([
+      summary({ ref: 'a', path: '/logs/a.jsonl', summary: { turns: 2, contextShape: [1, 2] } }),
+      summary({ ref: 'b', path: '/logs/b.jsonl', summary: { turns: 3, contextShape: [3] } }),
+    ])
+    const raw = new DatabaseSync(file)
+    // A damaged shape loses only the shape; a non-number count loses the cached summary; a bad head hides the row.
+    raw.exec(`UPDATE sessions SET context_shape = '[1, "x"]' WHERE ref = 'a'`)
+    raw.exec(`UPDATE sessions SET turns = 'many' WHERE ref = 'b'`)
+    expect(index.get('/logs/a.jsonl', 10, 1_000)).toEqual({ turns: 2 })
+    expect(index.get('/logs/b.jsonl', 10, 1_000)).toBeUndefined()
+    raw.exec(`UPDATE sessions SET context_shape = 'not json' WHERE ref = 'a'`)
+    expect(index.get('/logs/a.jsonl', 10, 1_000)).toEqual({ turns: 2 })
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'a'`)
+    raw.close()
+    expect(index.rows().map(row => row.ref)).toEqual(['b'])
+    index.putHeads([{ ref: 'a', agent: 'claude-code', path: '/logs/a.jsonl', size: 10, mtimeMs: 1_000 }])
+    expect(
+      index
+        .rows()
+        .map(row => row.ref)
+        .toSorted(),
+    ).toEqual(['a', 'b'])
+    index.close()
+  })
+
+  it('reads the SQLite result code off a node:sqlite error', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const holder = new DatabaseSync(file)
+    holder.exec('CREATE TABLE t (x); BEGIN IMMEDIATE')
+    const other = new DatabaseSync(file, { timeout: 0 })
+    let busy: unknown
+    try {
+      other.exec('BEGIN IMMEDIATE')
+    } catch (error) {
+      busy = error
+    }
+    expect(sqliteErrcode(busy)).toBe(5)
+    expect(sqliteErrcode(new Error('not from SQLite'))).toBeUndefined()
+    expect(sqliteErrcode(undefined)).toBeUndefined()
+    other.close()
+    holder.exec('ROLLBACK')
+    holder.close()
   })
 
   it('keeps a fractional mtime exact', async () => {
