@@ -309,10 +309,10 @@ describe('session catalog cache', () => {
     // The TraceStore resolves list trace ids through the catalog; `current` shares the row's entry.
     const traces = createTraceStore({ platform, redacts: true, resolve: traceId => catalog.resolve(traceId) })
     await traces.seed({ key: opened, target: { path } }, trace)
-    const byRef = await traces.store.view(opened)
+    const byTraceId = await traces.store.view(opened)
     const byCurrent = await traces.store.view(CURRENT_TRACE_ID)
-    expect(byRef.trace.events.length).toBe(trace.events.length)
-    expect(byCurrent.trace).toBe(byRef.trace)
+    expect(byTraceId.trace.events.length).toBe(trace.events.length)
+    expect(byCurrent.trace).toBe(byTraceId.trace)
     expect(traces.store.cachedKeys()).toEqual([opened])
     const first = trace.events[0]!
     expect((await traces.store.event(opened, first.id)).original).toEqual(first.original)

@@ -14,7 +14,7 @@ function readyBox(raw: string): string[] {
 }
 
 /** The trace id the CLI gives a session path, read from its plain `Ready:` line. */
-async function refOf(path: string): Promise<string> {
+async function traceIdOf(path: string): Promise<string> {
   const server = start(process.execPath, [ctx.bin, path, '--no-open', '--port', '0'], {
     cwd: ctx.installDir,
     env: smokeEnv(ctx, openLogPath(ctx, 's16-trace-id')),
@@ -30,7 +30,7 @@ async function refOf(path: string): Promise<string> {
 describe('installed tarball in a terminal', () => {
   it('S16: --pick, type part of a title, Enter opens that session', async () => {
     const subagent = join(ctx.home, '.claude/projects/app-subagent/session.jsonl')
-    const expected = await refOf(subagent)
+    const expected = await traceIdOf(subagent)
     const log = openLogPath(ctx, 's16')
     const term = spawnPty(process.execPath, [ctx.bin, '--pick', '--port', '0'], {
       name: 'xterm-256color',

@@ -37,12 +37,12 @@ export function errorMessage(error: unknown): string {
  * The message of a load failure, for the thrown `Error` and the error row alike: `parseReadFailure`
  * splits it back into the wire `SessionError`.
  */
-export function loadErrorMessage(error: LoadTranscriptError, refLabel: string): string {
+export function loadErrorMessage(error: LoadTranscriptError, targetLabel: string): string {
   switch (error._tag) {
     case 'SessionNotFound':
-      return `${refLabel} does not exist`
+      return `${targetLabel} does not exist`
     case 'NoAdapterAccepted':
-      return `No adapter accepted ${refLabel}`
+      return `No adapter accepted ${targetLabel}`
     case 'UnknownFormatGeneration':
       return `${error.agent}: ${error.file}:${error.line}: unknown format generation`
     case 'ReadFailed':
@@ -60,13 +60,13 @@ export function loadErrorMessage(error: LoadTranscriptError, refLabel: string): 
 export function loadFailure(
   error: LoadTranscriptError,
   homeDir: string,
-  refLabel: string,
+  targetLabel: string,
   fallbackFile?: string,
 ): SessionError {
   if (error._tag === 'SessionNotFound') {
-    return { reason: 'session file does not exist', file: redactText(fallbackFile ?? refLabel, { home: homeDir }) }
+    return { reason: 'session file does not exist', file: redactText(fallbackFile ?? targetLabel, { home: homeDir }) }
   }
-  return parseReadFailure(loadErrorMessage(error, refLabel), homeDir, fallbackFile)
+  return parseReadFailure(loadErrorMessage(error, targetLabel), homeDir, fallbackFile)
 }
 
 /** A listing failure for one file. `RootMissing` never reaches a row: the root stat records it. */
