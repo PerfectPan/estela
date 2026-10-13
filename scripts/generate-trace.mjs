@@ -188,7 +188,7 @@ function tool(agentId, requestId, { fail = false, long = false } = {}) {
 function hooks() {
   const count = between(2, 6)
   for (let index = 0; index < count; index++) {
-    push('hook', { name: index % 2 === 0 ? 'PreToolUse' : 'PostToolUse', event: 'hook_success' })
+    push('hook', { type: 'hook_success', name: index % 2 === 0 ? 'PreToolUse' : 'PostToolUse', event: 'hook_success' })
     tick(20, 200)
   }
 }
