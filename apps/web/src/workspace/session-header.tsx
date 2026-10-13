@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@rivus/agent-trace-kernel'
+import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { Show } from 'solid-js'
 import { HostMark } from '@/browser/host-mark.tsx'

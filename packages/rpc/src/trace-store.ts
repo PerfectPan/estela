@@ -1,5 +1,6 @@
+import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { FittedView, SessionFs, SessionRef, SessionSummary } from '@rivus/agent-trace-kernel'
+import type { FittedView, SessionFs, SessionRef } from '@rivus/agent-trace-kernel'
 import type { FileStamp } from './source-check.ts'
 import { fitView, fold, reconstruct, splitSessionRef, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'

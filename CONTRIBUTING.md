@@ -122,7 +122,7 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 ## Repository Architecture
 
 - `packages/schema` and `packages/kernel` are domain rules. They must not import DevFrame or UI.
-- Session reading is the external `@rivus/agent-kit`; `apps/cli` is the only package that imports it.
+- Session reading is the external `@rivus/agent-kit`; `apps/cli` is the only package that imports it at runtime. Other packages may use its types with `import type`.
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<host>/` for the session logs the conformance suites read).
 - Shared oxlint and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. `.oxlintrc.json` and `tsconfig.base.json` extend them and keep only this repository's rules. Change a shared default upstream, not here.

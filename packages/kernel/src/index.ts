@@ -13,5 +13,5 @@ export {
   type TurnTotals,
 } from './project-turns.ts'
 export { reconstruct } from './reconstruct.ts'
-export { type SessionRef, type SessionSummary } from './session.ts'
+export { type SessionRef } from './session.ts'
 export { fitView, toView, VIEW_BUDGET_BYTES, type FittedView } from './view.ts'

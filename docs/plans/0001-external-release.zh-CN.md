@@ -135,21 +135,21 @@ flowchart TB
 
 | 目录 | 包 | 负责 | 允许依赖 |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | 组合根：通过外部 `@rivus/agent-kit` 读取会话（唯一的 kit 导入方）、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
+| `apps/cli` | `@rivus/agent-trace` | 组合根：通过外部 `@rivus/agent-kit` 读取会话（唯一在运行时导入 kit 的包）、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、rslib 打包 | 所有包；web 的构建产物 |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3）和浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
-| `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema` |
-| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema` |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | 规范文件头部检查、`SessionRef`/`SessionSummary` 类型、`fold`、`reconstruct`、`toView`、投影、`SessionFs` 读取形态 | `schema` |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | 规范文件头部检查、`SessionRef` 类型、`fold`、`reconstruct`、`toView`、投影、`SessionFs` 读取形态 | `schema`、`@rivus/agent-kit`（类型） |
 | `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型及其 `zod` schema | 不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
 
 规则：
 
 - 应用依赖包；包从不依赖应用。两个应用之间不共享代码；`cli` 通过 Rush 构建依赖，以文件形式获取 `web` 的构建产物。
-- `apps/cli` 是唯一的组合根。只有它知道运行时是 Node，也只有它导入 `@rivus/agent-kit`——其内置 session adapter 取代了原来的 `packages/host-*`（issue #32）。
+- `apps/cli` 是唯一的组合根。只有它知道运行时是 Node，也只有它在运行时导入 `@rivus/agent-kit`——其内置 session adapter 取代了原来的 `packages/host-*`（issue #32）。其他包可以用 `import type` 使用 kit 的类型。
 - 只有 `apps/cli` 和 `packages/runtime-node` 导入 `node:*`。`schema`、`kernel` 和 `rpc` 都不导入（D5）。
 - UI 组件留在 `apps/web` 内，直到出现第二个使用方。
-- “允许依赖”列列出的是工作区包。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，`apps/cli` 打包外部的 `@rivus/agent-kit`，由 `scripts/check-layers.mjs` 按名称加入白名单。
+- “允许依赖”列列出工作区包及允许的 `@rivus/agent-kit` 类型依赖。小型、浏览器安全的外部 npm 库可以使用；`schema` 使用 `zod`，`apps/cli` 打包外部的 kit。`scripts/check-layers.mjs` 按名称将 kit 加入白名单；oxlint 将 `apps/cli` 之外对 kit 的导入限制为类型。
 - `apps/e2e` 从外部测试打包后的 tarball：它不依赖任何工作区包，也没有运行时依赖。
 - `scripts/check-layers.mjs` 在 CI 中对照“允许依赖”列检查每个 `package.json`。
 
@@ -270,9 +270,9 @@ npx @rivus/agent-trace mcp <path>
 
 ### 3.2 Host 协议
 
-自 agent-kit 采纳（issue #32）起，会话读取归 kit 所有：`@rivus/agent-kit/sessions` 拥有 adapter 协议（`SessionAdapter`、`SessionPlatform`、`builtinSessionAdapters`），`/transcript` 拥有读取（`loadTranscript`、`summarizeSession`、`readOriginal`、`foldTranscript`）和 `Transcript` 模型，`/testing` 拥有一致性测试套件（`sessionAdapterConformance`）。trace 侧保留的是规范文件头部检查、其他包的类型来源 `SessionRef`/`SessionSummary`，以及 TraceStore 依赖的 `SessionFs` 读取形态。下面列出的接口是采纳前的协议，保留作为该决定的记录；列表下的持久规则（capability 语义、输入记录记账、未知格式代失败、稳定事件 id）现在由 kit 的 conformance 套件在 `fixtures/sessions/<host>/conformance` 的 fixture 上保证。
+自 agent-kit 采纳（issue #32）起，会话读取归 kit 所有：`@rivus/agent-kit/sessions` 拥有 adapter 协议（`SessionAdapter`、`SessionPlatform`、`builtinSessionAdapters`），`/transcript` 拥有读取（`loadTranscript`、`summarizeSession`、`readOriginal`、`foldTranscript`）、`Transcript` 模型和 `SessionSummary`，`/testing` 拥有一致性测试套件（`sessionAdapterConformance`）。使用方通过 `import type` 直接从 kit 导入 `SessionSummary`。trace 侧保留的是规范文件头部检查、`SessionRef`（trace 的 wire 和 index 使用 `host`，而 kit 的 ref 使用 `agent`），以及 TraceStore 依赖的 `SessionFs` 读取形态。下面列出的接口是采纳前的协议，保留作为该决定的记录；列表下的持久规则（capability 语义、输入记录记账、未知格式代失败、稳定事件 id）现在由 kit 的 conformance 套件在 `fixtures/sessions/<host>/conformance` 的 fixture 上保证。
 
-从 `@rivus/agent-trace-kernel` 导出：
+采纳前从 `@rivus/agent-trace-kernel` 导出的接口：
 
 ```ts
 export interface TraceIO {

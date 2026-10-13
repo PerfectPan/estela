@@ -8,17 +8,18 @@ const FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optional
 const KERNEL = '@rivus/agent-trace-kernel'
 const SCHEMA = '@rivus/agent-trace-schema'
 const RPC = '@rivus/agent-trace-rpc'
+const KIT = '@rivus/agent-kit'
 const CORE = [RPC, KERNEL, SCHEMA]
 
 const ALLOW = {
-  // @rivus/agent-kit is an external npm package bundled into the CLI, not a workspace package.
-  '@rivus/agent-trace': ['@rivus/agent-kit', '@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE],
-  '@rivus/agent-trace-web': CORE,
+  // Only the CLI imports the kit at runtime; oxlint enforces type-only imports elsewhere.
+  '@rivus/agent-trace': [KIT, '@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE],
+  '@rivus/agent-trace-web': [KIT, ...CORE],
   // Tests the packed tarball from outside; it depends on no workspace package.
   '@rivus/agent-trace-e2e': [],
-  [RPC]: [KERNEL, SCHEMA],
-  '@rivus/agent-trace-runtime-node': [KERNEL, SCHEMA],
-  [KERNEL]: [SCHEMA],
+  [RPC]: [KIT, KERNEL, SCHEMA],
+  '@rivus/agent-trace-runtime-node': [KIT, KERNEL, SCHEMA],
+  [KERNEL]: [KIT, SCHEMA],
   [SCHEMA]: [],
 }
 

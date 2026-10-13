@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@rivus/agent-trace-kernel'
+import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { createSignal, onCleanup } from 'solid-js'

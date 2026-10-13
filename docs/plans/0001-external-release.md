@@ -133,21 +133,21 @@ flowchart TB
 
 | Directory | Package | Owns | May depend on |
 |---|---|---|---|
-| `apps/cli` | `@rivus/agent-trace` | Composition root: session reading through the external `@rivus/agent-kit` (the only kit importer), the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
+| `apps/cli` | `@rivus/agent-trace` | Composition root: session reading through the external `@rivus/agent-kit` (the only runtime kit importer), the DevFrame server, terminal output (D14), embeds the web build, rslib bundle | every package; web's build output |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | Private test harness for the packed tarball: CLI smoke (5.3) and the browser suite (5.2) | nothing at runtime; test tooling only |
-| `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema` |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema` |
-| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index in `node:sqlite` (D7) | `kernel`, `schema` |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `SessionRef`/`SessionSummary` types, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema` |
+| `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema`, `@rivus/agent-kit` (types) |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema`, `@rivus/agent-kit` (types) |
+| `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index in `node:sqlite` (D7) | `kernel`, `schema`, `@rivus/agent-kit` (types) |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `SessionRef` type, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
 | `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types and their `zod` schemas | no workspace package; small browser-safe external libraries (`zod`) |
 
 Rules:
 
 - Apps depend on packages; packages never depend on apps. The two apps share no code; `cli` takes `web`'s build output as a file through a Rush build dependency.
-- `apps/cli` is the only composition root. It alone knows that the runtime is Node and imports `@rivus/agent-kit`, whose builtin session adapters replaced the former `packages/host-*` (issue #32).
+- `apps/cli` is the only composition root. It alone knows that the runtime is Node and imports `@rivus/agent-kit` at runtime, whose builtin session adapters replaced the former `packages/host-*` (issue #32). Other packages may use the kit's types with `import type`.
 - Only `apps/cli` and `packages/runtime-node` import `node:*`. `schema`, `kernel`, and `rpc` do not (D5).
 - UI components stay inside `apps/web` until a second consumer needs them.
-- The "May depend on" column lists workspace packages. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod`, and `apps/cli` bundles the external `@rivus/agent-kit`, which `scripts/check-layers.mjs` allow-lists by name.
+- The "May depend on" column lists workspace packages and the allowed type dependencies on `@rivus/agent-kit`. External npm libraries are allowed when they are small and browser-safe; `schema` uses `zod`, and `apps/cli` bundles the external kit. `scripts/check-layers.mjs` allow-lists the kit by name; oxlint restricts its imports outside `apps/cli` to types.
 - `apps/e2e` tests the packed tarball from outside: it depends on no workspace package and has no runtime dependencies.
 - `scripts/check-layers.mjs` checks every `package.json` against the "May depend on" column in CI.
 
@@ -268,9 +268,9 @@ Terminal moments (D14):
 
 ### 3.2 Host protocol
 
-Since the agent-kit adoption (issue #32), session reading is the kit's: `@rivus/agent-kit/sessions` owns the adapter protocol (`SessionAdapter`, `SessionPlatform`, `builtinSessionAdapters`), `/transcript` owns reading (`loadTranscript`, `summarizeSession`, `readOriginal`, `foldTranscript`) and the `Transcript` model, and `/testing` owns the conformance suite (`sessionAdapterConformance`). The trace-side remainder is the canonical-file head check, the `SessionRef`/`SessionSummary` types the other packages are typed on, and the `SessionFs` read shape the TraceStore takes. This section's interfaces below are the pre-adoption protocol, kept as the record of that decision; the durable rules under the listing (capability semantics, record accounting, unknown-generation failures, stable event ids) now hold by the kit's conformance suite over the fixtures under `fixtures/sessions/<host>/conformance`.
+Since the agent-kit adoption (issue #32), session reading is the kit's: `@rivus/agent-kit/sessions` owns the adapter protocol (`SessionAdapter`, `SessionPlatform`, `builtinSessionAdapters`), `/transcript` owns reading (`loadTranscript`, `summarizeSession`, `readOriginal`, `foldTranscript`), the `Transcript` model, and `SessionSummary`, and `/testing` owns the conformance suite (`sessionAdapterConformance`). Consumers import `SessionSummary` directly from the kit with `import type`. The trace-side remainder is the canonical-file head check, `SessionRef` (trace's wire and index use `host`, while the kit's ref uses `agent`), and the `SessionFs` read shape the TraceStore takes. This section's interfaces below are the pre-adoption protocol, kept as the record of that decision; the durable rules under the listing (capability semantics, record accounting, unknown-generation failures, stable event ids) now hold by the kit's conformance suite over the fixtures under `fixtures/sessions/<host>/conformance`.
 
-Exported from `@rivus/agent-trace-kernel`:
+Pre-adoption exports from `@rivus/agent-trace-kernel`:
 
 ```ts
 export interface TraceIO {

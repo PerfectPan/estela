@@ -25,11 +25,28 @@
   },
   "overrides": [
     {
+      // Only apps/cli imports the kit at runtime; elsewhere its types come in through `import type`.
+      // A later override that sets no-restricted-imports replaces these options, so it repeats this pattern.
+      "files": ["**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "excludeFiles": ["apps/cli/**"],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "patterns": [{
+            "group": ["@rivus/agent-kit", "@rivus/agent-kit/**"],
+            "allowTypeImports": true,
+            "message": "Only apps/cli may import agent-kit at runtime; use import type."
+          }]
+        }]
+      }
+    },
+    {
+      // No Node built-ins in the browser-safe core outside tests (D5).
       "files": [
         "packages/schema/src/**/*.{ts,mts,cts,tsx}",
         "packages/kernel/src/**/*.{ts,mts,cts,tsx}",
         "packages/rpc/src/**/*.{ts,mts,cts,tsx}"
       ],
+      "excludeFiles": ["**/*.test.{ts,mts,cts,tsx}"],
       "rules": {
         "no-restricted-imports": ["error", {
           "paths": [
@@ -44,7 +61,14 @@
             "stream", "stream/promises",
             "buffer", "buffer/promises"
           ],
-          "patterns": ["node:*", "node:*/**"]
+          "patterns": [
+            { "group": ["node:*", "node:*/**"] },
+            {
+              "group": ["@rivus/agent-kit", "@rivus/agent-kit/**"],
+              "allowTypeImports": true,
+              "message": "Only apps/cli may import agent-kit at runtime; use import type."
+            }
+          ]
         }],
         "no-restricted-globals": ["error", "process", "Buffer"]
       }
@@ -59,7 +83,6 @@
     {
       "files": ["**/*.test.{ts,mts,cts,tsx}"],
       "rules": {
-        "no-restricted-imports": "off",
         "no-restricted-globals": "off"
       }
     }

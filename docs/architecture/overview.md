@@ -1,6 +1,6 @@
 # Architecture
 
-Audience: someone changing the viewer or the session reading. Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s, imported only by `apps/cli`.
+Audience: someone changing the viewer or the session reading. Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s; only `apps/cli` imports it at runtime. Other packages may use its types with `import type`, such as `SessionSummary` from `@rivus/agent-kit/transcript`. `SessionRef` stays in the kernel because trace's wire and index use `host`, while the kit's ref uses `agent`.
 
 ## Shape
 
@@ -55,7 +55,7 @@ The `reconstruct` RPC takes `{ ref?, eventId }`; without a ref (MCP) it reads `c
 | Package | Role |
 |---|---|
 | `packages/schema` (`@rivus/agent-trace-schema`) | Canonical `Trace` (`schema: 'agent-trace'`), kinds, capabilities, `shadowedBy` |
-| `packages/kernel` (`@rivus/agent-trace-kernel`) | canonical-file head check, `SessionRef`/`SessionSummary` types, `SessionFs` read shape, fold, reconstruct, `toView` / `fitView`, projections |
+| `packages/kernel` (`@rivus/agent-trace-kernel`) | canonical-file head check, `SessionRef` type, `SessionFs` read shape, fold, reconstruct, `toView` / `fitView`, projections |
 | `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | home directory, session index (`node:sqlite`) |
 | `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; `export-report` over an injected writer; `buildReport`; `report-trace`, registered only in DevFrame's build mode |
 | `apps/web` (`@rivus/agent-trace-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<ref>` (workspace), report mode, design tokens, `en` / `zh-CN` dictionaries |
