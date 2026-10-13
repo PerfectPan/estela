@@ -20,9 +20,9 @@ export interface LoadedSession {
   event: (id: string) => Promise<SessionEvent>
 }
 
-/** A load failure split like the kernel's `host: <file>:<line>: <reason>` (plan 3.7). */
+/** A load failure split like the CLI's `agent: <file>:<line>: <reason>` message (plan 3.7). */
 export interface LoadFailure {
-  host?: string
+  agent?: string
   file?: string
   line?: number
   reason: string
@@ -40,7 +40,7 @@ function parseFailure(message: string): LoadFailure {
   if (!match) {
     return { reason: message }
   }
-  return { host: match[1], file: match[2], line: Number(match[3]), reason: match[4]! }
+  return { agent: match[1], file: match[2], line: Number(match[3]), reason: match[4]! }
 }
 
 function isCancelled(error: unknown): boolean {

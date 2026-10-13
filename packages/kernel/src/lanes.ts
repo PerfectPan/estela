@@ -16,7 +16,7 @@ export function laneOf(event: TraceEvent, mainId: string): string {
 /**
  * A real user prompt. Not prompts: meta records (`payload.meta`), compact
  * summaries (`payload.compactSummary`), command wrappers (`payload.command`),
- * host-injected environment or instruction messages (`payload.injected`), and
+ * agent-injected environment or instruction messages (`payload.injected`), and
  * later chunks of one prompt (`payload.continued`).
  */
 export function isPrompt(event: TraceEvent): boolean {
@@ -33,7 +33,7 @@ export function isPrompt(event: TraceEvent): boolean {
   )
 }
 
-/** Key of the host record an event came from. Content blocks of one record share it. */
+/** Key of the log record an event came from. Content blocks of one record share it. */
 export function recordKey(event: TraceEvent): string {
   return `${event.source.file}\0${event.source.line}`
 }

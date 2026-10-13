@@ -139,7 +139,7 @@ export function inRange(ts: number, range: TimeRange | undefined): boolean {
 
 export interface BarInput {
   ts: number
-  /** `undefined`: the host did not record usage; drawn hollow. */
+  /** `undefined`: the agent did not record usage; drawn hollow. */
   tokens?: number
   id: string
 }

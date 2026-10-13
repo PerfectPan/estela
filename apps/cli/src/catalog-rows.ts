@@ -1,15 +1,14 @@
-import type { SessionRef } from '@rivus/agent-trace-kernel'
 import { summaryOf } from '@rivus/agent-trace-kernel'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
-import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
+import type { SessionAdapters, SessionHead, SessionPlatform, SessionRef } from '@rivus/agent-kit/sessions'
 import type { Platform } from '@rivus/agent-kit/platform'
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadFailure } from './read-failure.ts'
-import { kitTargetOf, projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
+import { projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
 
 /** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
 export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
@@ -49,7 +48,7 @@ function clipPrompt(text: string): string {
 
 function summaryFields(
   summary: SessionSummary | undefined,
-): Omit<SessionListRow, 'ref' | 'host' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
+): Omit<SessionListRow, 'ref' | 'agent' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
   if (!summary) {
     return {}
   }
@@ -64,7 +63,7 @@ function summaryFields(
 export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
   return {
     ref: row.ref,
-    host: row.target.host,
+    agent: row.target.agent,
     lastActiveAt: row.lastActiveAt,
     sizeBytes: row.sizeBytes,
     pending: row.pending,
@@ -91,7 +90,7 @@ export async function summarizeRow(
   adapters: SessionAdapters,
   target: SessionRef,
 ): Promise<SummarizeResult> {
-  const result = await summarizeSession(platform, kitTargetOf(target), {
+  const result = await summarizeSession(platform, target, {
     adapters,
     prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
   })
@@ -139,7 +138,7 @@ export function rowFromHead(
   return {
     ...headFields(head, homeDir),
     // The session id is part of the ref only when several sessions share one file.
-    ref: sessionRefId(sharedFile ? target : { host: target.host, path: target.path }),
+    ref: sessionRefId(sharedFile ? target : { agent: target.agent, path: target.path }),
     target,
     size: info.size,
     mtimeMs: info.mtimeMs,
@@ -156,7 +155,7 @@ export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
   return {
     ...headFields(stored, homeDir),
     ref: stored.ref,
-    target: { host: stored.host, path: stored.path, ...(stored.sessionId ? { sessionId: stored.sessionId } : {}) },
+    target: { agent: stored.agent, path: stored.path, ...(stored.sessionId ? { sessionId: stored.sessionId } : {}) },
     size: stored.size,
     mtimeMs: stored.mtimeMs,
     lastActiveAt: stored.lastActiveAt ?? stored.mtimeMs,
@@ -170,7 +169,7 @@ export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
 /** A "could not read" row (S4), placed at the file's mtime (or now when the file is gone). */
 export function errorRow(target: SessionRef, error: SessionError, mtimeMs: number): LiveRow {
   return {
-    ref: sessionRefId({ host: target.host, path: target.path }),
+    ref: sessionRefId({ agent: target.agent, path: target.path }),
     target,
     size: 0,
     mtimeMs,
@@ -185,7 +184,7 @@ export function errorRow(target: SessionRef, error: SessionError, mtimeMs: numbe
 export function indexHeadOf(row: LiveRow): IndexHead {
   return {
     ref: row.ref,
-    host: row.target.host,
+    agent: row.target.agent,
     path: row.target.path,
     size: row.size,
     mtimeMs: row.mtimeMs,

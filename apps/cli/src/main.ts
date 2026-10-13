@@ -29,7 +29,7 @@ import {
 } from './terminal.ts'
 import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
 
-const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered host accepts.'
+const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered agent adapter accepts.'
 
 function normalizeSessionPath(input: string): string {
   const { file, sessionId } = splitSessionRef(input)
@@ -171,20 +171,23 @@ export async function main(): Promise<void> {
 
   const indexing = startSessionIndex()
   try {
-    await catalog.start(hosts => {
+    await catalog.start(agents => {
       if (!catalog.startedFromIndex) {
-        indexing.tick(hosts)
+        indexing.tick(agents)
       }
     })
     if (catalog.startedFromIndex) {
       const listed = await catalog.listSessions()
-      sayIndexFromCache(listed.hosts.map(host => ({ name: host.displayName, count: host.count })))
+      sayIndexFromCache(listed.agents.map(agent => ({ name: agent.displayName, count: agent.count })))
     } else {
       indexing.finish()
     }
   } catch (error) {
     indexing.cancel()
-    sayError(`Could not index sessions: ${messageOf(error)}`, 'Check the host directories, or pass --no-index.')
+    sayError(
+      `Could not index sessions: ${messageOf(error)}`,
+      'Check the agent session directories, or pass --no-index.',
+    )
     process.exit(1)
   }
 

@@ -22,7 +22,7 @@ async function tempDir(): Promise<string> {
 
 function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'ref' | 'path'>): IndexSummary {
   return {
-    host: 'claude-code',
+    agent: 'claude-code',
     size: 10,
     mtimeMs: 1_000,
     title: 'Fix the auth refresh',
@@ -62,7 +62,7 @@ describe('session index', () => {
     index.putHeads([
       {
         ref: 'a',
-        host: 'codex',
+        agent: 'codex',
         path: '/logs/a.jsonl',
         size: 10,
         mtimeMs: 1_000,
@@ -88,6 +88,23 @@ describe('session index', () => {
     expect(rebuilt.search('Fix')).toEqual([])
     rebuilt.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Other' })])
     expect(rebuilt.search('Ot')).toEqual(['b'])
+    rebuilt.close()
+  })
+
+  it('rebuilds an index written with the previous layout instead of reading it', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const index = openSessionIndex({ summaryVersion: 1, file })
+    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    index.close()
+    // The previous layout: the same tables with the agent column named `host`, at user_version 1.
+    const raw = new DatabaseSync(file)
+    raw.exec('ALTER TABLE sessions RENAME COLUMN agent TO host; PRAGMA user_version = 1')
+    raw.close()
+    const rebuilt = openSessionIndex({ summaryVersion: 1, file })
+    expect(rebuilt.enabled).toBe(true)
+    expect(rebuilt.rows()).toEqual([])
+    rebuilt.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl' })])
+    expect(rebuilt.rows().map(row => [row.ref, row.agent])).toEqual([['b', 'claude-code']])
     rebuilt.close()
   })
 
@@ -151,7 +168,7 @@ describe('session index', () => {
   it('does not create a file when the index is disabled', async () => {
     const file = join(await tempDir(), 'missing', 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file, enabled: false })
-    index.putHeads([{ ref: 'a', host: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 1 }])
+    index.putHeads([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 1 }])
     index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
     expect(index.search('auth')).toBeUndefined()
@@ -239,7 +256,7 @@ describe('session index', () => {
       const n = process.argv[2]
       const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
       if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+      index.putSummaries([{ ref: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
     `,
     )
@@ -347,7 +364,7 @@ describe('session index', () => {
       const n = process.argv[2]
       const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
       if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ ref: 'r' + n, host: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+      index.putSummaries([{ ref: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
     `,
     )

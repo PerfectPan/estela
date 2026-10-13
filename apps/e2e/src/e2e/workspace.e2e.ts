@@ -30,7 +30,7 @@ test('S5: bars rise to a labeled dashed compaction rule and are lower after it',
   await openWorkspace(page, launch, sessions.claudeRising)
   const rule = page.locator('[data-marker=compaction]')
   await expect(rule).toHaveCount(1)
-  // The host recorded both counts: pre 3,500 and post 400.
+  // The agent recorded both counts: pre 3,500 and post 400.
   await expect(rule).toHaveAttribute('data-label', 'compacted  3.5k → 400')
   const at = Number(await rule.getAttribute('x')) + 4
   const bars = await page.locator('rect[data-marker=request]').evaluateAll(rects =>
@@ -123,7 +123,7 @@ test('S7: Model saw at the first request after a compaction', async ({ page, lau
   for (const slot of ['summary', 'messages', 'currentTurn']) {
     await expect(saw.locator(`[data-slot=${slot}]`)).toHaveAttribute('data-status', 'present')
   }
-  // The counts the host recorded, each with the slots it covers: the request's input tokens
+  // The counts the agent recorded, each with the slots it covers: the request's input tokens
   // (every slot) and the compaction's post tokens (everything before the current turn).
   const counts = saw.getByTestId('recorded-counts')
   await expect(counts.locator('[data-from="request.inputTokens"]')).toHaveAttribute('data-tokens', '600')

@@ -94,7 +94,7 @@ test('S12: a 350 MB Codex file opens after progress, within 12 MB, and a shorten
     const received = countBytes(page)
     const server = await launch({ args: ['--no-auth', '--no-open'], home })
     await page.goto(server.base)
-    const row = page.locator('[data-ref][data-host="codex"]')
+    const row = page.locator('[data-ref][data-agent="codex"]')
     await expect(row).toHaveCount(1)
     const started = Date.now()
     await row.dblclick()

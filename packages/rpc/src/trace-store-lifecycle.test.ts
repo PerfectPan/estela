@@ -150,7 +150,7 @@ describe('TraceStore lifecycle', () => {
     }))
     const trace: Trace = {
       schema: 'agent-trace',
-      host: { id: 'test' },
+      agent: { id: 'test' },
       session: { id: 'big' },
       capabilities: [],
       agents: [],

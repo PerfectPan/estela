@@ -20,7 +20,7 @@ const megabytes = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(
 
 const load = (sampled: CatalogPlatform, path: string) => loadTranscript(sampled, { agent: 'claude-code', path })
 const catalogSummary = (sampled: CatalogPlatform, path: string) =>
-  summarizeRow(sampled, builtinSessionAdapters, { host: 'claude-code', path })
+  summarizeRow(sampled, builtinSessionAdapters, { agent: 'claude-code', path })
 
 function timestamp(turn: number): string {
   const total = turn * 2
@@ -117,7 +117,7 @@ describe('catalog summary memory', () => {
       files: { '/claude/large/session.jsonl': sessionContent(LARGE_TURNS) },
     })
     const result = await summarizeRow(files, builtinSessionAdapters, {
-      host: 'claude-code',
+      agent: 'claude-code',
       path: '/claude/large/session.jsonl',
     })
     if (!('summary' in result)) {

@@ -4,19 +4,19 @@ const LETTER: Record<string, string> = {
   grok: 'G',
 }
 
-function hostLetter(id: string): string {
+function agentLetter(id: string): string {
   return LETTER[id] ?? id.slice(0, 1).toUpperCase()
 }
 
-/** The 22 px host chip. Colors are `--host-<id>` in styles.css. */
-export function HostMark(props: { id: string }) {
+/** The 22 px agent chip. Colors are `--agent-<id>` in styles.css. */
+export function AgentMark(props: { id: string }) {
   return (
     <span
       class="font-mono flex size-[22px] shrink-0 items-center justify-center rounded-md border border-input text-[11px] font-medium"
-      style={{ color: `var(--host-${props.id}, var(--muted-foreground))` }}
+      style={{ color: `var(--agent-${props.id}, var(--muted-foreground))` }}
       aria-hidden="true"
     >
-      {hostLetter(props.id)}
+      {agentLetter(props.id)}
     </span>
   )
 }

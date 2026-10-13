@@ -1,21 +1,21 @@
-import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatDuration, formatInOut, formatNumber, formatOptional, formatWhen } from '@/lib/format.ts'
 import { ContextShape } from '@/browser/context-shape.tsx'
-import { HostMark } from '@/browser/host-mark.tsx'
+import { AgentMark } from '@/browser/agent-mark.tsx'
 import { Metric } from '@/components/metric.tsx'
 
 const dash = () => t('common.dash')
 
 export function SessionPreview(props: {
   row: SessionListRow
-  hosts: HostListEntry[]
+  agents: AgentListEntry[]
   now: number
   onOpen: (ref: string) => void
 }) {
   const num = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
-  const hostName = () => props.hosts.find(host => host.id === props.row.host)?.displayName ?? props.row.host
+  const agentName = () => props.agents.find(agent => agent.id === props.row.agent)?.displayName ?? props.row.agent
   const when = () => (props.row.lastActiveAt ? formatWhen(props.row.lastActiveAt, locale(), props.now) : '')
   const pair = (left: string, right: string) => (left === dash() && right === dash() ? dash() : `${left} · ${right}`)
   const inOut = () => formatInOut(props.row.inputTokens, props.row.outputTokens, dash())
@@ -25,8 +25,8 @@ export function SessionPreview(props: {
     <>
       <div class="flex flex-col gap-2">
         <div class="flex items-center gap-2">
-          <HostMark id={props.row.host} />
-          <span class="text-[12.5px] text-muted-foreground">{[hostName(), when()].filter(Boolean).join(' · ')}</span>
+          <AgentMark id={props.row.agent} />
+          <span class="text-[12.5px] text-muted-foreground">{[agentName(), when()].filter(Boolean).join(' · ')}</span>
         </div>
         <h2 class="m-0 text-[19px] font-semibold leading-[1.3] tracking-[-0.01em] [overflow-wrap:anywhere]">
           {props.row.title || (props.row.error ? t('common.couldNotRead') : dash())}

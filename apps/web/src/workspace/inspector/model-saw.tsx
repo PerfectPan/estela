@@ -39,7 +39,7 @@ function covers(names: ContextSlotName[]): string {
     : names.map(name => t(SLOT_LABEL[name])).join(t('inspector.listSeparator'))
 }
 
-/** Hatched when the host does not record the slot, outlined when it is empty, else the slot color. */
+/** Hatched when the agent does not record the slot, outlined when it is empty, else the slot color. */
 function slotClass(slot: ContextSlot, small = false): string {
   if (slot.status === 'unavailable') {
     return small ? 'hatched hatched-small' : 'hatched'
@@ -49,7 +49,7 @@ function slotClass(slot: ContextSlot, small = false): string {
 
 /**
  * "Model saw" (S7): the composition at the selected event from `reconstruct`, the token
- * counts the host recorded (each with the slots it covers; never split or estimated), and
+ * counts the agent recorded (each with the slots it covers; never split or estimated), and
  * the events a compaction removed before it. An unrecorded slot is hatched and "unavailable".
  */
 export function ModelSaw(props: {

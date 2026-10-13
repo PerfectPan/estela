@@ -1,18 +1,18 @@
-import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
 import { Show } from 'solid-js'
 import { SessionPreview } from '@/browser/session-preview.tsx'
 
 /** Right pane (340 px): the selected row's shape, headline numbers, first prompt, and "Open session". */
 export function PreviewPane(props: {
   row?: SessionListRow
-  hosts: HostListEntry[]
+  agents: AgentListEntry[]
   now: number
   onOpen: (ref: string) => void
 }) {
   return (
     <aside class="flex w-[340px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-border bg-secondary p-[22px]">
       <Show when={props.row}>
-        {row => <SessionPreview row={row()} hosts={props.hosts} now={props.now} onOpen={props.onOpen} />}
+        {row => <SessionPreview row={row()} agents={props.agents} now={props.now} onOpen={props.onOpen} />}
       </Show>
     </aside>
   )

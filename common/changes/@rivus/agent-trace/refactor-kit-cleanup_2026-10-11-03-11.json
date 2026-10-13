@@ -2,7 +2,7 @@
   "changes": [
     {
       "packageName": "@rivus/agent-trace",
-      "comment": "Internal: the host adapter packages and kernel readers are replaced by @rivus/agent-kit's session reading; no behavior change.",
+      "comment": "Internal: the per-agent adapter packages and kernel readers are replaced by @rivus/agent-kit's session reading; no behavior change.",
       "type": "none"
     }
   ],

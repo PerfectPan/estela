@@ -199,10 +199,10 @@ function tokensOf(target: TraceEvent, compaction: TraceEvent | undefined): Conte
  * Model-visible surface at `eventId` on that event's lane: the prefix of the
  * log, minus events whose `shadowedBy` compaction is already in that prefix.
  *
- * Does not invent messages, tools, or system prompts. Slots a host does not
+ * Does not invent messages, tools, or system prompts. Slots an agent does not
  * log are `unavailable`; the system prompt and tools come from the latest
- * prompt snapshot at or before `eventId` on its lane, when the host writes
- * snapshots. Token counts are copied only when the host recorded
+ * prompt snapshot at or before `eventId` on its lane, when the agent writes
+ * snapshots. Token counts are copied only when the agent recorded
  * them: the request's input tokens, and the compaction's `postTokens` when this
  * is the first request after it. Slot sizes are never estimated from text.
  */

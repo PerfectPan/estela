@@ -1,6 +1,5 @@
-import type { SessionRef } from '@rivus/agent-trace-kernel'
 import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node'
-import type { HostListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { redactText } from '@rivus/agent-kit/redact'
 import {
@@ -8,13 +7,14 @@ import {
   sessionAdapterHome,
   type SessionAdapter,
   type SessionAdapters,
+  type SessionRef,
 } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
-import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
+import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './catalog-discover.ts'
 import {
   activityLabel,
   indexHeadOf,
@@ -30,7 +30,7 @@ import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { oneLine, sessionRefId } from './session-ref.ts'
 import { SummaryQueue } from './summary-queue.ts'
 
-export type { HostProgress } from './catalog-discover.ts'
+export type { AgentProgress } from './catalog-discover.ts'
 
 const CONCURRENCY = 4
 /** A file at least this large is summarized alone (a 355 MB Codex log loads to about 3 GB). */
@@ -38,8 +38,9 @@ const HEAVY_BYTES = 64 * 1024 * 1024
 /** Finished summaries are written to the index and announced to browsers at most this often. */
 const FLUSH_MS = 150
 /**
- * Keep kit-based summary versions distinct from host-era version 1, whose usage merging
- * and decoding differ. Cache versions are compared for equality, so this offset must stay.
+ * Keep kit-based summary versions distinct from version 1, written by the former `host-*`
+ * reader packages, whose usage merging and decoding differ. Cache versions are compared for
+ * equality, so this offset must stay.
  */
 const HOST_ERA_OFFSET = 1
 /**
@@ -65,11 +66,11 @@ export interface CatalogOptions {
  */
 export class SessionCatalog {
   private readonly adapters: SessionAdapters
-  private readonly hosts: readonly SessionAdapter[]
+  private readonly adapterList: readonly SessionAdapter[]
   private readonly platform: CatalogPlatform
   private readonly index: SessionIndex
   private readonly redact: Redactor
-  private readonly hostStates: HostState[]
+  private readonly agentStates: AgentState[]
   private rows = new Map<string, LiveRow>()
   /** Refs the server resolves: discovered rows and paths opened from the command line. */
   private readonly targets = new Map<string, SessionRef | string>()
@@ -85,7 +86,7 @@ export class SessionCatalog {
 
   constructor(options: CatalogOptions = {}) {
     this.adapters = options.adapters ?? builtinSessionAdapters
-    this.hosts = Object.values(this.adapters).filter(adapter => adapter !== undefined)
+    this.adapterList = Object.values(this.adapters).filter(adapter => adapter !== undefined)
     this.platform = options.platform ?? createNodePlatform()
     const home = this.platform.home
     // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
@@ -98,7 +99,7 @@ export class SessionCatalog {
         env: this.platform.env,
         summaryVersion: INDEX_SUMMARY_VERSION,
       })
-    this.hostStates = this.hosts.map(hostState)
+    this.agentStates = this.adapterList.map(agentState)
     this.queue = new SummaryQueue<LiveRow>(
       {
         concurrency: CONCURRENCY,
@@ -118,9 +119,9 @@ export class SessionCatalog {
   /**
    * Rows are ready when this resolves. With an index from an earlier launch that is at once
    * (its rows and cached numbers), and the `discover` pass runs behind it; otherwise it waits
-   * for `discover`. `onProgress` reports that pass per host.
+   * for `discover`. `onProgress` reports that pass per agent.
    */
-  start(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
+  start(onProgress?: (agents: readonly AgentProgress[]) => void): Promise<void> {
     this.started ??= this.begin(onProgress)
     return this.started
   }
@@ -156,7 +157,11 @@ export class SessionCatalog {
   openPath(input: string, trace: Trace): string {
     const { file, sessionId } = splitSessionRef(input)
     // Same ref as the file's list row: the session id counts only in the `path#id` form.
-    const ref = sessionRefId({ host: trace.host.id || 'agent-trace', path: file, ...(sessionId ? { sessionId } : {}) })
+    const ref = sessionRefId({
+      agent: trace.agent.id || 'agent-trace',
+      path: file,
+      ...(sessionId ? { sessionId } : {}),
+    })
     this.targets.set(ref, input)
     return ref
   }
@@ -168,14 +173,14 @@ export class SessionCatalog {
   }
 
   pickChoices(): { value: string; label: string }[] {
-    const names = new Map(this.hosts.map(host => [host.agent, host.displayName]))
+    const names = new Map(this.adapterList.map(adapter => [adapter.agent, adapter.displayName]))
     return this.sortedRows()
       .filter(row => !row.error)
       .map(row => ({
         value: row.ref,
         label: [
           row.title ? this.redact(row.title) : 'Untitled',
-          names.get(row.target.host) ?? row.target.host,
+          names.get(row.target.agent) ?? row.target.agent,
           row.project ? this.redact(row.project) : '',
           activityLabel(row.lastActiveAt),
         ]
@@ -197,7 +202,7 @@ export class SessionCatalog {
     const removed = since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([ref]) => ref)
     const query = input.query?.trim() ?? ''
     return {
-      hosts: this.hostEntries(),
+      agents: this.agentEntries(),
       rows,
       complete: since === undefined,
       ...(removed.length > 0 ? { removed } : {}),
@@ -215,7 +220,7 @@ export class SessionCatalog {
     this.index.close()
   }
 
-  private async begin(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
+  private async begin(onProgress?: (agents: readonly AgentProgress[]) => void): Promise<void> {
     const stored = this.readIndex(() => this.index.rows(), [])
     const run = () => this.discover(onProgress)
     if (stored.length === 0) {
@@ -235,9 +240,9 @@ export class SessionCatalog {
     this.discovery.catch(() => {})
   }
 
-  private async discover(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
-    const fresh = await discoverRows(this.hostStates, this.platform, () =>
-      onProgress?.(progressOf(this.hostStates, this.platform.home)),
+  private async discover(onProgress?: (agents: readonly AgentProgress[]) => void): Promise<void> {
+    const fresh = await discoverRows(this.agentStates, this.platform, () =>
+      onProgress?.(progressOf(this.agentStates, this.platform.home)),
     )
     const gone: string[] = []
     for (const [ref, old] of this.rows) {
@@ -279,10 +284,10 @@ export class SessionCatalog {
   }
 
   private async summarize(row: LiveRow): Promise<void> {
-    const adapter = this.hosts.find(host => host.agent === row.target.host)
+    const adapter = this.adapterList.find(candidate => candidate.agent === row.target.agent)
     try {
       if (!adapter) {
-        throw new Error(`${row.target.host}: host is not registered`)
+        throw new Error(`${row.target.agent}: agent is not registered`)
       }
       const result = await summarizeRow(this.platform, this.adapters, row.target)
       if ('error' in result) {
@@ -351,11 +356,11 @@ export class SessionCatalog {
     }
   }
 
-  private hostEntries(): HostListEntry[] {
-    return this.hostStates.map(state => {
+  private agentEntries(): AgentListEntry[] {
+    return this.agentStates.map(state => {
       let count = 0
       for (const row of this.rows.values()) {
-        if (row.target.host === state.adapter.agent) {
+        if (row.target.agent === state.adapter.agent) {
           count += 1
         }
       }

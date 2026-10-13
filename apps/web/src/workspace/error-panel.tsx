@@ -1,10 +1,10 @@
 import type { LoadFailure } from './load-session.ts'
 import { Show } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
-import { hostName } from '@/lib/host-names.ts'
+import { agentName } from '@/lib/agent-names.ts'
 import { ConnectionLost } from '@/shell/connection-lost.tsx'
 
-/** A failed load: host, file, and line when the message carries them, and a way back (3.7). */
+/** A failed load: agent, file, and line when the message carries them, and a way back (3.7). */
 export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void }) {
   if (props.failure.lost) {
     return (
@@ -18,11 +18,11 @@ export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void })
     <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
       <h1 class="m-0 text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
       <dl class="m-0 grid max-w-3xl grid-cols-[max-content_1fr] gap-x-5 gap-y-1.5 rounded-lg border border-border bg-secondary px-4 py-3 text-[13px]">
-        <Show when={props.failure.host}>
-          {host => (
+        <Show when={props.failure.agent}>
+          {agent => (
             <>
-              <dt class="text-subtle">{t('workspace.errorHost')}</dt>
-              <dd class="m-0 text-foreground">{hostName(host())}</dd>
+              <dt class="text-subtle">{t('workspace.errorAgent')}</dt>
+              <dd class="m-0 text-foreground">{agentName(agent())}</dd>
             </>
           )}
         </Show>

@@ -1,5 +1,5 @@
 import type {
-  HostListEntry,
+  AgentListEntry,
   ListSessionsQuery,
   ListSessionsResult,
   SessionListRow,
@@ -22,7 +22,7 @@ async function listSessions(query: ListSessionsQuery): Promise<ListSessionsResul
  * A row that did not change keeps its object, so the list re-renders only changed rows.
  */
 export function createSessionStore() {
-  const [hosts, setHosts] = createSignal<HostListEntry[]>([])
+  const [agents, setAgents] = createSignal<AgentListEntry[]>([])
   const [rows, setRows] = createSignal<SessionListRow[]>([])
   const [pending, setPending] = createSignal(0)
   const [loaded, setLoaded] = createSignal(false)
@@ -44,7 +44,7 @@ export function createSessionStore() {
 
   function apply(result: ListSessionsResult): void {
     batch(() => {
-      setHosts(result.hosts)
+      setAgents(result.agents)
       setPending(result.pending)
       if (result.complete) {
         setRows(result.rows)
@@ -166,5 +166,5 @@ export function createSessionStore() {
     }
   })
 
-  return { hosts, rows, pending, loaded, error, matches, search, prioritize, refresh }
+  return { agents, rows, pending, loaded, error, matches, search, prioritize, refresh }
 }

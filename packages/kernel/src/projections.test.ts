@@ -25,7 +25,7 @@ function synthetic(specs: Spec[]): Trace {
   })
   return {
     schema: 'agent-trace',
-    host: { id: 'test' },
+    agent: { id: 'test' },
     session: { id: 's' },
     capabilities: ['requests', 'usage', 'compaction', 'compactionTokens', 'subagents'],
     agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 't1', title: 'Helper' }],
@@ -95,7 +95,7 @@ describe('projectLanes', () => {
     expect(sub!.markers).toEqual([{ kind: 'prompt', eventId: 's1', ts: 90 }])
   })
 
-  it('omits compaction tokens the host did not record and adds lanes seen only on events', () => {
+  it('omits compaction tokens the agent did not record and adds lanes seen only on events', () => {
     const lanes = projectLanes({
       ...synthetic([
         ['k', 'compaction', {}],

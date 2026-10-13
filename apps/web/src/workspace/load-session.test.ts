@@ -9,7 +9,7 @@ type Status = LoadClient['status']
 
 const trace: Trace = {
   schema: 'agent-trace',
-  host: { id: 'claude-code' },
+  agent: { id: 'claude-code' },
   session: { id: 's' },
   capabilities: [],
   agents: [],
@@ -104,14 +104,14 @@ describe('createSessionLoad', () => {
     expect(fake.cancelled()).toBe(1)
   })
 
-  it('splits a host error into host, file, line, and reason', async () => {
+  it('splits an agent error into agent, file, line, and reason', async () => {
     const fake = fakeClient({ viewError: 'claude-code: ~/.claude/projects/a/s.jsonl:3: unknown format generation' })
     const load = createRoot(() => createSessionLoad('r', async () => fake.client))
     await tick()
     expect(load.state()).toEqual({
       status: 'error',
       failure: {
-        host: 'claude-code',
+        agent: 'claude-code',
         file: '~/.claude/projects/a/s.jsonl',
         line: 3,
         reason: 'unknown format generation',

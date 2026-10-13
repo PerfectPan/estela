@@ -1,16 +1,16 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { Show } from 'solid-js'
-import { HostMark } from '@/browser/host-mark.tsx'
+import { AgentMark } from '@/browser/agent-mark.tsx'
 import { Metric } from '@/components/metric.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { escapeBidi } from '@/lib/preview.ts'
 import { formatDuration, formatInOut, formatNumber, formatOptional, formatStart } from '@/lib/format.ts'
-import { hostName } from '@/lib/host-names.ts'
+import { agentName } from '@/lib/agent-names.ts'
 
 /**
- * Host, working directory, start time, title, and the seven numbers from `fold` (3.6).
- * A number whose capability the host does not declare is `undefined` and shows "—".
+ * Agent, working directory, start time, title, and the seven numbers from `fold` (3.6).
+ * A number whose capability the agent does not declare is `undefined` and shows "—".
  */
 const dash = () => t('common.dash')
 
@@ -26,8 +26,8 @@ export function SessionHeader(props: { trace: Trace; summary: SessionSummary }) 
     >
       <div class="flex min-w-0 flex-col gap-2">
         <div class="flex min-w-0 items-center gap-2.5 text-[13px] text-muted-foreground">
-          <HostMark id={props.trace.host.id} />
-          <span class="shrink-0">{hostName(props.trace.host.id)}</span>
+          <AgentMark id={props.trace.agent.id} />
+          <span class="shrink-0">{agentName(props.trace.agent.id)}</span>
           <Show when={props.trace.session.cwd}>
             {cwd => (
               <>

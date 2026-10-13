@@ -1,4 +1,4 @@
-# agent-trace DevTools: host protocol, session browser, and workspace
+# agent-trace DevTools: session adapter protocol, session browser, and workspace
 
 - Status: Implemented
 - Owner: unconfirmed
@@ -7,7 +7,7 @@
 - Paired Spec: [`docs/specs/0001-external-release.md`](../specs/0001-external-release.md)
 - Visual design: [`docs/design/`](../design/README.md)
 
-This plan turns the MVP on `main` into `@rivus/agent-trace`: a local DevTools that `npx @rivus/agent-trace` opens in the browser. The user picks a session from Claude Code, Codex, or Grok and debugs it in one workspace. The plan defines the host protocol that those three hosts implement first, the canonical trace, how sessions are discovered and loaded at the sizes found on a real machine, the UI build against the chosen design in English and Simplified Chinese, and packaging into a tarball that installs and runs anywhere. Publishing to npm, ATIF export, OpenCode, and dsh are follow-ups. Nothing is released yet, so interfaces and formats change in place without version numbers or compatibility layers.
+This plan turns the MVP on `main` into `@rivus/agent-trace`: a local DevTools that `npx @rivus/agent-trace` opens in the browser. The user picks a session from Claude Code, Codex, or Grok and debugs it in one workspace. The plan defines the session adapter protocol that those three agents implement first, the canonical trace, how sessions are discovered and loaded at the sizes found on a real machine, the UI build against the chosen design in English and Simplified Chinese, and packaging into a tarball that installs and runs anywhere. Publishing to npm, ATIF export, OpenCode, and dsh are follow-ups. Nothing is released yet, so interfaces and formats change in place without version numbers or compatibility layers.
 
 ## Contents
 
@@ -32,9 +32,9 @@ Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands an
 
 **Current UI.** On a real 3,300-record Grok session the ledger renders 2,258 rows at once (14,066 DOM nodes). 1,294 of those rows (57%) are `UNKNOWN hook_execution`. There is no timeline, no turn collapse, and no virtualization.
 
-**Adapter interface.** `Adapter = { id, detect(path), load(path) }`. It cannot list sessions, cannot say which fields a host provides, and reads files through `node:fs` directly. `adapter-dsh` and `adapter-claude-code` claim files and then throw.
+**Adapter interface.** `Adapter = { id, detect(path), load(path) }`. It cannot list sessions, cannot say which fields an agent provides, and reads files through `node:fs` directly. `adapter-dsh` and `adapter-claude-code` claim files and then throw.
 
-**Host logs on this machine.** All three hosts record request boundaries, token usage, timing, compaction, and subagents, under different names:
+**Agent logs on this machine.** All three agents record request boundaries, token usage, timing, compaction, and subagents, under different names:
 
 | Need | Claude Code | Codex | Grok |
 |---|---|---|---|
@@ -49,7 +49,7 @@ Measured on `main` and on this machine on 2026-09-23 and 2026-09-24. Commands an
 
 **Log volume on this machine.**
 
-| Host | Files | Total | Median | p95 | Max |
+| Agent | Files | Total | Median | p95 | Max |
 |---|---|---|---|---|---|
 | Claude Code (main) | 225 | 550 MB | 146 KB | 8.6 MB | 81.6 MB |
 | Claude Code (subagents) | 74 | 49 MB | 485 KB | 1.1 MB | 5.9 MB |
@@ -60,7 +60,7 @@ Only counting the lines of all Claude Code main files takes 2.35 s. The current 
 
 **Community formats** (read from primary sources; section 8, A.7):
 
-- ATIF v1.8 (Harbor, Apache-2.0) is a trajectory format of steps. It has tool call and result pairing by id, a written compaction boundary rule, and embedded subagent trajectories. Harbor ships converters for Claude Code, Codex, Grok, and OpenCode. Its unit is a step, roughly one model call. It does not keep the host record or say which individual events a compaction removed.
+- ATIF v1.8 (Harbor, Apache-2.0) is a trajectory format of steps. It has tool call and result pairing by id, a written compaction boundary rule, and embedded subagent trajectories. Harbor ships converters for Claude Code, Codex, Grok, and OpenCode. Its unit is a step, roughly one model call. It does not keep the original log record or say which individual events a compaction removed.
 - OpenTelemetry GenAI semantic conventions define the widest vocabulary (`gen_ai.usage.*`, `gen_ai.request.model`, `gen_ai.response.id`, `gen_ai.tool.call.id`, `CompactionPart`). All of it is at Development stability, and it moved to its own repository in May 2026 with no release yet.
 - ACP is a live client protocol. It is Grok's log format here, not a trace model.
 - Cursor's "Agent Trace" (agent-trace.dev) is a code-attribution format with a near-identical name and no functional overlap.
@@ -69,12 +69,12 @@ Only counting the lines of all Claude Code main files takes 2.35 s. The current 
 
 ### 1.2 Problem
 
-A developer cannot open the tool, pick a session, and see what happened. The shipped commands are half broken, there is no list of sessions, Claude Code (the host with the most local sessions and the richest compaction data) is not supported, and the data model cannot express request boundaries, context size, or subagent lanes, so the UI cannot draw them. At the log sizes above, sending one complete trace to the browser does not work for the largest sessions.
+A developer cannot open the tool, pick a session, and see what happened. The shipped commands are half broken, there is no list of sessions, Claude Code (the agent with the most local sessions and the richest compaction data) is not supported, and the data model cannot express request boundaries, context size, or subagent lanes, so the UI cannot draw them. At the log sizes above, sending one complete trace to the browser does not work for the largest sessions.
 
 ### 1.3 Goals and success criteria
 
 - Every scenario in the Spec passes as listed under its Acceptance Evidence: in CI against the packed tarball, and for real sessions by a recorded local run.
-- Claude Code, Codex, and Grok adapters implement the host protocol and pass the conformance suite on synthetic fixtures.
+- Claude Code, Codex, and Grok adapters implement the session adapter protocol and pass the conformance suite on synthetic fixtures.
 - The session browser shows rows within 2 s on this machine (2,300+ files, 11.6 GB) and within 300 ms on the second launch for the cached numbers.
 - The 355 MB Codex session opens with at most 12 MB sent to the browser before the first event is selected.
 - `schema`, `kernel`, `rpc`, and every `host-*` package import no `node:*` module outside tests, and every package's dependencies follow the layer table in 2.2.
@@ -96,8 +96,8 @@ A developer cannot open the tool, pick a session, and see what happened. The shi
 ### 2.1 Design principles
 
 - The product is the DevTools screen. The CLI only starts it.
-- Draw only what the host recorded. Missing is `unavailable`, never zero or an estimate.
-- A host plugs in through one protocol with a declared capability list, and proves it with the same conformance suite as every other host.
+- Draw only what the agent recorded. Missing is `unavailable`, never zero or an estimate.
+- An agent plugs in through one protocol with a declared capability list, and proves it with the same conformance suite as every other agent.
 - The browser receives a view of the trace sized for display. The full record is one request away.
 - The core does not know where bytes come from. Files, SQLite, the environment, and the home directory are passed in.
 
@@ -118,7 +118,7 @@ flowchart TB
     schema["schema"]
   end
   kit["@rivus/agent-kit (external npm)"]
-  logs["Host logs on disk (read only)"]
+  logs["Agent logs on disk (read only)"]
   cli --> rpc
   cli --> rt
   cli --> kit
@@ -138,7 +138,7 @@ flowchart TB
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, dictionaries (D13), tokens from `docs/design/` | `rpc` (types), `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace` with the `load-progress` stream, `get-trace-view`, `get-event`, `reconstruct`, the `export-report` action, and the `report-trace` snapshot in build mode), their server handlers, and the trace store (ref resolution, shared loads, last 3 traces) over an injected resolver and I/O | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index in `node:sqlite` (D7) | `kernel`, `schema`, `@rivus/agent-kit` (types) |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `SessionRef` type, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `fold`, `reconstruct`, `toView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
 | `packages/schema` | `@rivus/agent-trace-schema` | Canonical trace types and their `zod` schemas | no workspace package; small browser-safe external libraries (`zod`) |
 
 Rules:
@@ -189,14 +189,14 @@ Opening a session takes two calls because DevFrame rejects a subscription to a s
 **D1. The product is a browser DevTools; the CLI is its launcher.**
 Alternatives: a CLI-first tool (the previous draft of this plan), and a desktop app. A CLI cannot show a timeline or an inspector. A desktop app adds an installer and signing for no capability the browser lacks. DevFrame already provides the local server, the SPA shell, the static build, and MCP.
 
-**D2. A host protocol replaces `Adapter`.**
-The current interface cannot list sessions or state which fields a host records, so the UI cannot tell "zero" from "not recorded". The host protocol adds `discover`, `summarize`, a capability list, and a conformance suite (3.2). Alternative: keep `Adapter` and add discovery in the shell per host. Rejected because each host's layout knowledge would then live in two places.
+**D2. A session adapter protocol replaces `Adapter`.**
+The current interface cannot list sessions or state which fields an agent records, so the UI cannot tell "zero" from "not recorded". The session adapter protocol adds `discover`, `summarize`, a capability list, and a conformance suite (3.2). Alternative: keep `Adapter` and add discovery in the shell per agent. Rejected because each agent's layout knowledge would then live in two places.
 
 **D3. The canonical trace stays event-level; field meanings follow OTel GenAI; the structure stays mappable to ATIF.**
 Events remain the canonical unit because `reconstruct` answers per event and the inspector shows per-event raw records. Alternatives: ATIF as storage (rejected: step granularity, no raw record, no per-event visibility), OTel spans as storage (rejected: Development stability, and a span tree has no place for per-event visibility). Usage, model, request, and tool fields take their meaning, units, and names from OTel GenAI, written in camelCase in TypeScript with a one-to-one table (3.3). Every canonical field that ATIF also has must map to it without loss, so the ATIF export follow-up is a projection, not a redesign.
 
 **D4. Claude Code, Codex, and Grok in this release.**
-Claude Code has the most sessions and the fullest compaction record here. Codex and Grok already have adapters to port. OpenCode needs `SqliteIO` and is the next host on the same protocol; dsh needs zstd and its format catalog.
+Claude Code has the most sessions and the fullest compaction record here. Codex and Grok already have adapters to port. OpenCode needs `SqliteIO` and is the next agent on the same protocol; dsh needs zstd and its format catalog.
 
 **D5. Core packages take I/O by injection.**
 `TraceIO` (read text, read a byte range, list a directory, stat) and `homeDir` are passed in; the Node implementation lives in `packages/runtime-node`. Enforced by oxlint `no-restricted-imports` on `node:*` outside tests, and by an `esbuild --platform=browser` bundle of kernel and adapters in CI. Both checks were run on `main` and fail today (A.5, measured with esbuild; M1 runs the browser-target bundle with rslib `output.target: 'web'`). Since the agent-kit adoption (issue #32), session reads go through the kit's `SessionPlatform`, the Node implementation of the reads is the kit's, and the browser-target bundle check covers kernel and rpc (`scripts/check-browser-bundle.mjs`).
@@ -206,7 +206,7 @@ This changes two current rules in `AGENTS.md`: "canonical storage is `events[]` 
 
 **D7. Session discovery reads heads and tails; full summaries are computed lazily and stored in a SQLite index.**
 A full parse of 11.6 GB at launch is not possible. `discover` lists files and reads the first and last 64 KB of each to fill title, project, start and last activity, and size. `summarize` collects turns, requests, tokens, duration, flags, and the user's own prompts; the kit's summarize pass reads the records without holding the transcript, so summarizing a large session no longer loads it whole. The shell runs `summarize` for visible rows first, with a concurrency limit of 4, and stores the result in `~/.cache/rivus-agent-trace/index.sqlite` through the built-in `node:sqlite`, keyed by path, size, and mtime. An FTS5 table with the `trigram` tokenizer indexes titles and user prompts, so search covers every prompt, in English and Chinese, not only the first one. Measured (A.10): FTS5 with `trigram` is available on Node.js 22.18 (SQLite 3.50.2) and 24.18 (SQLite 3.53.1); 2,300 rows insert in 13 ms and a search takes 0.1 ms.
-Alternatives: a JSON cache file (no search, whole-file rewrites); DuckDB (`@duckdb/node-api` installs 115 MB on macOS arm64, and scans all 550 MB of Claude Code logs in 252 ms against 1,176 ms for a Node line scan, but it would restate each host's parsing rules in SQL beside the adapters); `better-sqlite3` (a native addon per platform, where `node:sqlite` needs none). Node.js 22 prints an `ExperimentalWarning` for `node:sqlite`; `dist/bin.mjs` suppresses that one warning, verified in M1.
+Alternatives: a JSON cache file (no search, whole-file rewrites); DuckDB (`@duckdb/node-api` installs 115 MB on macOS arm64, and scans all 550 MB of Claude Code logs in 252 ms against 1,176 ms for a Node line scan, but it would restate each agent's parsing rules in SQL beside the adapters); `better-sqlite3` (a native addon per platform, where `node:sqlite` needs none). Node.js 22 prints an `ExperimentalWarning` for `node:sqlite`; `dist/bin.mjs` suppresses that one warning, verified in M1.
 
 **D8. RPC shape and the static report.**
 Queries: `list-sessions` (not a snapshot), `get-trace-view(ref)`, `get-event(ref, id)`, `reconstruct(ref, eventId)` (for MCP; `snapshot: true` removed, the measured cause of the `build` failure). Two actions: `load-trace(ref)` starts or joins the load and returns the id of a `load-progress` stream (2.3), and `export-report(ref, locale)` writes the same report as `build` for a session of the dev server. DevFrame's static dump only bakes argument-free snapshot queries, so `build <path>` registers one extra argument-free snapshot query, `report-trace`, bound to that session and registered only in DevFrame's build mode, and the SPA starts in report mode when it finds it. A report includes the view trace and the original records of at most the first 2,000 events or 20 MB, whichever is smaller, and says so in the report header when it truncates.
@@ -230,7 +230,7 @@ rslib 1.0 bundles the shell and all workspace packages into `dist/cli.mjs` (ESM,
 DevFrame builds the commands with cac (`createCac`), so parsing stays there. `@clack/prompts` 1.8 draws the terminal moments (3.1): `intro`, `spinner`, `progress`, `tasks`, `box`, `log`, and `autocomplete` for `--pick`. It is what create-vite, Astro, the Svelte CLI, and Nuxt's CLI use; it installs about 280 KB in 6 packages, colors through `node:util.styleText`, and bundles with rslib (probe: 28 KB). Measured: piped output has no color codes, but the spinner still writes cursor hide/show sequences, so the shell turns spinners and progress into plain lines when `stdout` is not a TTY or `NO_COLOR` is set. In `mcp` mode clack is not called; messages go to stderr. DevFrame's own `[devframe] …` lines print color codes even with `NO_COLOR=1` and piped output (measured); the shell filters escape sequences from them when color is off, and the fix is proposed upstream. Alternatives: Ink (React plus about 24 MB through npx, for a full-screen UI this CLI does not have); OpenTUI (needs Bun or Node.js 26.4 with an experimental flag, and a native binary per platform); ora plus chalk plus listr2 (three overlapping libraries, about 1.5 MB).
 
 **D15. Apps compose; packages provide.**
-The MVP's `packages/devframe` mixes the CLI entry, the server RPC, and the SPA in one package, so nothing but the file layout shows which code may use Node or know the host list. The layout in 2.2 makes those boundaries package boundaries that a script can check. Alternatives: keep one app package with folders inside (rejected: the `node:*` and dependency rules would rest on review alone), and put the SPA inside `apps/cli` (rejected: the static report reuses the same build, and the SPA must not see Node code). Adapters are renamed `host-*` to match the host protocol. Moving the code is the first step of M1.
+The MVP's `packages/devframe` mixes the CLI entry, the server RPC, and the SPA in one package, so nothing but the file layout shows which code may use Node or know the agent list. The layout in 2.2 makes those boundaries package boundaries that a script can check. Alternatives: keep one app package with folders inside (rejected: the `node:*` and dependency rules would rest on review alone), and put the SPA inside `apps/cli` (rejected: the static report reuses the same build, and the SPA must not see Node code). Adapters are renamed to `host-*` packages, one per agent. Moving the code is the first step of M1.
 
 **D16. End-to-end tests on Playwright; local verification in a real browser through chrome-devtools-mcp or browser-harness.**
 CI runs the browser scenarios (5.2) with `@playwright/test` against the packed tarball. Local verification is a separate step: before a UI change is called done, its author, human or agent, checks it in a real browser and attaches the evidence to the PR (screenshots of the changed screens in both themes and both languages beside `docs/design/`, the console, and for heavy views a performance trace). Two tools serve this:
@@ -250,25 +250,25 @@ npx @rivus/agent-trace mcp <path>
 
 - No path: open `/__agent-trace/` (session browser).
 - Path: load it once through `loadSession`; on failure exit 1 with the message before listening; on success open `/__agent-trace/#/s/<ref>`.
-- `ref` is an opaque id the index assigns (a hash of host and path). The absolute path never appears in a URL.
+- `ref` is an opaque id the index assigns (a hash of agent and path). The absolute path never appears in a URL.
 - `AGENT_TRACE_PATH` is used when no path argument is given.
-- `--pick` opens a clack `autocomplete` over the index rows (title, host, project, last activity), then opens the workspace URL for the choice. Without a TTY on stdin it exits 1.
+- `--pick` opens a clack `autocomplete` over the index rows (title, agent, project, last activity), then opens the workspace URL for the choice. Without a TTY on stdin it exits 1.
 
 Terminal moments (D14):
 
 | Moment | TTY | Not a TTY or `NO_COLOR` |
 |---|---|---|
 | Start | `intro` with name and version | `agent-trace <version>` |
-| Session index | `progress` with files read / total per host | one line per host when done |
+| Session index | `progress` with files read / total per agent | one line per agent when done |
 | Loading a session | `spinner` with bytes read and event count | one line when done |
 | `build` | `tasks`: load, redact, write | one line per step |
 | Ready | `box` with the URL as an OSC 8 link when supported, then `outro` | `Ready: <url>` |
 | Error | `log.error` with cause and fix, then exit code 1 | same text, no color |
 | `mcp` | stderr only; stdout carries protocol | same |
 
-### 3.2 Host protocol
+### 3.2 Session adapter protocol
 
-Since the agent-kit adoption (issue #32), session reading is the kit's: `@rivus/agent-kit/sessions` owns the adapter protocol (`SessionAdapter`, `SessionPlatform`, `builtinSessionAdapters`), `/transcript` owns reading (`loadTranscript`, `summarizeSession`, `readOriginal`, `foldTranscript`), the `Transcript` model, and `SessionSummary`, and `/testing` owns the conformance suite (`sessionAdapterConformance`). Consumers import `SessionSummary` directly from the kit with `import type`. The trace-side remainder is the canonical-file head check, `SessionRef` (trace's wire and index use `host`, while the kit's ref uses `agent`), and the `SessionFs` read shape the TraceStore takes. This section's interfaces below are the pre-adoption protocol, kept as the record of that decision; the durable rules under the listing (capability semantics, record accounting, unknown-generation failures, stable event ids) now hold by the kit's conformance suite over the fixtures under `fixtures/sessions/<host>/conformance`.
+Since the agent-kit adoption (issue #32), session reading is the kit's: `@rivus/agent-kit/sessions` owns the adapter protocol (`SessionAdapter`, `SessionPlatform`, `builtinSessionAdapters`), `/transcript` owns reading (`loadTranscript`, `summarizeSession`, `readOriginal`, `foldTranscript`), the `Transcript` model, and `SessionSummary`, and `/testing` owns the conformance suite (`sessionAdapterConformance`). Consumers import `SessionSummary` directly from the kit with `import type`. Trace uses the kit's `SessionRef` and, like the kit, calls the coding agent `agent`. The trace-side remainder is the canonical-file head check and the `SessionFs` read shape the TraceStore takes. This section's interfaces below are the pre-adoption protocol, kept as the record of that decision with the names it had then (`HostAdapter`, `SessionRef.host`); the durable rules under the listing (capability semantics, record accounting, unknown-generation failures, stable event ids) now hold by the kit's conformance suite over the fixtures under `fixtures/sessions/<agent>/conformance`.
 
 Pre-adoption exports from `@rivus/agent-trace-kernel`:
 
@@ -338,11 +338,11 @@ export interface HostAdapter {
 Rules:
 
 - An adapter reads only through `TraceIO` and writes nothing.
-- A field the host can record is declared in `capabilities`. A declared field that is missing from one record is `undefined` for that record, never zero.
-- `HostAdapter.capabilities` lists the kinds of data the host records. `Trace.capabilities` repeats them for each trace, except `systemPrompt` and `toolSchemas`: those are listed on a trace exactly when its files contain that content (a Claude Code prompt snapshot, a Codex `base_instructions`, a Grok `system_prompt.txt` or `tool_definitions.json`). Every other capability means "this host records this kind of data", not that the session has any.
+- A field the agent can record is declared in `capabilities`. A declared field that is missing from one record is `undefined` for that record, never zero.
+- `HostAdapter.capabilities` lists the kinds of data the agent records. `Trace.capabilities` repeats them for each trace, except `systemPrompt` and `toolSchemas`: those are listed on a trace exactly when its files contain that content (a Claude Code prompt snapshot, a Codex `base_instructions`, a Grok `system_prompt.txt` or `tool_definitions.json`). Every other capability means "this agent records this kind of data", not that the session has any.
 - `load` must account for every input record: it becomes one or more events, or one `skipped` entry with a reason and line number.
-- An unknown record type becomes an `unknown` event with `payload.type` set to the host's type name. An unknown format generation fails `load` with the line number.
-- Event ids are derived from host ids when the host has them, otherwise from file and line, so a second load gives the same ids.
+- An unknown record type becomes an `unknown` event with `payload.type` set to the agent's type name. An unknown format generation fails `load` with the line number.
+- Event ids are derived from the log's own ids when the log has them, otherwise from file and line, so a second load gives the same ids.
 
 **Conformance suite.** `@rivus/agent-trace-kernel/conformance` exports `describeHostConformance(adapter, fixtures)` for Vitest. Every registered adapter runs it on its synthetic fixtures. It checks:
 
@@ -371,7 +371,7 @@ export interface SourcePointer { file: string, offset: number, length: number, l
 
 export interface TraceEvent {
   id: string
-  /** Order within the trace; ties in `ts` keep host order. */
+  /** Order within the trace; ties in `ts` keep the log's order. */
   seq: number
   ts: number
   kind: EventKind
@@ -417,7 +417,7 @@ export interface AgentInfo { id: string, parentId?: string, spawnEventId?: strin
 
 export interface Trace {
   schema: 'agent-trace'
-  host: { id: string, version?: string }
+  agent: { id: string, version?: string }
   session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
   capabilities: Capability[]
   agents: AgentInfo[]
@@ -426,9 +426,9 @@ export interface Trace {
 }
 ```
 
-A `request` event is one model call. A host that records only per-turn totals emits one request per turn and marks it `granularity: 'turn'` (with `modelCalls` and, when recorded, a per-model `usageByModel` split). A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
+A `request` event is one model call. An agent that records only per-turn totals emits one request per turn and marks it `granularity: 'turn'` (with `modelCalls` and, when recorded, a per-model `usageByModel` split). A turn duration goes on a `system` event with `type: 'turn_duration'`, never on a request's `durationMs`.
 
-A host that records the system prompt or tool list during the session emits each record as a `system` event with `type: 'prompt_snapshot'` (`PromptSnapshotPayload`) on its lane; the event keeps its source pointer and original, and a compaction does not shadow it. `reconstruct` fills the `system` and `tools` slots from the latest snapshot at or before the event on that lane that recorded each field, and names it in `slot.recordedBy`; a slot with no such snapshot is `unavailable`, even when a later snapshot exists. `session.systemPrompt` and `session.tools` hold the main lane's latest snapshot, and `AgentInfo.systemPrompt` a subagent lane's own. A trace without snapshots uses those session and lane fields for every event. Claude Code joins the recorded `systemPrompt` blocks with a blank line. The view trace keeps each distinct snapshot system prompt and non-empty tool list once, on the first snapshot with it; a later snapshot with the same content carries `systemPromptSameAs` / `toolsSameAs` naming that snapshot and lists the field in `payload.$truncated`, so `get-event` returns it in full and `reconstruct` gives the same result on the view. A recorded empty tool list is an `empty` slot.
+An agent that records the system prompt or tool list during the session emits each record as a `system` event with `type: 'prompt_snapshot'` (`PromptSnapshotPayload`) on its lane; the event keeps its source pointer and original, and a compaction does not shadow it. `reconstruct` fills the `system` and `tools` slots from the latest snapshot at or before the event on that lane that recorded each field, and names it in `slot.recordedBy`; a slot with no such snapshot is `unavailable`, even when a later snapshot exists. `session.systemPrompt` and `session.tools` hold the main lane's latest snapshot, and `AgentInfo.systemPrompt` a subagent lane's own. A trace without snapshots uses those session and lane fields for every event. Claude Code joins the recorded `systemPrompt` blocks with a blank line. The view trace keeps each distinct snapshot system prompt and non-empty tool list once, on the first snapshot with it; a later snapshot with the same content carries `systemPromptSameAs` / `toolsSameAs` naming that snapshot and lists the field in `payload.$truncated`, so `get-event` returns it in full and `reconstruct` gives the same result on the view. A recorded empty tool list is an `empty` slot.
 
 - `schema: 'agent-trace'` marks a canonical JSON file. The demo fixture is rewritten to this shape; no reader for the MVP shape is kept.
 - Payload key names are fixed per kind; the comment beside each field is its OTel GenAI attribute. An OTLP exporter maps them one to one.
@@ -449,12 +449,12 @@ flowchart LR
   sum --> rows
 ```
 
-- Tables: `sessions` (ref, host, path, size, mtime, head fields, summary numbers, flags, error), `prompts` (session ref, sequence, first 500 characters of each user prompt, at most 200 per session), and `search`, an FTS5 `trigram` table over titles and prompts.
+- Tables: `sessions` (ref, agent, path, size, mtime, head fields, summary numbers, flags, error), `prompts` (session ref, sequence, first 500 characters of each user prompt, at most 200 per session), and `search`, an FTS5 `trigram` table over titles and prompts.
 - `list-sessions` reads rows from the index and the latest `discover` pass. The browser receives rows first and summary updates as they finish.
 - Search runs in the index, not in the browser. Queries shorter than 3 characters, which the `trigram` tokenizer cannot match, fall back to a substring match (`LIKE '%q%'`, escaped) over titles and the `prompts` table, so a 2-character Chinese word still finds its sessions.
 - The index is a cache. `PRAGMA user_version` records its layout; a different layout, or a file that fails to open, is deleted and rebuilt. Writes run in one transaction per batch of summaries.
 - Claude Code subagent files count toward their parent session and are not separate rows.
-- A missing root yields a host entry with `count: 0` and `checked: <path>`.
+- A missing root yields an agent entry with `count: 0` and `checked: <path>`.
 
 ### 3.5 Loading a session
 
@@ -482,21 +482,21 @@ Components map to the design:
 Localization details (D13):
 
 - Dictionaries live in `apps/web/src/i18n/{en,zh-CN}.ts`. Keys are grouped by screen (`browser.*`, `workspace.*`, `inspector.*`, `report.*`, `common.*`).
-- Event kind labels are UI strings (`REQUEST` / `请求`, `TOOL` / `工具`). Host names, model names, and field names in "Raw" are not.
+- Event kind labels are UI strings (`REQUEST` / `请求`, `TOOL` / `工具`). Agent names, model names, and field names in "Raw" are not.
 - CJK fallbacks join both font stacks: `"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei"` after the Latin faces. Uppercase section labels and their letter-spacing apply only under `:lang(en)`.
 - Column widths in the ledger and the session list are set for the longer of the two languages; the M4 design review includes a `zh-CN` screenshot of both screens.
 - The report bundles both dictionaries (a few kilobytes), opens in the export-time locale, and keeps the switch.
 
-`reconstruct` gains per-slot token counts when the host records them: the request's input tokens, and the compaction's `postTokens` when it is the first request after a compaction. It does not estimate slot sizes from text length. Each count lists the slots it covers together, because hosts record totals, not per-slot sizes. `reconstruct` works on the target event's own agent lane: a model call sees only its own agent's events.
+`reconstruct` gains per-slot token counts when the agent records them: the request's input tokens, and the compaction's `postTokens` when it is the first request after a compaction. It does not estimate slot sizes from text length. Each count lists the slots it covers together, because agents record totals, not per-slot sizes. `reconstruct` works on the target event's own agent lane: a model call sees only its own agent's events.
 
 ### 3.7 Failures and recovery
 
 | Condition | Behavior |
 |---|---|
-| Host root missing | Host shows 0 and the checked path |
-| File unreadable or unknown generation | Row marked "could not read"; opening shows host, file, and line |
+| Agent root missing | Agent shows 0 and the checked path |
+| File unreadable or unknown generation | Row marked "could not read"; opening shows agent, file, and line |
 | Summary fails | Row keeps head fields; numbers show "—"; failure is not cached |
-| Session load fails | Workspace shows the error with host, file, and line; back to the list |
+| Session load fails | Workspace shows the error with agent, file, and line; back to the list |
 | Browser closes during a load | Load aborted |
 | Cache corrupt | Discarded and rebuilt |
 | Node.js < 24 | One-line message, exit 1 |
@@ -523,7 +523,7 @@ Localization details (D13):
 
 ```mermaid
 flowchart LR
-  m1["M1 Layout and runtime<br/>apps/packages move, Node floor,<br/>DevFrame fixes, DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, HostAdapter,<br/>conformance, 3 hosts"]
+  m1["M1 Layout and runtime<br/>apps/packages move, Node floor,<br/>DevFrame fixes, DI, CLI path"] --> m2["M2 Protocol<br/>canonical trace, adapter protocol,<br/>conformance, 3 agents"]
   m2 --> m3["M3 Session browser<br/>SQLite index, list UI"]
   m2 --> m4["M4 Workspace<br/>view trace, timeline,<br/>ledger, inspector, themes, i18n"]
   m3 --> m5["M5 Package<br/>report, rslib bundle,<br/>tarball e2e"]
@@ -533,7 +533,7 @@ flowchart LR
 | Stage | Ships | Gate |
 |---|---|---|
 | M1 | D15 layout move (`apps/cli`, `apps/web`, `packages/rpc`, `packages/runtime-node`, `host-*` renames, `check-layers.mjs`), D5, D11 runtime parts (Node floor, pins, `@devframes/agentic`), `snapshot` fix, positional path, D14 terminal output and `--pick` skeleton | `build` and `mcp` exit 0 on the demo; D5 checks pass; S15 green |
-| M2 | Canonical trace, host protocol, conformance suite, Claude Code adapter, Codex and Grok ports, synthetic fixtures | Conformance green for 3 hosts; real-session runs recorded |
+| M2 | Canonical trace, session adapter protocol, conformance suite, Claude Code adapter, Codex and Grok ports, synthetic fixtures | Conformance green for 3 agents; real-session runs recorded |
 | M3 | Session index (SQLite, FTS5), `list-sessions`, session browser screen | S1, S3, S4 green; 2 s first screen on this machine recorded |
 | M4 | View trace, `get-event`, timeline, ledger, inspector, themes, English and Chinese UI | S5–S8, S11, S12, S14 green; design review against `docs/design/` in both languages |
 | M5 | Report mode, rslib bundle, tarball e2e | All scenarios green on the tarball |
@@ -554,16 +554,16 @@ Local tool, no telemetry. Signals are CI results and GitHub issues.
 ### 5.1 Unit and conformance
 
 - Kernel: `toView`, `fold`, `reconstruct` slot counts, projections.
-- The kit's `sessionAdapterConformance` for the three builtin adapters on the fixtures under `fixtures/sessions/<host>/conformance/`, in `apps/cli`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
+- The kit's `sessionAdapterConformance` for the three builtin adapters on the fixtures under `fixtures/sessions/<agent>/conformance/`, in `apps/cli`. Fixtures are written by hand from the record shapes in 1.1 and contain no real session text.
 - D5: oxlint `node:*` rule and a browser-target rslib bundle of kernel and rpc.
 
 ### 5.2 Browser end-to-end
 
-Playwright against the packed tarball, with a synthetic home directory that holds fixture sessions for the three hosts. Every scenario also fails on a console error:
+Playwright against the packed tarball, with a synthetic home directory that holds fixture sessions for the three agents. Every scenario also fails on a console error:
 
 | Spec | Check | How |
 |---|---|---|
-| S1 | Rows for all three hosts and per-host counts | Row locators by host |
+| S1 | Rows for all three agents and per-agent counts | Row locators by agent |
 | S3 | Home without `.codex`: Codex shows 0 and the checked path | Separate synthetic home |
 | S4 | Fixture with an unknown generation: "could not read" row, error with line | Click the row, read the error panel |
 | S5 | Compaction fixture: dashed rule with pre/post tokens | Timeline SVG locator and its label |
@@ -583,7 +583,7 @@ S2, S10, S13, S15 on the installed tarball, on Node.js 24; S13 also on Node.js 2
 
 ### 5.4 Real sessions and design review
 
-- One local run per host through the installed tarball. Record host, event count, load time, and view size in the delivery PR. No session text.
+- One local run per agent through the installed tarball. Record agent, event count, load time, and view size in the delivery PR. No session text.
 - Screenshots of both screens in both themes and both languages beside screenshots of `docs/design/*.html` at the same viewport, taken during local verification (D16), attached to the PR, not committed.
 - Session browser first-screen time and second-launch time on this machine.
 
@@ -594,7 +594,7 @@ One person can deliver this. Owners and dates are unconfirmed. Estimates assume 
 | Stage | Main work | Estimate |
 |---|---|---|
 | M1 | Layout move and layer check, runtime fixes, `TraceIO`, `NodeIO`, CLI path, D5 checks, terminal output | 3.5 days |
-| M2 | Canonical trace, host protocol, conformance suite, Claude Code adapter, Codex and Grok ports, fixtures | 5 days |
+| M2 | Canonical trace, session adapter protocol, conformance suite, Claude Code adapter, Codex and Grok ports, fixtures | 5 days |
 | M3 | SQLite index with FTS5, `list-sessions`, session browser UI | 3.5 days |
 | M4 | View trace, `get-event`, projections, timeline, virtualized ledger, inspector, themes, dictionaries and formatting | 7 days |
 | M5 | Report mode, rslib bundle, Playwright suite on the tarball | 2 days |
@@ -610,13 +610,13 @@ Implemented as planned, except for these choices made during delivery:
 - Session list: rows send `shape` (the summary's `contextShape`, scaled to 0–100) rather than `contextShape`.
 - Summaries start after the server listens, and every `summarize` failure marks the row "could not read" with its reason; 3.7's "row keeps head fields; numbers show —" is that row.
 - Dictionaries are `apps/web/src/i18n/dictionary.en.ts` and `dictionary.zh-CN.ts`, not `{en,zh-CN}.ts`.
-- Model saw lists each token count the host recorded with the slots it covers together (a request's input tokens, a compaction's post tokens); there is no count per slot.
+- Model saw lists each token count the agent recorded with the slots it covers together (a request's input tokens, a compaction's post tokens); there is no count per slot.
 - `reconstruct` works on the target event's own lane: a subagent's request sees only that subagent's events.
 - System prompt and tools: the 1.1 table said Claude Code records neither. Claude Code writes `prompt_snapshot` attachments (seen from 2.1.268), and Codex rollouts carry `session_meta.base_instructions.text`; the adapters now read them (3.3), traces list `systemPrompt` / `toolSchemas` only when their files record them (3.2), and Model saw explains an unavailable slot from what that trace lacks and links a recorded one to its snapshot. The view keeps each distinct snapshot prompt and tool list once (3.3).
 - Report contents: the first events are included in full (normalized payload plus original record), not only their originals, so a shortened text is also complete for those events. The 2,000-event and 20 MB limits count those full events. `build` records no locale, so its report opens in the browser's language; an export records the UI locale.
 - Export: "Export report" writes into a new `agent-trace-report-<ref>-<time>/` directory in the server's working directory and shows the absolute path with `~` for the home directory. Exports run one at a time. DevFrame's build mode skips the session push, so a build inside the dev server does not rebind the live shared state.
 - Legacy `get-trace` is removed. `mcp` keeps `reconstruct` over the TraceStore. Model saw computes `reconstruct` in the browser on the view trace, on the dev server and in a report.
-- S4: the session list does not open a "could not read" row. Its preview shows file, line, and reason, and the workspace URL of that ref shows host, file, and line in the error panel.
+- S4: the session list does not open a "could not read" row. Its preview shows file, line, and reason, and the workspace URL of that ref shows agent, file, and line in the error panel.
 - S2: the CLI opens `<base>?s=<ref>#devframe_otp=<code>`, because DevFrame's one-time code uses the fragment; the SPA moves the ref to `#/s/<ref>`. The smoke test checks the opened URL; the browser suite checks the landing route.
 - Ledger: each subagent lane's events in a turn sit behind one subagent row at its spawn call; row sizes are fixed per row type (hook fold 30 px, compaction 44 px).
 - Tooling: `@clack/prompts` is bundled into `dist/cli.mjs`; `node-pty` is `1.2.0-beta.15` because 1.1.0 has no Linux prebuilds; `dist/THIRD-PARTY-NOTICES.txt` is written by a small rspack plugin; `npm pack` keeps `workspace:*` in the packed `devDependencies`, which `npm install` ignores (the publish follow-up should pack with Rush or pnpm).
@@ -626,7 +626,7 @@ Implemented as planned, except for these choices made during delivery:
 
 | Item | Type | Impact | Owner | Next step |
 |---|---|---|---|---|
-| Host log formats change without notice | risk | Adapters fail on new generations | unconfirmed | Fail loud with line numbers (3.2); conformance fixtures per known generation |
+| Agent log formats change without notice | risk | Adapters fail on new generations | unconfirmed | Fail loud with line numbers (3.2); conformance fixtures per known generation |
 | DevFrame auth gate with `--open` | open question | Extra manual step on first launch would break S1 | unconfirmed | Verify in M1; if it adds a step, check whether DevFrame accepts a one-time token in the opened URL before choosing |
 | Index holds prompt text | risk | Sensitive text in the cache directory | unconfirmed | 500-character limit per prompt, mode 0600, documented; `--no-index` flag |
 | 2 s first screen on slower disks | risk | S1 budget missed | unconfirmed | Measure in M3; the first screen needs only `discover` and index reads |
@@ -636,8 +636,8 @@ Implemented as planned, except for these choices made during delivery:
 | DuckDB for cross-session analytics | follow-up | Faster bulk queries over raw logs | unconfirmed | Optional dependency if a feature needs it (A.10) |
 | ATIF export | follow-up | Interop with Harbor evaluation and datasets | unconfirmed | Next plan; mapping in A.8; validate with Harbor's validator |
 | npm publishing | follow-up | Users install from the registry | unconfirmed | Version Packages and publish workflows, after M5; reference `rivus-agent` |
-| OpenCode on the host protocol | follow-up | OpenCode users | unconfirmed | Needs `SqliteIO`; next host after M5 |
-| dsh on the host protocol | follow-up | dsh users | unconfirmed | Needs zstd and the format catalog |
+| OpenCode on the session adapter protocol | follow-up | OpenCode users | unconfirmed | Needs `SqliteIO`; next agent after M5 |
+| dsh on the session adapter protocol | follow-up | dsh users | unconfirmed | Needs zstd and the format catalog |
 | OTLP export | follow-up | Langfuse, LangSmith, Phoenix | unconfirmed | After ATIF |
 | UI string quality in Chinese | risk | Literal or inconsistent terms | unconfirmed | One glossary in `i18n/zh-CN.ts` header comment, reviewed with the M4 screenshots |
 | More UI languages; localized CLI and MCP output | follow-up | Non-English and non-Chinese users | unconfirmed | Add a dictionary; the type check covers it |
@@ -748,7 +748,7 @@ A.8 Canonical trace to ATIF v1.8 (constraint for the export follow-up):
 | Canonical | ATIF |
 |---|---|
 | `session.id` | `session_id`; `trajectory_id` for the document |
-| `host.id`, `host.version` | `agent.name`, `agent.version` |
+| `agent.id`, `agent.version` | `agent.name`, `agent.version` |
 | `RequestPayload.model` | `agent.model_name`, or `model_name` on the step |
 | `user` event | step with `source: "user"`, `message` |
 | `assistant` event | step with `source: "agent"`, `message` |

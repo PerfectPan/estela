@@ -1,4 +1,4 @@
-import type { HostListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
 import { For, Show } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
 import { RailGroup } from '@/browser/rail-group.tsx'
@@ -14,22 +14,22 @@ export interface Flags {
 /** Projects shown in the rail, by row count. The active one is always shown. */
 const PROJECT_LIMIT = 8
 
-/** Left rail (216 px): host filter with per-host counts, project filter, and the three flags. */
+/** Left rail (216 px): agent filter with per-agent counts, project filter, and the three flags. */
 export function Rail(props: {
-  hosts: HostListEntry[]
+  agents: AgentListEntry[]
   rows: SessionListRow[]
-  host?: string
+  agent?: string
   project?: string
   flags: Flags
-  onHost: (id?: string) => void
+  onAgent: (id?: string) => void
   onProject: (name?: string) => void
   onFlag: (flag: keyof Flags, value: boolean) => void
 }) {
-  const total = () => props.hosts.reduce((sum, host) => sum + host.count, 0)
+  const total = () => props.agents.reduce((sum, agent) => sum + agent.count, 0)
   const projects = () => {
     const counts = new Map<string, number>()
     for (const row of props.rows) {
-      if (row.project && (!props.host || row.host === props.host)) {
+      if (row.project && (!props.agent || row.agent === props.agent)) {
         counts.set(row.project, (counts.get(row.project) ?? 0) + 1)
       }
     }
@@ -45,24 +45,24 @@ export function Rail(props: {
   return (
     <aside
       class="flex w-[216px] shrink-0 flex-col gap-[22px] overflow-y-auto border-r border-border px-3 py-[18px]"
-      aria-label={t('browser.hosts')}
+      aria-label={t('browser.agents')}
     >
-      <RailGroup label={t('browser.hosts')}>
+      <RailGroup label={t('browser.agents')}>
         <FilterRow
-          active={!props.host}
-          label={t('browser.allHosts')}
+          active={!props.agent}
+          label={t('browser.allAgents')}
           count={total()}
-          onClick={() => props.onHost(undefined)}
+          onClick={() => props.onAgent(undefined)}
         />
-        <For each={props.hosts}>
-          {host => (
+        <For each={props.agents}>
+          {agent => (
             <FilterRow
-              active={props.host === host.id}
-              label={host.displayName}
-              count={host.count}
-              mark={host.id}
-              detail={host.count === 0 && host.checked ? t('browser.checked', { path: host.checked }) : undefined}
-              onClick={() => props.onHost(props.host === host.id ? undefined : host.id)}
+              active={props.agent === agent.id}
+              label={agent.displayName}
+              count={agent.count}
+              mark={agent.id}
+              detail={agent.count === 0 && agent.checked ? t('browser.checked', { path: agent.checked }) : undefined}
+              onClick={() => props.onAgent(props.agent === agent.id ? undefined : agent.id)}
             />
           )}
         </For>

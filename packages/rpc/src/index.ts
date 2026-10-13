@@ -26,7 +26,7 @@ export {
 export {
   emptySessionsSignal,
   SESSIONS_STATE,
-  type HostListEntry,
+  type AgentListEntry,
   type ListSessionsQuery,
   type ListSessionsResult,
   type SessionError,

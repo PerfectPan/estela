@@ -16,7 +16,7 @@ const fixture = (agent: string, relative: string): string =>
 const platform = createNodePlatform()
 
 const claudeLoad = async (relative: string) =>
-  loadSession({ host: 'claude-code', path: fixture('claude-code', relative) }, { platform })
+  loadSession({ agent: 'claude-code', path: fixture('claude-code', relative) }, { platform })
 
 /** Every moved fixture session, by agent and path under its conformance root. */
 const FIXTURES: readonly (readonly [string, string])[] = [
@@ -55,7 +55,7 @@ describe('catalog summary equals the workspace header summary', () => {
       if (!loaded.ok) {
         throw new Error(`${path}: ${loaded.error._tag}`)
       }
-      const listed = await summarizeRow(platform, builtinSessionAdapters, { host: agent, path })
+      const listed = await summarizeRow(platform, builtinSessionAdapters, { agent, path })
       if (!('summary' in listed)) {
         throw new Error(`${path}: ${listed.error.reason}`)
       }

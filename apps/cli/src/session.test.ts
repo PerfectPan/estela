@@ -36,7 +36,7 @@ async function grokUnknownGeneration(): Promise<string> {
 }
 
 describe('loadSession', () => {
-  it('throws the hosts’ unknown-generation wording, which the web parses into host, file, and line', async () => {
+  it('throws the unknown-generation wording, which the web parses into agent, file, and line', async () => {
     const path = await unknownGeneration()
     await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
       `claude-code: ${path}:1: unknown format generation`,
@@ -49,14 +49,14 @@ describe('loadSession', () => {
     // Code's directory read failure (EISDIR), not Grok's summary handling — routing beat
     // detection, which would have picked Grok for this directory.
     await expect(
-      loadSession({ host: 'claude-code', path: dir }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+      loadSession({ agent: 'claude-code', path: dir }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
     ).rejects.toThrow(/EISDIR/)
   })
 
   it('a ref naming an agent without an adapter fails with capability-unsupported wording', async () => {
     const path = await unknownGeneration()
     await expect(
-      loadSession({ host: 'nosuch', path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+      loadSession({ agent: 'nosuch', path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
     ).rejects.toThrow('no session adapter for nosuch')
   })
 
@@ -127,11 +127,11 @@ describe('loadSession', () => {
     )
     const platform = createNodePlatform({ home: dir, env: {} })
     const trace = await loadSession(
-      { host: 'claude-code', path: join(projects, 'session.jsonl'), sessionId: 's' },
+      { agent: 'claude-code', path: join(projects, 'session.jsonl'), sessionId: 's' },
       { platform },
     )
     expect(trace.schema).toBe('agent-trace')
-    expect(trace.host.id).toBe('claude-code')
+    expect(trace.agent.id).toBe('claude-code')
     expect(trace.events.length).toBeGreaterThan(0)
     expect(trace.events[0]!.original).toBeDefined()
   })

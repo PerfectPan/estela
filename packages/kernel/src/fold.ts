@@ -87,7 +87,7 @@ function knownSum(values: (number | undefined)[]): number | undefined {
 }
 
 /**
- * Turn durations (`system` events with `type: 'turn_duration'`) when the host
+ * Turn durations (`system` events with `type: 'turn_duration'`) when the agent
  * records them; otherwise the sum of per-call request `durationMs`.
  */
 function durationSum(events: TraceEvent[]): number | undefined {
@@ -104,7 +104,7 @@ function durationSum(events: TraceEvent[]): number | undefined {
 
 /**
  * A turn is one real user prompt on the main lane (`isPrompt`), counted once per
- * host record: several `user` events from one record (content blocks) count once.
+ * log record: several `user` events from one record (content blocks) count once.
  */
 function countTurns(trace: Trace): number {
   return promptStarts(trace, mainAgentId(trace)).length

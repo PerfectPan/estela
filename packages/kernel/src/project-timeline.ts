@@ -2,7 +2,7 @@ import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { asNumber, asString } from './jsonl.ts'
 import { laneOf, mainAgentId, promptStarts, requestUsage } from './lanes.ts'
 
-/** One model request, for timeline bars. Numbers are `undefined` when the host did not record them. */
+/** One model request, for timeline bars. Numbers are `undefined` when the agent did not record them. */
 export interface RequestEntry {
   id: string
   seq: number

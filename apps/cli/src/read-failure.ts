@@ -4,7 +4,7 @@ import type { SessionListError } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 
 /**
- * Split `host: <file>:<line>: <reason>` into its parts. `ReadFailed` messages are free-form IO
+ * Split `agent: <file>:<line>: <reason>` into its parts. `ReadFailed` messages are free-form IO
  * text, and this shape is where a line number in them comes from; any other message becomes the
  * reason. The home directory is shown as `~`.
  */
@@ -34,8 +34,8 @@ export function errorMessage(error: unknown): string {
 }
 
 /**
- * The message a load failure carried from the host implementations, for the thrown `Error` and
- * the error row alike: `parseReadFailure` splits it back into the wire `SessionError`.
+ * The message of a load failure, for the thrown `Error` and the error row alike: `parseReadFailure`
+ * splits it back into the wire `SessionError`.
  */
 export function loadErrorMessage(error: LoadTranscriptError, refLabel: string): string {
   switch (error._tag) {
@@ -53,7 +53,7 @@ export function loadErrorMessage(error: LoadTranscriptError, refLabel: string): 
 }
 
 /**
- * A failed transcript load as a wire `SessionError`: the hosts' message shape, parsed back.
+ * A failed transcript load as a wire `SessionError`: the `loadErrorMessage` text, parsed back.
  * A missing file is the one wording without the path in the reason — `session file does not
  * exist`, with the path in `file` — everywhere the catalog shows it.
  */

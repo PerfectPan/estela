@@ -1,6 +1,7 @@
+import type { SessionRef } from '@rivus/agent-kit/sessions'
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { FittedView, SessionFs, SessionRef } from '@rivus/agent-trace-kernel'
+import type { FittedView, SessionFs } from '@rivus/agent-trace-kernel'
 import type { FileStamp } from './source-check.ts'
 import { fitView, fold, reconstruct, splitSessionRef, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
@@ -16,7 +17,7 @@ const READ_BATCH = 32
 export interface ResolvedSession {
   /** Cache key: one per session (the catalog ref, or the launch path outside the dev server). */
   key: string
-  /** What the host loads: `file` or `file#sessionId`, or a discovered `SessionRef`. */
+  /** What the shell loads: `file` or `file#sessionId`, or a discovered `SessionRef`. */
   path: string | SessionRef
 }
 

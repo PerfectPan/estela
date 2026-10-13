@@ -1,7 +1,7 @@
 import { cp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-// Synthetic sessions only: copied from the hosts' fixture folders, or written here.
+// Synthetic sessions only: copied from the agents' fixture folders, or written here.
 export interface FixtureHome {
   home: string
   claudePlain: string
@@ -11,7 +11,7 @@ export interface FixtureHome {
   claudeHomeCwd: string
   /** With `browser`: the rising session with prompt snapshots in the order Claude Code writes them (S7). */
   claudeSnapshot: string
-  /** Sessions per host. */
+  /** Sessions per agent. */
   counts: Record<'claude-code' | 'codex' | 'grok', number>
 }
 
@@ -125,8 +125,8 @@ export function risingSession(cwd: string, prompts: string[] = [], snapshots = f
 
 /** Builds `home` with Claude Code, Codex, and Grok sessions in their default locations. */
 export async function buildFixtureHome(home: string, repo: string, options: FixtureOptions = {}): Promise<FixtureHome> {
-  const fixtures = (host: string) => join(repo, 'fixtures/sessions', host, 'conformance')
-  const unknownGeneration = (host: string) => join(repo, 'fixtures/sessions', host, 'unknown-generation')
+  const fixtures = (agent: string) => join(repo, 'fixtures/sessions', agent, 'conformance')
+  const unknownGeneration = (agent: string) => join(repo, 'fixtures/sessions', agent, 'unknown-generation')
   const projects = join(home, '.claude/projects')
   const claude = options.browser ? [...CLAUDE, 'unknown-type'] : CLAUDE
   for (const name of claude) {

@@ -10,16 +10,16 @@ Visual design: [`docs/design/`](../design/README.md)
 
 ## Problem And Scope
 
-A developer who uses coding agents cannot easily see what an agent did in a session, or what the model was shown at a given request. The logs exist on the developer's machine, but each host writes a different format, and a raw JSONL file hides request boundaries, context size, compactions, and subagents.
+A developer who uses coding agents cannot easily see what an agent did in a session, or what the model was shown at a given request. The logs exist on the developer's machine, but each agent writes a different format, and a raw JSONL file hides request boundaries, context size, compactions, and subagents.
 
-agent-trace is a local DevTools. One command opens it in the browser. The developer picks a session from any supported host and debugs it on one screen: a timeline of requests and context size, a ledger of events grouped by turn, and an inspector that shows what the model saw at the selected request.
+agent-trace is a local DevTools. One command opens it in the browser. The developer picks a session from any supported agent and debugs it on one screen: a timeline of requests and context size, a ledger of events grouped by turn, and an inspector that shows what the model saw at the selected request.
 
 In scope:
 
 - `npx @rivus/agent-trace` opens the DevTools in the default browser.
-- A session browser that lists sessions found on the machine for the supported hosts.
+- A session browser that lists sessions found on the machine for the supported agents.
 - A session workspace: header numbers, timeline, ledger, inspector.
-- Supported hosts in this release: Claude Code, Codex, Grok. Each is connected through one host protocol.
+- Supported agents in this release: Claude Code, Codex, Grok. Each is connected through one adapter protocol.
 - A redacted static report of one session.
 - Dark and light themes.
 - English and Simplified Chinese UI.
@@ -28,7 +28,7 @@ In scope:
 
 Out of scope:
 
-- OpenCode and dsh in the session browser. They follow as later hosts on the same protocol.
+- OpenCode and dsh in the session browser. They follow as later agents on the same protocol.
 - ATIF or OTLP export.
 - Live follow of a session that is still running.
 - Editing, replaying, or re-running a session.
@@ -42,7 +42,7 @@ Out of scope:
 
 - `npx @rivus/agent-trace` must start a server on `localhost` and open the session browser in the default browser. `--no-open` must skip opening the browser and print the URL.
 - `npx @rivus/agent-trace <path>` must open the session workspace for that session directly.
-- A path that does not exist or that no supported host accepts must exit 1 before the server listens, with a message that names the path.
+- A path that does not exist or that no supported agent's adapter accepts must exit 1 before the server listens, with a message that names the path.
 - On Node.js older than 24, the command must exit with a message that names the required version.
 
 ### Terminal output
@@ -54,24 +54,24 @@ Out of scope:
 
 ### Session browser
 
-- The browser must list sessions from each supported host's default location on this machine, newest activity first, grouped by day.
-- Rows must appear within 2 seconds of opening, even when the hosts hold thousands of sessions and several gigabytes of logs. Numbers that need a full read of a session file fill in as they are computed, and they are cached between runs so the next launch shows them at once.
-- Each row must show the host, title, project directory, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. A value the host log does not record must show as "—", not as zero.
-- A host whose default location does not exist must appear with a count of 0 and the path that was checked. It is not an error.
+- The browser must list sessions from each supported agent's default location on this machine, newest activity first, grouped by day.
+- Rows must appear within 2 seconds of opening, even when the agents hold thousands of sessions and several gigabytes of logs. Numbers that need a full read of a session file fill in as they are computed, and they are cached between runs so the next launch shows them at once.
+- Each row must show the agent, title, project directory, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. A value the agent's log does not record must show as "—", not as zero.
+- An agent whose default location does not exist must appear with a count of 0 and the path that was checked. It is not an error.
 - A session file that the adapter cannot parse must still be listed, marked "could not read", with the reason available on hover. It must not be silently hidden.
-- The list must be filterable by host, project, and the three flags, and searchable by title and by the text of every user prompt, in English and Chinese.
+- The list must be filterable by agent, project, and the three flags, and searchable by title and by the text of every user prompt, in English and Chinese.
 - Selecting a row must show a preview: the context-over-time shape, the headline numbers, and the first prompt.
 
 ### Session workspace
 
-- The header must show host, working directory, start time, title, duration, turns, requests, tokens in and out, compactions, subagents, and failed tool calls.
-- The timeline must draw one bar per model request whose height is that request's input tokens, one lane per subagent, a marker at each user prompt, a marker at each failed tool call, and a dashed rule at each compaction labeled with the token count before and after when the host records it.
+- The header must show agent, working directory, start time, title, duration, turns, requests, tokens in and out, compactions, subagents, and failed tool calls.
+- The timeline must draw one bar per model request whose height is that request's input tokens, one lane per subagent, a marker at each user prompt, a marker at each failed tool call, and a dashed rule at each compaction labeled with the token count before and after when the agent records it.
 - Dragging a range on the timeline must filter the ledger to that range. The range handles must also be focusable and movable with the arrow keys.
 - The ledger must group events by turn. A turn must collapse and expand. Hook events must fold into one row per run of hooks. A toggle must dim the events that the model no longer sees after a compaction.
 - The ledger must stay responsive for sessions of at least 10,000 events.
 - A session file of at least 350 MB must open. The workspace must show loading progress, and the browser must not receive the whole file: long text is shortened in the ledger with a visible marker, and the full text and the original record load when the event is selected.
-- Selecting a request must open the inspector. Its "Model saw" tab must show the context composition at that request (system prompt, tools, summary, messages, current turn) with token counts where known, and the events that compaction removed before it. A slot the host does not record must be labeled "unavailable". It must not be estimated.
-- Selecting any event must show its normalized fields and, in "Raw", the host's original record.
+- Selecting a request must open the inspector. Its "Model saw" tab must show the context composition at that request (system prompt, tools, summary, messages, current turn) with token counts where known, and the events that compaction removed before it. A slot the agent does not record must be labeled "unavailable". It must not be estimated.
+- Selecting any event must show its normalized fields and, in "Raw", the agent's original record.
 
 ### Report
 
@@ -97,9 +97,9 @@ Out of scope:
 
 ## Domain Invariants
 
-- The canonical trace is ordered events, and each event can always return its original host record. Turns, requests, lanes, and statistics are projections of it.
+- The canonical trace is ordered events, and each event can always return its original log record. Turns, requests, lanes, and statistics are projections of it.
 - Missing data is `unavailable`. No screen invents a value, a boundary, or an event.
-- Every host record is either represented by an event or counted as skipped with a reason. Nothing is dropped silently.
+- Every log record is either represented by an event or counted as skipped with a reason. Nothing is dropped silently.
 - Loading the same file twice gives the same event ids.
 - Session files are read, never written.
 
@@ -109,7 +109,7 @@ Out of scope:
 
 - Given Node.js 24 and Claude Code, Codex, and Grok sessions in their default locations
 - When the user runs `npx @rivus/agent-trace`
-- Then the browser opens the session browser, and it lists sessions from all three hosts with per-host counts
+- Then the browser opens the session browser, and it lists sessions from all three agents with per-agent counts
 
 ### S2: Open one session directly
 
@@ -117,17 +117,17 @@ Out of scope:
 - When the user runs `npx @rivus/agent-trace <path>`
 - Then the browser opens that session's workspace
 
-### S3: Host not installed
+### S3: Agent not installed
 
 - Given no `~/.codex` directory
 - When the session browser loads
-- Then Codex shows 0 sessions and the checked path, and the other hosts load normally
+- Then Codex shows 0 sessions and the checked path, and the other agents load normally
 
 ### S4: Unreadable session
 
 - Given a session file whose records use an unknown format generation
 - When the session browser loads
-- Then the row is listed as "could not read", and opening it shows the host, the file, and the first unreadable record's line number
+- Then the row is listed as "could not read", and opening it shows the agent, the file, and the first unreadable record's line number
 
 ### S5: Compaction in the timeline
 
@@ -145,7 +145,7 @@ Out of scope:
 
 - Given the first request after a compaction in a Claude Code session
 - When the user selects it and opens "Model saw"
-- Then the composition shows summary, messages, and current turn with token counts where the host recorded them, the system prompt and tools slots are present when the host log records them at or before that request and "unavailable" otherwise (Claude Code records them in `prompt_snapshot` attachments, seen from 2.1.268; a session without them records neither), and the list of events removed by the compaction is shown
+- Then the composition shows summary, messages, and current turn with token counts where the agent recorded them, the system prompt and tools slots are present when the agent's log records them at or before that request and "unavailable" otherwise (Claude Code records them in `prompt_snapshot` attachments, seen from 2.1.268; a session without them records neither), and the list of events removed by the compaction is shown
 
 ### S8: Large session
 
@@ -197,7 +197,7 @@ Out of scope:
 
 ### S16: Terminal picker
 
-- Given an interactive terminal and sessions from three hosts
+- Given an interactive terminal and sessions from three agents
 - When the user runs `npx @rivus/agent-trace --pick`, types part of a title, and presses Enter
 - Then the browser opens the workspace for the chosen session
 
@@ -215,4 +215,4 @@ Out of scope:
 - S16: a pseudo-terminal test (`node-pty` in the test harness only) on the packed tarball.
 - S8: a generated 10,000-event trace, with the rendered row count asserted.
 - S12: a generated 350 MB Codex-format fixture built at test time (not committed), with the payload size sent to the browser asserted.
-- Real sessions: one local run per host, recorded in the delivery PR as host, command, event count, and load time. Session files are not committed.
+- Real sessions: one local run per agent, recorded in the delivery PR as agent, command, event count, and load time. Session files are not committed.
