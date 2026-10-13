@@ -1,5 +1,5 @@
 import type { SessionRef } from '@rivus/agent-trace-kernel'
-import { asRecord, isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
+import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { SessionAdapters } from '@rivus/agent-kit/sessions'
 import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
@@ -19,40 +19,6 @@ export interface LoadSessionOptions {
 }
 
 /**
- * Canonical files written before the schema adopted the kit's names: event kind and
- * capability `thinking`, request payload `stopReason`. Rewritten in place before `isTrace`
- * so they keep loading; payloads are not validated, and originals are host records that
- * never used these names.
- */
-function legacyEventNames(trace: unknown): unknown {
-  const value = asRecord(trace)
-  if (!value) {
-    return trace
-  }
-  if (Array.isArray(value.capabilities)) {
-    value.capabilities = value.capabilities.map(name => (name === 'thinking' ? 'reasoning' : name))
-  }
-  if (!Array.isArray(value.events)) {
-    return value
-  }
-  for (const event of value.events) {
-    const record = asRecord(event)
-    const payload = record && asRecord(record.payload)
-    if (!record || !payload) {
-      continue
-    }
-    if (record.kind === 'thinking') {
-      record.kind = 'reasoning'
-    }
-    if (payload.stopReason !== undefined && payload.finishReason === undefined) {
-      payload.finishReason = payload.stopReason
-      delete payload.stopReason
-    }
-  }
-  return value
-}
-
-/**
  * One session load for the whole shell: canonical agent-trace JSON keeps its fast path
  * (`isCanonicalTraceFile` + `isTrace`; originals live in the file), everything else reads
  * through the kit and maps to the canonical `Trace`. The kit's expected failures throw with
@@ -68,9 +34,8 @@ export async function loadSession(target: string | SessionRef, options: LoadSess
       const bytes = await readRange(fs, kitTarget.path)
       options.onProgress?.(bytes.byteLength)
       const value: unknown = JSON.parse(new TextDecoder().decode(bytes))
-      const legacy = legacyEventNames(value)
-      if (isTrace(legacy)) {
-        return legacy
+      if (isTrace(value)) {
+        return value
       }
     }
   } catch (error) {
