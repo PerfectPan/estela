@@ -125,23 +125,23 @@ describe('installPlainFilter', () => {
   })
 })
 
-describe('installPlainFilter write callbacks', () => {
-  /** A real `Writable` behind stdout, so its own argument handling decides whether the callback runs. */
-  function sink(): string[] {
-    const chunks: string[] = []
-    const stream = new Writable({
-      decodeStrings: false,
-      write(chunk: string | Uint8Array, _encoding, done) {
-        chunks.push(String(chunk))
-        done()
-      },
-    })
-    stdout.isTTY = false
-    stdout.write = stream.write.bind(stream)
-    installPlainFilter()
-    return chunks
-  }
+/** A real `Writable` behind stdout, so its own argument handling decides whether the callback runs. */
+function sink(): string[] {
+  const chunks: string[] = []
+  const stream = new Writable({
+    decodeStrings: false,
+    write(chunk: string | Uint8Array, _encoding, done) {
+      chunks.push(String(chunk))
+      done()
+    },
+  })
+  stdout.isTTY = false
+  stdout.write = stream.write.bind(stream)
+  installPlainFilter()
+  return chunks
+}
 
+describe('installPlainFilter write callbacks', () => {
   const chunks = {
     string: '\u001b[31mred\u001b[0m',
     'rewritten buffer': Buffer.from('\u001b[31mred\u001b[0m'),
@@ -151,9 +151,9 @@ describe('installPlainFilter write callbacks', () => {
     for (const encoding of [null, undefined, 'utf8']) {
       it(`runs the callback of a ${branch} chunk written with a ${String(encoding)} encoding`, async () => {
         const written = sink()
-        const callback = vi.fn()
+        const callback = vi.fn<(error?: Error | null) => void>()
         // Node accepts a null encoding, which the typed overloads leave out.
-        Reflect.apply(stdout.write, stdout, [chunk, encoding, callback])
+        Reflect.apply(stdout.write.bind(stdout), undefined, [chunk, encoding, callback])
         await new Promise(resolve => setImmediate(resolve))
         expect(callback).toHaveBeenCalledOnce()
         expect(written).toEqual(['red'])
