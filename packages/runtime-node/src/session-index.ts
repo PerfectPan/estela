@@ -110,8 +110,9 @@ const textColumn = z.nullable(z.string())
 const numberColumn = z.nullable(z.number())
 
 /**
- * Row schemas, one per SELECT: each SELECT names exactly its schema's columns. A row that does not parse is missing
- * data: `rows` leaves it out until the next discover pass rewrites it, and `get` finds no cached summary in it.
+ * Row schemas, one per SELECT: each SELECT names its schema's columns, plus `id` where a row that does not parse is
+ * dropped. The index is a cache, so a head that does not parse is deleted with its prompts and search row, and the next
+ * discover pass writes it again; a summary that does not parse is not served and is recomputed.
  */
 const headRow = z.object({
   ref: z.string(),
@@ -139,7 +140,6 @@ const summaryRow = z.object({
   context_shape: textColumn,
 })
 const idRow = z.object({ id: z.number() })
-const removeRow = z.object({ id: z.number(), ref: z.string() })
 const refRow = z.object({ ref: z.string() })
 const promptRow = z.object({ text: z.string() })
 const contextShape = z.array(z.number())
@@ -208,19 +208,35 @@ class SqliteIndex implements SessionIndex {
   }
 
   rows(): IndexRow[] {
-    const rows = this.sql(`SELECT ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`).all()
-    return rows.flatMap(row => {
+    const rows = this.sql(
+      `SELECT id, ${HEAD_SELECT}, ${SUMMARY_SELECT} FROM sessions ORDER BY last_active_at DESC`,
+    ).all()
+    const out: IndexRow[] = []
+    const unparsable: unknown[] = []
+    for (const row of rows) {
       const head = z.safeParse(headRow, row).data
       if (!head) {
-        return []
+        unparsable.push(row)
+        continue
       }
-      const out: IndexRow = headOf(head)
+      const entry: IndexRow = headOf(head)
       const summary = this.summaryOf(row)
       if (summary) {
-        out.summary = summary
+        entry.summary = summary
       }
-      return [out]
-    })
+      out.push(entry)
+    }
+    if (unparsable.length > 0) {
+      try {
+        this.transaction(() => this.drop(unparsable))
+      } catch (error) {
+        // Busy: the rows stay hidden, and `writeHead` drops each one when discover writes its path.
+        if (!isBusy(error)) {
+          throw error
+        }
+      }
+    }
+    return out
   }
 
   get(path: string, size: number, mtimeMs: number): SessionSummary | undefined {
@@ -238,15 +254,7 @@ class SqliteIndex implements SessionIndex {
       return
     }
     this.transaction(() => {
-      for (const path of paths) {
-        const row = z.safeParse(removeRow, this.sql('SELECT id, ref FROM sessions WHERE path = ?').get(path)).data
-        if (!row) {
-          continue
-        }
-        this.sql('DELETE FROM search WHERE rowid = ?').run(row.id)
-        this.sql('DELETE FROM prompts WHERE ref = ?').run(row.ref)
-        this.sql('DELETE FROM sessions WHERE id = ?').run(row.id)
-      }
+      this.drop(paths.map(path => this.sql('SELECT id FROM sessions WHERE path = ?').get(path)))
     })
   }
 
@@ -327,9 +335,14 @@ class SqliteIndex implements SessionIndex {
   }
 
   private writeHead(row: IndexHead): void {
-    const stored = z.safeParse(headRow, this.sql(`SELECT ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path))
+    const found = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path)
+    const stored = z.safeParse(headRow, found).data
+    if (found && !stored) {
+      // Its old ref is unknown, so its prompts go with it here, and the row is written fresh below.
+      this.drop([found])
+    }
     const next = { ...row, ...(row.firstPrompt ? { firstPrompt: clip(row.firstPrompt) } : {}) }
-    const existing = stored.data ? headOf(stored.data) : undefined
+    const existing = stored ? headOf(stored) : undefined
     const sameKey =
       existing !== undefined
       && existing.size === row.size
@@ -389,6 +402,22 @@ class SqliteIndex implements SessionIndex {
     )
     this.replacePrompts(row.ref, prompts)
     this.rewriteSearch(row.path, row.title, prompts)
+  }
+
+  /**
+   * Deletes each found session row (`{ id }`; anything else is skipped) with its prompts and search row. Prompts are
+   * matched through the stored `ref` in SQL, so a row whose `ref` does not parse loses its prompts too.
+   */
+  private drop(found: readonly unknown[]): void {
+    for (const row of found) {
+      const id = z.safeParse(idRow, row).data?.id
+      if (id === undefined) {
+        continue
+      }
+      this.sql('DELETE FROM search WHERE rowid = ?').run(id)
+      this.sql('DELETE FROM prompts WHERE ref IN (SELECT ref FROM sessions WHERE id = ?)').run(id)
+      this.sql('DELETE FROM sessions WHERE id = ?').run(id)
+    }
   }
 
   private promptsOf(ref: string): string[] {
