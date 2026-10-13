@@ -1,16 +1,17 @@
-import type { HostAdapter } from '@rivus/agent-trace-kernel'
+import type { SessionAdapter } from '@rivus/agent-kit/sessions'
+import type { Transcript } from '@rivus/agent-kit/transcript'
+import { ok } from '@rivus/agent-kit/catalog'
+import { createNodePlatform } from '@rivus/agent-kit/node'
 import { spawn } from 'node:child_process'
-import type { Trace } from '@rivus/agent-trace-schema'
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadTrace } from '@rivus/agent-trace-kernel'
 import { CURRENT_REF } from '@rivus/agent-trace-rpc'
-import { nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionCatalog } from './catalog.ts'
-import { registeredHosts } from './session.ts'
+import { loadSession } from './session.ts'
 import { oneLine } from './session-ref.ts'
 import { createTraceStore } from './trace-store.ts'
 
@@ -31,25 +32,31 @@ async function tempHome(): Promise<string> {
 const source = { file: 'fixture', offset: 0, length: 1, line: 1 }
 
 /** One session per `*.jsonl` file under `<home>/sessions`; the file text is the title and the prompt. */
-function fakeHost(home: string, loads: string[]): HostAdapter {
+function fakeAdapter(home: string, loads: string[]): SessionAdapter {
   const root = join(home, 'sessions')
   return {
-    id: 'fake',
+    specificationVersion: 'sessions-v1',
+    agent: 'fake',
     displayName: 'Fake',
+    // The fake ignores `home`; the rule only satisfies `sessionAdapterHome`.
+    home: { defaultPath: [] },
     capabilities: ['requests'],
     roots: () => [root],
-    async *discover(dir, _io, opts) {
+    async *discover(_platform, dir, opts) {
       const names = (await readdir(dir)).filter(name => name.endsWith('.jsonl')).toSorted()
-      opts.onTotal?.(names.length)
+      opts?.onTotal?.(names.length)
       for (const name of names) {
         const path = join(dir, name)
         if (name.startsWith('bad')) {
-          yield { ref: { host: 'fake', path }, error: `fake: ${path}:4: unknown format generation` }
+          yield {
+            ref: { agent: 'fake', path },
+            error: { _tag: 'ReadFailed', path, message: `fake: ${path}:4: unknown format generation` },
+          }
           continue
         }
         const title = await readFile(path, 'utf8')
         yield {
-          ref: { host: 'fake', path },
+          ref: { agent: 'fake', path },
           title,
           firstPrompt: title,
           lastActiveAt: (await stat(path)).mtimeMs,
@@ -60,11 +67,10 @@ function fakeHost(home: string, loads: string[]): HostAdapter {
     async detect() {
       return false
     },
-    async load(ref): Promise<Trace> {
+    async load(_platform, ref) {
       loads.push(ref.path)
-      return {
-        schema: 'agent-trace',
-        host: { id: 'fake' },
+      const transcript: Transcript = {
+        agent: 'fake',
         session: { id: ref.path },
         capabilities: ['requests'],
         agents: [{ id: 'main' }],
@@ -74,6 +80,7 @@ function fakeHost(home: string, loads: string[]): HostAdapter {
         ],
         skipped: [],
       }
+      return ok(transcript)
     },
   }
 }
@@ -93,14 +100,22 @@ describe('session catalog cache', () => {
     // A fractional mtime, as APFS and ext4 report.
     await utimes(changed, 1_758_000_000.123_456, 1_758_000_000.123_456)
     const file = join(home, 'index.sqlite')
-    const env = { homeDir: home, env: {} }
+    const platform = createNodePlatform({ home, env: {} })
     const loads: string[] = []
-    const first = new SessionCatalog({ env, hosts: [fakeHost(home, loads)], index: openSessionIndex({ file }) })
+    const first = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
+      index: openSessionIndex({ file }),
+    })
     await first.whenIdle()
     first.close()
     expect(loads).toHaveLength(2)
 
-    const second = new SessionCatalog({ env, hosts: [fakeHost(home, loads)], index: openSessionIndex({ file }) })
+    const second = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
+      index: openSessionIndex({ file }),
+    })
     const cached = await second.listSessions()
     await second.discovered()
     const delta = await second.listSessions({ since: cached.revision })
@@ -110,8 +125,8 @@ describe('session catalog cache', () => {
 
     await writeFile(changed, 'Beta, edited')
     const third = new SessionCatalog({
-      env,
-      hosts: [fakeHost(home, loads)],
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
       index: openSessionIndex({ file }),
       deferSummaries: true,
     })
@@ -122,20 +137,57 @@ describe('session catalog cache', () => {
     third.close()
   })
 
+  it('does not serve a summary cached by the host implementations, and recomputes it', async () => {
+    const home = await tempHome()
+    await session(home, 'a.jsonl', 'Alpha')
+    // A host-era cache: the production cache path, written at summary version 1.
+    const cache = join(home, 'cache')
+    const eraFile = join(cache, 'rivus-agent-trace/index.sqlite')
+    await mkdir(dirname(eraFile), { recursive: true })
+    const platform = createNodePlatform({ home, env: {} })
+    const era = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, []) },
+      index: openSessionIndex({ file: eraFile, summaryVersion: 1 }),
+    })
+    await era.whenIdle()
+    era.close()
+    expect((await stat(eraFile)).size).toBeGreaterThan(0)
+
+    // The production default (the catalog opens its own index) refuses version 1.
+    const current = new SessionCatalog({
+      platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
+      adapters: { fake: fakeAdapter(home, []) },
+    })
+    const listed = await current.listSessions()
+    expect(current.startedFromIndex).toBe(true)
+    expect(listed.rows[0]?.pending).toBe(true)
+    expect(listed.rows[0]?.requests).toBeUndefined()
+    await current.whenIdle()
+    const done = await current.listSessions()
+    expect(done.rows[0]?.pending).toBe(false)
+    expect(done.rows[0]?.requests).toBe(1)
+    current.close()
+  })
+
   it('re-summarizes a row cached under an older SUMMARY_VERSION', async () => {
     const home = await tempHome()
     const path = await session(home, 'a.jsonl', 'Alpha')
     const file = join(home, 'index.sqlite')
-    const env = { homeDir: home, env: {} }
+    const platform = createNodePlatform({ home, env: {} })
     const loads: string[] = []
     const old = new SessionCatalog({
-      env,
-      hosts: [fakeHost(home, loads)],
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
       index: openSessionIndex({ file, summaryVersion: 0 }),
     })
     await old.whenIdle()
     old.close()
-    const current = new SessionCatalog({ env, hosts: [fakeHost(home, loads)], index: openSessionIndex({ file }) })
+    const current = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
+      index: openSessionIndex({ file }),
+    })
     const listed = await current.listSessions()
     expect(listed.rows[0]?.pending).toBe(true)
     await current.whenIdle()
@@ -151,16 +203,21 @@ describe('session catalog cache', () => {
       'a.jsonl',
       `Read ${join('HOME', 'notes')} with sk-abcdefghijklmnop\nthen stop`.replace('HOME', home),
     )
-    const hosts = [fakeHost(home, [])]
-    const redacted = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts, noIndex: true, deferSummaries: true })
+    const adapter = fakeAdapter(home, [])
+    const redacted = new SessionCatalog({
+      platform: createNodePlatform({ home, env: {} }),
+      adapters: { fake: adapter },
+      noIndex: true,
+      deferSummaries: true,
+    })
     const row = (await redacted.listSessions()).rows[0]!
     expect(row.title).toBe('Read ~/notes with [redacted]\nthen stop')
     expect(row.firstPrompt).toBe(row.title)
     expect(JSON.stringify(await redacted.listSessions())).not.toContain(home)
     expect(redacted.pickChoices()[0]?.label).toMatch(/^Read ~\/notes with \[redacted\] then stop · Fake · /)
     const raw = new SessionCatalog({
-      env: { homeDir: home, env: { AGENT_TRACE_REDACT: '0' } },
-      hosts,
+      platform: createNodePlatform({ home, env: { AGENT_TRACE_REDACT: '0' } }),
+      adapters: { fake: adapter },
       noIndex: true,
       deferSummaries: true,
     })
@@ -170,7 +227,11 @@ describe('session catalog cache', () => {
   it('places an unreadable file at its mtime, not at 1970', async () => {
     const home = await tempHome()
     const bad = await session(home, 'bad.jsonl', 'x')
-    const catalog = new SessionCatalog({ env: { homeDir: home, env: {} }, hosts: [fakeHost(home, [])], noIndex: true })
+    const catalog = new SessionCatalog({
+      platform: createNodePlatform({ home, env: {} }),
+      adapters: { fake: fakeAdapter(home, []) },
+      noIndex: true,
+    })
     const row = (await catalog.listSessions()).rows[0]!
     expect(row.error?.line).toBe(4)
     expect(row.lastActiveAt).toBe((await stat(bad)).mtimeMs)
@@ -184,8 +245,8 @@ describe('session catalog cache', () => {
     await chmod(cache, 0o500)
     try {
       const catalog = new SessionCatalog({
-        env: { homeDir: home, env: { XDG_CACHE_HOME: cache } },
-        hosts: [fakeHost(home, [])],
+        platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
+        adapters: { fake: fakeAdapter(home, []) },
       })
       expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
       expect(catalog.indexUnavailable).not.toContain(home)
@@ -208,19 +269,15 @@ describe('session catalog cache', () => {
       path,
       await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
     )
-    const catalog = new SessionCatalog({
-      env: { homeDir: home, env: {} },
-      hosts: registeredHosts,
-      noIndex: true,
-      deferSummaries: true,
-    })
-    const trace = await loadTrace(path, registeredHosts, nodeIO)
+    const platform = createNodePlatform({ home, env: {} })
+    const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
+    const trace = await loadSession(path, { platform })
     const opened = catalog.openPath(path, trace)
     const listed = await catalog.listSessions()
     expect(listed.rows.map(row => row.ref)).toEqual([opened])
 
     // The TraceStore resolves list refs through the catalog; `current` shares the row's entry.
-    const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
+    const traces = createTraceStore({ platform, redacts: true, resolve: ref => catalog.resolve(ref) })
     await traces.seed({ key: opened, path }, trace)
     const byRef = await traces.store.view(opened)
     const byCurrent = await traces.store.view(CURRENT_REF)
@@ -241,14 +298,10 @@ describe('session catalog cache', () => {
       path,
       await readFile(join(repo, 'packages/host-claude-code/fixtures/conformance/plain/session.jsonl')),
     )
-    const catalog = new SessionCatalog({
-      env: { homeDir: home, env: {} },
-      hosts: registeredHosts,
-      noIndex: true,
-      deferSummaries: true,
-    })
+    const platform = createNodePlatform({ home, env: {} })
+    const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
     const [row] = (await catalog.listSessions()).rows
-    const traces = createTraceStore({ adapters: registeredHosts, redacts: true, resolve: ref => catalog.resolve(ref) })
+    const traces = createTraceStore({ platform, redacts: true, resolve: ref => catalog.resolve(ref) })
     const handle = await traces.store.open(row!.ref, {})
     await handle.done
     expect(handle.progress().bytesRead).toBe(handle.progress().totalBytes)
@@ -263,8 +316,8 @@ describe('session catalog cache', () => {
     await session(home, 'a.jsonl', 'Über die Tests')
     await session(home, 'b.jsonl', 'Plain session')
     const catalog = new SessionCatalog({
-      env: { homeDir: home, env: {} },
-      hosts: [fakeHost(home, [])],
+      platform: createNodePlatform({ home, env: {} }),
+      adapters: { fake: fakeAdapter(home, []) },
       noIndex: true,
       deferSummaries: true,
     })
@@ -282,8 +335,12 @@ describe('session catalog cache', () => {
     const home = await tempHome()
     await session(home, 'a.jsonl', 'Alpha')
     const file = join(home, 'index.sqlite')
-    const env = { homeDir: home, env: {} }
-    const first = new SessionCatalog({ env, hosts: [fakeHost(home, [])], index: openSessionIndex({ file }) })
+    const platform = createNodePlatform({ home, env: {} })
+    const first = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, []) },
+      index: openSessionIndex({ file }),
+    })
     await first.whenIdle()
     first.close()
     await session(home, 'b.jsonl', 'Beta')
@@ -306,7 +363,11 @@ describe('session catalog cache', () => {
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     try {
       const started = performance.now()
-      const second = new SessionCatalog({ env, hosts: [fakeHost(home, [])], index: openSessionIndex({ file }) })
+      const second = new SessionCatalog({
+        platform,
+        adapters: { fake: fakeAdapter(home, []) },
+        index: openSessionIndex({ file }),
+      })
       const listed = await second.listSessions({ query: 'Alp' })
       expect(listed.rows.map(row => row.title)).toEqual(['Alpha'])
       expect(listed.matches).toHaveLength(1)

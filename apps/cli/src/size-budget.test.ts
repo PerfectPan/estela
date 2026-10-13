@@ -7,7 +7,6 @@ import type { LoadProgress } from '@rivus/agent-trace-rpc'
 import { writeLargeCodexSession } from '@rivus/agent-trace-host-codex/testing'
 import { VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vitest'
-import { registeredHosts } from './session.ts'
 import { createTraceStore } from './trace-store.ts'
 
 // S12 size budget (plan 1.3, 5.2). Opt-in: it writes about 350 MB to a temp directory.
@@ -32,7 +31,6 @@ async function lineAt(path: string, offset: number, length: number): Promise<unk
 
 async function measure(path: string) {
   const { store } = createTraceStore({
-    adapters: registeredHosts,
     redacts: true,
     resolve: ref => (ref === SIZE_REF ? { key: path, path } : undefined),
   })

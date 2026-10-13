@@ -20,7 +20,9 @@
     "vitest/valid-expect": ["error", { "maxArgs": 2 }],
     // Fire-and-forget `.then` at the end of a chain has nothing to return.
     "promise/always-return": ["warn", { "ignoreLastCallback": true }],
-    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }]
+    "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
+    // agent-kit's Result errors carry their discriminator as `_tag`.
+    "eslint/no-underscore-dangle": ["warn", { "allow": ["_tag"] }]
   },
   "overrides": [
     {

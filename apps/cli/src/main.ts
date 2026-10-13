@@ -2,9 +2,11 @@ import type { ReportTrace, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { resolve } from 'node:path'
 import process from 'node:process'
-import { loadTrace, splitSessionRef } from '@rivus/agent-trace-kernel'
+import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { bindReportExporter, bindSessionService, bindTraceStore, CURRENT_REF } from '@rivus/agent-trace-rpc'
-import { homeDir, nodeIO } from '@rivus/agent-trace-runtime-node'
+import { homeDir } from '@rivus/agent-trace-runtime-node'
+import { createNodePlatform } from '@rivus/agent-kit/node'
+import type { Platform } from '@rivus/agent-kit/platform'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
@@ -13,7 +15,7 @@ import devframe, { BASE_PATH } from './devframe.ts'
 import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
 import { exportReport, reportOf, writeReport } from './report.ts'
-import { registeredHosts, sessionLoader } from './session.ts'
+import { loadSession, sessionLoader } from './session.ts'
 import { createTraceStore } from './trace-store.ts'
 import {
   installPlainFilter,
@@ -43,10 +45,10 @@ function messageOf(error: unknown): string {
 }
 
 /** The dev server's launch session, loaded once before it listens; it seeds the TraceStore. */
-async function loadLaunch(target: ResolvedSession['path'], failure: string): Promise<Trace> {
+async function loadLaunch(platform: Platform, target: ResolvedSession['path'], failure: string): Promise<Trace> {
   const loading = startLoad()
   try {
-    const trace = await loadTrace(target, registeredHosts, nodeIO)
+    const trace = await loadSession(target, { platform })
     loading.stop(trace.events.length)
     return trace
   } catch (error) {
@@ -110,8 +112,8 @@ export async function main(): Promise<void> {
     // `build` and `mcp` always redact; only the local server honors `AGENT_TRACE_REDACT=0`.
     const sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
     const current: ResolvedSession = { key: sessionPath, path: sessionPath }
-    const load = sessionLoader(sessionPath)
-    const traces = createTraceStore({ adapters: registeredHosts, redacts: true })
+    const load = sessionLoader(sessionPath, createNodePlatform())
+    const traces = createTraceStore({ redacts: true })
     bindTraceStore(traces.store)
     if (parsed.command === 'mcp') {
       await traces.seed(current, await loadOrExit(load, sessionPath))
@@ -148,8 +150,9 @@ export async function main(): Promise<void> {
 
   sayStart(pkg.version)
   const redacts = process.env.AGENT_TRACE_REDACT !== '0'
-  const catalog = new SessionCatalog({ noIndex: parsed.noIndex, deferSummaries: true })
-  const traces = createTraceStore({ adapters: registeredHosts, redacts, resolve: ref => catalog.resolve(ref) })
+  const platform = createNodePlatform()
+  const catalog = new SessionCatalog({ platform, noIndex: parsed.noIndex, deferSummaries: true })
+  const traces = createTraceStore({ platform, redacts, resolve: ref => catalog.resolve(ref) })
   bindTraceStore(traces.store)
   bindSessionService({ listSessions: input => catalog.listSessions(input) })
   bindReportExporter(input => exportReport(traces.store, input))
@@ -161,7 +164,7 @@ export async function main(): Promise<void> {
   const direct = parsed.pick ? undefined : (parsed.path ?? process.env.AGENT_TRACE_PATH)
   if (direct) {
     const path = normalizeSessionPath(direct)
-    const trace = await loadLaunch(path, `Could not load ${direct}`)
+    const trace = await loadLaunch(platform, path, `Could not load ${direct}`)
     readyRef = catalog.openPath(path, trace)
     await traces.seed({ key: readyRef, path }, trace)
   }
@@ -194,7 +197,7 @@ export async function main(): Promise<void> {
     }
     readyRef = await pickSession(options)
     const picked = catalog.resolve(readyRef)!
-    const trace = await loadLaunch(picked.path, 'Could not load the picked session')
+    const trace = await loadLaunch(platform, picked.path, 'Could not load the picked session')
     await traces.seed(picked, trace)
   }
 

@@ -1,11 +1,16 @@
-import type { HostAdapter, SessionHead, SessionRef, SessionSummary, TraceIO } from '@rivus/agent-trace-kernel'
-import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { SessionRef, SessionSummary } from '@rivus/agent-trace-kernel'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
-import { fold, summaryOf } from '@rivus/agent-trace-kernel'
+import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { SessionAdapters, SessionHead, SessionPlatform } from '@rivus/agent-kit/sessions'
+import type { Platform } from '@rivus/agent-kit/platform'
+import { foldTranscript, loadTranscript } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
-import { parseReadFailure } from './read-failure.ts'
-import { projectName, sessionRefId } from './session-ref.ts'
+import { loadFailure } from './read-failure.ts'
+import { kitTargetOf, projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
 import { userPrompts } from './user-prompts.ts'
+
+/** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
+export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
 
 /** Server-side row. `path` never leaves the server; the browser gets `ref`. */
 export interface LiveRow {
@@ -28,12 +33,6 @@ export interface LiveRow {
   error?: SessionError
   /** Catalog revision of the last change, for `list-sessions({ since })`. */
   revision: number
-}
-
-export type DiscoverItem = SessionHead | { ref: SessionRef; error: string }
-
-export function isDiscoverError(item: DiscoverItem): item is { ref: SessionRef; error: string } {
-  return 'error' in item
 }
 
 /** Session text shown in the browser and the terminal: redacted like the workspace (D10) unless `AGENT_TRACE_REDACT=0`. */
@@ -77,14 +76,60 @@ export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
   }
 }
 
-/** One full read: `fold` of the loaded trace for the numbers, and the main agent's user prompts for search. */
+export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | { error: SessionError }
+
+/**
+ * Kit summary → the wire/index shape: same numbers, but the kit names the token totals
+ * `inputTokens`/`outputTokens` where the `SessionListRow` contract and the session index
+ * say `tokensIn`/`tokensOut` (the contract rename is PR 2b's). Undefined stays undefined.
+ */
+function summaryOf(summary: ReturnType<typeof foldTranscript>): SessionSummary {
+  const out: SessionSummary = {}
+  if (summary.turns !== undefined) {
+    out.turns = summary.turns
+  }
+  if (summary.requests !== undefined) {
+    out.requests = summary.requests
+  }
+  if (summary.inputTokens !== undefined) {
+    out.tokensIn = summary.inputTokens
+  }
+  if (summary.outputTokens !== undefined) {
+    out.tokensOut = summary.outputTokens
+  }
+  if (summary.durationMs !== undefined) {
+    out.durationMs = summary.durationMs
+  }
+  if (summary.compactions !== undefined) {
+    out.compactions = summary.compactions
+  }
+  if (summary.subagents !== undefined) {
+    out.subagents = summary.subagents
+  }
+  if (summary.failedTools !== undefined) {
+    out.failedTools = summary.failedTools
+  }
+  if (summary.contextShape !== undefined) {
+    out.contextShape = summary.contextShape
+  }
+  return out
+}
+
+/**
+ * One read per session: the transcript loads once through the kit, and both the summary
+ * (`foldTranscript`, what `summarizeSession` runs) and the search prompts come from it. The
+ * kit's bounded summary pass with prompts is tracked in PerfectPan/agent-kit#70.
+ */
 export async function summarizeRow(
-  adapter: HostAdapter,
-  ref: SessionRef,
-  io: TraceIO,
-): Promise<{ summary: SessionSummary; prompts: string[] }> {
-  const trace = await adapter.load(ref, io, {})
-  return { summary: summaryOf(fold(trace)), prompts: userPrompts(trace) }
+  platform: CatalogPlatform,
+  adapters: SessionAdapters,
+  target: SessionRef,
+): Promise<SummarizeResult> {
+  const loaded = await loadTranscript(platform, kitTargetOf(target), { adapters })
+  if (!loaded.ok) {
+    return { error: loadFailure(loaded.error, platform.home, sessionRefLabel(target), target.path) }
+  }
+  return { summary: summaryOf(foldTranscript(loaded.value)), prompts: userPrompts(loaded.value) }
 }
 
 function pad(value: number): string {
@@ -116,17 +161,16 @@ function headFields(head: Head, homeDir: string): Partial<LiveRow> {
 
 /** A row from one `discover` head and the file's size and mtime (the cache key). */
 export function rowFromHead(
-  host: string,
+  target: SessionRef,
   head: SessionHead,
   info: { size: number; mtimeMs: number },
   homeDir: string,
   sharedFile = false,
 ): LiveRow {
-  const target: SessionRef = { ...head.ref, host }
   return {
     ...headFields(head, homeDir),
     // The session id is part of the ref only when several sessions share one file.
-    ref: sessionRefId(sharedFile ? target : { host, path: target.path }),
+    ref: sessionRefId(sharedFile ? target : { host: target.host, path: target.path }),
     target,
     size: info.size,
     mtimeMs: info.mtimeMs,
@@ -155,7 +199,7 @@ export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
 }
 
 /** A "could not read" row (S4), placed at the file's mtime (or now when the file is gone). */
-export function errorRow(target: SessionRef, message: string, homeDir: string, mtimeMs: number): LiveRow {
+export function errorRow(target: SessionRef, error: SessionError, mtimeMs: number): LiveRow {
   return {
     ref: sessionRefId({ host: target.host, path: target.path }),
     target,
@@ -164,7 +208,7 @@ export function errorRow(target: SessionRef, message: string, homeDir: string, m
     lastActiveAt: mtimeMs,
     sizeBytes: 0,
     pending: false,
-    error: parseReadFailure(message, homeDir, target.path),
+    error,
     revision: 0,
   }
 }

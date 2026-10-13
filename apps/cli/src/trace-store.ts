@@ -1,14 +1,20 @@
 import type { Trace } from '@rivus/agent-trace-schema'
-import type { HostAdapter } from '@rivus/agent-trace-kernel'
 import type { ResolvedSession } from '@rivus/agent-trace-rpc'
 import process from 'node:process'
-import { isCanonicalTraceFile, loadTrace } from '@rivus/agent-trace-kernel'
+import { isCanonicalTraceFile } from '@rivus/agent-trace-kernel'
 import { redact } from '@rivus/agent-kit/redact'
+import { createNodePlatform } from '@rivus/agent-kit/node'
+import { builtinSessionAdapters, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_REF, TraceStore } from '@rivus/agent-trace-rpc'
 import { homeDir, nodeIO } from '@rivus/agent-trace-runtime-node'
+import type { CatalogPlatform } from './catalog-rows.ts'
+import { loadSession } from './session.ts'
 
 export interface TraceStoreOptions {
-  adapters: readonly HostAdapter[]
+  /** Defaults to `createNodePlatform()`. */
+  platform?: CatalogPlatform
+  /** Defaults to `builtinSessionAdapters`. */
+  adapters?: SessionAdapters
   redacts: boolean
   /** Other refs: on the dev server, the session catalog (every list row and the launch session's row ref). */
   resolve?: (ref: string) => ResolvedSession | undefined
@@ -31,13 +37,22 @@ function canonicalOf(path: ResolvedSession['path']): Promise<boolean> {
 /** Store for `get-trace-view`, `get-event`, and `reconstruct` over Node file I/O. */
 export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   const home = homeDir()
+  const platform = options.platform ?? createNodePlatform()
   let current: ResolvedSession | undefined
   const store = new TraceStore({
     resolve: ref => (ref === CURRENT_REF ? current : options.resolve?.(ref)),
+    // `io` serves the store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`,
+    // `totalBytes`), and the canonical fast path (`canonicalOf`, `loadSession`) reads through
+    // `nodeIO` too. Everything here moves onto the kit platform in 2b.
     io: nodeIO,
     async load(session, opts) {
       const [trace, canonical] = await Promise.all([
-        loadTrace(session.path, options.adapters, nodeIO, opts),
+        loadSession(session.path, {
+          platform,
+          adapters: options.adapters ?? builtinSessionAdapters,
+          signal: opts.signal,
+          onProgress: opts.onProgress,
+        }),
         canonicalOf(session.path),
       ])
       return { trace, canonical }

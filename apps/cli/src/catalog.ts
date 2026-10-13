@@ -1,11 +1,19 @@
-import type { HostAdapter, HostEnv, SessionRef, TraceIO } from '@rivus/agent-trace-kernel'
+import type { SessionRef } from '@rivus/agent-trace-kernel'
 import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node'
 import type { HostListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { redactText } from '@rivus/agent-kit/redact'
+import {
+  builtinSessionAdapters,
+  sessionAdapterHome,
+  type SessionAdapter,
+  type SessionAdapters,
+} from '@rivus/agent-kit/sessions'
+import { SESSION_SUMMARY_VERSION } from '@rivus/agent-kit/transcript'
+import { createNodePlatform } from '@rivus/agent-kit/node'
 import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
-import { homeDir, nodeIO, openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { discoverRows, hostState, progressOf, type HostProgress, type HostState } from './catalog-discover.ts'
 import {
   activityLabel,
@@ -14,11 +22,11 @@ import {
   rowFromIndex,
   sameRow,
   summarizeRow,
+  type CatalogPlatform,
   type LiveRow,
   type Redactor,
 } from './catalog-rows.ts'
 import { errorMessage, parseReadFailure } from './read-failure.ts'
-import { registeredHosts } from './session.ts'
 import { oneLine, sessionRefId } from './session-ref.ts'
 import { SummaryQueue } from './summary-queue.ts'
 
@@ -29,11 +37,18 @@ const CONCURRENCY = 4
 const HEAVY_BYTES = 64 * 1024 * 1024
 /** Finished summaries are written to the index and announced to browsers at most this often. */
 const FLUSH_MS = 150
+/**
+ * The session index compares summary versions for equality, and the host implementations wrote
+ * version 1 with different numbers (design note §3: usage merge and decode among them), so a
+ * host-era cache entry must not be served. This offset moves past every version the hosts
+ * wrote and must stay; later bumps track the kit's SESSION_SUMMARY_VERSION.
+ */
+const HOST_ERA_OFFSET = 1
+const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET
 
 export interface CatalogOptions {
-  hosts?: readonly HostAdapter[]
-  io?: TraceIO
-  env?: HostEnv
+  adapters?: SessionAdapters
+  platform?: CatalogPlatform
   index?: SessionIndex
   noIndex?: boolean
   /** Queue summaries without running them until `resumeSummaries()`: the server starts first. */
@@ -46,9 +61,9 @@ export interface CatalogOptions {
  * the TraceStore, which loads and holds the traces.
  */
 export class SessionCatalog {
-  private readonly hosts: readonly HostAdapter[]
-  private readonly io: TraceIO
-  private readonly env: HostEnv
+  private readonly adapters: SessionAdapters
+  private readonly hosts: readonly SessionAdapter[]
+  private readonly platform: CatalogPlatform
   private readonly index: SessionIndex
   private readonly redact: Redactor
   private readonly hostStates: HostState[]
@@ -66,18 +81,19 @@ export class SessionCatalog {
   private flushTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(options: CatalogOptions = {}) {
-    this.hosts = options.hosts ?? registeredHosts
-    this.io = options.io ?? nodeIO
-    this.env = options.env ?? { homeDir: homeDir(), env: process.env }
-    const home = this.env.homeDir
+    this.adapters = options.adapters ?? builtinSessionAdapters
+    this.hosts = Object.values(this.adapters).filter(adapter => adapter !== undefined)
+    this.platform = options.platform ?? createNodePlatform()
+    const home = this.platform.home
     // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
-    this.redact = this.env.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, { home })
+    this.redact = this.platform.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, { home })
     this.index =
       options.index
       ?? openSessionIndex({
         enabled: options.noIndex !== true,
-        homeDir: this.env.homeDir,
-        env: this.env.env,
+        homeDir: this.platform.home,
+        env: this.platform.env,
+        summaryVersion: INDEX_SUMMARY_VERSION,
       })
     this.hostStates = this.hosts.map(hostState)
     this.queue = new SummaryQueue<LiveRow>(
@@ -109,7 +125,7 @@ export class SessionCatalog {
   /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
   get indexUnavailable(): string | undefined {
     // The reason names the cache path: always `~`, whatever AGENT_TRACE_REDACT says.
-    return this.index.unavailable ? redactText(this.index.unavailable, { home: this.env.homeDir }) : undefined
+    return this.index.unavailable ? redactText(this.index.unavailable, { home: this.platform.home }) : undefined
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */
@@ -149,7 +165,7 @@ export class SessionCatalog {
   }
 
   pickChoices(): { value: string; label: string }[] {
-    const names = new Map(this.hosts.map(host => [host.id, host.displayName]))
+    const names = new Map(this.hosts.map(host => [host.agent, host.displayName]))
     return this.sortedRows()
       .filter(row => !row.error)
       .map(row => ({
@@ -205,7 +221,7 @@ export class SessionCatalog {
       return
     }
     for (const entry of stored) {
-      const row = rowFromIndex(entry, this.env.homeDir)
+      const row = rowFromIndex(entry, this.platform.home)
       row.revision = this.bump()
       this.rows.set(row.ref, row)
       this.targets.set(row.ref, row.target)
@@ -217,8 +233,8 @@ export class SessionCatalog {
   }
 
   private async discover(onProgress?: (hosts: readonly HostProgress[]) => void): Promise<void> {
-    const fresh = await discoverRows(this.hostStates, this.io, this.env, () =>
-      onProgress?.(progressOf(this.hostStates, this.env.homeDir)),
+    const fresh = await discoverRows(this.hostStates, this.platform, () =>
+      onProgress?.(progressOf(this.hostStates, this.platform.home)),
     )
     const gone: string[] = []
     for (const [ref, old] of this.rows) {
@@ -260,17 +276,22 @@ export class SessionCatalog {
   }
 
   private async summarize(row: LiveRow): Promise<void> {
-    const adapter = this.hosts.find(host => host.id === row.target.host)
+    const adapter = this.hosts.find(host => host.agent === row.target.host)
     try {
       if (!adapter) {
         throw new Error(`${row.target.host}: host is not registered`)
       }
-      const result = await summarizeRow(adapter, row.target, this.io)
-      row.summary = result.summary
-      this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
+      const result = await summarizeRow(this.platform, this.adapters, row.target)
+      if ('error' in result) {
+        // Not cached (3.7): the head stays, the numbers stay undefined, and the reason is shown.
+        row.error = result.error
+      } else {
+        row.summary = result.summary
+        this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
+      }
     } catch (error) {
       // Not cached (3.7): the head stays, the numbers stay undefined, and the reason is shown.
-      row.error = parseReadFailure(errorMessage(error), this.env.homeDir, row.target.path)
+      row.error = parseReadFailure(errorMessage(error), this.platform.home, row.target.path)
     }
     row.pending = false
     row.revision = this.bump()
@@ -331,15 +352,21 @@ export class SessionCatalog {
     return this.hostStates.map(state => {
       let count = 0
       for (const row of this.rows.values()) {
-        if (row.target.host === state.adapter.id) {
+        if (row.target.host === state.adapter.agent) {
           count += 1
         }
       }
       const roots =
-        state.found.length > 0 ? state.found : state.missing.length > 0 ? state.missing : state.adapter.roots(this.env)
-      const checked = roots.map(path => redactText(path, { home: this.env.homeDir })).join(', ')
+        state.found.length > 0
+          ? state.found
+          : state.missing.length > 0
+            ? state.missing
+            : state.adapter.roots(
+                sessionAdapterHome(state.adapter, { env: this.platform.env, home: this.platform.home }),
+              )
+      const checked = roots.map(path => redactText(path, { home: this.platform.home })).join(', ')
       return {
-        id: state.adapter.id,
+        id: state.adapter.agent,
         displayName: state.adapter.displayName,
         count,
         ...(count === 0 && checked ? { checked } : {}),

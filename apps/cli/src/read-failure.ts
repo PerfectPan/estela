@@ -1,9 +1,12 @@
 import type { SessionError } from '@rivus/agent-trace-rpc'
+import type { LoadTranscriptError } from '@rivus/agent-kit/transcript'
+import type { SessionListError } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 
 /**
- * Split `host: <file>:<line>: <reason>` (the kernel's `generationError` shape) into its parts.
- * Any other message becomes the reason. The home directory is shown as `~`.
+ * Split `host: <file>:<line>: <reason>` into its parts. `ReadFailed` messages are free-form IO
+ * text, and this shape is where a line number in them comes from; any other message becomes the
+ * reason. The home directory is shown as `~`.
  */
 export function parseReadFailure(message: string, homeDir: string, fallbackFile?: string): SessionError {
   const match = message.match(/:(\d+): (.*)$/)
@@ -28,4 +31,48 @@ export function errorMessage(error: unknown): string {
     return `${error.message}: ${error.cause.message}`
   }
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * The message a load failure carried from the host implementations, for the thrown `Error` and
+ * the error row alike: `parseReadFailure` splits it back into the wire `SessionError`.
+ */
+export function loadErrorMessage(error: LoadTranscriptError, refLabel: string): string {
+  switch (error._tag) {
+    case 'SessionNotFound':
+      return `${refLabel} does not exist`
+    case 'NoAdapterAccepted':
+      return `No adapter accepted ${refLabel}`
+    case 'UnknownFormatGeneration':
+      return `${error.agent}: ${error.file}:${error.line}: unknown format generation`
+    case 'ReadFailed':
+      return error.message
+    case 'CapabilityUnsupported':
+      return `no session adapter for ${error.agent}`
+  }
+}
+
+/**
+ * A failed transcript load as a wire `SessionError`: the hosts' message shape, parsed back.
+ * A missing file is the one wording without the path in the reason — `session file does not
+ * exist`, with the path in `file` — everywhere the catalog shows it.
+ */
+export function loadFailure(
+  error: LoadTranscriptError,
+  homeDir: string,
+  refLabel: string,
+  fallbackFile?: string,
+): SessionError {
+  if (error._tag === 'SessionNotFound') {
+    return { reason: 'session file does not exist', file: redactText(fallbackFile ?? refLabel, { home: homeDir }) }
+  }
+  return parseReadFailure(loadErrorMessage(error, refLabel), homeDir, fallbackFile)
+}
+
+/** A listing failure for one file. `RootMissing` never reaches a row: the root stat records it. */
+export function listError(error: SessionListError, homeDir: string): SessionError {
+  if (error._tag === 'ReadFailed') {
+    return parseReadFailure(error.message, homeDir, error.path)
+  }
+  return { reason: 'session directory does not exist', file: redactText(error.path, { home: homeDir }) }
 }
