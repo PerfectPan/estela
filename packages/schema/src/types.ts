@@ -1,7 +1,7 @@
 import type {
   Capability,
   Lane,
-  PromptSnapshotPayload as KitPromptSnapshotPayload,
+  PromptSnapshotPayload,
   SourcePointer,
   TranscriptEventKind,
   TranscriptEventOf,
@@ -99,17 +99,12 @@ export type EventOf<K extends EventKind> = {
  */
 export type TraceEvent = EventOf<EventKind>
 
-export type ToolCallPayload = TraceEventPayloads['tool_call']
-export type ToolResultPayload = TraceEventPayloads['tool_result']
-export type RequestPayload = TraceEventPayloads['request']
-export type CompactionPayload = TraceEventPayloads['compaction']
-
 /**
- * A `system` payload with `type: 'prompt_snapshot'`: the system prompt and tool definitions the agent recorded at
- * that point on the event's lane. A later snapshot on the same lane replaces an earlier one; a field left out was
- * not recorded by that snapshot.
+ * A `system` payload with `type: 'prompt_snapshot'`: the kit's `PromptSnapshotPayload`, the system prompt and tool
+ * definitions the agent recorded at that point on the event's lane, plus the fields a view trace adds. A later
+ * snapshot on the same lane replaces an earlier one; a field left out was not recorded by that snapshot.
  */
-export type PromptSnapshotPayload = KitPromptSnapshotPayload & SystemViewFields
+export type TracePromptSnapshotPayload = PromptSnapshotPayload & SystemViewFields
 
 const viewFields = { $truncated: z.optional(z.array(truncatedPathSchema)) }
 
