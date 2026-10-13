@@ -23,7 +23,7 @@ const SLOT_LABEL: Record<ContextSlotName, MessageKey> = {
 const SLOT_FILL: Record<ContextSlotName, string> = {
   system: 'bg-subtle',
   tools: 'bg-kind-tool',
-  summary: 'bg-kind-thinking',
+  summary: 'bg-kind-reasoning',
   messages: 'bg-kind-request',
   currentTurn: 'bg-kind-user',
 }

@@ -32,12 +32,12 @@
   --color-selection: var(--selection);
   --color-kind-request: var(--kind-request);
   --color-kind-user: var(--kind-user);
-  --color-kind-thinking: var(--kind-thinking);
+  --color-kind-reasoning: var(--kind-reasoning);
   --color-kind-tool: var(--kind-tool);
   --color-kind-subagent: var(--kind-subagent);
   --color-link: var(--link);
   --color-hatch-edge: var(--hatch-edge);
-  --color-thinking-text: var(--thinking-text);
+  --color-reasoning-text: var(--reasoning-text);
   --color-lane-link: var(--lane-link);
 }
 
@@ -65,7 +65,7 @@ html[data-theme="dark"] {
   /* Event kind palette: OKLCH L 0.66, C 0.13, hues 250 / 145 / 320 / 62 / 185. Fixed order. */
   --kind-request: #4d97de;
   --kind-user: #5aa75e;
-  --kind-thinking: #b576c3;
+  --kind-reasoning: #b576c3;
   --kind-tool: #ca7e31;
   --kind-subagent: #00ab9d;
   /* Selection: the request hue at 10% fill with a 55% ring. */
@@ -77,10 +77,10 @@ html[data-theme="dark"] {
   --agent-claude-code: #d97757;
   --agent-codex: var(--foreground);
   --agent-grok: var(--muted-foreground);
-  /* "Unavailable" hatching and its edge, the muted thinking text, and the subagent "open lane" link (design mockup values). */
+  /* "Unavailable" hatching and its edge, the muted reasoning text, and the subagent "open lane" link (design mockup values). */
   --hatch: #3a434c;
   --hatch-edge: #4a545e;
-  --thinking-text: #c9ced3;
+  --reasoning-text: #c9ced3;
   --lane-link: #7ecfc6;
   /* The hatched compaction row: text 1 at 3.5 %. */
   --stripe: color-mix(in srgb, var(--foreground) 3.5%, transparent);
@@ -101,7 +101,7 @@ html[data-theme="light"] {
   /* L 0.58, C 0.13, same hues. */
   --kind-request: #347ec4;
   --kind-user: #418e47;
-  --kind-thinking: #9c5eaa;
+  --kind-reasoning: #9c5eaa;
   --kind-tool: #b0660c;
   --kind-subagent: #009284;
   /* 8% fill with a 50% ring. */
@@ -111,7 +111,7 @@ html[data-theme="light"] {
   --agent-claude-code: #c15f3c;
   --hatch: #c9c6bf;
   --hatch-edge: #b4b1aa;
-  --thinking-text: #4a5057;
+  --reasoning-text: #4a5057;
   --lane-link: #00796d;
   color-scheme: light;
 }

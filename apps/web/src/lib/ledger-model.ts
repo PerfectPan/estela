@@ -8,7 +8,7 @@ export type RowKind =
   | 'user'
   | 'request'
   | 'tool'
-  | 'thinking'
+  | 'reasoning'
   | 'reply'
   | 'subagent'
   | 'system'
@@ -71,7 +71,7 @@ function rowKind(event: TraceEvent): RowKind {
     case 'assistant':
       return 'reply'
     case 'reasoning':
-      return 'thinking'
+      return 'reasoning'
     case 'tool_call':
     case 'tool_result':
       return 'tool'

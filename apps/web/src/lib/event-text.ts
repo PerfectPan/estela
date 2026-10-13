@@ -65,7 +65,7 @@ export interface RowText {
   text?: string
   /** A command or a path, in the data font. */
   mono?: string
-  /** Muted text (thinking). */
+  /** Muted text (reasoning). */
   muted?: boolean
 }
 
@@ -77,9 +77,9 @@ export function rowText(event: TraceEvent): RowText {
     case 'tool_result':
       return { text: previewUnknown(event.payload.output) }
     case 'request': {
-      const { model = '', finishReason: stop } = event.payload
+      const { model = '', finishReason } = event.payload
       return {
-        text: [escapeBidi(model), stop ? t('common.stop', { reason: escapeBidi(stop) }) : '']
+        text: [escapeBidi(model), finishReason ? t('common.finishReason', { reason: escapeBidi(finishReason) }) : '']
           .filter(Boolean)
           .join(' · '),
       }

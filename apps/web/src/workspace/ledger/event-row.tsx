@@ -51,7 +51,7 @@ export function EventRow(props: {
       time={elapsed(event().ts, props.ctx)}
     >
       <Show when={text().text}>
-        <span class={text().muted ? 'text-thinking-text' : undefined}>{text().text}</span>
+        <span class={text().muted ? 'text-reasoning-text' : undefined}>{text().text}</span>
       </Show>
       <Show when={text().mono}>
         <span class="ml-1.5 font-mono text-[12px]">{text().mono}</span>
