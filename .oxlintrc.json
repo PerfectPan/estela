@@ -21,7 +21,11 @@
     "promise/always-return": ["warn", { "ignoreLastCallback": true }],
     "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
     // agent-kit's Result errors carry their discriminator as `_tag`.
-    "eslint/no-underscore-dangle": ["warn", { "allow": ["_tag"] }]
+    "eslint/no-underscore-dangle": ["warn", { "allow": ["_tag"] }],
+    // Under verbatimModuleSyntax, `import { type X } from 'm'` compiles to `import 'm'`, so the
+    // module still loads at runtime. `allowTypeImports` in the agent-kit override below accepts
+    // that form; this rule requires `import type { X }` instead.
+    "typescript/no-import-type-side-effects": "error"
   },
   "overrides": [
     {
