@@ -3,7 +3,9 @@ import { createSignal } from 'solid-js'
 import { en, type Dictionary } from './dictionary.en.ts'
 import { zhCN } from './dictionary.zh-CN.ts'
 
-export type Locale = 'en' | 'zh-CN'
+/** The UI languages; `shell/report.ts` checks a report's `locale` against this list. */
+export const LOCALES = ['en', 'zh-CN'] as const
+export type Locale = (typeof LOCALES)[number]
 type FlatDictionary = Flatten<Dictionary>
 export type MessageKey = {
   [K in keyof FlatDictionary]: FlatDictionary[K] extends string ? K : never
@@ -24,7 +26,7 @@ const t = translator(() => dictionaries[locale()], resolveTemplate)
 function stored(): Locale | undefined {
   try {
     const value = localStorage.getItem(STORAGE_KEY)
-    return value === 'en' || value === 'zh-CN' ? value : undefined
+    return LOCALES.find(known => known === value)
   } catch {
     return undefined
   }

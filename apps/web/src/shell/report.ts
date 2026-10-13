@@ -2,6 +2,7 @@ import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { ReportTrace } from '@rivus/agent-trace-rpc'
 import { firstIssue, traceEventSchema, traceSchema } from '@rivus/agent-trace-schema'
 import * as z from 'zod/mini'
+import { LOCALES } from '@/i18n/locale.ts'
 
 /** Must match `REPORT_ELEMENT_ID` in `apps/cli/src/report-site.ts`: the baked `report-trace` output. Read once, in `main.tsx`. */
 const REPORT_ELEMENT_ID = 'report-trace'
@@ -18,14 +19,18 @@ const sessionSummarySchema = z.object({
   contextShape: z.optional(z.array(z.number())),
 }) satisfies z.ZodMiniType<SessionSummary, SessionSummary>
 
-/** The baked JSON as `buildReport` writes it; the `satisfies` keeps it equal to `ReportTrace` and the kit's summary. */
-const reportTraceSchema = z.object({
+/**
+ * The baked JSON as `buildReport` writes it. The `satisfies` checks one direction, that what the schema accepts is a
+ * `ReportTrace`; `report.test.ts` checks the other, that every `ReportTrace` passes, so a field the kit's
+ * `SessionSummary` widens or a language rpc's `ReportLocale` adds fails the type check, not the report page at load.
+ */
+export const reportTraceSchema = z.object({
   trace: traceSchema,
   summary: sessionSummarySchema,
   events: z.array(z.intersection(traceEventSchema, z.object({ originalUnavailable: z.optional(z.string()) }))),
   total: z.number(),
   truncated: z.boolean(),
-  locale: z.optional(z.enum(['en', 'zh-CN'])),
+  locale: z.optional(z.enum(LOCALES)),
 }) satisfies z.ZodMiniType<ReportTrace, ReportTrace>
 
 /** Schema guard that throws with the first issue; a report that passes is the parsed JSON itself. */

@@ -1,6 +1,7 @@
 import type { ReportTrace } from '@rivus/agent-trace-rpc'
-import { describe, expect, it } from 'vite-plus/test'
-import { parseReportTrace } from './report.ts'
+import type * as z from 'zod/mini'
+import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
+import { parseReportTrace, type reportTraceSchema } from './report.ts'
 
 const source = { file: '0', offset: 0, length: 1, line: 1 }
 
@@ -49,6 +50,13 @@ const withField = (path: (copy: Record<string, unknown>) => void): string => {
 }
 
 describe('parseReportTrace', () => {
+  it('accepts every ReportTrace, with the kit summary and any report locale', () => {
+    type Accepted = z.input<typeof reportTraceSchema>
+    expectTypeOf<ReportTrace['summary']>().toExtend<Accepted['summary']>()
+    expectTypeOf<ReportTrace['locale']>().toExtend<Accepted['locale']>()
+    expectTypeOf<ReportTrace>().toExtend<Accepted>()
+  })
+
   it('reads a report as buildReport writes it, unchanged', () => {
     expect(parseReportTrace(JSON.stringify(report))).toEqual(report)
   })
