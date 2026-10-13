@@ -82,7 +82,7 @@ The SPA starts in report mode when it finds that element (`apps/web/src/shell/re
 
 ## Bundle
 
-`apps/cli` builds with rslib into `dist/bin.mjs` (Node version check, then a dynamic import) and `dist/cli.mjs` (the CLI with every `@rivus/*` package bundled; `devframe`, `@devframes/agentic`, and `cac` stay runtime dependencies). The web build is copied into `dist/web/`, and `src/paths.ts` finds it there through the build-time constant `AGENT_TRACE_BUNDLE`. `apps/e2e` tests the packed tarball from outside: `test:smoke` (CLI, S2, S10, S13, S15, S16) and `test:e2e` (Playwright, the browser scenarios).
+`apps/cli` builds with `vp pack` into `dist/bin.mjs` (Node version check, then a dynamic import) and `dist/cli.mjs` (the CLI with every `@rivus/*` package bundled; `devframe`, `@devframes/agentic`, and `cac` stay runtime dependencies). The web build is copied into `dist/web/`, and `src/paths.ts` finds it there through the build-time constant `AGENT_TRACE_BUNDLE`. `apps/e2e` tests the packed tarball from outside: `test:smoke` (CLI, S2, S10, S13, S15, S16) and `test:e2e` (Playwright, the browser scenarios).
 
 ## Trust
 

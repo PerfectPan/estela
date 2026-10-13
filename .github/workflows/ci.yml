@@ -64,7 +64,7 @@ jobs:
           node common/scripts/install-run-rush.js change --verify --no-fetch --target-branch "$base"
           node scripts/release-intent.mjs check --base "$base"
       - run: node common/scripts/install-run-rush.js lint
-      # oxfmt and oxlint come from apps/cli's devDependencies, so both run after the install.
+      # Both run the vite-plus from apps/cli's devDependencies, so they run after the install.
       - run: node scripts/format.mjs --check
       - run: node scripts/lint-scripts.mjs
       - run: node scripts/check-browser-bundle.mjs
@@ -72,7 +72,7 @@ jobs:
         run: node common/scripts/install-run-rush.js build --only @rivus/agent-trace-web
       - run: node common/scripts/install-run-rush.js test
       - run: node common/scripts/install-run-rush.js typecheck
-      # Builds @rivus/agent-trace with rslib (and the packages it bundles), packs apps/cli, installs the tarball
+      # Builds @rivus/agent-trace with vp pack (and the packages it bundles), packs apps/cli, installs the tarball
       # into an empty temp dir, and runs the CLI smoke scenarios against the installed bin.
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
