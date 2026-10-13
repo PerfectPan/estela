@@ -1,10 +1,9 @@
+import * as z from 'zod/mini'
+
+/** What DevFrame's errors and `Error` instances share. */
+const withMessage = z.object({ message: z.string() })
+
 /** The message of anything thrown: an `Error`, a DevFrame error shape `{ message }`, or a value. */
 export function messageOf(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-    return error.message
-  }
-  return String(error)
+  return z.safeParse(withMessage, error).data?.message ?? String(error)
 }

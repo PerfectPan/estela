@@ -22,16 +22,15 @@ export function inputText(entry: Entry, primary: TraceEvent | undefined, lookup:
   if (!primary) {
     return ''
   }
-  const payload = primary.payload
   switch (primary.kind) {
     case 'tool_call':
-      return pretty(payload.args)
+      return pretty(primary.payload.args)
     case 'user':
     case 'assistant':
     case 'reasoning':
-      return typeof payload.text === 'string' ? payload.text : pretty(without(payload))
+      return primary.payload.text ?? pretty(without(primary.payload))
     default:
-      return pretty(without(payload))
+      return pretty(without(primary.payload))
   }
 }
 
@@ -44,10 +43,9 @@ export function outputText(
   lookup: Lookup,
 ): string {
   if (result) {
-    const output = result.payload.output ?? result.payload.text
-    const flags = without(result.payload, 'output', 'text', 'callId')
+    const flags = without(result.payload, 'output', 'callId')
     const head = Object.keys(flags).length > 0 ? `${pretty(flags)}\n\n` : ''
-    return `${head}${pretty(output)}`
+    return `${head}${pretty(result.payload.output)}`
   }
   if (!primary) {
     return ''
@@ -63,12 +61,12 @@ export function outputText(
       .join('\n')
   }
   if (primary.kind === 'compaction') {
-    const summaryId = typeof primary.payload.summaryEventId === 'string' ? primary.payload.summaryEventId : undefined
+    const summaryId = primary.payload.summaryEventId
     const summary = summaryId ? lookup(summaryId) : undefined
-    return pretty(summary?.payload.text ?? primary.payload.summary)
+    return pretty(summary?.payload.text)
   }
   if (entry.type === 'event' && primary.kind === 'tool_result') {
-    return pretty(primary.payload.output ?? primary.payload.text)
+    return pretty(primary.payload.output)
   }
   return ''
 }

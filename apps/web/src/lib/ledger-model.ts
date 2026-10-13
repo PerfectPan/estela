@@ -1,13 +1,6 @@
 import type { Lane, RequestEntry, Turn } from '@rivus/agent-trace-kernel'
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import {
-  asString,
-  foldHookRuns,
-  hiddenAfterCompaction,
-  mainAgentId,
-  projectLanes,
-  projectTurns,
-} from '@rivus/agent-trace-kernel'
+import { foldHookRuns, hiddenAfterCompaction, mainAgentId, projectLanes, projectTurns } from '@rivus/agent-trace-kernel'
 import { inRange } from './timeline-scale.ts'
 
 /** The kind mark of a ledger row (docs/design/README.md palette). */
@@ -68,7 +61,7 @@ export interface LedgerModel {
 }
 
 function callIdOf(event: TraceEvent): string | undefined {
-  return asString(event.payload.callId) || undefined
+  return event.kind === 'tool_call' || event.kind === 'tool_result' ? event.payload.callId || undefined : undefined
 }
 
 function rowKind(event: TraceEvent): RowKind {

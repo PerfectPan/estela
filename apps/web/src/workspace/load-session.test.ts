@@ -30,22 +30,20 @@ function fakeClient(options: { viewError?: string } = {}) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    call: (async (method: string): Promise<unknown> => {
-      if (method === 'load-trace') {
-        return { loadId: 'id-1', cached: false, totalBytes: 100 }
+    loadTrace: async () => ({ loadId: 'id-1', cached: false, totalBytes: 100 }),
+    traceView: async () => {
+      if (options.viewError) {
+        throw new Error(options.viewError)
       }
-      if (method === 'get-trace-view') {
-        if (options.viewError) {
-          throw new Error(options.viewError)
-        }
-        await new Promise<void>((resolve, reject) => {
-          finish = resolve
-          rejectView = reject
-        })
-        return { ref: 'r', trace, summary: { turns: 1 }, bytes: 1 }
-      }
-      throw new Error(`unexpected ${method}`)
-    }) as unknown as LoadClient['call'],
+      await new Promise<void>((resolve, reject) => {
+        finish = resolve
+        rejectView = reject
+      })
+      return { ref: 'r', trace, summary: { turns: 1 }, bytes: 1 }
+    },
+    event: async () => {
+      throw new Error('unexpected get-event')
+    },
     subscribe: () => ({
       cancel: () => {
         cancelled += 1
