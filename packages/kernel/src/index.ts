@@ -1,6 +1,5 @@
 export { readRange, type SessionFs } from './fs.ts'
 export { fold, summaryOf, type TraceFold } from './fold.ts'
-export { splitSessionRef } from './jsonl.ts'
 export { isCanonicalTraceFile } from './load.ts'
 export { mainAgentId } from './lanes.ts'
 export {
@@ -19,4 +18,5 @@ export {
   type TurnTotals,
 } from './project-turns.ts'
 export { reconstruct } from './reconstruct.ts'
+export { parseSessionTarget } from './session-target.ts'
 export { fitView, toView, VIEW_BUDGET_BYTES, type FittedView } from './view.ts'

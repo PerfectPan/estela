@@ -32,7 +32,7 @@ async function lineAt(path: string, offset: number, length: number): Promise<unk
 async function measure(path: string) {
   const { store } = createTraceStore({
     redacts: true,
-    resolve: ref => (ref === SIZE_REF ? { key: path, path } : undefined),
+    resolve: ref => (ref === SIZE_REF ? { key: path, target: { path } } : undefined),
   })
   let peakRss = process.memoryUsage().rss
   const sampler = setInterval(() => {

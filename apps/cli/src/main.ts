@@ -2,11 +2,12 @@ import type { ReportTrace, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { resolve } from 'node:path'
 import process from 'node:process'
-import { splitSessionRef } from '@rivus/agent-trace-kernel'
+import { parseSessionTarget } from '@rivus/agent-trace-kernel'
 import { bindReportExporter, bindSessionService, bindTraceStore, CURRENT_REF } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { Platform } from '@rivus/agent-kit/platform'
+import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
@@ -16,6 +17,7 @@ import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
 import { exportReport, reportOf, writeReport } from './report.ts'
 import { loadSession, sessionLoader } from './session.ts'
+import { sessionTargetLabel } from './session-target.ts'
 import { createTraceStore } from './trace-store.ts'
 import {
   installPlainFilter,
@@ -31,10 +33,10 @@ import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
 
 const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered agent adapter accepts.'
 
-function normalizeSessionPath(input: string): string {
-  const { file, sessionId } = splitSessionRef(input)
-  const resolved = resolve(file)
-  return sessionId === undefined ? resolved : `${resolved}#${sessionId}`
+/** The target of a session given on the command line (`path` or `path#sessionId`), its path made absolute. */
+function sessionTargetOf(input: string): SessionTarget {
+  const target = parseSessionTarget(input)
+  return { ...target, path: resolve(target.path) }
 }
 
 function messageOf(error: unknown): string {
@@ -45,7 +47,7 @@ function messageOf(error: unknown): string {
 }
 
 /** The dev server's launch session, loaded once before it listens; it seeds the TraceStore. */
-async function loadLaunch(platform: Platform, target: ResolvedSession['path'], failure: string): Promise<Trace> {
+async function loadLaunch(platform: Platform, target: SessionTarget, failure: string): Promise<Trace> {
   const loading = startLoad()
   try {
     const trace = await loadSession(target, { platform })
@@ -110,9 +112,10 @@ export async function main(): Promise<void> {
 
   if (parsed.command === 'mcp' || parsed.command === 'build') {
     // `build` and `mcp` always redact; only the local server honors `AGENT_TRACE_REDACT=0`.
-    const sessionPath = normalizeSessionPath(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
-    const current: ResolvedSession = { key: sessionPath, path: sessionPath }
-    const load = sessionLoader(sessionPath, createNodePlatform())
+    const target = sessionTargetOf(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
+    const sessionPath = sessionTargetLabel(target)
+    const current: ResolvedSession = { key: sessionPath, target }
+    const load = sessionLoader(target, createNodePlatform())
     const traces = createTraceStore({ redacts: true })
     bindTraceStore(traces.store)
     if (parsed.command === 'mcp') {
@@ -163,10 +166,10 @@ export async function main(): Promise<void> {
 
   const direct = parsed.pick ? undefined : (parsed.path ?? process.env.AGENT_TRACE_PATH)
   if (direct) {
-    const path = normalizeSessionPath(direct)
-    const trace = await loadLaunch(platform, path, `Could not load ${direct}`)
-    readyRef = catalog.openPath(path, trace)
-    await traces.seed({ key: readyRef, path }, trace)
+    const target = sessionTargetOf(direct)
+    const trace = await loadLaunch(platform, target, `Could not load ${direct}`)
+    readyRef = catalog.openPath(target, trace)
+    await traces.seed({ key: readyRef, target }, trace)
   }
 
   const indexing = startSessionIndex()
@@ -200,7 +203,7 @@ export async function main(): Promise<void> {
     }
     readyRef = await pickSession(options)
     const picked = catalog.resolve(readyRef)!
-    const trace = await loadLaunch(platform, picked.path, 'Could not load the picked session')
+    const trace = await loadLaunch(platform, picked.target, 'Could not load the picked session')
     await traces.seed(picked, trace)
   }
 

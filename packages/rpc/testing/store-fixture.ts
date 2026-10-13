@@ -102,7 +102,7 @@ export function storeOf(
   const gates = new Map<string, ReturnType<typeof deferred>>()
   const { parse, ...deps } = overrides
   const store = new TraceStore({
-    resolve: ref => (ref.startsWith('missing') ? undefined : { key: ref, path: `/logs/${ref}.jsonl` }),
+    resolve: ref => (ref.startsWith('missing') ? undefined : { key: ref, target: { path: `/logs/${ref}.jsonl` } }),
     async load(session, opts): Promise<LoadedTrace> {
       loads.push(session.key)
       signals.set(session.key, opts.signal)
@@ -115,7 +115,7 @@ export function storeOf(
         ])
       }
       opts.onProgress(1e9)
-      return { trace: parse(typeof session.path === 'string' ? session.path : session.path.path), canonical: false }
+      return { trace: parse(session.target.path), canonical: false }
     },
     ...deps,
   })

@@ -37,21 +37,20 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   // The store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`, `totalBytes`)
   // and the canonical fast path (`canonicalOf`, `loadSession`) all read through the platform.
   const fs = platform.fs
-  const canonicalOf = (path: ResolvedSession['path']): Promise<boolean> =>
-    isCanonicalTraceFile(typeof path === 'string' ? path : path.path, fs)
+  const canonicalOf = (session: ResolvedSession): Promise<boolean> => isCanonicalTraceFile(session.target.path, fs)
   let current: ResolvedSession | undefined
   const store = new TraceStore({
     resolve: ref => (ref === CURRENT_REF ? current : options.resolve?.(ref)),
     fs,
     async load(session, opts) {
       const [trace, canonical] = await Promise.all([
-        loadSession(session.path, {
+        loadSession(session.target, {
           platform,
           adapters: options.adapters ?? builtinSessionAdapters,
           signal: opts.signal,
           onProgress: opts.onProgress,
         }),
-        canonicalOf(session.path),
+        canonicalOf(session),
       ])
       return { trace, canonical }
     },
@@ -62,7 +61,7 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
     store,
     seed: async (session, trace) => {
       current = session
-      await store.seed(session, { trace, canonical: await canonicalOf(session.path) })
+      await store.seed(session, { trace, canonical: await canonicalOf(session) })
     },
   }
 }

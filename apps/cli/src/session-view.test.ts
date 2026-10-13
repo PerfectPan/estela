@@ -144,7 +144,7 @@ describe('view rules on the loaded fixtures', () => {
   })
 
   it('Codex base_instructions becomes the system prompt, listed only when recorded', async () => {
-    const plain = await loadSession(fixture('codex', 'rollout-plain.jsonl'), { platform })
+    const plain = await loadSession({ path: fixture('codex', 'rollout-plain.jsonl') }, { platform })
     expect(plain.session.systemPrompt).toBe('Be brief.')
     expect(plain.capabilities).toContain('systemPrompt')
     const request = plain.events.find(event => event.kind === 'request')!
@@ -154,7 +154,7 @@ describe('view rules on the loaded fixtures', () => {
         .map(slot => slot.status),
     ).toEqual(['present', 'unavailable'])
 
-    const bare = await loadSession(fixture('codex', 'rollout-token-count.jsonl'), { platform })
+    const bare = await loadSession({ path: fixture('codex', 'rollout-token-count.jsonl') }, { platform })
     expect(bare.session.systemPrompt).toBeUndefined()
     expect(bare.capabilities).not.toContain('systemPrompt')
     const first = bare.events.find(event => event.kind === 'request')!

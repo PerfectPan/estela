@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
-import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 
 /**
@@ -19,14 +18,8 @@ export function sessionRefId(target: { agent: string; path: string; sessionId?: 
     .slice(0, 24)
 }
 
-/** The kit target of a `file` or `file#sessionId` input. It names no agent, so the kit's `detect` picks the adapter. */
-export function targetOfPath(input: string): SessionTarget {
-  const split = splitSessionRef(input)
-  return { path: split.file, ...(split.sessionId ? { sessionId: split.sessionId } : {}) }
-}
-
-/** `path` or `path#sessionId`, the way error messages named a session before the kit. */
-export function sessionRefLabel(target: { path: string; sessionId?: string }): string {
+/** The `path` or `path#sessionId` string of a target, as the command line and error messages name a session. */
+export function sessionTargetLabel(target: SessionTarget): string {
   return target.sessionId ? `${target.path}#${target.sessionId}` : target.path
 }
 

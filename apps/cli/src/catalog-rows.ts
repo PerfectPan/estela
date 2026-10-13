@@ -8,7 +8,7 @@ import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadFailure } from './read-failure.ts'
-import { projectName, sessionRefId, sessionRefLabel } from './session-ref.ts'
+import { projectName, sessionRefId, sessionTargetLabel } from './session-target.ts'
 
 /** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
 export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
@@ -95,7 +95,7 @@ export async function summarizeRow(
     prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
   })
   if (!result.ok) {
-    return { error: loadFailure(result.error, platform.home, sessionRefLabel(target), target.path) }
+    return { error: loadFailure(result.error, platform.home, sessionTargetLabel(target), target.path) }
   }
   return { summary: summaryOf(result.value), prompts: (result.value.prompts ?? []).map(prompt => prompt.text) }
 }

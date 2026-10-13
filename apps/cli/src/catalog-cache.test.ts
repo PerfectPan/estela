@@ -12,7 +12,7 @@ import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { SessionCatalog } from './catalog.ts'
 import { loadSession } from './session.ts'
-import { oneLine } from './session-ref.ts'
+import { oneLine } from './session-target.ts'
 import { createTraceStore } from './trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -301,14 +301,14 @@ describe('session catalog cache', () => {
     await writeFile(path, await readFile(join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')))
     const platform = createNodePlatform({ home, env: {} })
     const catalog = new SessionCatalog({ platform, noIndex: true, deferSummaries: true })
-    const trace = await loadSession(path, { platform })
-    const opened = catalog.openPath(path, trace)
+    const trace = await loadSession({ path }, { platform })
+    const opened = catalog.openPath({ path }, trace)
     const listed = await catalog.listSessions()
     expect(listed.rows.map(row => row.ref)).toEqual([opened])
 
     // The TraceStore resolves list refs through the catalog; `current` shares the row's entry.
     const traces = createTraceStore({ platform, redacts: true, resolve: ref => catalog.resolve(ref) })
-    await traces.seed({ key: opened, path }, trace)
+    await traces.seed({ key: opened, target: { path } }, trace)
     const byRef = await traces.store.view(opened)
     const byCurrent = await traces.store.view(CURRENT_REF)
     expect(byRef.trace.events.length).toBe(trace.events.length)

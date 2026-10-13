@@ -7,11 +7,9 @@ import {
   sessionAdapterHome,
   type SessionAdapter,
   type SessionAdapters,
-  type SessionRef,
 } from '@rivus/agent-kit/sessions'
-import { SESSION_SUMMARY_VERSION } from '@rivus/agent-kit/transcript'
+import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { splitSessionRef } from '@rivus/agent-trace-kernel'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './catalog-discover.ts'
@@ -27,7 +25,7 @@ import {
   type Redactor,
 } from './catalog-rows.ts'
 import { errorMessage, parseReadFailure } from './read-failure.ts'
-import { oneLine, sessionRefId } from './session-ref.ts'
+import { oneLine, sessionRefId } from './session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
 
 export type { AgentProgress } from './catalog-discover.ts'
@@ -73,7 +71,7 @@ export class SessionCatalog {
   private readonly agentStates: AgentState[]
   private rows = new Map<string, LiveRow>()
   /** Refs the server resolves: discovered rows and paths opened from the command line. */
-  private readonly targets = new Map<string, SessionRef | string>()
+  private readonly targets = new Map<string, SessionTarget>()
   /** Rows that disappeared in a re-read, by the revision they were removed at. */
   private readonly removed = new Map<string, number>()
   private readonly queue: SummaryQueue<LiveRow>
@@ -151,25 +149,20 @@ export class SessionCatalog {
   }
 
   /**
-   * Register a path given on the command line, already loaded as `trace` (the shell loads it
+   * Register a session given on the command line, already loaded as `trace` (the shell loads it
    * before the server listens). Returns its ref, which is the file's list row ref when it has one.
    */
-  openPath(input: string, trace: Trace): string {
-    const { file, sessionId } = splitSessionRef(input)
+  openPath(target: SessionTarget, trace: Trace): string {
     // Same ref as the file's list row: the session id counts only in the `path#id` form.
-    const ref = sessionRefId({
-      agent: trace.agent || 'agent-trace',
-      path: file,
-      ...(sessionId ? { sessionId } : {}),
-    })
-    this.targets.set(ref, input)
+    const ref = sessionRefId({ ...target, agent: trace.agent || 'agent-trace' })
+    this.targets.set(ref, target)
     return ref
   }
 
   /** The TraceStore's resolver: every list row and every opened path. The ref is the cache key. */
   resolve(ref: string): ResolvedSession | undefined {
     const target = this.targets.get(ref)
-    return target === undefined ? undefined : { key: ref, path: target }
+    return target === undefined ? undefined : { key: ref, target }
   }
 
   pickChoices(): { value: string; label: string }[] {

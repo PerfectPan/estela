@@ -1,9 +1,8 @@
-import type { SessionRef } from '@rivus/agent-kit/sessions'
-import type { SessionSummary } from '@rivus/agent-kit/transcript'
+import type { SessionSummary, SessionTarget } from '@rivus/agent-kit/transcript'
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { FittedView, SessionFs } from '@rivus/agent-trace-kernel'
 import type { FileStamp } from './source-check.ts'
-import { fitView, fold, reconstruct, splitSessionRef, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
+import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
 
 /** Loaded traces kept in memory, without originals (plan 3.5). */
@@ -17,8 +16,8 @@ const READ_BATCH = 32
 export interface ResolvedSession {
   /** Cache key: one per session (the catalog ref, or the launch path outside the dev server). */
   key: string
-  /** What the shell loads: `file` or `file#sessionId`, or a discovered `SessionRef`. */
-  path: string | SessionRef
+  /** What the shell loads: a discovered `SessionRef`, or the target of a path given on the command line. */
+  target: SessionTarget
 }
 
 export interface LoadedTrace {
@@ -361,8 +360,7 @@ export class TraceStore {
   }
 
   private async totalBytes(session: ResolvedSession): Promise<number> {
-    const file = typeof session.path === 'string' ? splitSessionRef(session.path).file : session.path.path
-    const info = await this.deps.fs.stat(file, { followSymlinks: true })
+    const info = await this.deps.fs.stat(session.target.path, { followSymlinks: true })
     return info?.size ?? 0
   }
 

@@ -127,11 +127,11 @@ describe('TraceStore', () => {
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     let loads = 0
     const store = new TraceStore({
-      resolve: ref => (ref === 'a' ? { key: 'a', path: '/logs/a.jsonl' } : undefined),
+      resolve: ref => (ref === 'a' ? { key: 'a', target: { path: '/logs/a.jsonl' } } : undefined),
       fs: f.fs,
       async load(session) {
         loads += 1
-        const trace = f.parse(session.path as string)
+        const trace = f.parse(session.target.path)
         trace.events[0]!.source = { file: 'elsewhere.json', offset: 0, length: 2, line: 1 }
         return { trace, canonical: true }
       },
@@ -153,7 +153,7 @@ describe('TraceStore', () => {
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user' }])
     const { store, loads } = storeOf({ fs: f.fs, parse: f.parse })
     const trace = f.parse('/logs/a.jsonl')
-    await store.seed({ key: 'a', path: '/logs/a.jsonl' }, { trace, canonical: false })
+    await store.seed({ key: 'a', target: { path: '/logs/a.jsonl' } }, { trace, canonical: false })
     expect(trace.events[0]!.original).toBeDefined()
     const view = await store.view('a')
     expect(view.trace.events[0]).not.toHaveProperty('original')
@@ -187,7 +187,7 @@ describe('TraceStore', () => {
       parse: f.parse,
       load: async session => {
         loads += 1
-        return { trace: f.parse(session.path as string), canonical: true }
+        return { trace: f.parse(session.target.path), canonical: true }
       },
     })
     await store.view('a')

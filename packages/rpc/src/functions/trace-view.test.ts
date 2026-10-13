@@ -41,7 +41,7 @@ function harness() {
   const releases = new Map<string, () => void>()
   const progress = new Map<string, (bytes: number) => void>()
   const store = new TraceStore({
-    resolve: ref => ({ key: ref, path: ref }),
+    resolve: ref => ({ key: ref, target: { path: ref } }),
     fs: {
       read: async function* () {
         yield new Uint8Array()

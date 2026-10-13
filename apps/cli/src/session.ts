@@ -1,12 +1,13 @@
 import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
-import type { SessionAdapters, SessionRef } from '@rivus/agent-kit/sessions'
+import type { SessionAdapters } from '@rivus/agent-kit/sessions'
+import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { isTrace } from '@rivus/agent-trace-schema'
 import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadErrorMessage } from './read-failure.ts'
-import { sessionRefLabel, targetOfPath } from './session-ref.ts'
+import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
 
 export interface LoadSessionOptions {
@@ -26,12 +27,11 @@ export interface LoadSessionOptions {
  * `No adapter accepted …`, `agent: file:line: unknown format generation`, and the
  * IO error's own message.
  */
-export async function loadSession(target: string | SessionRef, options: LoadSessionOptions): Promise<Trace> {
-  const kitTarget = typeof target === 'string' ? targetOfPath(target) : target
+export async function loadSession(target: SessionTarget, options: LoadSessionOptions): Promise<Trace> {
   const fs = options.platform.fs
   try {
-    if (await isCanonicalTraceFile(kitTarget.path, fs)) {
-      const bytes = await readRange(fs, kitTarget.path)
+    if (await isCanonicalTraceFile(target.path, fs)) {
+      const bytes = await readRange(fs, target.path)
       options.onProgress?.(bytes.byteLength)
       const value: unknown = JSON.parse(new TextDecoder().decode(bytes))
       if (isTrace(value)) {
@@ -43,22 +43,22 @@ export async function loadSession(target: string | SessionRef, options: LoadSess
       throw error
     }
   }
-  const loaded = await loadTranscript(options.platform, kitTarget, {
+  const loaded = await loadTranscript(options.platform, target, {
     adapters: options.adapters ?? builtinSessionAdapters,
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.onProgress ? { onProgress: options.onProgress } : {}),
   })
   if (!loaded.ok) {
-    throw new Error(loadErrorMessage(loaded.error, sessionRefLabel(kitTarget)))
+    throw new Error(loadErrorMessage(loaded.error, sessionTargetLabel(target)))
   }
   return transcriptToTrace(loaded.value)
 }
 
 /** The one session `build` and `mcp` work on: loaded once, with its original records. */
-export function sessionLoader(path: string, platform: CatalogPlatform): () => Promise<Trace> {
+export function sessionLoader(target: SessionTarget, platform: CatalogPlatform): () => Promise<Trace> {
   let loaded: Promise<Trace> | undefined
   return () => {
-    loaded ??= loadSession(path, { platform })
+    loaded ??= loadSession(target, { platform })
     return loaded
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { sessionRefId } from './session-ref.ts'
+import { sessionRefId } from './session-target.ts'
 
 describe('sessionRefId', () => {
   // Pinned: URLs carry these ids, so a saved `#/s/<ref>` link must keep opening the same session.
