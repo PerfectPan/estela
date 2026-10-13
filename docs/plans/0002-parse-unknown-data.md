@@ -239,7 +239,7 @@ The CLI smoke suite (S2, S10 with the MCP `reconstruct { eventId }` call, S13, S
 ### 6.1 Preconditions
 
 - PR A: `main` at `a0aba04` or later (agent rename and Vite+ merged).
-- PR B: PR A merged; `@rivus/agent-kit` 0.13.0 older than one day (`minimumReleaseAgeMinutes`), so after 2026-10-14 08:31 UTC.
+- PR B: PR A merged. `@rivus/agent-kit` 0.13.0 installs at once: the kit is in `minimumReleaseAgeExclude` (`common/config/rush/pnpm-config.json`).
 
 ### 6.2 Completion contract
 
@@ -351,7 +351,6 @@ Each PR reverts on its own. Reverting PR A after PR B is merged also reverts `fi
 | Web gzip +9.5 KB (+10%) with no budget | risk | bundle size | owner | PR B records before and after |
 | Test churn: about 17 test files build `TraceEvent` literals with arbitrary payloads | risk | PR B size; may expose fixtures that never matched the kit's shapes | PR B | builders move to the typed event shape |
 | A declared payload field the kit later changes type of | risk | a canonical file stops passing `isTrace` and falls through to the kit | PR B | the compile-time check fails first on a kit bump |
-| Kit 0.13.0 is younger than the one-day release-age rule on 2026-10-13 | follow-up | PR B cannot install it before 2026-10-14 08:31 UTC | PR B | start PR B after that time |
 | `typescript/no-unsafe-type-assertion` stays off | follow-up | casts outside unknown data (DOM, library types, test doubles) are not linted | unconfirmed | revisit after PR B |
 
 ## 8. Appendix A: inventory

@@ -241,7 +241,7 @@ CLI 冒烟套件（S2、带 MCP `reconstruct { eventId }` 调用的 S10、S13、
 ### 6.1 前置条件
 
 - PR A：`main` 在 `a0aba04` 或之后（agent 改名和 Vite+ 已合入）。
-- PR B：PR A 已合入；`@rivus/agent-kit` 0.13.0 发布超过一天（`minimumReleaseAgeMinutes`），即 2026-10-14 08:31 UTC 之后。
+- PR B：PR A 已合入。`@rivus/agent-kit` 0.13.0 可以立即安装：kit 在 `minimumReleaseAgeExclude` 中（`common/config/rush/pnpm-config.json`）。
 
 ### 6.2 完成约定
 
@@ -353,7 +353,6 @@ CLI 冒烟套件（S2、带 MCP `reconstruct { eventId }` 调用的 S10、S13、
 | web gzip +9.5 KB（+10%），没有预算 | 风险 | 包体积 | 负责人 | PR B 记录前后结果 |
 | 测试改动：约 17 个测试文件用任意 payload 构造 `TraceEvent` 字面量 | 风险 | PR B 体量；可能暴露从未符合 kit 形状的 fixture | PR B | 构造函数改用有类型的事件形状 |
 | kit 以后修改某个已声明 payload 字段的类型 | 风险 | 规范文件不再通过 `isTrace`，交给 kit | PR B | 升级 kit 时编译期检查先失败 |
-| 2026-10-13 时 kit 0.13.0 尚不满足一天的发布时长规则 | 后续工作 | PR B 在 2026-10-14 08:31 UTC 之前无法安装它 | PR B | 在该时间之后开始 PR B |
 | `typescript/no-unsafe-type-assertion` 保持关闭 | 后续工作 | 未知数据以外的类型断言（DOM、库类型、测试替身）不受 lint 检查 | 未确认 | PR B 之后重新评估 |
 
 ## 8. 附录 A：清单
