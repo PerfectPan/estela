@@ -203,8 +203,9 @@ const unknownPayloadSchema = z.looseObject({
  * The payload schema of each kind, for the JSON that reaches trace from outside the kit (canonical files, the
  * report), which the kit's types cannot check at runtime. Each one declares the kit's fields for that kind and keeps
  * undeclared ones. The `satisfies` ties it to the kit at compile time: its output must be that kind's
- * `TraceEventPayloads` entry, so a kit field that changes type or a required field the kit adds fails to compile;
- * `payloads.test.ts` checks the other direction, that every payload of that type passes.
+ * `TraceEventPayloads` entry, so a declared field the kit narrows or a required field the kit adds fails to compile.
+ * `payloads.test.ts` checks the other direction, that every payload of that type passes, so a declared field the kit
+ * widens fails there. A new optional kit field passes both, and the loose object keeps it.
  */
 export const payloadSchemas = {
   user: messagePayloadSchema,
