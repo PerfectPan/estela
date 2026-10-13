@@ -229,7 +229,7 @@ class SqliteIndex implements SessionIndex {
     }
     if (unparsable.length > 0) {
       try {
-        this.transaction(() => this.drop(unparsable))
+        this.transaction(() => this.dropUnparsable(unparsable))
       } catch (error) {
         // Busy: the rows stay hidden, and `writeHead` drops each one when discover writes its path.
         if (!isBusy(error)) {
@@ -419,6 +419,16 @@ class SqliteIndex implements SessionIndex {
       this.sql('DELETE FROM prompts WHERE ref IN (SELECT ref FROM sessions WHERE id = ?)').run(id)
       this.sql('DELETE FROM sessions WHERE id = ?').run(id)
     }
+  }
+
+  /**
+   * Re-reads each stale row by id inside the transaction and drops it only if its head still does not parse: since the
+   * caller read it, another process's `writeHead` may have written a valid row under the same id (no AUTOINCREMENT).
+   */
+  private dropUnparsable(stale: readonly unknown[]): void {
+    const select = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE id = ?`)
+    const current = stale.flatMap(row => z.safeParse(idRow, row).data?.id ?? []).map(id => select.get(id))
+    this.drop(current.filter(row => row !== undefined && !z.safeParse(headRow, row).success))
   }
 
   private promptsOf(ref: string): string[] {

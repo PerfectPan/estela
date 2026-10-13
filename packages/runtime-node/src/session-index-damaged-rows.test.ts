@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { openSessionIndex, type IndexSummary } from './session-index.ts'
 
 const dirs: string[] = []
@@ -82,6 +82,59 @@ describe('session index rows that do not parse', () => {
         .map(row => row.ref)
         .toSorted(),
     ).toEqual(['a', 'b', 'c2'])
+    raw.close()
+    index.close()
+  })
+
+  it('keeps a row that another process rewrote under the same id after rows read it', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const index = openSessionIndex({ summaryVersion: 1, file })
+    index.putSummaries([
+      summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Alpha' }),
+      summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Beta', prompts: ['find the needle'] }),
+    ])
+    const raw = new DatabaseSync(file)
+    // The damaged row has the highest id, so a fresh insert reuses it: `id` is an INTEGER PRIMARY KEY without AUTOINCREMENT.
+    raw.exec(`UPDATE sessions SET size = 'big' WHERE ref = 'b'`)
+    const other = openSessionIndex({ summaryVersion: 1, file })
+    let begun: string | undefined
+    // The other process's discover pass commits after `rows` read the damaged row and before its cleanup begins.
+    // `rows` makes no exec call before the cleanup's BEGIN, so the first one after the spy is that BEGIN.
+    const spy = vi.spyOn(DatabaseSync.prototype, 'exec')
+    spy.mockImplementationOnce(function (this: DatabaseSync, sql: string) {
+      spy.mockRestore()
+      begun = sql
+      other.putHeads([
+        {
+          ref: 'b',
+          agent: 'claude-code',
+          path: '/logs/b.jsonl',
+          size: 12,
+          mtimeMs: 2_000,
+          title: 'Beta',
+          firstPrompt: 'find the needle',
+        },
+      ])
+      this.exec(sql)
+    })
+    try {
+      expect(index.rows().map(row => row.ref)).toEqual(['a'])
+    } finally {
+      spy.mockRestore()
+    }
+    expect(begun).toBe('BEGIN IMMEDIATE')
+    expect(raw.prepare('SELECT id, ref, size FROM sessions ORDER BY id').all()).toEqual([
+      { id: 1, ref: 'a', size: 10 },
+      { id: 2, ref: 'b', size: 12 },
+    ])
+    expect(index.search('needle')).toEqual(['b'])
+    expect(
+      index
+        .rows()
+        .map(row => row.ref)
+        .toSorted(),
+    ).toEqual(['a', 'b'])
+    other.close()
     raw.close()
     index.close()
   })
