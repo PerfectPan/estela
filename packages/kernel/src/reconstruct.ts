@@ -2,11 +2,11 @@ import type {
   ContextSlot,
   ContextSlotName,
   ContextTokens,
+  EventOf,
   ReconstructResult,
   Trace,
   TraceEvent,
 } from '@rivus/agent-trace-schema'
-import { asNumber, asString } from './jsonl.ts'
 import { isPrompt, laneOf, mainAgentId, recordKey, requestUsage, shadowedIn } from './lanes.ts'
 import {
   latestSnapshot,
@@ -20,7 +20,12 @@ const MESSAGE_KINDS = new Set<TraceEvent['kind']>(['user', 'assistant', 'reasoni
 const ALL_SLOTS: ContextSlotName[] = ['system', 'tools', 'summary', 'messages', 'currentTurn']
 
 /** The compaction just before a request on the same lane, when no other request of that lane sits between them. */
-function compactionBefore(events: TraceEvent[], index: number, lane: string, mainId: string): TraceEvent | undefined {
+function compactionBefore(
+  events: TraceEvent[],
+  index: number,
+  lane: string,
+  mainId: string,
+): EventOf<'compaction'> | undefined {
   for (let cursor = index - 1; cursor >= 0; cursor--) {
     const event = events[cursor]!
     if (laneOf(event, mainId) !== lane) {
@@ -41,7 +46,7 @@ function summaryIds(prefix: TraceEvent[]): Set<string> {
   for (const event of prefix) {
     if (event.kind === 'compaction') {
       ids.add(event.id)
-      const summary = asString(event.payload.summaryEventId)
+      const summary = event.payload.summaryEventId
       if (summary) {
         ids.add(summary)
       }
@@ -175,7 +180,7 @@ function slotsOf(
   ]
 }
 
-function tokensOf(target: TraceEvent, compaction: TraceEvent | undefined): ContextTokens[] {
+function tokensOf(target: TraceEvent, compaction: EventOf<'compaction'> | undefined): ContextTokens[] {
   const tokens: ContextTokens[] = []
   if (target.kind !== 'request') {
     return tokens
@@ -184,7 +189,7 @@ function tokensOf(target: TraceEvent, compaction: TraceEvent | undefined): Conte
   if (inputTokens !== undefined) {
     tokens.push({ slots: [...ALL_SLOTS], tokens: inputTokens, from: 'request.inputTokens' })
   }
-  const postTokens = asNumber(compaction?.payload.postTokens)
+  const postTokens = compaction?.payload.postTokens
   if (postTokens !== undefined) {
     tokens.push({
       slots: ['system', 'tools', 'summary', 'messages'],

@@ -1,17 +1,16 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventKind, Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { downsample, fold } from './fold.ts'
 
 const source = { file: 'fixture.json', offset: 0, length: 1, line: 1 }
 
-function event(partial: Partial<TraceEvent> & Pick<TraceEvent, 'id' | 'kind'>): TraceEvent {
-  return {
-    seq: 0,
-    ts: 0,
-    payload: {},
-    source,
-    ...partial,
-  }
+/** An event's id, a kind with that kind's payload, and any other fields. */
+type EventInput = Partial<Omit<TraceEvent, 'kind' | 'payload'>> & { id: string } & {
+    [K in EventKind]: { kind: K; payload: TraceEventPayloads[K] }
+  }[EventKind]
+
+function event(input: EventInput): TraceEvent {
+  return { seq: 0, ts: 0, source, ...input }
 }
 
 function trace(partial: Partial<Trace> & Pick<Trace, 'events' | 'capabilities'>): Trace {
@@ -31,7 +30,7 @@ describe('fold', () => {
       trace({
         capabilities: [],
         events: [
-          event({ id: 'u', kind: 'user' }),
+          event({ id: 'u', kind: 'user', payload: {} }),
           event({ id: 'r', kind: 'request', payload: { usage: { inputTokens: 3, outputTokens: 1 }, durationMs: 5 } }),
           event({ id: 't', kind: 'tool_result', payload: { callId: 'c', isError: true } }),
         ],
@@ -52,15 +51,15 @@ describe('fold', () => {
         capabilities: [],
         agents: [{ id: 'main' }, { id: 'child', parentId: 'main' }],
         events: [
-          event({ id: 'u', kind: 'user' }),
+          event({ id: 'u', kind: 'user', payload: {} }),
           event({ id: 'm', kind: 'user', payload: { meta: true } }),
           event({ id: 'c', kind: 'user', payload: { compactSummary: true } }),
           event({ id: 'k', kind: 'user', payload: { command: true } }),
           event({ id: 'i', kind: 'user', payload: { injected: true } }),
-          event({ id: 's', kind: 'user', agentId: 'child' }),
-          event({ id: 'u-block', kind: 'user' }),
+          event({ id: 's', kind: 'user', payload: {}, agentId: 'child' }),
+          event({ id: 'u-block', kind: 'user', payload: {} }),
           event({ id: 'n', kind: 'user', payload: { continued: true }, source: { ...source, line: 3 } }),
-          event({ id: 'v', kind: 'user', source: { ...source, line: 2 } }),
+          event({ id: 'v', kind: 'user', payload: {}, source: { ...source, line: 2 } }),
         ],
       }),
     )

@@ -1,26 +1,26 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { reconstruct } from './reconstruct.ts'
 import { toView } from './view.ts'
 
 const source = { file: 'f', offset: 0, length: 1, line: 1 }
-const event = (
-  id: string,
-  seq: number,
-  kind: TraceEvent['kind'],
-  payload: Record<string, unknown>,
-  agentId?: string,
-): TraceEvent => ({
+const at = (id: string, seq: number, agentId?: string) => ({
   id,
   seq,
   ts: seq,
-  kind,
   ...(agentId ? { agentId } : {}),
-  payload,
   source: { ...source, line: seq + 1 },
 })
-const snap = (id: string, seq: number, payload: Record<string, unknown>, agentId?: string) =>
-  event(id, seq, 'system', { type: 'prompt_snapshot', ...payload }, agentId)
+const request = (id: string, seq: number, agentId?: string): TraceEvent => ({
+  ...at(id, seq, agentId),
+  kind: 'request',
+  payload: {},
+})
+const snap = (id: string, seq: number, payload: TraceEventPayloads['system'], agentId?: string): TraceEvent => ({
+  ...at(id, seq, agentId),
+  kind: 'system',
+  payload: { type: 'prompt_snapshot', ...payload },
+})
 
 const toolsA = [{ name: 'Read', schema: { input_schema: { type: 'object' } } }]
 const toolsB = [...toolsA, { name: 'Grep' }]
@@ -34,15 +34,15 @@ function trace(): Trace {
     agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', systemPrompt: 'one' }],
     events: [
       snap('p1', 0, { systemPrompt: 'one' }),
-      event('r1', 1, 'request', {}),
+      request('r1', 1),
       snap('p2', 2, { systemPrompt: 'one', tools: toolsA, cliPrefix: 'x' }),
       snap('s1', 3, { systemPrompt: 'one' }, 'sub'),
-      event('rs', 4, 'request', {}, 'sub'),
+      request('rs', 4, 'sub'),
       snap('p3', 5, { systemPrompt: 'one', tools: toolsA }),
-      event('r2', 6, 'request', {}),
+      request('r2', 6),
       snap('p4', 7, { systemPrompt: 'two', tools: toolsB }),
       snap('p5', 8, { systemPrompt: 'two', tools: [] }),
-      event('r3', 9, 'request', {}),
+      request('r3', 9),
     ],
     skipped: [],
   }
@@ -90,7 +90,7 @@ describe('toView prompt snapshots', () => {
     const tools = (id: string) => reconstruct(trace(), id).slots?.find(slot => slot.name === 'tools')
     expect(tools('r2')).toMatchObject({ status: 'present', recordedBy: 'p3' })
     expect(tools('r3')).toMatchObject({ status: 'empty', recordedBy: 'p5' })
-    const bare: Trace = { ...trace(), events: [event('r', 0, 'request', {})], session: { id: 's', tools: [] } }
+    const bare: Trace = { ...trace(), events: [request('r', 0)], session: { id: 's', tools: [] } }
     expect(reconstruct(bare, 'r').slots?.find(slot => slot.name === 'tools')?.status).toBe('empty')
   })
 })

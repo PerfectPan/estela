@@ -1,8 +1,9 @@
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { fitView, toView } from './view.ts'
 
-function traceOf(payload: Record<string, unknown>, session: Trace['session'] = { id: 's' }): Trace {
+/** One `user` event: its payload declares no required field, so any keys can stand in for a recorded payload. */
+function traceOf(payload: TraceEventPayloads['user'], session: Trace['session'] = { id: 's' }): Trace {
   return {
     schema: 'agent-trace',
     agent: { id: 'demo' },
@@ -15,7 +16,7 @@ function traceOf(payload: Record<string, unknown>, session: Trace['session'] = {
         id: 'e',
         seq: 0,
         ts: 0,
-        kind: 'tool_result',
+        kind: 'user',
         payload,
         source: { file: 'fixture.json', offset: 0, length: 1, line: 1 },
         original: { secret: 'keep-me-out' },
@@ -46,10 +47,11 @@ describe('toView', () => {
       }),
     )
     const payload = view.events[0]!.payload
-    const output = payload.output as { stdout: string; lines: string[]; exact: string }
-    expect(output.stdout).toHaveLength(4096)
-    expect(output.lines).toEqual(['short', 'y'.repeat(4096)])
-    expect(output.exact).toHaveLength(4096)
+    expect(payload.output).toEqual({
+      stdout: 'y'.repeat(4096),
+      lines: ['short', 'y'.repeat(4096)],
+      exact: 'z'.repeat(4096),
+    })
     expect(payload.count).toBe(3)
     expect(payload.callId).toBe('c1')
     expect(payload.$truncated).toEqual([
@@ -73,7 +75,7 @@ describe('toView', () => {
   })
 
   it('does not mutate the input, and replaces a stale marker', () => {
-    const trace = traceOf({ text: 'x'.repeat(20), $truncated: ['stale'] })
+    const trace = traceOf({ text: 'x'.repeat(20), $truncated: [['stale']] })
     const before = structuredClone(trace)
     const view = toView(trace, { maxString: 8 })
     expect(trace).toEqual(before)
@@ -137,7 +139,7 @@ describe('fitView', () => {
     const fitted = fitView(big(), { maxBytes: 200_000 })
     expect(fitted.trace.view).toEqual({ maxString: 1728, budgetBytes: 200_000, withinBudget: true })
     expect(fitted.bytes).toBeLessThanOrEqual(200_000)
-    expect(fitted.trace.events[0]!.payload.text as string).toHaveLength(1728)
+    expect(fitted.trace.events[0]!.payload.text).toHaveLength(1728)
   })
 
   it('stops at 256 characters and says when the budget is still exceeded', () => {
@@ -176,5 +178,17 @@ describe('toView key collisions', () => {
     const payload = view.events[0]!.payload
     expect(payload).toMatchObject({ 'aaaa#2': 1, 'aaaa#3': 2, aaaa: 0 })
     expect(payload.$truncated).toEqual([['aaaa#2'], ['aaaa#3']])
+  })
+})
+
+describe('toView check', () => {
+  it('throws with the first issue when capping leaves no valid trace', () => {
+    // Below the 256-character floor `fitView` keeps, a cap can cut a declared key.
+    const trace = traceOf({})
+    trace.events = [{ ...trace.events[0]!, kind: 'tool_call', payload: { callId: 'c', name: 'Bash' } }]
+    expect(() => toView(trace, { maxString: 4 })).toThrow(
+      new TypeError('toView: events.0.payload.callId: Invalid input'),
+    )
+    expect(toView(trace, { maxString: 6 }).events[0]!.payload).toEqual({ callId: 'c', name: 'Bash' })
   })
 })

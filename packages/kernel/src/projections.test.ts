@@ -1,24 +1,29 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventKind, Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { projectLanes, projectRequests } from './project-timeline.ts'
 import { foldHookRuns, hiddenAfterCompaction, projectTurns } from './project-turns.ts'
 
+type KindAndPayload = { [K in EventKind]: { kind: K; payload: TraceEventPayloads[K] } }[EventKind]
+
+/** A kind with that kind's payload. */
+function on<K extends EventKind>(kind: K, payload: TraceEventPayloads[K]): { kind: K; payload: TraceEventPayloads[K] } {
+  return { kind, payload }
+}
+
 type Spec = [
   id: string,
-  kind: TraceEvent['kind'],
-  payload?: Record<string, unknown>,
-  extra?: Partial<TraceEvent> & { line?: number },
+  event: KindAndPayload,
+  extra?: Partial<Omit<TraceEvent, 'kind' | 'payload'>> & { line?: number },
 ]
 
 function synthetic(specs: Spec[]): Trace {
-  const events = specs.map(([id, kind, payload = {}, extra = {}], seq): TraceEvent => {
+  const events = specs.map(([id, event, extra = {}], seq): TraceEvent => {
     const { line, ...rest } = extra
     return {
       id,
       seq,
       ts: seq * 10,
-      kind,
-      payload,
+      ...event,
       source: { file: 'session.jsonl', offset: 0, length: 1, line: line ?? seq + 1 },
       ...rest,
     }
@@ -35,23 +40,23 @@ function synthetic(specs: Spec[]): Trace {
 }
 
 const trace = synthetic([
-  ['pre', 'system', { text: 'setup' }],
-  ['p1', 'user', { text: 'Fix it' }, { line: 2 }],
-  ['p1b', 'user', { text: 'and test' }, { line: 2 }],
-  ['r1', 'request', { model: 'm', usage: { inputTokens: 100, outputTokens: 10 } }, { requestId: 'r1' }],
-  ['a1', 'assistant', { text: 'ok' }, { requestId: 'r1', shadowedBy: 'k1' }],
-  ['t1', 'tool_call', { callId: 'c1', name: 'bash' }, { requestId: 'r1', shadowedBy: 'k1' }],
-  ['h1', 'hook', { type: 'hook' }],
-  ['h2', 'hook', { type: 'hook' }],
-  ['x1', 'tool_result', { callId: 'c1', isError: true }],
-  ['s1', 'user', { text: 'Sub task' }, { agentId: 'sub' }],
-  ['r2', 'request', { model: 'm' }, { agentId: 'sub', requestId: 'r2' }],
-  ['k1', 'compaction', { trigger: 'auto', preTokens: 1000, postTokens: 100 }],
-  ['h3', 'hook', { type: 'hook' }],
-  ['inj', 'user', { text: '<env>', injected: true }],
-  ['p2', 'user', { text: 'Next' }],
-  ['r3', 'request', { usage: { inputTokens: 40 }, durationMs: 7 }, { requestId: 'r3' }],
-  ['d2', 'system', { type: 'turn_duration', durationMs: 500 }],
+  ['pre', on('system', { text: 'setup' })],
+  ['p1', on('user', { text: 'Fix it' }), { line: 2 }],
+  ['p1b', on('user', { text: 'and test' }), { line: 2 }],
+  ['r1', on('request', { model: 'm', usage: { inputTokens: 100, outputTokens: 10 } }), { requestId: 'r1' }],
+  ['a1', on('assistant', { text: 'ok' }), { requestId: 'r1', shadowedBy: 'k1' }],
+  ['t1', on('tool_call', { callId: 'c1', name: 'bash' }), { requestId: 'r1', shadowedBy: 'k1' }],
+  ['h1', on('hook', { type: 'hook' })],
+  ['h2', on('hook', { type: 'hook' })],
+  ['x1', on('tool_result', { callId: 'c1', isError: true })],
+  ['s1', on('user', { text: 'Sub task' }), { agentId: 'sub' }],
+  ['r2', on('request', { model: 'm' }), { agentId: 'sub', requestId: 'r2' }],
+  ['k1', on('compaction', { trigger: 'auto', preTokens: 1000, postTokens: 100 })],
+  ['h3', on('hook', { type: 'hook' })],
+  ['inj', on('user', { text: '<env>', injected: true })],
+  ['p2', on('user', { text: 'Next' })],
+  ['r3', on('request', { usage: { inputTokens: 40 }, durationMs: 7 }), { requestId: 'r3' }],
+  ['d2', on('system', { type: 'turn_duration', durationMs: 500 })],
 ])
 
 describe('projectRequests', () => {
@@ -98,8 +103,8 @@ describe('projectLanes', () => {
   it('omits compaction tokens the agent did not record and adds lanes seen only on events', () => {
     const lanes = projectLanes({
       ...synthetic([
-        ['k', 'compaction', {}],
-        ['o', 'assistant', {}, { agentId: 'orphan' }],
+        ['k', on('compaction', {})],
+        ['o', on('assistant', {}), { agentId: 'orphan' }],
       ]),
       agents: [],
     })
@@ -144,9 +149,9 @@ describe('projectTurns', () => {
   it('falls back to request durations and returns no turns for an empty trace', () => {
     const turns = projectTurns(
       synthetic([
-        ['p', 'user', {}],
-        ['r', 'request', { durationMs: 3 }],
-        ['r2', 'request', { durationMs: 4 }],
+        ['p', on('user', {})],
+        ['r', on('request', { durationMs: 3 })],
+        ['r2', on('request', { durationMs: 4 })],
       ]),
     )
     expect(turns[0]!.totals.durationMs).toBe(7)
@@ -155,10 +160,10 @@ describe('projectTurns', () => {
 
   it('folds consecutive hooks only', () => {
     const events = synthetic([
-      ['a', 'hook'],
-      ['b', 'hook'],
-      ['c', 'user'],
-      ['d', 'hook'],
+      ['a', on('hook', { type: 'hook' })],
+      ['b', on('hook', { type: 'hook' })],
+      ['c', on('user', {})],
+      ['d', on('hook', { type: 'hook' })],
     ]).events
     expect(foldHookRuns(events)).toEqual([
       { type: 'hooks', eventIds: ['a', 'b'], count: 2 },
