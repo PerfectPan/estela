@@ -18,5 +18,4 @@ export {
   type TurnTotals,
 } from './project-turns.ts'
 export { reconstruct } from './reconstruct.ts'
-export { parseSessionTarget } from './session-target.ts'
 export { fitView, toView, VIEW_BUDGET_BYTES, type FittedView } from './view.ts'

@@ -18,6 +18,20 @@ export function traceIdOf(target: { agent: string; path: string; sessionId?: str
     .slice(0, 24)
 }
 
+/**
+ * The kit's `SessionTarget` of a `path` or `path#sessionId` string, the form a session takes on the command line. It
+ * names no agent, so the kit's `detect` picks the adapter. A `#` at the start is part of the path, and a trailing `#`
+ * names no session.
+ */
+export function parseSessionTarget(input: string): SessionTarget {
+  const hash = input.lastIndexOf('#')
+  if (hash <= 0) {
+    return { path: input }
+  }
+  const sessionId = input.slice(hash + 1)
+  return sessionId ? { path: input.slice(0, hash), sessionId } : { path: input.slice(0, hash) }
+}
+
 /** The `path` or `path#sessionId` string of a target, as the command line and error messages name a session. */
 export function sessionTargetLabel(target: SessionTarget): string {
   return target.sessionId ? `${target.path}#${target.sessionId}` : target.path
