@@ -13,11 +13,11 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 
 ## Screens
 
-**Session browser.** `npx @rivus/agent-trace` opens here. Left rail: host and project filters, plus "has compaction", "has subagents", "has failed tools". Center: sessions grouped by day, with turns, requests, tokens, duration, and flag icons. Right: a preview of the selected session with its context-over-time shape, headline numbers, the first prompt, and "Open session".
+**Session browser.** `npx @rivus/agent-trace` opens here. Left rail: agent and project filters, plus "has compaction", "has subagents", "has failed tools". Center: sessions grouped by day, with turns, requests, tokens, duration, and flag icons. Right: a preview of the selected session with its context-over-time shape, headline numbers, the first prompt, and "Open session".
 
 **Session workspace.** Top to bottom:
 
-1. Session header: host, working directory, start time, title, and seven numbers (duration, turns, requests, tokens in / out, compactions, subagents, failed tool calls).
+1. Session header: agent, working directory, start time, title, and seven numbers (duration, turns, requests, tokens in / out, compactions, subagents, failed tool calls).
 2. Timeline: one lane for the main agent and one per subagent. The time range under the brush filters the ledger.
 3. Ledger: events grouped by turn. Turns collapse. Hook events fold into one row. Events hidden from the model after a compaction can be dimmed.
 4. Inspector: Input, Output, Model saw, Raw. "Model saw" shows the context composition for the selected request and the events dropped by compaction.
@@ -25,7 +25,7 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 ## Encoding rules
 
 - **Request bar height is context size.** In the main lane each request is a bar whose height is the input tokens of that request. Growth and the drop at a compaction are visible without reading numbers.
-- **Missing data is drawn as missing.** A slot the host log does not record (for example the system prompt in a Claude Code session without a prompt snapshot) is a hatched segment labeled "unavailable". It is never estimated.
+- **Missing data is drawn as missing.** A slot the agent's log does not record (for example the system prompt in a Claude Code session without a prompt snapshot) is a hatched segment labeled "unavailable". It is never estimated.
 - **Kind is a mark, not text color.** Each event kind has a colored square or bar. Labels and values stay in the text tokens.
 - **Red is reserved.** Only failed tool calls use the error color, and always with the warning icon.
 - **Compaction is a neutral dashed rule** with the before → after token count.

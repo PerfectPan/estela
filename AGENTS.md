@@ -11,7 +11,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA: session browser, workspace, report mode, tokens, dictionaries | `rpc` (types), `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/rpc` | `@rivus/agent-trace-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, `export-report`, and `report-trace` in build mode only), `buildReport`, server handlers, and the TraceStore (ref resolution, in-flight loads, last 3 traces) over injected reads (`SessionFs`), resolver, and session service | `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home directory, session index (`node:sqlite`) | `kernel`, `schema`, `@rivus/agent-kit` (types) |
-| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `SessionRef` type, `fold`, `reconstruct`, `toView`/`fitView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
+| `packages/kernel` | `@rivus/agent-trace-kernel` | canonical-file head check, `fold`, `reconstruct`, `toView`/`fitView`, projections, the `SessionFs` read shape | `schema`, `@rivus/agent-kit` (types) |
 | `packages/schema` | `@rivus/agent-trace-schema` | `Trace`, kinds, `shadowedBy`, `zod` schemas | no workspace package (external: `zod`) |
 
 ## Rules
@@ -24,10 +24,11 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 - A report (`build`, `export-report`) is always redacted, whatever `AGENT_TRACE_REDACT` says. It opens from `file://`, so everything it needs is inside its one `index.html`; the SPA enters report mode when it finds `<script id="report-trace">` and then calls no server.
 - RPC handlers take an opaque session `ref` and resolve it through the shell's resolver (the session catalog on the dev server; `current` is the launch session); paths never cross the wire as refs.
 - Adapters fail loud on unknown generations. Do not silently drop events.
-- Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s; only `apps/cli` imports it at runtime. Other packages may use its types with `import type` (`SessionSummary` comes from `@rivus/agent-kit/transcript`); do not copy kit types into a workspace package. The kernel keeps the viewer projections and `SessionRef`, because trace's wire and index use `host` while the kit's ref uses `agent`.
+- Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s; only `apps/cli` imports it at runtime. Other packages may use its types with `import type` (`SessionSummary` comes from `@rivus/agent-kit/transcript`); do not copy kit types into a workspace package; session references are the kit's `SessionRef` (`@rivus/agent-kit/sessions`).
+- The coding agent whose log is read is the `agent`, as in the kit: `SessionRef.agent`, `Trace.agent`, `SessionListRow.agent`, and the index's `agent` column. Do not call it `host`.
 - The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, mtime, and a summary version; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
 - Summary numbers are versioned by the kit's `SESSION_SUMMARY_VERSION`. The shell passes `INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION` to the index; rows at another version are recomputed. For changes to indexed session content, follow the `INDEX_CONTENT_REVISION` rule in [`apps/cli/src/catalog.ts`](apps/cli/src/catalog.ts).
-- URLs carry opaque session refs (a hash of host and path, plus the session id for the `path#id` form), never paths.
+- URLs carry opaque session refs (a hash of agent and path, plus the session id for the `path#id` form), never paths.
 - UI strings go through `apps/web/src/i18n/` (`dictionary.en.ts` is the type source, `dictionary.zh-CN.ts` satisfies it). Session content never does.
 
 ## Tooling

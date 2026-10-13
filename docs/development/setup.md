@@ -37,7 +37,7 @@ node ../../common/scripts/install-run-rushx.js dev -- --no-auth
 
 Open `http://localhost:7392/__agent-trace/`.
 
-With no path the app opens the session browser over every registered host. A positional path (or `AGENT_TRACE_PATH`) is loaded before the server listens and opens `#/s/<ref>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
+With no path the app opens the session browser over every registered agent. A positional path (or `AGENT_TRACE_PATH`) is loaded before the server listens and opens `#/s/<ref>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
 
 `build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `agent-trace-report-<ref>-<time>/` directory under the server's working directory and shows the path.
 
@@ -67,7 +67,7 @@ Never publish from a local checkout.
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<host>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 20 through `npx -y node@20`), S15, and S16 (in a pseudo-terminal through `node-pty`). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
+`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 20 through `npx -y node@20`), S15, and S16 (in a pseudo-terminal through `node-pty`). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
 
 ```bash
 cd apps/e2e
@@ -78,7 +78,7 @@ node ../../common/scripts/install-run-rushx.js test:smoke
 
 ## Browser end-to-end on the installed tarball
 
-`test:e2e` in `apps/e2e` is the Playwright suite (plan 5.2), Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/agent-trace`, packs and installs it, builds synthetic homes from the host fixtures (one with all three hosts and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
+`test:e2e` in `apps/e2e` is the Playwright suite (plan 5.2), Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/agent-trace`, packs and installs it, builds synthetic homes from the agent fixtures (one with all three agents and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
 
 The test titles name the scenarios of plan 5.2 they check, and each test file groups one area: the session browser, the workspace, appearance, the report, and scale.
 
@@ -101,7 +101,7 @@ node common/scripts/install-run-rush.js build --to @rivus/agent-trace-web
 
 ### Synthetic home and generated traces
 
-Build a home from the host fixtures (no real session content):
+Build a home from the agent fixtures (no real session content):
 
 ```bash
 H="$TMPDIR/agent-trace-home"; rm -rf "$H"
