@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rivus/agent-trace-kernel": "workspace:*"
+    "@rivus/agent-trace-kernel": "workspace:*",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",
