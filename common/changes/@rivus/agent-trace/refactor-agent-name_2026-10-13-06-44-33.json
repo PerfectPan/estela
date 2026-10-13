@@ -1,8 +1,8 @@
 {
   "changes": [
     {
-      "comment": "The session browser, the workspace header, and the error panel call the coding agent an agent instead of a host, in English and Chinese. Canonical trace files name it in an `agent` field instead of `host`, and the session index is rebuilt once.",
-      "type": "patch",
+      "comment": "",
+      "type": "none",
       "packageName": "@rivus/agent-trace"
     }
   ],
