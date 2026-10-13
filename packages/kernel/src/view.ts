@@ -78,7 +78,7 @@ class Capper {
 }
 
 /** Snapshot fields a view replaces with a reference: `systemPrompt` → `systemPromptSameAs`, `tools` → `toolsSameAs`. */
-type SnapshotRefs = Map<string, { systemPromptSameAs?: string; toolsSameAs?: string }>
+type SnapshotSameAs = Map<string, { systemPromptSameAs?: string; toolsSameAs?: string }>
 
 /**
  * For each prompt snapshot whose system prompt or non-empty tool list already
@@ -86,8 +86,8 @@ type SnapshotRefs = Map<string, { systemPromptSameAs?: string; toolsSameAs?: str
  * one prompt), the id of the first snapshot that holds that content. Compared
  * on the full values, before any cap.
  */
-function repeatedSnapshots(events: readonly TraceEvent[]): SnapshotRefs {
-  const refs: SnapshotRefs = new Map()
+function repeatedSnapshots(events: readonly TraceEvent[]): SnapshotSameAs {
+  const sameAs: SnapshotSameAs = new Map()
   const prompts = new Map<string, string>()
   const toolLists = new Map<string, string>()
   for (const event of events) {
@@ -95,11 +95,11 @@ function repeatedSnapshots(events: readonly TraceEvent[]): SnapshotRefs {
     if (!snapshot) {
       continue
     }
-    const ref: { systemPromptSameAs?: string; toolsSameAs?: string } = {}
+    const same: { systemPromptSameAs?: string; toolsSameAs?: string } = {}
     if (snapshot.systemPrompt !== undefined && snapshot.systemPrompt.length > 0) {
       const holder = prompts.get(snapshot.systemPrompt)
       if (holder) {
-        ref.systemPromptSameAs = holder
+        same.systemPromptSameAs = holder
       } else {
         prompts.set(snapshot.systemPrompt, event.id)
       }
@@ -108,33 +108,38 @@ function repeatedSnapshots(events: readonly TraceEvent[]): SnapshotRefs {
       const value = JSON.stringify(snapshot.tools)
       const holder = toolLists.get(value)
       if (holder) {
-        ref.toolsSameAs = holder
+        same.toolsSameAs = holder
       } else {
         toolLists.set(value, event.id)
       }
     }
-    if (ref.systemPromptSameAs || ref.toolsSameAs) {
-      refs.set(event.id, ref)
+    if (same.systemPromptSameAs || same.toolsSameAs) {
+      sameAs.set(event.id, same)
     }
   }
-  return refs
+  return sameAs
 }
 
 /** The event as the view holds it; `unknown` to the type system until the whole view is checked. */
-function capEvent(event: TraceEvent, max: number, fileIndex: (file: string) => string, refs: SnapshotRefs): unknown {
+function capEvent(
+  event: TraceEvent,
+  max: number,
+  fileIndex: (file: string) => string,
+  sameAs: SnapshotSameAs,
+): unknown {
   const capper = new Capper(max)
   const { $truncated: _previous, ...rest }: Record<string, unknown> = event.payload
-  const ref = refs.get(event.id)
-  if (ref?.systemPromptSameAs) {
+  const same = sameAs.get(event.id)
+  if (same?.systemPromptSameAs) {
     delete rest.systemPrompt
     capper.truncated.push(['systemPrompt'])
   }
-  if (ref?.toolsSameAs) {
+  if (same?.toolsSameAs) {
     delete rest.tools
     capper.truncated.push(['tools'])
   }
   // The references are added after capping: they are ids, and their keys must stay whole.
-  const payload: Record<string, unknown> = { ...capper.record(rest, []), ...ref }
+  const payload: Record<string, unknown> = { ...capper.record(rest, []), ...same }
   if (capper.truncated.length > 0) {
     payload.$truncated = capper.truncated
   }
@@ -191,12 +196,12 @@ function draftView(trace: Trace, max: number): ViewDraft {
     return index
   }
   const { view: _view, ...base } = trace
-  const refs = repeatedSnapshots(trace.events)
+  const sameAs = repeatedSnapshots(trace.events)
   return {
     ...base,
     session,
     agents: trace.agents.map(lane => capLane(lane, max)),
-    events: trace.events.map(event => capEvent(event, max, fileIndex, refs)),
+    events: trace.events.map(event => capEvent(event, max, fileIndex, sameAs)),
     skipped: groupSkipped(trace.skipped, max),
     sourceFiles: [...files.keys()],
     view: { maxString: max },
