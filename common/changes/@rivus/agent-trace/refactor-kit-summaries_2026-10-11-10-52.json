@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@rivus/agent-trace",
+      "comment": "Search now indexes the user's own prompts only (not injected or system text), and summarizing a large session no longer loads it whole.",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@rivus/agent-trace",
+  "email": "24316656+PerfectPan@users.noreply.github.com"
+}

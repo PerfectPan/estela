@@ -26,7 +26,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 - Adapters fail loud on unknown generations. Do not silently drop events.
 - Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s; only `apps/cli` imports it at runtime. Other packages may use its types with `import type` (`SessionSummary` comes from `@rivus/agent-kit/transcript`); do not copy kit types into a workspace package. The kernel keeps the viewer projections and `SessionRef`, because trace's wire and index use `host` while the kit's ref uses `agent`.
 - The session index (`~/.cache/rivus-agent-trace/index.sqlite`) is a cache: keyed by path, size, mtime, and a summary version; a failed summary is never cached; `node:sqlite` is imported only in `packages/runtime-node`.
-- Summary numbers change meaning in the kit, which owns `SESSION_SUMMARY_VERSION`; the shell passes that constant (plus its host-era offset) to the index, and a row at another version is recomputed.
+- Summary numbers are versioned by the kit's `SESSION_SUMMARY_VERSION`. The shell passes `INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION` to the index; rows at another version are recomputed. For changes to indexed session content, follow the `INDEX_CONTENT_REVISION` rule in [`apps/cli/src/catalog.ts`](apps/cli/src/catalog.ts).
 - URLs carry opaque session refs (a hash of host and path, plus the session id for the `path#id` form), never paths.
 - UI strings go through `apps/web/src/i18n/` (`dictionary.en.ts` is the type source, `dictionary.zh-CN.ts` satisfies it). Session content never does.
 

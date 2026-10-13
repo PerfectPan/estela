@@ -196,6 +196,39 @@ describe('session catalog cache', () => {
     current.close()
   })
 
+  it('re-summarizes a row cached under the previous index content revision', async () => {
+    const home = await tempHome()
+    const path = await session(home, 'a.jsonl', 'Alpha')
+    const file = join(home, 'index.sqlite')
+    const platform = createNodePlatform({ home, env: {} })
+    const loads: string[] = []
+    // Summary version 2 identifies rows written before the index content revision.
+    // Keep the fixture version pinned so those rows must be recomputed.
+    const old = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
+      index: openSessionIndex({ file, summaryVersion: 2 }),
+    })
+    await old.whenIdle()
+    old.close()
+
+    const current = new SessionCatalog({
+      platform,
+      adapters: { fake: fakeAdapter(home, loads) },
+      index: openSessionIndex({ summaryVersion: 3, file }),
+    })
+    const listed = await current.listSessions()
+    expect(listed.rows[0]?.pending).toBe(true)
+    await current.whenIdle()
+    const done = await current.listSessions()
+    expect(done.rows[0]?.requests).toBe(1)
+    expect(loads).toEqual([path, path])
+    // The recomputed prompts are searchable through the index.
+    const found = await current.listSessions({ query: 'hello' })
+    expect(found.matches).toEqual([done.rows[0]?.ref])
+    current.close()
+  })
+
   it('redacts titles and prompts in the list and the picker unless AGENT_TRACE_REDACT=0', async () => {
     const home = await tempHome()
     await session(

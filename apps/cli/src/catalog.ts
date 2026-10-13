@@ -38,13 +38,16 @@ const HEAVY_BYTES = 64 * 1024 * 1024
 /** Finished summaries are written to the index and announced to browsers at most this often. */
 const FLUSH_MS = 150
 /**
- * The session index compares summary versions for equality, and the host implementations wrote
- * version 1 with different numbers (design note §3: usage merge and decode among them), so a
- * host-era cache entry must not be served. This offset moves past every version the hosts
- * wrote and must stay; later bumps track the kit's SESSION_SUMMARY_VERSION.
+ * Keep kit-based summary versions distinct from host-era version 1, whose usage merging
+ * and decoding differ. Cache versions are compared for equality, so this offset must stay.
  */
 const HOST_ERA_OFFSET = 1
-const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET
+/**
+ * Bump this whenever what the index stores for a session (such as its prompt rule) changes
+ * without a change to the kit's SESSION_SUMMARY_VERSION, so cached rows are recomputed.
+ */
+const INDEX_CONTENT_REVISION = 1
+const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION
 
 export interface CatalogOptions {
   adapters?: SessionAdapters

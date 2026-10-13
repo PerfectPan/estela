@@ -45,7 +45,7 @@ function promptSlots(trace: Awaited<ReturnType<typeof claudeLoad>>, eventId: str
 }
 
 describe('catalog summary equals the workspace header summary', () => {
-  // The list sums the kit transcript (`foldTranscript` through `summarizeRow`); the workspace
+  // The list runs the kit adapter's summarize pass through `summarizeRow`; the workspace
   // header sums the canonical `Trace` the kit's output maps to (`fold` through the TraceStore).
   // One number family: the two paths must agree on every fixture.
   for (const [agent, relative] of FIXTURES) {

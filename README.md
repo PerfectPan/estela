@@ -2,7 +2,7 @@
 
 `@rivus/agent-trace` is a local DevTools for coding-agent session logs. One command opens it in the browser. You pick a session from Claude Code, Codex, or Grok and see, on one screen, what the agent did and what the model was shown at each request.
 
-- **Session browser**: every session found on this machine, newest first, grouped by day. Each row has the host, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by host, project, and flag; search covers titles and every user prompt. Selecting a row shows a preview with the context-over-time shape.
+- **Session browser**: every session found on this machine, newest first, grouped by day. Each row has the host, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by host, project, and flag; search covers titles and the user's own prompts. Selecting a row shows a preview with the context-over-time shape.
 - **Session workspace**: a header with the session's numbers; a timeline with one bar per model request (height is input tokens), a lane per subagent, markers for prompts and failed tool calls, and a dashed rule at each compaction; a ledger of events grouped by turn; and an inspector whose "Model saw" tab reconstructs the context at the selected request, with the slots the session log does not record marked "unavailable".
 - **Report**: a redacted copy of one session's workspace as a single `index.html` that opens from disk.
 
@@ -69,7 +69,7 @@ A host whose folder does not exist shows 0 sessions and the path it checked. A f
 
 - Everything runs on this machine. The server binds `localhost`, and nothing is sent anywhere.
 - Session files are read, never written.
-- The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite` (default `~/.cache/rivus-agent-trace/`), with mode 0600. It holds titles, paths, numbers, and the first 200 user prompts of each session, 500 characters each, for search. Deleting it is safe; it is rebuilt from the logs. `--no-index` runs without it.
+- The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite` (default `~/.cache/rivus-agent-trace/`), with mode 0600. It holds titles, paths, numbers, and the first 200 prompts the user typed, 500 characters each, for search — not the text the host injected or recorded itself. Deleting it is safe; it is rebuilt from the logs. `--no-index` runs without it.
 - URLs carry opaque session refs, never paths.
 - The local server replaces the home directory with `~` and known credential patterns with placeholders; `AGENT_TRACE_REDACT=0` turns that off for the local server only.
 - A report (`build`, or "Export report" in the workspace) is always redacted the same way, whatever `AGENT_TRACE_REDACT` says. Session text and file contents remain in it, so read a report before you share it. It holds the view of every event and the original records of the first 2,000 events or 20 MB, whichever is smaller; its header says when it holds fewer.
