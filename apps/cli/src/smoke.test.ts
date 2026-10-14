@@ -44,8 +44,8 @@ async function ensureWebDist(): Promise<void> {
   if (existsSync(join(webDir, 'dist/index.html'))) {
     return
   }
-  const vite = join(webDir, 'node_modules/.bin/vite')
-  const { code, stderr } = await run(vite, ['build', '--config', join(webDir, 'src/vite.config.ts')], webDir)
+  const vp = join(webDir, 'node_modules/.bin/vp')
+  const { code, stderr } = await run(vp, ['build'], webDir)
   if (code !== 0) {
     throw new Error(stderr)
   }
