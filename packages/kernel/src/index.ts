@@ -1,9 +1,14 @@
 export { readRange, type SessionFs } from './fs.ts'
 export { fold, summaryOf, type TraceFold } from './fold.ts'
-export { splitSessionRef } from './jsonl.ts'
 export { isCanonicalTraceFile } from './load.ts'
 export { mainAgentId } from './lanes.ts'
-export { projectLanes, projectRequests, type Lane, type LaneMarker, type RequestEntry } from './project-timeline.ts'
+export {
+  projectLanes,
+  projectRequests,
+  type LaneMarker,
+  type RequestEntry,
+  type TimelineLane,
+} from './project-timeline.ts'
 export {
   foldHookRuns,
   hiddenAfterCompaction,

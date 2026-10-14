@@ -138,7 +138,7 @@ flowchart TB
 | `apps/cli` | `@rivus/agent-trace` | 组合根：通过外部 `@rivus/agent-kit` 读取会话（唯一在运行时导入 kit 的包）、启动 DevFrame server、终端输出（D14）、嵌入 web 构建产物、`vp pack` 打包 | 所有包；web 的构建产物 |
 | `apps/e2e` | `@rivus/agent-trace-e2e` | 私有测试工具，测试打包后的 tarball：CLI 冒烟测试（5.3）和浏览器测试（5.2） | 运行时不依赖任何包；只用测试工具 |
 | `apps/web` | `@rivus/agent-trace-web` | Solid SPA：会话浏览器、工作区、报告模式、词典（D13）、来自 `docs/design/` 的 token | `rpc`（类型）、`kernel`、`schema`、`@rivus/agent-kit`（类型） |
-| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（ref 解析、共享加载、最近 3 个 trace） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
+| `packages/rpc` | `@rivus/agent-trace-rpc` | RPC 契约（`list-sessions`、带 `load-progress` stream 的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`、`export-report` action，以及 build 模式下的 `report-trace` snapshot）、其 server handler，以及基于注入的解析器和 I/O 的 trace store（trace id 解析、共享加载、最近 3 个 trace） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
 | `packages/runtime-node` | `@rivus/agent-trace-runtime-node` | home 目录、基于 `node:sqlite` 的会话索引（D7） | `kernel`、`schema`、`@rivus/agent-kit`（类型） |
 | `packages/kernel` | `@rivus/agent-trace-kernel` | 规范文件头部检查、`fold`、`reconstruct`、`toView`、投影、`SessionFs` 读取形态 | `schema`、`@rivus/agent-kit`（类型） |
 | `packages/schema` | `@rivus/agent-trace-schema` | 规范 trace 类型（事件 payload 的类型取自 kit 的 payload 类型）及其 `zod` schema | `@rivus/agent-kit`（类型）；不依赖任何工作区包；可用小型、浏览器安全的外部库（`zod`） |
@@ -171,14 +171,14 @@ sequenceDiagram
   S-->>B: rows from head/tail reads (cached numbers when present)
   S-->>B: summary updates as full reads finish
   U->>B: open a session
-  B->>S: load-trace(ref) (action)
+  B->>S: load-trace(traceId) (action)
   S-->>B: loadId (progress stream id)
   B->>S: subscribe load-progress(loadId)
   S-->>B: progress chunks (bytes read of file size), then end
-  B->>S: get-trace-view(ref)
+  B->>S: get-trace-view(traceId)
   S-->>B: view trace (no originals, text capped to fit 12 MB)
   U->>B: select an event
-  B->>S: get-event(ref, id)
+  B->>S: get-event(traceId, id)
   S-->>B: full payload + original record (read by byte offset)
 ```
 
@@ -211,7 +211,7 @@ Claude Code 在本机会话最多，压缩记录最完整。Codex 和 Grok 已�
 备选方案：JSON 缓存文件（不能搜索，每次整文件重写）；DuckDB（`@duckdb/node-api` 在 macOS arm64 上安装后占 115 MB，扫描全部 550 MB 的 Claude Code 日志耗时 252 ms，而 Node 逐行扫描耗时 1,176 ms，但它会在 adapter 之外用 SQL 重复表述每个 agent 的解析规则）；`better-sqlite3`（每个平台一个原生 addon，而 `node:sqlite` 不需要）。Node.js 22 对 `node:sqlite` 打印一条 `ExperimentalWarning`；`dist/bin.mjs` 屏蔽这一条警告，在 M1 中验证。
 
 **D8. RPC 形态与静态报告。**
-查询：`list-sessions`（不是 snapshot）、`get-trace-view(ref)`、`get-event(ref, id)`、`reconstruct(ref, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。两个 action：`load-trace(ref)` 启动或加入加载，并返回 `load-progress` stream 的 id（2.3）；`export-report(ref, locale)` 为开发服务器上的会话写出与 `build` 相同的报告。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数 snapshot 查询 `report-trace`，它只在 DevFrame 的 build 模式下注册，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
+查询：`list-sessions`（不是 snapshot）、`get-trace-view(traceId)`、`get-event(traceId, id)`、`reconstruct(traceId, eventId)`（供 MCP 使用；移除 `snapshot: true`，这是测得的 `build` 失败原因）。两个 action：`load-trace(traceId)` 启动或加入加载，并返回 `load-progress` stream 的 id（2.3）；`export-report(traceId, locale)` 为开发服务器上的会话写出与 `build` 相同的报告。DevFrame 的静态 dump 只固化无参数的 snapshot 查询，因此 `build <path>` 额外注册一个绑定到该会话的无参数 snapshot 查询 `report-trace`，它只在 DevFrame 的 build 模式下注册，SPA 检测到它时以报告模式启动。报告包含视图版 trace，以及最多前 2,000 个事件或 20 MB（取较小者）的原始记录，发生截断时在报告头部注明。
 
 **D9. UI 技术栈与设计契约。**
 保留 Solid、Tailwind v4 和 shadcn-solid。token、调色板、字体和编码规则来自 `docs/design/README.md`，在 `styles.css` 中以 `data-theme="dark|light"` 下的 CSS 变量实现。ledger 使用 `@tanstack/solid-virtual` 3.13。timeline 和预览形状是根据 kernel 投影绘制的 SVG；不使用图表库。
@@ -251,8 +251,8 @@ npx @rivus/agent-trace mcp <path>
 ```
 
 - 无路径：打开 `/__agent-trace/`（会话浏览器）。
-- 有路径：通过 `loadSession` 加载一次；失败时在监听之前输出消息并以 1 退出；成功时打开 `/__agent-trace/#/s/<ref>`。
-- `ref` 是索引分配的不透明 id（agent 和路径的哈希）。绝对路径从不出现在 URL 中。
+- 有路径：通过 `loadSession` 加载一次；失败时在监听之前输出消息并以 1 退出；成功时打开 `/__agent-trace/#/s/<traceId>`。
+- `traceId` 是索引分配的不透明 id（agent 和路径的哈希）。绝对路径从不出现在 URL 中。
 - 未提供路径参数时使用 `AGENT_TRACE_PATH`。
 - `--pick` 在索引行（标题、agent、项目、最后活动）上打开一个 clack `autocomplete`，然后打开所选项的工作区 URL。stdin 不是 TTY 时以 1 退出。
 
@@ -365,30 +365,43 @@ export interface HostAdapter {
 ### 3.3 规范 trace
 
 ```ts
-export type EventKind =
+// `export` marks what @rivus/agent-trace-schema exports; a type marked as the kit's comes from @rivus/agent-kit/transcript.
+
+// The kit's TranscriptEventKind
+type TranscriptEventKind =
   | 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
   | 'request' | 'system' | 'compaction' | 'hook' | 'unknown'
 
-export interface SourcePointer { file: string, offset: number, length: number, line: number }
+// The kit's SourcePointer
+interface SourcePointer { file: string, offset: number, length: number, line: number }
 
-export interface TraceEvent {
+// The kit's TranscriptEventOf<K>: for each kind in K, an event of that kind
+type TranscriptEventOf<K extends TranscriptEventKind> = { [Kind in K]: {
   id: string
   /** Order within the trace; ties in `ts` keep the log's order. */
   seq: number
   ts: number
-  kind: EventKind
+  kind: Kind
   agentId?: string
   parentId?: string
   /** Groups events that belong to one model request. */
   requestId?: string
   shadowedBy?: string
-  payload: Record<string, unknown>
+  payload: TranscriptEventPayloads[Kind]
   source: SourcePointer
   /** Present in memory and in `get-event`; absent in the view trace. */
   original?: unknown
+} }[K]
+
+// The kit's payload of each kind; every payload also keeps the fields an agent adds of its own
+interface TranscriptEventPayloads {
+  user: MessagePayload, assistant: MessagePayload, reasoning: ReasoningPayload
+  tool_call: ToolCallPayload, tool_result: ToolResultPayload, request: RequestPayload
+  system: SystemPayload, compaction: CompactionPayload, hook: HookPayload, unknown: UnknownPayload
 }
 
-export interface RequestPayload {
+// The kit's RequestPayload
+interface RequestPayload {
   model?: string          // gen_ai.request.model
   responseId?: string     // gen_ai.response.id
   usage?: {
@@ -403,26 +416,45 @@ export interface RequestPayload {
   finishReason?: string   // gen_ai.response.finish_reasons[0]
 }
 
-export interface CompactionPayload {
+// The kit's CompactionPayload, ToolCallPayload, and ToolResultPayload
+interface CompactionPayload {
   trigger?: 'auto' | 'manual'
   preTokens?: number
   postTokens?: number
   summaryEventId?: string
 }
+interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
+interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
 
-export interface ToolCallPayload { callId: string, name: string, args?: unknown }            // gen_ai.tool.call.id, gen_ai.tool.name
-export interface ToolResultPayload { callId: string, output?: unknown, isError?: boolean, exitCode?: number, orphan?: boolean }
+// The kit's PromptSnapshotPayload: a SystemPayload on a `system` event
+interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }
 
-export interface PromptSnapshotPayload { type: 'prompt_snapshot', systemPrompt?: string, tools?: unknown[] }  // on a `system` event
+// What a view trace adds to a payload
+interface PayloadViewFields { $truncated?: TruncatedPath[] }
+interface SystemViewFields extends PayloadViewFields { systemPromptSameAs?: string, toolsSameAs?: string }
 
-export interface AgentInfo { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
+// Each kind's payload in a trace: the kit's, plus the view fields
+export type TraceEventPayloads = {
+  [K in TranscriptEventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
+}
+
+// A trace event of the kinds in K, such as EventOf<'tool_call'>; narrowing on `kind` types `payload`
+export type EventOf<K extends TranscriptEventKind> = {
+  [Kind in K]: Omit<TranscriptEventOf<Kind>, 'payload'> & { payload: TraceEventPayloads[Kind] }
+}[K]
+export type TraceEvent = EventOf<TranscriptEventKind>
+export type TracePromptSnapshotPayload = PromptSnapshotPayload & SystemViewFields
+
+// The kit's Lane
+interface Lane { id: string, parentId?: string, spawnEventId?: string, title?: string, systemPrompt?: string }  // systemPrompt: this lane's own, when recorded
 
 export interface Trace {
   schema: 'agent-trace'
-  agent: { id: string, version?: string }
-  session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }
-  capabilities: Capability[]
-  agents: AgentInfo[]
+  agent: string             // the kit's Transcript.agent
+  agentVersion?: string     // the kit's Transcript.agentVersion
+  session: { id: string, title?: string, cwd?: string, startedAt?: number, endedAt?: number, systemPrompt?: string, tools?: unknown }  // the kit's TranscriptSession
+  capabilities: Capability[]  // the kit's Capability
+  agents: Lane[]
   events: TraceEvent[]
   skipped: { line: number, file: string, reason: string }[]
 }
@@ -430,7 +462,7 @@ export interface Trace {
 
 一个 `request` 事件是一次模型调用。只记录每轮合计的 agent 每轮发出一个 request，并标记 `granularity: 'turn'`（带 `modelCalls`，以及记录了的按模型拆分的 `usageByModel`）。轮次耗时放在 `type: 'turn_duration'` 的 `system` 事件上，从不写进 request 的 `durationMs`。
 
-在会话过程中记录 system prompt 或工具列表的 agent，把每条这样的记录作为其泳道上 `type: 'prompt_snapshot'` 的 `system` 事件（`PromptSnapshotPayload`）发出；该事件保留 source pointer 和原始记录，上下文压缩不会遮蔽它。`reconstruct` 用该泳道上、位于该事件处或之前、记录了相应字段的最新 snapshot 填充 `system` 和 `tools` 槽位，并在 `slot.recordedBy` 中给出它；没有这样的 snapshot 的槽位为 `unavailable`，即使之后有 snapshot。`session.systemPrompt` 和 `session.tools` 保存主泳道最新的 snapshot，`AgentInfo.systemPrompt` 保存子代理泳道自己的。没有 snapshot 的 trace 对每个事件都使用这些会话和泳道字段。Claude Code 用一个空行连接记录的 `systemPrompt` 各块。视图版 trace 对每个不同的 snapshot system prompt 和非空工具列表只保留一份，放在第一个含有它的 snapshot 上；之后内容相同的 snapshot 带有指向该 snapshot 的 `systemPromptSameAs` / `toolsSameAs`，并在 `payload.$truncated` 中列出该字段，因此 `get-event` 返回完整内容，`reconstruct` 在视图上给出相同结果。记录为空的工具列表是 `empty` 槽位。
+在会话过程中记录 system prompt 或工具列表的 agent，把每条这样的记录作为其泳道上 `type: 'prompt_snapshot'` 的 `system` 事件（`PromptSnapshotPayload`）发出；该事件保留 source pointer 和原始记录，上下文压缩不会遮蔽它。`reconstruct` 用该泳道上、位于该事件处或之前、记录了相应字段的最新 snapshot 填充 `system` 和 `tools` 槽位，并在 `slot.recordedBy` 中给出它；没有这样的 snapshot 的槽位为 `unavailable`，即使之后有 snapshot。`session.systemPrompt` 和 `session.tools` 保存主泳道最新的 snapshot，`Lane.systemPrompt` 保存子代理泳道自己的。没有 snapshot 的 trace 对每个事件都使用这些会话和泳道字段。Claude Code 用一个空行连接记录的 `systemPrompt` 各块。视图版 trace 对每个不同的 snapshot system prompt 和非空工具列表只保留一份，放在第一个含有它的 snapshot 上；之后内容相同的 snapshot 带有指向该 snapshot 的 `systemPromptSameAs` / `toolsSameAs`，并在 `payload.$truncated` 中列出该字段，因此 `get-event` 返回完整内容，`reconstruct` 在视图上给出相同结果。记录为空的工具列表是 `empty` 槽位。
 
 - `schema: 'agent-trace'` 标记一个规范 JSON 文件。demo fixture 改写为这一形状；不保留 MVP 形状的 reader。
 - payload 的键名按事件类型固定；每个字段旁的注释是其 OTel GenAI 属性。OTLP exporter 一对一映射它们。
@@ -451,7 +483,7 @@ flowchart LR
   sum --> rows
 ```
 
-- 表：`sessions`（ref、agent、路径、大小、mtime、头部字段、摘要数字、标记、错误），`prompts`（会话 ref、序号、每条用户 prompt 的前 500 个字符，每个会话最多 200 条），以及 `search`，一张覆盖标题和 prompt 的 FTS5 `trigram` 表。
+- 表：`sessions`（trace id、agent、路径、大小、mtime、头部字段、摘要数字、标记、错误），`prompts`（trace id、序号、每条用户 prompt 的前 500 个字符，每个会话最多 200 条），以及 `search`，一张覆盖标题和 prompt 的 FTS5 `trigram` 表。
 - `list-sessions` 从索引和最近一次 `discover` 读取行。浏览器先收到行，摘要完成后收到摘要更新。
 - 搜索在索引中运行，不在浏览器中运行。短于 3 个字符的查询（`trigram` 分词无法匹配）回退为对标题和 `prompts` 表的子串匹配（`LIKE '%q%'`，已转义），因此 2 个字符的中文词仍能找到对应会话。
 - 索引是一份缓存。`PRAGMA user_version` 记录其布局；布局不同或无法打开的文件会被删除并重建。每批摘要的写入在一个事务中执行。
@@ -460,7 +492,7 @@ flowchart LR
 
 ### 3.5 会话加载
 
-- `load-trace(ref)` 通过 adapter 以 `onProgress` 启动或加入加载，并返回 stream id。浏览器立即（5 秒内）用它订阅 `load-progress`，接收已读字节数 / 文件大小，然后调用 `get-trace-view(ref)`，后者在加载完成时返回。
+- `load-trace(traceId)` 通过 adapter 以 `onProgress` 启动或加入加载，并返回 stream id。浏览器立即（5 秒内）用它订阅 `load-progress`，接收已读字节数 / 文件大小，然后调用 `get-trace-view(traceId)`，后者在加载完成时返回。
 - server 在内存中保留最近 3 个已加载的 trace（不含原始记录）；`get-event` 通过 source pointer 读取原始记录，当文件已变化且该处字节不再是那条记录时，返回 `originalUnavailable` 及原因。
 - 每个读取方都持有该加载，最后一次释放时中止它（`AbortSignal`）：浏览器离开页面、断开连接、从未订阅或打开另一个会话时取消 stream。另一个标签页或 MCP `reconstruct` 持有自己的 hold，因此不会因某个浏览器的跳转而被取消。
 - 错误信息在到达浏览器之前经过脱敏。
@@ -514,7 +546,7 @@ flowchart LR
 ### 3.9 安全与隐私
 
 - server 绑定 `localhost`。DevFrame 的认证关卡默认保持开启；`--no-auth` 仍需显式开启。该关卡在 `--open` 下的行为是一个待定问题（第 7 节）。
-- URL 携带不透明的会话 ref，从不携带路径。
+- URL 携带不透明的 trace id，从不携带路径。
 - 索引保存标题、用户 prompt（每条前 500 个字符）、路径和数字。它位于用户的缓存目录中，权限为 0600。`--no-index` 在不读写索引的情况下运行。
 - 报告始终脱敏（D10）。会话文本和文件内容保留；导出对话框和报告头部会说明这一点。
 - 不向本机之外发送任何内容。
@@ -616,10 +648,10 @@ M4 的设计评审属于本地验证（D16），不属于这套测试。
 - `reconstruct` 作用于目标事件所在的泳道：子代理的请求只看到该子代理的事件。
 - System prompt 和工具：1.1 表格曾写 Claude Code 两者都不记录。Claude Code 写入 `prompt_snapshot` attachment（从 2.1.268 起可见），Codex rollout 带有 `session_meta.base_instructions.text`；adapter 现在读取它们（3.3），trace 只在文件记录了它们时才列出 `systemPrompt` / `toolSchemas`（3.2），“模型所见”根据该 trace 缺少的内容说明不可用的槽位，并把已记录的槽位链接到它的 snapshot。视图对每个不同的 snapshot 提示词和工具列表只保留一份（3.3）。
 - 报告内容：前面的事件以完整形式包含（规范化 payload 加原始记录），而不只是原始记录，因此这些事件的截短文本也是完整的。2,000 个事件和 20 MB 的上限按这些完整事件计算。`build` 不记录语言，因此它的报告按浏览器语言打开；导出会记录界面语言。
-- 导出：“导出报告”写入服务工作目录下一个新的 `agent-trace-report-<ref>-<time>/` 目录，并显示绝对路径，主目录显示为 `~`。导出一次只运行一个。DevFrame 的 build 模式跳过会话推送，因此在开发服务器内运行的 build 不会重新绑定正在使用的共享状态。
+- 导出：“导出报告”写入服务工作目录下一个新的 `agent-trace-report-<traceId>-<time>/` 目录，并显示绝对路径，主目录显示为 `~`。导出一次只运行一个。DevFrame 的 build 模式跳过会话推送，因此在开发服务器内运行的 build 不会重新绑定正在使用的共享状态。
 - 旧的 `get-trace` 已删除。`mcp` 保留基于 TraceStore 的 `reconstruct`。“模型所见”在浏览器中基于视图版 trace 计算 `reconstruct`，开发服务器和报告中都是如此。
-- S4：会话列表不会打开“无法读取”的行。它的预览显示文件、行号和原因；该 ref 的工作区 URL 在错误面板中显示 agent、文件和行号。
-- S2：CLI 打开 `<base>?s=<ref>#devframe_otp=<code>`，因为 DevFrame 的一次性码使用 fragment；SPA 把 ref 移到 `#/s/<ref>`。冒烟测试检查打开的 URL；浏览器测试检查落地的路由。
+- S4：会话列表不会打开“无法读取”的行。它的预览显示文件、行号和原因；该 trace id 的工作区 URL 在错误面板中显示 agent、文件和行号。
+- S2：CLI 打开 `<base>?s=<traceId>#devframe_otp=<code>`，因为 DevFrame 的一次性码使用 fragment；SPA 把 trace id 移到 `#/s/<traceId>`。冒烟测试检查打开的 URL；浏览器测试检查落地的路由。
 - Ledger：一个轮次中每个子代理泳道的事件收在该泳道 spawn 调用处的一行子代理行之后；行高按行类型固定（hook 折叠行 30 px，上下文压缩行 44 px）。
 - 工具：`@clack/prompts` 打包进 `dist/cli.mjs`；`node-pty` 使用 `1.2.0-beta.15`，因为 1.1.0 没有 Linux 预编译包；`dist/THIRD-PARTY-NOTICES.txt` 由 pack 配置中的一个小 Rolldown 插件写出；`npm pack` 在打包后的 `devDependencies` 中保留 `workspace:*`，`npm install` 会忽略它（发布的后续工作应使用 Rush 或 pnpm 打包）。
 - 浏览器测试在 CI 中使用 Playwright 的 Chromium。在无法访问 Playwright 下载地址的机器上，`AGENT_TRACE_E2E_CHANNEL=chrome` 让它在已安装的 Google Chrome 上运行。
@@ -750,8 +782,8 @@ A.8 规范 trace 到 ATIF v1.8 的映射（ATIF 导出后续工作的约束）�
 | 规范 trace | ATIF |
 |---|---|
 | `session.id` | `session_id`；文档使用 `trajectory_id` |
-| `agent.id`, `agent.version` | `agent.name`, `agent.version` |
-| `RequestPayload.model` | `agent.model_name`，或 step 上的 `model_name` |
+| `agent`, `agentVersion` | `agent.name`, `agent.version` |
+| `request`（`model`） | `agent.model_name`，或 step 上的 `model_name` |
 | `user` 事件 | `source: "user"`、`message` 的 step |
 | `assistant` 事件 | `source: "agent"`、`message` 的 step |
 | `reasoning` 事件 | agent step 上的 `reasoning_content` |

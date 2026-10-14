@@ -49,14 +49,14 @@ export function createSessionStore() {
       if (result.complete) {
         setRows(result.rows)
       } else if (result.rows.length > 0 || (result.removed?.length ?? 0) > 0) {
-        const changed = new Map(result.rows.map(row => [row.ref, row]))
+        const changed = new Map(result.rows.map(row => [row.traceId, row]))
         const gone = new Set(result.removed ?? [])
         const next = rows()
-          .filter(row => !gone.has(row.ref))
-          .map(row => changed.get(row.ref) ?? row)
-        const known = new Set(next.map(row => row.ref))
+          .filter(row => !gone.has(row.traceId))
+          .map(row => changed.get(row.traceId) ?? row)
+        const known = new Set(next.map(row => row.traceId))
         for (const row of result.rows) {
-          if (!known.has(row.ref)) {
+          if (!known.has(row.traceId)) {
             next.push(row)
           }
         }
@@ -117,9 +117,9 @@ export function createSessionStore() {
     }
   }
 
-  /** Ask the server to summarize these refs (the rows on screen) before the rest. */
-  function prioritize(refs: string[]): void {
-    wanted = refs
+  /** Ask the server to summarize the rows with these trace ids (the rows on screen) before the rest. */
+  function prioritize(traceIds: string[]): void {
+    wanted = traceIds
     void refresh()
   }
 

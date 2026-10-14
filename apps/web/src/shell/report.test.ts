@@ -8,7 +8,7 @@ const source = { file: '0', offset: 0, length: 1, line: 1 }
 const report: ReportTrace = {
   trace: {
     schema: 'agent-trace',
-    agent: { id: 'claude-code' },
+    agent: 'claude-code',
     session: { id: 's' },
     capabilities: ['requests'],
     agents: [{ id: 'main' }],

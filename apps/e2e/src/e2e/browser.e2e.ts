@@ -15,9 +15,9 @@ test('S1: the opened URL shows sessions from all three agents with per-agent cou
   expect(opened).toContain('#devframe_otp=')
   await page.goto(opened!)
   const { counts } = ctx.homes.main
-  await expect(page.locator('[data-ref]')).toHaveCount(counts['claude-code'] + counts.codex + counts.grok)
+  await expect(page.locator('[data-trace-id]')).toHaveCount(counts['claude-code'] + counts.codex + counts.grok)
   for (const agent of AGENTS) {
-    await expect(page.locator(`[data-ref][data-agent="${agent}"]`)).toHaveCount(counts[agent])
+    await expect(page.locator(`[data-trace-id][data-agent="${agent}"]`)).toHaveCount(counts[agent])
     await expect(railCount(page, agent)).toHaveText(String(counts[agent]))
   }
 })
@@ -29,10 +29,10 @@ test('S3: a home without ~/.codex shows Codex with 0 and the checked path', asyn
   await expect(railCount(page, 'codex')).toHaveText('0')
   await expect(page.locator('button[data-agent="codex"]')).toContainText('~/.codex')
   for (const agent of ['claude-code', 'grok'] as const) {
-    await expect(page.locator(`[data-ref][data-agent="${agent}"]`)).toHaveCount(counts[agent])
+    await expect(page.locator(`[data-trace-id][data-agent="${agent}"]`)).toHaveCount(counts[agent])
     await expect(railCount(page, agent)).toHaveText(String(counts[agent]))
   }
-  await expect(page.locator('[data-ref][data-agent="codex"]')).toHaveCount(0)
+  await expect(page.locator('[data-trace-id][data-agent="codex"]')).toHaveCount(0)
 })
 
 test('S4: an unknown format generation is listed as "could not read", and opening it shows agent, file, and line', async ({
@@ -41,7 +41,7 @@ test('S4: an unknown format generation is listed as "could not read", and openin
 }) => {
   const server = await launch({ args: ['--no-auth', '--no-open'] })
   await page.goto(server.base)
-  const row = page.locator('[data-ref][data-agent="claude-code"]').filter({ hasText: 'Could not read' })
+  const row = page.locator('[data-trace-id][data-agent="claude-code"]').filter({ hasText: 'Could not read' })
   await expect(row).toHaveCount(1)
   // Selecting it shows why in the preview: the list does not open a file it cannot read.
   await row.click()
@@ -49,8 +49,8 @@ test('S4: an unknown format generation is listed as "could not read", and openin
   await expect(preview).toContainText('app-unknown-generation/session.jsonl')
   await expect(preview).toContainText('line 1')
   await expect(preview).toContainText('unknown format generation')
-  // Opening its workspace by ref shows agent, file, and line in the error panel.
-  await page.goto(`${server.base}#/s/${await row.getAttribute('data-ref')}`)
+  // Opening its workspace by trace id shows agent, file, and line in the error panel.
+  await page.goto(`${server.base}#/s/${await row.getAttribute('data-trace-id')}`)
   const panel = page.getByTestId('load-error')
   await expect(panel).toBeVisible()
   await expect(panel).toContainText('Claude Code')

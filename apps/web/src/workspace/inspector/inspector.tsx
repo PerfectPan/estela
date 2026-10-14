@@ -121,7 +121,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     }
     const request = state.model.requests.get(event.id)?.entry
     if (request) {
-      const stop = event.kind === 'request' ? event.payload.finishReason : undefined
+      const finishReason = event.kind === 'request' ? event.payload.finishReason : undefined
       return [
         request.model ?? '',
         request.inputTokens !== undefined ? t('inspector.inTokens', { value: formatTokens(request.inputTokens) }) : '',
@@ -129,7 +129,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
           ? t('inspector.outTokens', { value: formatTokens(request.outputTokens) })
           : '',
         request.durationMs !== undefined ? formatDuration(request.durationMs, locale()) : '',
-        stop ? t('common.stop', { reason: stop }) : '',
+        finishReason ? t('common.finishReason', { reason: finishReason }) : '',
       ].filter(Boolean)
     }
     const at = elapsedFrom(event.ts, props.start)

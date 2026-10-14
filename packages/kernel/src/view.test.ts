@@ -6,7 +6,7 @@ import { fitView, toView } from './view.ts'
 function traceOf(payload: TraceEventPayloads['user'], session: Trace['session'] = { id: 's' }): Trace {
   return {
     schema: 'agent-trace',
-    agent: { id: 'demo' },
+    agent: 'demo',
     session,
     capabilities: [],
     agents: [],

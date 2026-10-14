@@ -9,7 +9,7 @@ type Status = LoadClient['status']
 
 const trace: Trace = {
   schema: 'agent-trace',
-  agent: { id: 'claude-code' },
+  agent: 'claude-code',
   session: { id: 's' },
   capabilities: [],
   agents: [],
@@ -39,7 +39,7 @@ function fakeClient(options: { viewError?: string } = {}) {
         finish = resolve
         rejectView = reject
       })
-      return { ref: 'r', trace, summary: { turns: 1 }, bytes: 1 }
+      return { traceId: 'r', trace, summary: { turns: 1 }, bytes: 1 }
     },
     event: async () => {
       throw new Error('unexpected get-event')
@@ -118,10 +118,10 @@ describe('createSessionLoad', () => {
   })
 
   it('keeps any other message as the reason', async () => {
-    const fake = fakeClient({ viewError: 'unknown session ref: ffff' })
+    const fake = fakeClient({ viewError: 'unknown trace id: ffff' })
     const load = createRoot(() => createSessionLoad('r', async () => fake.client))
     await tick()
-    expect(load.state()).toEqual({ status: 'error', failure: { reason: 'unknown session ref: ffff' } })
+    expect(load.state()).toEqual({ status: 'error', failure: { reason: 'unknown trace id: ffff' } })
   })
 
   it('ends the load as "connection lost" when the socket drops, since DevFrame does not reconnect', async () => {

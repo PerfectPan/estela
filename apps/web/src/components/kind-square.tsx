@@ -9,7 +9,7 @@ const MARK: Record<RowKind, string> = {
   user: 'bg-kind-user',
   request: 'bg-kind-request',
   tool: 'bg-kind-tool',
-  thinking: 'bg-kind-thinking',
+  reasoning: 'bg-kind-reasoning',
   subagent: 'bg-kind-subagent',
   reply: 'border border-subtle',
   system: 'bg-subtle',

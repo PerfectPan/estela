@@ -1,34 +1,19 @@
 import type {
-  PromptSnapshotPayload as KitPromptSnapshotPayload,
+  Capability,
+  Lane,
+  PromptSnapshotPayload,
+  SourcePointer,
   TranscriptEventKind,
   TranscriptEventOf,
   TranscriptEventPayloads,
+  TranscriptSession,
 } from '@rivus/agent-kit/transcript'
 import * as z from 'zod/mini'
 
 export const TRACE_SCHEMA = 'agent-trace' as const
 
-/**
- * Every event kind, in one place; `EventKind` and `traceEventSchema` both read it. They are the kit's
- * `TranscriptEventKind`: a kind the kit does not have fails here, and a kind the kit adds fails at `payloadSchemas`.
- */
-export const EVENT_KINDS = [
-  'user',
-  'assistant',
-  'reasoning',
-  'tool_call',
-  'tool_result',
-  'request',
-  'system',
-  'compaction',
-  'hook',
-  'unknown',
-] as const satisfies readonly TranscriptEventKind[]
-
-export type EventKind = (typeof EVENT_KINDS)[number]
-
-/** Fields an agent records. A number whose capability is absent is `undefined`, never 0. */
-export const CAPABILITIES = [
+/** One entry of `Trace.capabilities`: the kit's `Capability`, which the `satisfies` ties it to. */
+const capabilitySchema = z.enum([
   'requests',
   'usage',
   'durations',
@@ -39,18 +24,18 @@ export const CAPABILITIES = [
   'systemPrompt',
   'toolSchemas',
   'hooks',
-] as const
+]) satisfies z.ZodMiniType<Capability, Capability>
 
-export const capabilitySchema = z.enum(CAPABILITIES)
-export type Capability = z.infer<typeof capabilitySchema>
-
-export const sourcePointerSchema = z.object({
+/**
+ * An event's `source`: the kit's `SourcePointer`, which the `satisfies` ties it to. In a view trace `file` is an
+ * index into `Trace.sourceFiles`.
+ */
+const sourcePointerSchema = z.object({
   file: z.string(),
   offset: z.number(),
   length: z.number(),
   line: z.number(),
-})
-export type SourcePointer = z.infer<typeof sourcePointerSchema>
+}) satisfies z.ZodMiniType<SourcePointer, SourcePointer>
 
 /**
  * Path of a value `toView` shortened: object keys as strings, array indexes as
@@ -81,11 +66,11 @@ interface SystemViewFields extends PayloadViewFields {
  * view trace adds. Every kit payload keeps the fields an agent adds of its own, which read as `unknown`.
  */
 export type TraceEventPayloads = {
-  [K in EventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
+  [K in TranscriptEventKind]: TranscriptEventPayloads[K] & (K extends 'system' ? SystemViewFields : PayloadViewFields)
 }
 
 /** A trace event of the kinds in `K`, such as `EventOf<'tool_call'>`; its payload is that kind's. */
-export type EventOf<K extends EventKind> = {
+export type EventOf<K extends TranscriptEventKind> = {
   [Kind in K]: Omit<TranscriptEventOf<Kind>, 'payload'> & { payload: TraceEventPayloads[Kind] }
 }[K]
 
@@ -93,19 +78,14 @@ export type EventOf<K extends EventKind> = {
  * One event of a trace: the kit's `TranscriptEvent` with view fields on its payload. The union is discriminated by
  * `kind`; narrowing on it types `payload`.
  */
-export type TraceEvent = EventOf<EventKind>
-
-export type ToolCallPayload = TraceEventPayloads['tool_call']
-export type ToolResultPayload = TraceEventPayloads['tool_result']
-export type RequestPayload = TraceEventPayloads['request']
-export type CompactionPayload = TraceEventPayloads['compaction']
+export type TraceEvent = EventOf<TranscriptEventKind>
 
 /**
- * A `system` payload with `type: 'prompt_snapshot'`: the system prompt and tool definitions the agent recorded at
- * that point on the event's lane. A later snapshot on the same lane replaces an earlier one; a field left out was
- * not recorded by that snapshot.
+ * A `system` payload with `type: 'prompt_snapshot'`: the kit's `PromptSnapshotPayload`, the system prompt and tool
+ * definitions the agent recorded at that point on the event's lane, plus the fields a view trace adds. A later
+ * snapshot on the same lane replaces an earlier one; a field left out was not recorded by that snapshot.
  */
-export type PromptSnapshotPayload = KitPromptSnapshotPayload & SystemViewFields
+export type TracePromptSnapshotPayload = PromptSnapshotPayload & SystemViewFields
 
 const viewFields = { $truncated: z.optional(z.array(truncatedPathSchema)) }
 
@@ -205,7 +185,8 @@ const unknownPayloadSchema = z.looseObject({
  * undeclared ones. The `satisfies` ties it to the kit at compile time: its output must be that kind's
  * `TraceEventPayloads` entry, so a declared field the kit narrows or a required field the kit adds fails to compile.
  * `payloads.test.ts` checks the other direction, that every payload of that type passes, so a declared field the kit
- * widens fails there. A new optional kit field passes both, and the loose object keeps it.
+ * widens fails there. A new optional kit field passes both, and the loose object keeps it. The mapped type also holds
+ * its keys to the kit's `TranscriptEventKind`, so a kind the kit adds or drops fails to compile here.
  */
 export const payloadSchemas = {
   user: messagePayloadSchema,
@@ -248,17 +229,23 @@ export const traceEventSchema = z.discriminatedUnion('kind', [
   z.object({ ...eventFields, kind: z.literal('unknown'), payload: payloadSchemas.unknown }),
 ]) satisfies z.ZodMiniType<TraceEvent, TraceEvent>
 
-export const agentInfoSchema = z.object({
+/** One entry of `Trace.agents`: the kit's `Lane`, which the `satisfies` ties it to. */
+const laneSchema = z.object({
   id: z.string(),
   parentId: z.optional(z.string()),
   spawnEventId: z.optional(z.string()),
   title: z.optional(z.string()),
   /** This lane's own system prompt, when the agent records one per lane. */
   systemPrompt: z.optional(z.string()),
-})
-export type AgentInfo = z.infer<typeof agentInfoSchema>
+}) satisfies z.ZodMiniType<Lane, Lane>
 
-export const traceSessionSchema = z.object({
+/** `Trace.session`: the kit's `TranscriptSession`, plus the field a view trace adds. */
+export interface TraceSession extends TranscriptSession {
+  /** Set by `toView` on session fields it shortened; see `TruncatedPath`. */
+  $truncated?: TruncatedPath[]
+}
+
+const traceSessionSchema = z.object({
   id: z.string(),
   title: z.optional(z.string()),
   cwd: z.optional(z.string()),
@@ -266,19 +253,21 @@ export const traceSessionSchema = z.object({
   endedAt: z.optional(z.number()),
   systemPrompt: z.optional(z.string()),
   tools: z.optional(z.unknown()),
-  /** Set by `toView` on session fields it shortened; see `TruncatedPath`. */
-  $truncated: z.optional(z.array(truncatedPathSchema)),
-})
-export type TraceSession = z.infer<typeof traceSessionSchema>
+  ...viewFields,
+}) satisfies z.ZodMiniType<TraceSession, TraceSession>
 
-export const skippedRecordSchema = z.object({
+/**
+ * One entry of `Trace.skipped`: a log record that became no event, named by file and line. The kit's `SkippedRecord`
+ * carries a whole source pointer instead; a view trace merges the entries of one file and reason into one.
+ */
+export const skippedEntrySchema = z.object({
   line: z.number(),
   file: z.string(),
   reason: z.string(),
   /** View traces only: records merged into this entry (same file and reason); `line` is the first. */
   count: z.optional(z.number()),
 })
-export type SkippedRecord = z.infer<typeof skippedRecordSchema>
+export type SkippedEntry = z.infer<typeof skippedEntrySchema>
 
 export const viewInfoSchema = z.object({
   /** String cap used: 4,096 unless the view would exceed `budgetBytes`. */
@@ -293,13 +282,15 @@ export type ViewInfo = z.infer<typeof viewInfoSchema>
 /** The canonical trace. A view trace (`toView`) is one too, with view fields set. */
 export interface Trace {
   schema: typeof TRACE_SCHEMA
-  /** The coding agent whose log this is, such as `claude-code`, and the version the log records. */
-  agent: { id: string; version?: string }
+  /** The coding agent whose log this is, such as `claude-code`: the kit's `Transcript.agent`. */
+  agent: string
+  /** The agent version the log records: the kit's `Transcript.agentVersion`. */
+  agentVersion?: string
   session: TraceSession
   capabilities: Capability[]
-  agents: AgentInfo[]
+  agents: Lane[]
   events: TraceEvent[]
-  skipped: SkippedRecord[]
+  skipped: SkippedEntry[]
   /**
    * View traces only (`toView`): the distinct source files. Each view event's
    * `source.file` is then its index in this list, as a decimal string.
@@ -315,12 +306,13 @@ export interface Trace {
  */
 export const traceSchema = z.object({
   schema: z.literal(TRACE_SCHEMA),
-  agent: z.object({ id: z.string(), version: z.optional(z.string()) }),
+  agent: z.string(),
+  agentVersion: z.optional(z.string()),
   session: traceSessionSchema,
   capabilities: z.array(capabilitySchema),
-  agents: z.array(agentInfoSchema),
+  agents: z.array(laneSchema),
   events: z.array(traceEventSchema),
-  skipped: z.array(skippedRecordSchema),
+  skipped: z.array(skippedEntrySchema),
   sourceFiles: z.optional(z.array(z.string())),
   view: z.optional(viewInfoSchema),
 }) satisfies z.ZodMiniType<Trace, Trace>

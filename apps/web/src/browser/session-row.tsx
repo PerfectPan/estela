@@ -24,8 +24,8 @@ export function SessionRow(props: {
   agentName: string
   now: number
   selected: boolean
-  onSelect: (ref: string) => void
-  onOpen: (ref: string) => void
+  onSelect: (traceId: string) => void
+  onOpen: (traceId: string) => void
 }) {
   const count = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
   const title = () => props.row.title || (props.row.error ? t('common.couldNotRead') : dash())
@@ -39,15 +39,15 @@ export function SessionRow(props: {
   }
   return (
     <div
-      id={optionId(props.row.ref)}
+      id={optionId(props.row.traceId)}
       role="option"
       aria-selected={props.selected}
-      data-ref={props.row.ref}
+      data-trace-id={props.row.traceId}
       data-agent={props.row.agent}
       title={props.row.error ? errorTitle(props.row) : undefined}
       class={`session-row flex h-[52px] cursor-default items-center gap-3.5 border-b border-border px-[18px] ${props.selected ? 'bg-selection shadow-[inset_0_0_0_1px_var(--selection-ring)]' : 'hover:bg-accent'}`}
-      onClick={() => props.onSelect(props.row.ref)}
-      onDblClick={() => props.onOpen(props.row.ref)}
+      onClick={() => props.onSelect(props.row.traceId)}
+      onDblClick={() => props.onOpen(props.row.traceId)}
     >
       <AgentMark id={props.row.agent} />
       <div class="flex min-w-0 flex-1 flex-col gap-[3px]">

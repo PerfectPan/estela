@@ -7,8 +7,8 @@ import { defineRpcFunction } from 'devframe'
 import * as z from 'zod/mini'
 import { parseInput } from './parse-input.ts'
 
-/** Ref of the session the CLI was started with. The shell's session catalog resolves every listed ref. */
-export const CURRENT_REF = 'current'
+/** Trace id of the session the CLI was started with. The shell's session catalog resolves every listed one. */
+export const CURRENT_TRACE_ID = 'current'
 
 /** Streaming channel for load progress (bare name; DevFrame prefixes the namespace). */
 export const LOAD_PROGRESS_CHANNEL = 'load-progress'
@@ -68,23 +68,23 @@ function requireStore(): TraceStore {
   return store
 }
 
-const LOAD_REF = 'load-trace needs a session ref'
-const VIEW_REF = 'get-trace-view needs a session ref'
-const EVENT_REF = 'get-event needs a session ref'
+const LOAD_TRACE_ID = 'load-trace needs a trace id'
+const VIEW_TRACE_ID = 'get-trace-view needs a trace id'
+const EVENT_TRACE_ID = 'get-event needs a trace id'
 const EVENT_ID = 'get-event needs an event id'
-const RECONSTRUCT_REF = 'reconstruct: ref must be a string; leave it out for the current session'
+const RECONSTRUCT_TRACE_ID = 'reconstruct: traceId must be a string; leave it out for the current session'
 const RECONSTRUCT_ID = 'reconstruct needs an event id'
 
-// Any string ref reaches the store, which answers `unknown session ref: …` for one it cannot resolve.
-const loadTraceInput = z.object({ ref: z.string({ error: LOAD_REF }) }, { error: LOAD_REF })
-const traceViewInput = z.object({ ref: z.string({ error: VIEW_REF }) }, { error: VIEW_REF })
+// Any string trace id reaches the store, which answers `unknown trace id: …` for one it cannot resolve.
+const loadTraceInput = z.object({ traceId: z.string({ error: LOAD_TRACE_ID }) }, { error: LOAD_TRACE_ID })
+const traceViewInput = z.object({ traceId: z.string({ error: VIEW_TRACE_ID }) }, { error: VIEW_TRACE_ID })
 const eventInput = z.object(
-  { ref: z.string({ error: EVENT_REF }), id: z.string({ error: EVENT_ID }) },
-  { error: `${EVENT_REF} and an event id` },
+  { traceId: z.string({ error: EVENT_TRACE_ID }), id: z.string({ error: EVENT_ID }) },
+  { error: `${EVENT_TRACE_ID} and an event id` },
 )
-/** MCP calls name only `eventId`: without a `ref` (left out or null), reconstruct reads the launch session. */
+/** MCP calls name only `eventId`: without a `traceId` (left out or null), reconstruct reads the launch session. */
 const reconstructInput = z.object(
-  { ref: z.nullish(z.string({ error: RECONSTRUCT_REF })), eventId: z.string({ error: RECONSTRUCT_ID }) },
+  { traceId: z.nullish(z.string({ error: RECONSTRUCT_TRACE_ID })), eventId: z.string({ error: RECONSTRUCT_ID }) },
   { error: RECONSTRUCT_ID },
 )
 
@@ -96,7 +96,7 @@ export interface LoadTraceResult {
 }
 
 /**
- * Starts (or joins) the load of `ref` and returns a progress stream id.
+ * Starts (or joins) the load of `traceId` and returns a progress stream id.
  *
  * Browser contract: subscribe to `load-progress` with `loadId` immediately
  * (within `SUBSCRIBE_GRACE_MS`), then call `get-trace-view`. Two calls, because
@@ -117,10 +117,10 @@ export const loadTrace = defineRpcFunction({
       return channel
     }
     return {
-      handler: async (input: { ref: string }): Promise<LoadTraceResult> => {
-        const { ref } = parseInput(loadTraceInput, input)
+      handler: async (input: { traceId: string }): Promise<LoadTraceResult> => {
+        const { traceId } = parseInput(loadTraceInput, input)
         const owner = ownerOf(ctx)
-        const handle = await requireStore().open(ref, owner)
+        const handle = await requireStore().open(traceId, owner)
         const sink = progressChannel().start()
         const first = handle.progress()
         sink.write(first)
@@ -172,8 +172,8 @@ export const getTraceView = defineRpcFunction({
   type: 'query',
   jsonSerializable: true,
   setup: ctx => ({
-    handler: async (input: { ref: string }): Promise<TraceViewResult> =>
-      requireStore().view(parseInput(traceViewInput, input).ref, ownerOf(ctx)),
+    handler: async (input: { traceId: string }): Promise<TraceViewResult> =>
+      requireStore().view(parseInput(traceViewInput, input).traceId, ownerOf(ctx)),
   }),
 })
 
@@ -182,9 +182,9 @@ export const getEvent = defineRpcFunction({
   type: 'query',
   jsonSerializable: true,
   setup: ctx => ({
-    handler: async (input: { ref: string; id: string }): Promise<EventDetail> => {
-      const { ref, id } = parseInput(eventInput, input)
-      return requireStore().event(ref, id, ownerOf(ctx))
+    handler: async (input: { traceId: string; id: string }): Promise<EventDetail> => {
+      const { traceId, id } = parseInput(eventInput, input)
+      return requireStore().event(traceId, id, ownerOf(ctx))
     },
   }),
 })
@@ -195,13 +195,13 @@ export const reconstructAt = defineRpcFunction({
   jsonSerializable: true,
   agent: {
     description:
-      'Reconstruct the model-visible surface at one event id: context slots, recorded token counts, and events removed by compaction. Missing slots are unavailable, never invented. `ref` defaults to the session the server was started with.',
+      'Reconstruct the model-visible surface at one event id: context slots, recorded token counts, and events removed by compaction. Missing slots are unavailable, never invented. `traceId` defaults to the session the server was started with.',
   },
   // No owner: MCP calls run outside an RPC session, and a reconstruct takes its own hold.
   setup: () => ({
-    handler: async (input: { ref?: string; eventId: string }): Promise<ReconstructResult> => {
-      const { ref, eventId } = parseInput(reconstructInput, input)
-      return requireStore().reconstruct(ref ?? CURRENT_REF, eventId)
+    handler: async (input: { traceId?: string; eventId: string }): Promise<ReconstructResult> => {
+      const { traceId, eventId } = parseInput(reconstructInput, input)
+      return requireStore().reconstruct(traceId ?? CURRENT_TRACE_ID, eventId)
     },
   }),
 })

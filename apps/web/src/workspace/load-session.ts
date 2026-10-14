@@ -12,7 +12,7 @@ const LOAD_PROGRESS_CHANNEL = 'load-progress'
 export type SessionEvent = EventDetail & { notInReport?: true }
 
 export interface LoadedSession {
-  ref: string
+  traceId: string
   /** The view trace: strings capped, no originals. */
   trace: Trace
   summary: SessionSummary
@@ -54,11 +54,11 @@ export interface LoadClient {
   status: ConnectionStatus
   onStatus: (listener: (status: ConnectionStatus) => void) => () => void
   /** `load-trace` */
-  loadTrace: (ref: string) => Promise<LoadTraceResult>
+  loadTrace: (traceId: string) => Promise<LoadTraceResult>
   /** `get-trace-view` */
-  traceView: (ref: string) => Promise<TraceViewResult>
+  traceView: (traceId: string) => Promise<TraceViewResult>
   /** `get-event` */
-  event: (ref: string, id: string) => Promise<EventDetail>
+  event: (traceId: string, id: string) => Promise<EventDetail>
   subscribe: (channel: string, id: string) => AsyncIterable<LoadProgress> & { cancel: () => void }
 }
 
@@ -70,9 +70,9 @@ async function defaultClient(): Promise<LoadClient> {
       return base.status
     },
     onStatus: listener => base.events.on('connection:status', status => listener(status)),
-    loadTrace: ref => ctx.rpc.call('load-trace', { ref }),
-    traceView: ref => ctx.rpc.call('get-trace-view', { ref }),
-    event: (ref, id) => ctx.rpc.call('get-event', { ref, id }),
+    loadTrace: traceId => ctx.rpc.call('load-trace', { traceId }),
+    traceView: traceId => ctx.rpc.call('get-trace-view', { traceId }),
+    event: (traceId, id) => ctx.rpc.call('get-event', { traceId, id }),
     subscribe: (channel, id) => ctx.rpc.streaming.subscribe<LoadProgress>(channel, id),
   }
 }
@@ -82,13 +82,13 @@ function lostFailure(): LoadFailure {
 }
 
 /**
- * The workspace load flow (plan 3.5): `load-trace(ref)`, subscribe to `load-progress` with the
+ * The workspace load flow (plan 3.5): `load-trace(traceId)`, subscribe to `load-progress` with the
  * returned id at once (the server releases an unsubscribed hold after 5 s), then
- * `get-trace-view(ref)`. Leaving the route cancels the stream, which releases the hold.
+ * `get-trace-view(traceId)`. Leaving the route cancels the stream, which releases the hold.
  * DevFrame 1.0.0 never reconnects a closed WebSocket, so a drop during the load ends it with
  * a "lost the connection" failure; the page offers a reload.
  */
-export function createSessionLoad(ref: string, connect: () => Promise<LoadClient> = defaultClient) {
+export function createSessionLoad(traceId: string, connect: () => Promise<LoadClient> = defaultClient) {
   const [state, setState] = createSignal<LoadState>({ status: 'loading', bytesRead: 0, totalBytes: 0 })
   let reader: { cancel: () => void } | undefined
   let attempt = 0
@@ -129,7 +129,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       if (client.status === 'disconnected' || client.status === 'error') {
         return fail(lostFailure())
       }
-      const started = await client.loadTrace(ref)
+      const started = await client.loadTrace(traceId)
       // After the check above, TypeScript narrows `lifetime.signal.aborted` to false and keeps that
       // across awaits, though `onCleanup` can abort during them: `throwIfAborted` reads the live value.
       if (mine !== attempt) {
@@ -149,7 +149,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       })().catch(() => {
         // The stream ends with the load's error; `get-trace-view` reports it.
       })
-      const view = await client.traceView(ref)
+      const view = await client.traceView(traceId)
       lifetime.signal.throwIfAborted()
       if (mine !== attempt || state().status === 'error') {
         return
@@ -157,7 +157,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       const live = client
       setState({
         status: 'ready',
-        session: { ref, trace: view.trace, summary: view.summary, event: id => live.event(ref, id) },
+        session: { traceId, trace: view.trace, summary: view.summary, event: id => live.event(traceId, id) },
       })
     } catch (error) {
       if (mine !== attempt || lifetime.signal.aborted || isCancelled(error) || state().status === 'error') {
@@ -187,7 +187,7 @@ export function reportSession(report: ReportTrace): LoadedSession {
   const full = new Map(report.events.map(event => [event.id, event]))
   const view = new Map(report.trace.events.map(event => [event.id, event]))
   return {
-    ref: '',
+    traceId: '',
     trace: report.trace,
     summary: report.summary,
     event: async id => {

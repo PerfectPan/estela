@@ -57,7 +57,7 @@ Fixed order. Never cycled, never reassigned when a filter hides a kind.
 |---|---|---|
 | Request | `#4d97de` | `#347ec4` |
 | User prompt | `#5aa75e` | `#418e47` |
-| Thinking | `#b576c3` | `#9c5eaa` |
+| Reasoning | `#b576c3` | `#9c5eaa` |
 | Tool | `#ca7e31` | `#b0660c` |
 | Subagent | `#00ab9d` | `#009284` |
 

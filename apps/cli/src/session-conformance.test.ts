@@ -130,7 +130,9 @@ describe('unknown generations fail loud on the repo fixtures', () => {
   ]
   for (const [agent, relative] of cases) {
     it(`${agent} unknown generation`, async () => {
-      await expect(loadSession(join(repo, relative), { platform })).rejects.toThrow('unknown format generation')
+      await expect(loadSession({ path: join(repo, relative) }, { platform })).rejects.toThrow(
+        'unknown format generation',
+      )
     })
   }
 })

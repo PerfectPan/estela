@@ -1,4 +1,4 @@
-import type { Lane } from '@rivus/agent-trace-kernel'
+import type { TimelineLane } from '@rivus/agent-trace-kernel'
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { BarInput } from '@/lib/timeline-scale.ts'
 import { mainAgentId } from '@rivus/agent-trace-kernel'
@@ -15,7 +15,7 @@ export interface CompactionMark extends Mark {
 
 /** What one lane draws, from `projectLanes` plus the lane's tool calls and time span. */
 export interface LaneDraw {
-  lane: Lane
+  lane: TimelineLane
   bars: BarInput[]
   tools: Mark[]
   prompts: Mark[]
@@ -39,7 +39,7 @@ export interface TimelineData {
 /** Built once per trace; the SVG only maps it to pixels. */
 export function timelineData(
   trace: Trace,
-  lanes: readonly Lane[],
+  lanes: readonly TimelineLane[],
   byId: ReadonlyMap<string, TraceEvent>,
 ): TimelineData {
   const mainId = mainAgentId(trace)

@@ -37,7 +37,7 @@ export function SessionBrowser() {
       .rows()
       .filter(
         row =>
-          (!matches || matches.has(row.ref))
+          (!matches || matches.has(row.traceId))
           && (!agent() || row.agent === agent())
           && (!project() || row.project === project())
           && (!f.compaction || (row.compactions ?? 0) > 0)
@@ -45,20 +45,20 @@ export function SessionBrowser() {
           && (!f.failed || (row.failedTools ?? 0) > 0),
       )
   })
-  const selectedRow = createMemo(() => visible().find(row => row.ref === selected()))
+  const selectedRow = createMemo(() => visible().find(row => row.traceId === selected()))
 
   createEffect(() => {
     const rows = visible()
-    if (!rows.some(row => row.ref === selected())) {
-      setSelected(rows[0]?.ref)
+    if (!rows.some(row => row.traceId === selected())) {
+      setSelected(rows[0]?.traceId)
     }
   })
 
   /** Open a row, unless it could not be read (the same rule as the disabled Open button). */
-  function openRow(ref: string | undefined): void {
-    const row = ref ? store.rows().find(item => item.ref === ref) : undefined
+  function openRow(traceId: string | undefined): void {
+    const row = traceId ? store.rows().find(item => item.traceId === traceId) : undefined
     if (row && !row.error) {
-      openSession(row.ref)
+      openSession(row.traceId)
     }
   }
 
@@ -67,7 +67,7 @@ export function SessionBrowser() {
     visible()
       .slice(0, VISIBLE_FIRST)
       .filter(row => row.pending)
-      .map(row => row.ref)
+      .map(row => row.traceId)
 
   createEffect(
     on(
@@ -90,10 +90,10 @@ export function SessionBrowser() {
     if (rows.length === 0) {
       return
     }
-    const index = rows.findIndex(row => row.ref === selected())
+    const index = rows.findIndex(row => row.traceId === selected())
     const next = rows[Math.min(rows.length - 1, Math.max(0, index < 0 ? 0 : index + step))]!
-    setSelected(next.ref)
-    listElement?.querySelector(`[data-ref="${CSS.escape(next.ref)}"]`)?.scrollIntoView({ block: 'nearest' })
+    setSelected(next.traceId)
+    listElement?.querySelector(`[data-trace-id="${CSS.escape(next.traceId)}"]`)?.scrollIntoView({ block: 'nearest' })
   }
 
   /** Arrow keys and Enter, in the list and in the search box only. */

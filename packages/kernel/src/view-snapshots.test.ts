@@ -28,7 +28,7 @@ const toolsB = [...toolsA, { name: 'Grep' }]
 function trace(): Trace {
   return {
     schema: 'agent-trace',
-    agent: { id: 'test' },
+    agent: 'test',
     session: { id: 's', systemPrompt: 'two', tools: toolsB },
     capabilities: ['systemPrompt', 'toolSchemas'],
     agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', systemPrompt: 'one' }],

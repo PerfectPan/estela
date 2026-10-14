@@ -31,7 +31,7 @@ async function unknownGeneration(): Promise<string> {
 function canonicalHook(payload: Record<string, unknown>): string {
   return JSON.stringify({
     schema: 'agent-trace',
-    agent: { id: 'demo' },
+    agent: 'demo',
     session: { id: 's' },
     capabilities: [],
     agents: [],
@@ -51,12 +51,12 @@ async function grokUnknownGeneration(): Promise<string> {
 describe('loadSession', () => {
   it('throws the unknown-generation wording, which the web parses into agent, file, and line', async () => {
     const path = await unknownGeneration()
-    await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+    await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
       `claude-code: ${path}:1: unknown format generation`,
     )
   })
 
-  it('the ref’s agent routes the read even when detection would pick another adapter', async () => {
+  it('the SessionRef’s agent routes the read even when detection would pick another adapter', async () => {
     const dir = await grokUnknownGeneration()
     // Named Claude Code, the Grok directory is read as a Claude file: the failure is Claude
     // Code's directory read failure (EISDIR), not Grok's summary handling — routing beat
@@ -66,18 +66,18 @@ describe('loadSession', () => {
     ).rejects.toThrow(/EISDIR/)
   })
 
-  it('a ref naming an agent without an adapter fails with capability-unsupported wording', async () => {
+  it('a SessionRef naming an agent without an adapter fails with capability-unsupported wording', async () => {
     const path = await unknownGeneration()
     await expect(
       loadSession({ agent: 'nosuch', path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
     ).rejects.toThrow('no session adapter for nosuch')
   })
 
-  it('a file no adapter recognizes fails detection with the ref label', async () => {
+  it('a file no adapter recognizes fails detection with the target label', async () => {
     const dir = await tempDir()
     const path = join(dir, 'notes.txt')
     await writeFile(path, 'not a session at all\n')
-    await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+    await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
       `No adapter accepted ${path}`,
     )
   })
@@ -99,7 +99,7 @@ describe('loadSession', () => {
         message: { role: 'user', content: 'Run the fall-through checks' },
       })}\n`,
     )
-    await expect(loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+    await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
       `claude-code: ${path}:1: unknown format generation`,
     )
   })
@@ -110,7 +110,7 @@ describe('loadSession', () => {
     const reason = new Error('stop reading')
     controller.abort(reason)
     await expect(
-      loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }), signal: controller.signal }),
+      loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }), signal: controller.signal }),
     ).rejects.toThrow(reason)
   })
 
@@ -118,7 +118,7 @@ describe('loadSession', () => {
     const dir = await tempDir()
     const path = join(dir, 'missing.jsonl')
     await expect(
-      loadSession(`${path}#s1`, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+      loadSession({ path, sessionId: 's1' }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
     ).rejects.toThrow(`${path}#s1 does not exist`)
   })
 
@@ -126,7 +126,7 @@ describe('loadSession', () => {
     const path = join(repo, 'fixtures/demo.trace.json')
     // No kit adapter accepts this file, so only the canonical fast path can return it.
     const expected: unknown = JSON.parse(await readFile(path, 'utf8'))
-    const trace = await loadSession(path, { platform: createNodePlatform({ home: '/u/me', env: {} }) })
+    const trace = await loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })
     expect(trace).toEqual(expected)
   })
 
@@ -135,11 +135,11 @@ describe('loadSession', () => {
     const platform = createNodePlatform({ home: '/u/me', env: {} })
     const valid = join(dir, 'valid.trace.json')
     await writeFile(valid, canonicalHook({ type: 'hook_success', name: 'PreToolUse' }))
-    expect((await loadSession(valid, { platform })).events).toHaveLength(1)
+    expect((await loadSession({ path: valid }, { platform })).events).toHaveLength(1)
     // A hook without `type`, as older generated traces wrote it, is not a canonical trace.
     const broken = join(dir, 'broken.trace.json')
     await writeFile(broken, canonicalHook({ name: 'PreToolUse' }))
-    await expect(loadSession(broken, { platform })).rejects.toThrow(`No adapter accepted ${broken}`)
+    await expect(loadSession({ path: broken }, { platform })).rejects.toThrow(`No adapter accepted ${broken}`)
   })
 
   it('a real Claude Code fixture loads with its events and originals', async () => {
@@ -156,7 +156,7 @@ describe('loadSession', () => {
       { platform },
     )
     expect(trace.schema).toBe('agent-trace')
-    expect(trace.agent.id).toBe('claude-code')
+    expect(trace.agent).toBe('claude-code')
     expect(trace.events.length).toBeGreaterThan(0)
     expect(trace.events[0]!.original).toBeDefined()
   })

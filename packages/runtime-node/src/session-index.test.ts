@@ -21,7 +21,7 @@ async function tempDir(): Promise<string> {
   return dir
 }
 
-function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'ref' | 'path'>): IndexSummary {
+function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'traceId' | 'path'>): IndexSummary {
   return {
     agent: 'claude-code',
     size: 10,
@@ -43,7 +43,7 @@ describe('session index', () => {
   it('creates the file with mode 0600 and reopens the same summary', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
     expect(index.get('/logs/a.jsonl', 10, 1_000)?.outputTokens).toBe(0)
     expect(index.get('/logs/a.jsonl', 10, 1_000)?.inputTokens).toBe(118_400)
@@ -62,7 +62,7 @@ describe('session index', () => {
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putHeads([
       {
-        ref: 'a',
+        traceId: 'a',
         agent: 'codex',
         path: '/logs/a.jsonl',
         size: 10,
@@ -79,7 +79,7 @@ describe('session index', () => {
   it('rebuilds when user_version does not match', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Fix the auth refresh' })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl', title: 'Fix the auth refresh' })])
     index.close()
     const raw = new DatabaseSync(file)
     raw.exec('PRAGMA user_version = 9')
@@ -87,7 +87,7 @@ describe('session index', () => {
     const rebuilt = openSessionIndex({ summaryVersion: 1, file })
     expect(rebuilt.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
     expect(rebuilt.search('Fix')).toEqual([])
-    rebuilt.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl', title: 'Other' })])
+    rebuilt.putSummaries([summary({ traceId: 'b', path: '/logs/b.jsonl', title: 'Other' })])
     expect(rebuilt.search('Ot')).toEqual(['b'])
     rebuilt.close()
   })
@@ -95,17 +95,19 @@ describe('session index', () => {
   it('rebuilds an index written with the previous layout instead of reading it', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     index.close()
-    // The previous layout: the same tables with the agent column named `host`, at user_version 1.
+    // The previous layout: the same tables with the trace id columns named `ref`, at user_version 2.
     const raw = new DatabaseSync(file)
-    raw.exec('ALTER TABLE sessions RENAME COLUMN agent TO host; PRAGMA user_version = 1')
+    raw.exec(
+      'ALTER TABLE sessions RENAME COLUMN trace_id TO ref; ALTER TABLE prompts RENAME COLUMN trace_id TO ref; PRAGMA user_version = 2',
+    )
     raw.close()
     const rebuilt = openSessionIndex({ summaryVersion: 1, file })
     expect(rebuilt.enabled).toBe(true)
     expect(rebuilt.rows()).toEqual([])
-    rebuilt.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl' })])
-    expect(rebuilt.rows().map(row => [row.ref, row.agent])).toEqual([['b', 'claude-code']])
+    rebuilt.putSummaries([summary({ traceId: 'b', path: '/logs/b.jsonl' })])
+    expect(rebuilt.rows().map(row => [row.traceId, row.agent])).toEqual([['b', 'claude-code']])
     rebuilt.close()
   })
 
@@ -113,7 +115,7 @@ describe('session index', () => {
     const file = join(await tempDir(), 'index.sqlite')
     writeFileSync(file, 'not a database')
     const index = openSessionIndex({ summaryVersion: 1, file })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     expect(index.search('auth')).toEqual(['a'])
     expect(statSync(file).mode & 0o777).toBe(0o600)
     index.close()
@@ -124,13 +126,13 @@ describe('session index', () => {
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([
       summary({
-        ref: 'en',
+        traceId: 'en',
         path: '/logs/en.jsonl',
         title: 'Fix the auth refresh',
         prompts: ['Run the tests please', 'Check the login timeout'],
       }),
       summary({
-        ref: 'zh',
+        traceId: 'zh',
         path: '/logs/zh.jsonl',
         title: '修复登录',
         prompts: ['请帮我看看这个测试为什么失败'],
@@ -153,7 +155,7 @@ describe('session index', () => {
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([
       summary({
-        ref: 'a',
+        traceId: 'a',
         path: '/logs/a.jsonl',
         summary: { turns: 0, failedTools: 0 },
       }),
@@ -169,8 +171,8 @@ describe('session index', () => {
   it('does not create a file when the index is disabled', async () => {
     const file = join(await tempDir(), 'missing', 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file, enabled: false })
-    index.putHeads([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 1 }])
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    index.putHeads([{ traceId: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 1 }])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
     expect(index.search('auth')).toBeUndefined()
     expect(index.enabled).toBe(false)
@@ -181,8 +183,13 @@ describe('session index', () => {
   it('matches a short query as a substring of titles and prompts', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
     index.putSummaries([
-      summary({ ref: 'zh', path: '/logs/zh.jsonl', title: '修复登录', prompts: ['请帮我看看这个测试为什么失败'] }),
-      summary({ ref: 'en', path: '/logs/en.jsonl', title: 'Fix the auth refresh', prompts: ['Run the tests please'] }),
+      summary({ traceId: 'zh', path: '/logs/zh.jsonl', title: '修复登录', prompts: ['请帮我看看这个测试为什么失败'] }),
+      summary({
+        traceId: 'en',
+        path: '/logs/en.jsonl',
+        title: 'Fix the auth refresh',
+        prompts: ['Run the tests please'],
+      }),
     ])
     expect(index.search('登录')).toEqual(['zh'])
     expect(index.search('测试')).toEqual(['zh'])
@@ -193,7 +200,7 @@ describe('session index', () => {
 
   it('treats control characters and FTS operators as plain text', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl', title: 'Fix the auth refresh' })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl', title: 'Fix the auth refresh' })])
     expect(index.search('auth\u0000 refresh')).toEqual([])
     expect(index.search('\u0000\u0007')).toBeUndefined()
     expect(index.search('auth" OR "x')).toEqual([])
@@ -205,7 +212,7 @@ describe('session index', () => {
   it('does not return a summary written under another summary version', async () => {
     const file = join(await tempDir(), 'index.sqlite')
     const old = openSessionIndex({ file, summaryVersion: 0 })
-    old.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    old.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     expect(old.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
     old.close()
     const current = openSessionIndex({ summaryVersion: 1, file })
@@ -217,8 +224,8 @@ describe('session index', () => {
 
   it('reads NULL head columns as absent fields', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
-    index.putHeads([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
-    expect(index.rows()).toEqual([{ ref: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
+    index.putHeads([{ traceId: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
+    expect(index.rows()).toEqual([{ traceId: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 2 }])
     index.close()
   })
 
@@ -243,7 +250,7 @@ describe('session index', () => {
 
   it('keeps a fractional mtime exact', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl', mtimeMs: 1_758_000_000_123.456 })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl', mtimeMs: 1_758_000_000_123.456 })])
     expect(index.get('/logs/a.jsonl', 10, 1_758_000_000_123.456)?.turns).toBe(2)
     expect(index.rows()[0]?.mtimeMs).toBe(1_758_000_000_123.456)
     index.close()
@@ -283,7 +290,7 @@ describe('session index', () => {
       const n = process.argv[2]
       const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
       if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ ref: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+      index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
     `,
     )
@@ -307,7 +314,7 @@ describe('session index', () => {
     expect(
       index
         .rows()
-        .map(row => row.ref)
+        .map(row => row.traceId)
         .toSorted(),
     ).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
     index.close()
@@ -316,8 +323,8 @@ describe('session index', () => {
   it('folds non-ASCII case the same way on both sides', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
     index.putSummaries([
-      summary({ ref: 'de', path: '/logs/de.jsonl', title: 'Über die Tests', prompts: [] }),
-      summary({ ref: 'ru', path: '/logs/ru.jsonl', title: 'Добро пожаловать', prompts: [] }),
+      summary({ traceId: 'de', path: '/logs/de.jsonl', title: 'Über die Tests', prompts: [] }),
+      summary({ traceId: 'ru', path: '/logs/ru.jsonl', title: 'Добро пожаловать', prompts: [] }),
     ])
     expect(index.search('über')).toEqual(['de'])
     expect(index.search('ÜB')).toEqual(['de'])
@@ -332,7 +339,7 @@ describe('session index', () => {
     chmodSync(dir, 0o755)
     const file = join(dir, 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
-    index.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     expect(statSync(dir).mode & 0o777).toBe(0o700)
     for (const suffix of ['', '-wal', '-shm']) {
       expect({ suffix, mode: statSync(`${file}${suffix}`).mode & 0o777 }).toEqual({ suffix, mode: 0o600 })
@@ -347,7 +354,7 @@ describe('session index', () => {
     const dir = await tempDir()
     const file = join(dir, 'index.sqlite')
     const seed = openSessionIndex({ summaryVersion: 1, file })
-    seed.putSummaries([summary({ ref: 'a', path: '/logs/a.jsonl' })])
+    seed.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     seed.close()
     const holder = spawn(
       process.execPath,
@@ -358,7 +365,7 @@ describe('session index', () => {
       const { DatabaseSync } = require('node:sqlite')
       const db = new DatabaseSync(${JSON.stringify(file)})
       db.exec('BEGIN EXCLUSIVE')
-      db.exec("UPDATE sessions SET title = 'held' WHERE ref = 'a'")
+      db.exec("UPDATE sessions SET title = 'held' WHERE trace_id = 'a'")
       process.stdout.write('locked\\n')
       setTimeout(() => { db.exec('ROLLBACK'); db.close() }, 3000)
     `,
@@ -372,7 +379,7 @@ describe('session index', () => {
     expect(index.search('auth')).toEqual(['a'])
     expect(index.rows()).toHaveLength(1)
     expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
-    expect(() => index.putSummaries([summary({ ref: 'b', path: '/logs/b.jsonl' })])).toThrow(/locked/)
+    expect(() => index.putSummaries([summary({ traceId: 'b', path: '/logs/b.jsonl' })])).toThrow(/locked/)
     expect(performance.now() - started).toBeLessThan(1_000)
     index.close()
     holder.kill()
@@ -391,7 +398,7 @@ describe('session index', () => {
       const n = process.argv[2]
       const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
       if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ ref: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+      index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
       index.close()
     `,
     )
@@ -418,7 +425,7 @@ describe('session index', () => {
     expect(
       index
         .rows()
-        .map(row => row.ref)
+        .map(row => row.traceId)
         .toSorted(),
     ).toEqual(['r0', 'r1', 'r2', 'r3'])
     index.close()

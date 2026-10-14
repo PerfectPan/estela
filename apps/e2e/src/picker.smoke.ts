@@ -13,15 +13,15 @@ function readyBox(raw: string): string[] {
   return top === -1 ? [] : lines.slice(top, top + 3).filter(line => line.length > 0)
 }
 
-/** The ref the CLI gives a session path, read from its plain `Ready:` line. */
-async function refOf(path: string): Promise<string> {
+/** The trace id the CLI gives a session path, read from its plain `Ready:` line. */
+async function traceIdOf(path: string): Promise<string> {
   const server = start(process.execPath, [ctx.bin, path, '--no-open', '--port', '0'], {
     cwd: ctx.installDir,
-    env: smokeEnv(ctx, openLogPath(ctx, 's16-ref')),
+    env: smokeEnv(ctx, openLogPath(ctx, 's16-trace-id')),
   })
   try {
     await waitFor('the Ready line', () => readyUrl(server.output().stdout) !== undefined)
-    return readyUrl(server.output().stdout)!.ref
+    return readyUrl(server.output().stdout)!.traceId
   } finally {
     await server.stop()
   }
@@ -30,7 +30,7 @@ async function refOf(path: string): Promise<string> {
 describe('installed tarball in a terminal', () => {
   it('S16: --pick, type part of a title, Enter opens that session', async () => {
     const subagent = join(ctx.home, '.claude/projects/app-subagent/session.jsonl')
-    const expected = await refOf(subagent)
+    const expected = await traceIdOf(subagent)
     const log = openLogPath(ctx, 's16')
     const term = spawnPty(process.execPath, [ctx.bin, '--pick', '--port', '0'], {
       name: 'xterm-256color',
@@ -61,7 +61,7 @@ describe('installed tarball in a terminal', () => {
         () => readyUrl(screen) !== undefined && openedUrls(log).length > 0,
       )
       const ready = readyUrl(screen)
-      expect(ready!.ref).toBe(expected)
+      expect(ready!.traceId).toBe(expected)
       const [opened] = openedUrls(log)
       expect(opened).toContain(`?s=${expected}#devframe_otp=`)
       expect(opened!.startsWith(ready!.base)).toBe(true)

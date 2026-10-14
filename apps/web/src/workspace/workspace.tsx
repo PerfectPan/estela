@@ -12,13 +12,13 @@ import { ReportBanner } from './report-banner.tsx'
 import { SessionView } from './session-view.tsx'
 
 /**
- * `#/s/<ref>`: load with progress, then header, timeline, ledger, and inspector (plan 3.6).
+ * `#/s/<traceId>`: load with progress, then header, timeline, ledger, and inspector (plan 3.6).
  * With a `report`, the same view over the baked session: no load, no export, no server calls.
  */
-export function Workspace(props: { sessionRef: string; report?: ReportTrace }) {
+export function Workspace(props: { traceId: string; report?: ReportTrace }) {
   const report = props.report
   const baked = report ? ({ status: 'ready', session: reportSession(report) } as const) : undefined
-  const load = baked ? { state: () => baked, retry: () => {} } : createSessionLoad(props.sessionRef)
+  const load = baked ? { state: () => baked, retry: () => {} } : createSessionLoad(props.traceId)
   const ready = () => {
     const state = load.state()
     return state.status === 'ready' ? state.session : undefined
@@ -41,7 +41,7 @@ export function Workspace(props: { sessionRef: string; report?: ReportTrace }) {
       <TopBar
         crumbs={crumbs()}
         report={report !== undefined}
-        actions={ready() && !report ? <ExportReport sessionRef={props.sessionRef} /> : undefined}
+        actions={ready() && !report ? <ExportReport traceId={props.traceId} /> : undefined}
         onJump={() => document.querySelector<HTMLElement>('[data-testid="ledger"]')?.focus()}
       />
       <Switch>

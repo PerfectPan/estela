@@ -1,6 +1,6 @@
 import type { ListSessionsQuery, ListSessionsResult } from '../list-types.ts'
 
-/** `list-sessions` on the dev server. Traces by ref come from the TraceStore. */
+/** `list-sessions` on the dev server. Traces by trace id come from the TraceStore. */
 export interface SessionService {
   listSessions?: (input: ListSessionsQuery) => Promise<ListSessionsResult>
 }

@@ -33,7 +33,7 @@ describe('rowText', () => {
     ]
     expect(events.map(rowText)).toEqual([
       { text: 'done' },
-      { text: 'm · stop end_turn' },
+      { text: 'm · finish end_turn' },
       { text: 'PreToolUse' },
       { text: 'mystery' },
       { text: '{"durationMs":5}' },

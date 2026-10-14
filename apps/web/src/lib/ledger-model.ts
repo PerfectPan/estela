@@ -1,4 +1,4 @@
-import type { Lane, RequestEntry, Turn } from '@rivus/agent-trace-kernel'
+import type { RequestEntry, TimelineLane, Turn } from '@rivus/agent-trace-kernel'
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { foldHookRuns, hiddenAfterCompaction, mainAgentId, projectLanes, projectTurns } from '@rivus/agent-trace-kernel'
 import { inRange } from './timeline-scale.ts'
@@ -8,7 +8,7 @@ export type RowKind =
   | 'user'
   | 'request'
   | 'tool'
-  | 'thinking'
+  | 'reasoning'
   | 'reply'
   | 'subagent'
   | 'system'
@@ -43,7 +43,7 @@ export interface TurnGroup {
 export interface LedgerModel {
   trace: Trace
   turns: TurnGroup[]
-  lanes: Lane[]
+  lanes: TimelineLane[]
   byId: Map<string, TraceEvent>
   /** Row number of each event that has its own row, except hooks and compactions (tool results share their call's). */
   ordinals: Map<string, number>
@@ -53,7 +53,7 @@ export interface LedgerModel {
   /** Tool results by call id. */
   results: Map<string, TraceEvent>
   /** `projectLanes` request entries by event id, with their lane and position on it. */
-  requests: Map<string, { entry: RequestEntry; lane: Lane; index: number }>
+  requests: Map<string, { entry: RequestEntry; lane: TimelineLane; index: number }>
   /** Every entry by id, including the single hook rows of an expanded hooks row. */
   entries: Map<string, Entry>
   /** Per compaction: how many events it hid, and the lowest and highest of their row numbers. */
@@ -71,7 +71,7 @@ function rowKind(event: TraceEvent): RowKind {
     case 'assistant':
       return 'reply'
     case 'reasoning':
-      return 'thinking'
+      return 'reasoning'
     case 'tool_call':
     case 'tool_result':
       return 'tool'

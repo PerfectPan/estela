@@ -7,7 +7,7 @@ export function PreviewPane(props: {
   row?: SessionListRow
   agents: AgentListEntry[]
   now: number
-  onOpen: (ref: string) => void
+  onOpen: (traceId: string) => void
 }) {
   return (
     <aside class="flex w-[340px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-border bg-secondary p-[22px]">
