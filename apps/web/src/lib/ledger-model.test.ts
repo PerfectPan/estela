@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventKind, Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import {
   anchorIndex,
@@ -10,10 +10,15 @@ import {
   type LedgerView,
 } from './ledger-model.ts'
 
+/** An event's id, a kind with that kind's payload, and any other fields. */
+type EventInput = Partial<Omit<TraceEvent, 'kind' | 'payload'>> & { id: string } & {
+    [K in EventKind]: { kind: K; payload: TraceEventPayloads[K] }
+  }[EventKind]
+
 let seq = 0
-function event(partial: Partial<TraceEvent> & Pick<TraceEvent, 'id' | 'kind'>): TraceEvent {
+function event(input: EventInput): TraceEvent {
   const at = seq++
-  return { seq: at, ts: 1000 * at, payload: {}, source: { file: '0', offset: 0, length: 1, line: at + 1 }, ...partial }
+  return { seq: at, ts: 1000 * at, source: { file: '0', offset: 0, length: 1, line: at + 1 }, ...input }
 }
 
 function sample(): Trace {
@@ -30,8 +35,8 @@ function sample(): Trace {
       event({ id: 'r1', kind: 'request', payload: { usage: { inputTokens: 100 } } }),
       event({ id: 'c1', kind: 'tool_call', payload: { callId: 'x1', name: 'Bash', args: { command: 'ls' } } }),
       event({ id: 'o1', kind: 'tool_result', payload: { callId: 'x1', isError: true, exitCode: 1 } }),
-      event({ id: 'h1', kind: 'hook', payload: {} }),
-      event({ id: 'h2', kind: 'hook', payload: {} }),
+      event({ id: 'h1', kind: 'hook', payload: { type: 'hook_success' } }),
+      event({ id: 'h2', kind: 'hook', payload: { type: 'hook_success' } }),
       event({ id: 'spawn', kind: 'tool_call', payload: { callId: 'x2', name: 'Task' } }),
       event({ id: 's1', kind: 'request', agentId: 'sub', payload: {} }),
       event({ id: 's2', kind: 'assistant', agentId: 'sub', payload: { text: 'found' } }),

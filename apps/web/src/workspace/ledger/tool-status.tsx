@@ -1,11 +1,11 @@
 import { Match, Switch } from 'solid-js'
 import { CheckIcon, WarningIcon } from '@/components/icons.tsx'
 import { translate as t } from '@/i18n/locale.ts'
-import { numberField } from '@/lib/event-text.ts'
+import { exitCode } from '@/lib/event-text.ts'
 import { isFailedResult } from '@/lib/ledger-model.ts'
 
 export function ToolStatus(props: { result?: Parameters<typeof isFailedResult>[0] }) {
-  const code = () => numberField(props.result, 'exitCode')
+  const code = () => exitCode(props.result)
   return (
     <Switch>
       <Match when={isFailedResult(props.result)}>

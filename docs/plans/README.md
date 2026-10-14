@@ -4,7 +4,7 @@ A plan records the technical decisions and the detailed execution plan for one d
 
 Each plan has a Chinese reading copy; see [Bilingual Specs And Plans](../../CONTRIBUTING.md#bilingual-specs-and-plans).
 
-Active plans: [`0001-external-release.md`](0001-external-release.md), paired with [Spec 0001](../specs/0001-external-release.md); [`0002-parse-unknown-data.md`](0002-parse-unknown-data.md), a technical refactor without a Spec.
+Active plans: [`0001-external-release.md`](0001-external-release.md), paired with [Spec 0001](../specs/0001-external-release.md).
 
 Start from [`0000-template.md`](0000-template.md). Keep only the sections the change needs: background, outline, detailed design, rollout, verification, and the execution plan. Delete the rest. The execution plan lists preconditions, a completion contract, ordered tasks with files, changes, tests, and exit conditions, a validation ledger, and rollback per batch. Keep a plan `blocked` while a material decision is unresolved. Unknown owners and dates stay "unconfirmed".
 

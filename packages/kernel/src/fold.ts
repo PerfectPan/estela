@@ -1,6 +1,5 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { asNumber, asRecord } from './jsonl.ts'
 import { mainAgentId, promptStarts } from './lanes.ts'
 
 export interface TraceFold extends SessionSummary {
@@ -71,7 +70,7 @@ function usageSum(events: TraceEvent[], field: 'inputTokens' | 'outputTokens'): 
     if (event.kind !== 'request') {
       continue
     }
-    const amount = asNumber(asRecord(event.payload.usage)?.[field])
+    const amount = event.payload.usage?.[field]
     if (amount === undefined) {
       continue
     }
@@ -91,15 +90,16 @@ function knownSum(values: (number | undefined)[]): number | undefined {
  * records them; otherwise the sum of per-call request `durationMs`.
  */
 function durationSum(events: TraceEvent[]): number | undefined {
-  const turns = knownSum(
-    events
-      .filter(event => event.kind === 'system' && event.payload.type === 'turn_duration')
-      .map(event => asNumber(event.payload.durationMs)),
-  )
-  if (turns !== undefined) {
-    return turns
+  const turns: (number | undefined)[] = []
+  const requests: (number | undefined)[] = []
+  for (const event of events) {
+    if (event.kind === 'system' && event.payload.type === 'turn_duration') {
+      turns.push(event.payload.durationMs)
+    } else if (event.kind === 'request') {
+      requests.push(event.payload.durationMs)
+    }
   }
-  return knownSum(events.filter(event => event.kind === 'request').map(event => asNumber(event.payload.durationMs)))
+  return knownSum(turns) ?? knownSum(requests)
 }
 
 /**
@@ -115,7 +115,7 @@ export function fold(trace: Trace): TraceFold {
   const turns = countTurns(trace)
   const requestEvents = trace.events.filter(event => event.kind === 'request')
   const inputPoints = requestEvents.flatMap(event => {
-    const input = asNumber(asRecord(event.payload.usage)?.inputTokens)
+    const input = event.payload.usage?.inputTokens
     return input === undefined ? [] : [input]
   })
   const usage = capabilities.has('usage')

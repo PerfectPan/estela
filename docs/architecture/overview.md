@@ -28,6 +28,24 @@ one session (build <path>, or export-report on the dev server)
 
 `events[]` is the archive. Every event can return its original: the store keeps each event's source pointer (file, byte offset, length) and `get-event(ref, id)` reads that line again through the platform file system. The store records each source file's size and mtime at load and a fingerprint of each record; if the file changed since (a live session appends), the bytes must still parse to the same record, else the event comes back with `originalUnavailable` and the reason. A canonical JSON file keeps originals inside the file, so `get-event` reloads it once per cached entry.
 
+## Event payloads and parsing
+
+`TraceEvent` (`packages/schema/src/types.ts`) is the kit's `TranscriptEvent`, a union discriminated by `kind`, with the fields a view trace adds on each payload: `$truncated`, and `systemPromptSameAs` / `toolsSameAs` on `system`. The kernel and the web app narrow on `event.kind` and read typed fields; a field an agent adds of its own stays in the payload, read as `unknown`, and the Input tab shows it. Unknown data is parsed once where it enters, and the code after that reads typed values:
+
+| Input | Where | Check |
+|---|---|---|
+| Agent records | kit adapters | the kit's `zod/mini` schemas; `transcriptToTrace` puts the kit's events into the `Trace` as they are |
+| Canonical JSON file | `apps/cli` `loadSession` | `isTrace`, every payload against its kind; a file that fails is read through the kit like any other file |
+| View trace | kernel `toView` / `fitView` | `assertTrace` once on the view returned (not on every cap `fitView` measures); a view that is not a `Trace` throws |
+| Report JSON | web `shell/report.ts` | the trace schema, the kit's `SessionSummary`, and the event detail; throws with the first issue |
+| RPC inputs (browser, MCP) | each rpc handler | a `zod/mini` schema whose `error` texts are the messages clients see |
+| Index rows, caught errors, `emitWarning` arguments | `runtime-node` | one row schema per SELECT; `z.object` for `errcode` and `EEXIST`; Node's overload types |
+| DevFrame dump files, package manifests | `apps/cli` | `zod/mini` schemas |
+
+The per-kind payload schemas are loose objects over the kit's declared fields. `satisfies` ties each one's output to the kit's payload type and `payloads.test.ts` checks that every payload of that type passes, so a declared field cannot drift from the kit's type and a required field the kit adds fails the type check. A new optional kit field passes both: the loose object keeps it, unchecked until the schema declares it. The schemas have no defaults or transforms, and callers keep the checked value through a guard rather than the parse output, so identity and key order stay as recorded and the canonical fixture loads equal to its file. Live RPC results are not parsed again in the browser: both ends ship in one tarball, and the server checked the value at one of the points above. Handlers parse their own input rather than through DevFrame's `args` option, which would advertise positional `arg0` on the MCP surface and break `reconstruct { eventId }`.
+
+The index is a cache: a stored row whose head does not parse is deleted with its prompts and search row, and the next discover pass writes it again; a summary that does not parse is not served; a damaged `context_shape` loses only the shape. Walks over arbitrary JSON, where a schema per value costs too much (the source-record fingerprint, the view's string cap), use es-toolkit's `isPlainObject` and `isPrimitive`.
+
 ## Session index and session catalog
 
 `apps/cli/src/catalog.ts` is the session catalog. For each builtin kit adapter it calls `roots(home)` and `discover`, stats each file for the cache key, and serves the rows through `list-sessions`. A root that does not exist yields an agent entry with `count: 0` and the checked path. A file that `discover` or `summarize` cannot read is a row with `error` (reason, file, line). Claude Code subagent files are folded into their parent by the kit adapter.
@@ -54,7 +72,7 @@ The `reconstruct` RPC takes `{ ref?, eventId }`; without a ref (MCP) it reads `c
 
 | Package | Role |
 |---|---|
-| `packages/schema` (`@rivus/agent-trace-schema`) | Canonical `Trace` (`schema: 'agent-trace'`), kinds, capabilities, `shadowedBy` |
+| `packages/schema` (`@rivus/agent-trace-schema`) | Canonical `Trace` (`schema: 'agent-trace'`), kinds, capabilities, `shadowedBy`, event payload types built on the kit's, and the `zod/mini` schemas that check JSON traces |
 | `packages/kernel` (`@rivus/agent-trace-kernel`) | canonical-file head check, `SessionFs` read shape, fold, reconstruct, `toView` / `fitView`, projections |
 | `packages/runtime-node` (`@rivus/agent-trace-runtime-node`) | home directory, session index (`node:sqlite`) |
 | `packages/rpc` (`@rivus/agent-trace-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; `export-report` over an injected writer; `buildReport`; `report-trace`, registered only in DevFrame's build mode |
@@ -82,7 +100,7 @@ The SPA starts in report mode when it finds that element (`apps/web/src/shell/re
 
 ## Bundle
 
-`apps/cli` builds with `vp pack` into `dist/bin.mjs` (Node version check, then a dynamic import) and `dist/cli.mjs` (the CLI with every `@rivus/*` package bundled; `devframe`, `@devframes/agentic`, and `cac` stay runtime dependencies). The web build is copied into `dist/web/`, and `src/paths.ts` finds it there through the build-time constant `AGENT_TRACE_BUNDLE`. `apps/e2e` tests the packed tarball from outside: `test:smoke` (CLI, S2, S10, S13, S15, S16) and `test:e2e` (Playwright, the browser scenarios).
+`apps/cli` builds with `vp pack` into `dist/bin.mjs` (Node version check, then a dynamic import) and `dist/cli.mjs` (the CLI with every `@rivus/*` package bundled; `devframe`, `@devframes/agentic`, and `cac` stay runtime dependencies). The web build is copied into `dist/web/`, and `src/paths.ts` finds it there through the build-time constant `AGENT_TRACE_BUNDLE`. The web bundle includes `zod/mini` and the trace schemas for the report check (about 8 KB gzip); no size budget is set. `apps/e2e` tests the packed tarball from outside: `test:smoke` (CLI, S2, S10, S13, S15, S16) and `test:e2e` (Playwright, the browser scenarios).
 
 ## Trust
 

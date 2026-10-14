@@ -1,16 +1,22 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Trace } from '@rivus/agent-trace-schema'
-import { isTrace } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import { assertTrace, isTrace } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { reconstruct } from './reconstruct.ts'
 
 const fixturePath = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/demo.trace.json')
 
+async function demoTrace(): Promise<Trace> {
+  const value: unknown = JSON.parse(await readFile(fixturePath, 'utf8'))
+  assertTrace(value, fixturePath)
+  return value
+}
+
 describe('reconstruct', () => {
   it('drops shadowed events after compaction, keeps them in the archive', async () => {
-    const trace = JSON.parse(await readFile(fixturePath, 'utf8')) as unknown
+    const trace: unknown = JSON.parse(await readFile(fixturePath, 'utf8'))
     expect(isTrace(trace)).toBe(true)
     if (!isTrace(trace)) {
       return
@@ -34,7 +40,7 @@ describe('reconstruct', () => {
   })
 
   it('fills slots, recorded token counts, and the events compaction removed', async () => {
-    const trace = JSON.parse(await readFile(fixturePath, 'utf8')) as Trace
+    const trace = await demoTrace()
     const request = reconstruct(trace, 'e7')
     expect(request.slots).toEqual([
       { name: 'system', status: 'unavailable', eventIds: [] },
@@ -155,7 +161,7 @@ describe('reconstruct', () => {
           ts: 0,
           kind: 'tool_call',
           agentId: 'sub',
-          payload: { name: 'task' },
+          payload: { callId: 'c-task', name: 'task' },
           source: { ...source, line: 1 },
         },
         { id: 'sa', seq: 1, ts: 1, kind: 'assistant', agentId: 'sub', payload: {}, source: { ...source, line: 2 } },
@@ -196,7 +202,7 @@ describe('reconstruct', () => {
     const snap = (
       id: string,
       seq: number,
-      payload: Record<string, unknown>,
+      payload: TraceEventPayloads['system'],
       agentId?: string,
     ): Trace['events'][number] => ({
       id,

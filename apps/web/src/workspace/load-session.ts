@@ -49,15 +49,16 @@ function isCancelled(error: unknown): boolean {
 
 type ConnectionStatus = 'connecting' | 'connected' | 'unauthorized' | 'disconnected' | 'error'
 
-/** The part of the DevFrame client the load flow uses; tests pass a fake. */
+/** The part of the DevFrame client the load flow uses, one typed method per call; tests pass a fake. */
 export interface LoadClient {
   status: ConnectionStatus
   onStatus: (listener: (status: ConnectionStatus) => void) => () => void
-  call: {
-    (method: 'load-trace', input: { ref: string }): Promise<LoadTraceResult>
-    (method: 'get-trace-view', input: { ref: string }): Promise<TraceViewResult>
-    (method: 'get-event', input: { ref: string; id: string }): Promise<EventDetail>
-  }
+  /** `load-trace` */
+  loadTrace: (ref: string) => Promise<LoadTraceResult>
+  /** `get-trace-view` */
+  traceView: (ref: string) => Promise<TraceViewResult>
+  /** `get-event` */
+  event: (ref: string, id: string) => Promise<EventDetail>
   subscribe: (channel: string, id: string) => AsyncIterable<LoadProgress> & { cancel: () => void }
 }
 
@@ -69,7 +70,9 @@ async function defaultClient(): Promise<LoadClient> {
       return base.status
     },
     onStatus: listener => base.events.on('connection:status', status => listener(status)),
-    call: ((method: string, input: unknown) => ctx.rpc.call(method, input)) as LoadClient['call'],
+    loadTrace: ref => ctx.rpc.call('load-trace', { ref }),
+    traceView: ref => ctx.rpc.call('get-trace-view', { ref }),
+    event: (ref, id) => ctx.rpc.call('get-event', { ref, id }),
     subscribe: (channel, id) => ctx.rpc.streaming.subscribe<LoadProgress>(channel, id),
   }
 }
@@ -126,7 +129,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       if (client.status === 'disconnected' || client.status === 'error') {
         return fail(lostFailure())
       }
-      const started = await client.call('load-trace', { ref })
+      const started = await client.loadTrace(ref)
       // After the check above, TypeScript narrows `lifetime.signal.aborted` to false and keeps that
       // across awaits, though `onCleanup` can abort during them: `throwIfAborted` reads the live value.
       if (mine !== attempt) {
@@ -146,7 +149,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       })().catch(() => {
         // The stream ends with the load's error; `get-trace-view` reports it.
       })
-      const view = await client.call('get-trace-view', { ref })
+      const view = await client.traceView(ref)
       lifetime.signal.throwIfAborted()
       if (mine !== attempt || state().status === 'error') {
         return
@@ -154,7 +157,7 @@ export function createSessionLoad(ref: string, connect: () => Promise<LoadClient
       const live = client
       setState({
         status: 'ready',
-        session: { ref, trace: view.trace, summary: view.summary, event: id => live.call('get-event', { ref, id }) },
+        session: { ref, trace: view.trace, summary: view.summary, event: id => live.event(ref, id) },
       })
     } catch (error) {
       if (mine !== attempt || lifetime.signal.aborted || isCancelled(error) || state().status === 'error') {

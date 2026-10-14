@@ -16,8 +16,9 @@ export function TurnHeader(props: {
 }) {
   const prompt = () => {
     const id = props.group.turn.promptEventId
-    const text = id ? props.ctx.model.byId.get(id)?.payload.text : undefined
-    return typeof text === 'string' && text.trim() ? `“${previewText(text)}”` : ''
+    const event = id ? props.ctx.model.byId.get(id) : undefined
+    const text = event?.kind === 'user' ? event.payload.text : undefined
+    return text?.trim() ? `“${previewText(text)}”` : ''
   }
   const totals = () => {
     const turn = props.group.turn.totals

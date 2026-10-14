@@ -1,5 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { asNumber, asRecord } from './jsonl.ts'
+import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 
 const MAIN = 'main'
 
@@ -64,16 +63,14 @@ export function promptStarts(trace: Trace, lane?: string): TraceEvent[] {
 }
 
 /** Recorded input and output tokens of a `request` event; a field is absent when not recorded. */
-export function requestUsage(event: TraceEvent): { inputTokens?: number; outputTokens?: number } {
-  const usage = asRecord(event.payload.usage)
+export function requestUsage(event: EventOf<'request'>): { inputTokens?: number; outputTokens?: number } {
+  const usage = event.payload.usage
   const out: { inputTokens?: number; outputTokens?: number } = {}
-  const input = asNumber(usage?.inputTokens)
-  if (input !== undefined) {
-    out.inputTokens = input
+  if (usage?.inputTokens !== undefined) {
+    out.inputTokens = usage.inputTokens
   }
-  const output = asNumber(usage?.outputTokens)
-  if (output !== undefined) {
-    out.outputTokens = output
+  if (usage?.outputTokens !== undefined) {
+    out.outputTokens = usage.outputTokens
   }
   return out
 }

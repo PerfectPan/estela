@@ -22,8 +22,8 @@ export default {
     categories: { ...lint.categories, suspicious: 'warn' },
     rules: {
       ...lint.rules,
-      // Off while the kernel and the web app read event payloads through casts (plan 0002 PR B parses them) and
-      // the web app and tests cast DOM, library, and test-double types. Unknown data elsewhere is parsed by schema.
+      // Off while the web app and the tests cast DOM, library, internal-union, and test-double types, which are known
+      // types rather than unknown data; unknown data is parsed by schema (AGENTS.md).
       'typescript/no-unsafe-type-assertion': 'off',
       // Declared return types already cover this, and the rule does not follow
       // `never` calls such as `process.exit` or exhaustive switches.

@@ -19,7 +19,8 @@ export interface LoadSessionOptions {
 
 /**
  * One session load for the whole shell: canonical agent-trace JSON keeps its fast path
- * (`isCanonicalTraceFile` + `isTrace`; originals live in the file), everything else reads
+ * (`isCanonicalTraceFile` + `isTrace`, which checks each payload against its kind; originals
+ * live in the file), and a file that fails it is read like any other. Everything else reads
  * through the kit and maps to the canonical `Trace`. The kit's expected failures throw with
  * the wording the shell showed before it: missing file (with the `path#id` label),
  * `No adapter accepted …`, `agent: file:line: unknown format generation`, and the

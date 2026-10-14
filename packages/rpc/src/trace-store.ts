@@ -41,7 +41,7 @@ export interface TraceStoreDeps {
   present?: <T>(value: T) => T
   /** Server log, for conditions the operator should see (a view over budget). */
   log?: (message: string) => void
-  /** Default 4,096 characters. */
+  /** The view's starting string cap: 4,096 characters by default; `fitView` raises a value below 256 to 256. */
   maxString?: number
 }
 

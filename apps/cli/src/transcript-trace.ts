@@ -4,8 +4,9 @@ import type { Transcript } from '@rivus/agent-kit/transcript'
 /**
  * Maps a kit `Transcript` onto the repo's canonical `Trace`: the kit's `Transcript` is what
  * reading produces, `Trace` is the repo-internal model (schema head, `agent` block,
- * flattened `skipped`). Event kinds, capabilities, and payload names are the kit's since
- * the schema adopted them.
+ * flattened `skipped`). `Trace.events` are the kit's events themselves: the kit parsed the
+ * agent's records at its boundary and types each payload by kind, which is the type
+ * `TraceEvent` is built on, so the events need no copy, parse, or cast here.
  */
 export function transcriptToTrace(transcript: Transcript): Trace {
   return {
@@ -17,7 +18,7 @@ export function transcriptToTrace(transcript: Transcript): Trace {
     session: transcript.session,
     capabilities: [...transcript.capabilities],
     agents: transcript.agents,
-    events: transcript.events.map(event => ({ ...event })),
+    events: transcript.events,
     skipped: transcript.skipped.map(skip => ({
       file: skip.source.file,
       line: skip.source.line,

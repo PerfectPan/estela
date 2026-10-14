@@ -2,15 +2,18 @@ import type { Entry } from '@/lib/ledger-model.ts'
 import { Show } from 'solid-js'
 import { CompactIcon } from '@/components/icons.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
-import { numberField } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
 import type { RowContext } from './row-frame.tsx'
 import { elapsed } from './row-frame.tsx'
 
 export function CompactionRow(props: { entry: Extract<Entry, { type: 'compaction' }>; ctx: RowContext }) {
   const event = () => props.ctx.model.byId.get(props.entry.eventId)!
-  const pre = () => numberField(event(), 'preTokens')
-  const post = () => numberField(event(), 'postTokens')
+  const payload = () => {
+    const current = event()
+    return current.kind === 'compaction' ? current.payload : undefined
+  }
+  const pre = () => payload()?.preTokens
+  const post = () => payload()?.postTokens
   const stats = () => props.ctx.model.shadowed.get(props.entry.eventId)
   return (
     <div
@@ -20,7 +23,7 @@ export function CompactionRow(props: { entry: Extract<Entry, { type: 'compaction
       <span class="w-[30px] shrink-0" />
       <CompactIcon size={16} class="shrink-0 text-foreground" />
       <span class="shrink-0 text-[13px] font-medium text-foreground">
-        {event().payload.trigger === 'auto' ? t('ledger.autoCompacted') : t('ledger.compacted')}
+        {payload()?.trigger === 'auto' ? t('ledger.autoCompacted') : t('ledger.compacted')}
       </span>
       <Show when={pre() !== undefined && post() !== undefined}>
         <span class="shrink-0 font-mono text-[12px] text-muted-foreground">

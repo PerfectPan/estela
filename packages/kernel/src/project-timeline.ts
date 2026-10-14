@@ -1,5 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { asNumber, asString } from './jsonl.ts'
+import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import { laneOf, mainAgentId, promptStarts, requestUsage } from './lanes.ts'
 
 /** One model request, for timeline bars. Numbers are `undefined` when the agent did not record them. */
@@ -34,16 +33,15 @@ export interface Lane {
   markers: LaneMarker[]
 }
 
-function requestEntry(event: TraceEvent, lane: string, members: string[]): RequestEntry {
+function requestEntry(event: EventOf<'request'>, lane: string, members: string[]): RequestEntry {
   const entry: RequestEntry = { id: event.id, seq: event.seq, ts: event.ts, agentId: lane, eventIds: members }
-  const model = asString(event.payload.model)
+  const { model, durationMs } = event.payload
   if (model !== undefined) {
     entry.model = model
   }
   Object.assign(entry, requestUsage(event))
-  const duration = asNumber(event.payload.durationMs)
-  if (duration !== undefined) {
-    entry.durationMs = duration
+  if (durationMs !== undefined) {
+    entry.durationMs = durationMs
   }
   return entry
 }
@@ -76,8 +74,7 @@ function toolNames(trace: Trace): Map<string, string> {
     if (event.kind !== 'tool_call') {
       continue
     }
-    const callId = asString(event.payload.callId)
-    const name = asString(event.payload.name)
+    const { callId, name } = event.payload
     if (callId && name) {
       names.set(callId, name)
     }
@@ -91,7 +88,7 @@ function marker(event: TraceEvent, prompts: Set<string>, names: Map<string, stri
   }
   if (event.kind === 'tool_result' && event.payload.isError === true) {
     const out: LaneMarker = { kind: 'failed-tool', eventId: event.id, ts: event.ts }
-    const callId = asString(event.payload.callId)
+    const callId = event.payload.callId
     if (callId) {
       out.callId = callId
       const name = names.get(callId)
@@ -103,17 +100,15 @@ function marker(event: TraceEvent, prompts: Set<string>, names: Map<string, stri
   }
   if (event.kind === 'compaction') {
     const out: LaneMarker = { kind: 'compaction', eventId: event.id, ts: event.ts }
-    const trigger = asString(event.payload.trigger)
+    const { trigger, preTokens, postTokens } = event.payload
     if (trigger) {
       out.trigger = trigger
     }
-    const pre = asNumber(event.payload.preTokens)
-    if (pre !== undefined) {
-      out.preTokens = pre
+    if (preTokens !== undefined) {
+      out.preTokens = preTokens
     }
-    const post = asNumber(event.payload.postTokens)
-    if (post !== undefined) {
-      out.postTokens = post
+    if (postTokens !== undefined) {
+      out.postTokens = postTokens
     }
     return out
   }

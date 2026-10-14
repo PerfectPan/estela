@@ -1,7 +1,7 @@
 import type { Entry } from '@/lib/ledger-model.ts'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
-import { isShortened, numberField, rowText } from '@/lib/event-text.ts'
+import { isShortened, rowText } from '@/lib/event-text.ts'
 import { formatDuration, formatTokens } from '@/lib/format.ts'
 import { ShortenedMark } from './shortened-mark.tsx'
 import { ToolStatus } from './tool-status.tsx'
@@ -31,7 +31,7 @@ export function EventRow(props: {
         output: request.outputTokens === undefined ? dash() : formatTokens(request.outputTokens),
       })
     }
-    const duration = numberField(result(), 'durationMs') ?? numberField(current, 'durationMs')
+    const duration = current.kind === 'system' ? current.payload.durationMs : undefined
     return duration === undefined ? '' : formatDuration(duration, locale())
   }
   const hidden = () =>

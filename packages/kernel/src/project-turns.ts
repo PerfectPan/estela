@@ -1,5 +1,4 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { asNumber } from './jsonl.ts'
 import { mainAgentId, promptStarts, requestUsage, shadowedIn } from './lanes.ts'
 
 /** A ledger row: one event, or one run of consecutive `hook` events. */
@@ -52,11 +51,11 @@ function totalsOf(events: TraceEvent[]): TurnTotals {
       if (output !== undefined) {
         totals.outputTokens = output
       }
-      requestDuration = addKnown(requestDuration, asNumber(event.payload.durationMs))
+      requestDuration = addKnown(requestDuration, event.payload.durationMs)
     } else if (event.kind === 'tool_result' && event.payload.isError === true) {
       totals.failedTools += 1
     } else if (event.kind === 'system' && event.payload.type === 'turn_duration') {
-      marked = addKnown(marked, asNumber(event.payload.durationMs))
+      marked = addKnown(marked, event.payload.durationMs)
     }
   }
   const duration = marked ?? requestDuration

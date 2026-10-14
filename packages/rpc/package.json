@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",
-    "@rivus/agent-kit": "0.11.0",
+    "@rivus/agent-kit": "0.14.0",
     "@types/node": "^24.19.0",
     "typescript": "^7.0.2",
     "vite-plus": "1.1.0"

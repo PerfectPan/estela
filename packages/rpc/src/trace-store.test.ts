@@ -30,13 +30,13 @@ describe('TraceStore', () => {
 
   it('returns the full payload in get-event while the view is capped and presented', async () => {
     const f = fixture()
-    f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: `${HOME} ${'x'.repeat(50)}` }])
-    const { store } = storeOf({ fs: f.fs, parse: f.parse, present, maxString: 16 })
+    f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: `${HOME} ${'x'.repeat(300)}` }])
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, present, maxString: 256 })
     const view = await store.view('a')
-    expect(view.trace.events[0]!.payload).toEqual({ text: `~ ${'x'.repeat(14)}`, $truncated: [['text']] })
+    expect(view.trace.events[0]!.payload).toEqual({ text: `~ ${'x'.repeat(254)}`, $truncated: [['text']] })
     expect(view.summary).toMatchObject({ requests: 0 })
     const full = await store.event('a', 'u1')
-    expect(full.payload.text).toBe(`~ ${'x'.repeat(50)}`)
+    expect(full.payload.text).toBe(`~ ${'x'.repeat(300)}`)
     expect(JSON.stringify(full)).not.toContain(HOME)
   })
 

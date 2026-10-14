@@ -3,14 +3,14 @@ import type { Entry, RowKind } from '@/lib/ledger-model.ts'
 import type { MessageKey } from '@/i18n/locale.ts'
 import type { SessionEvent } from '../load-session.ts'
 import type { WorkspaceState } from '../workspace-state.ts'
-import { asString } from '@rivus/agent-trace-kernel'
 import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js'
 import { CloseIcon } from '@/components/icons.tsx'
 import { KIND_TITLE } from '@/components/kind-mark.tsx'
 import { KindSquare } from '@/components/kind-square.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva'
-import { isShortened, numberField, pretty, toolName } from '@/lib/event-text.ts'
+import { exitCode, isShortened, pretty, toolName } from '@/lib/event-text.ts'
+import { messageOf } from '@/lib/error-message.ts'
 import { createEventCache, rawFetchKey } from '@/lib/event-cache.ts'
 import { elapsedFrom, formatDuration, formatTokens } from '@/lib/format.ts'
 import { ModelSaw } from './model-saw.tsx'
@@ -121,7 +121,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     }
     const request = state.model.requests.get(event.id)?.entry
     if (request) {
-      const stop = asString(event.payload.finishReason)
+      const stop = event.kind === 'request' ? event.payload.finishReason : undefined
       return [
         request.model ?? '',
         request.inputTokens !== undefined ? t('inspector.inTokens', { value: formatTokens(request.inputTokens) }) : '',
@@ -134,7 +134,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     }
     const at = elapsedFrom(event.ts, props.start)
     if (event.kind === 'tool_call') {
-      const code = numberField(state.model.byId.get(resultId() ?? ''), 'exitCode')
+      const code = exitCode(state.model.byId.get(resultId() ?? ''))
       return [toolName(event), code !== undefined ? t('ledger.exit', { code }) : '', at].filter(Boolean)
     }
     return [at].filter(Boolean)
@@ -144,9 +144,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
       return undefined
     }
     if (full.state === 'errored') {
-      return t('inspector.shortenedFailed', {
-        reason: String((full.error as Error | undefined)?.message ?? full.error),
-      })
+      return t('inspector.shortenedFailed', { reason: messageOf(full.error) })
     }
     if (full.state !== 'ready') {
       return t('inspector.shortenedLoading')
@@ -270,11 +268,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
               <Panel id="raw">
                 <Switch>
                   <Match when={raw.state === 'errored'}>
-                    <TextView
-                      text={t('inspector.rawUnavailable', {
-                        reason: String((raw.error as Error | undefined)?.message ?? raw.error),
-                      })}
-                    />
+                    <TextView text={t('inspector.rawUnavailable', { reason: messageOf(raw.error) })} />
                   </Match>
                   <Match when={raw.state === 'ready' && raw()}>
                     {events => (

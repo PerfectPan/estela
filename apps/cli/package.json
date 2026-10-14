@@ -40,7 +40,7 @@
   "devDependencies": {
     "@clack/prompts": "1.8.1",
     "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",
-    "@rivus/agent-kit": "0.11.0",
+    "@rivus/agent-kit": "0.14.0",
     "@rivus/agent-trace-kernel": "workspace:*",
     "@rivus/agent-trace-rpc": "workspace:*",
     "@rivus/agent-trace-runtime-node": "workspace:*",
