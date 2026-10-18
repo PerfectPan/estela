@@ -8,7 +8,7 @@ const BAR = 2
 
 /**
  * Context over time: one bar per request, height = input tokens (the kernel's `contextShape`,
- * at most 120 points, sent scaled to 0–100). SVG only, no chart library (D9).
+ * at most 120 points, sent scaled to 0–100). SVG only, no chart library.
  */
 export function ContextShape(props: { values: readonly number[]; label: string }) {
   const max = () => Math.max(1, ...props.values)

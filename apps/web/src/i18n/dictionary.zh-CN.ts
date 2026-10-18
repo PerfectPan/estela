@@ -1,7 +1,7 @@
 import type { Dictionary } from './dictionary.en.ts'
 
 /**
- * Simplified Chinese UI strings (D13). Glossary (plan section 7), one term per concept:
+ * Simplified Chinese UI strings. Glossary, one term per concept:
  *
  * | English | 中文 | Note |
  * |---|---|---|

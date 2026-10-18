@@ -158,7 +158,7 @@ describe('installed tarball', () => {
     expect(log).toContain(`Write: ${outDir}`)
     expect(await filesContaining(outDir, ctx.home)).toEqual([])
     expect(await filesContaining(outDir, homedir())).toEqual([])
-    // The report is one file that opens from disk (plan D8).
+    // The report is one file that opens from disk.
     expect(await readdir(outDir)).toEqual(['index.html'])
   })
 })

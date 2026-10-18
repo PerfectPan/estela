@@ -5,7 +5,7 @@ import type { FileStamp } from './source-check.ts'
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
 
-/** Loaded traces kept in memory, without originals (plan 3.5). */
+/** Loaded traces kept in memory, without originals. */
 const CAPACITY = 3
 /** The 12 MB budget covers the whole response; keep 64 KB for `summary` and the envelope. */
 const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024

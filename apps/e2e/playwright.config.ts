@@ -2,7 +2,7 @@ import process from 'node:process'
 import { defineConfig, devices } from '@playwright/test'
 
 // `test:e2e` only: it packs and installs the CLI, so it is not part of `rush test`.
-// Chromium only (plan 5.2). `AGENT_TRACE_E2E_CHANNEL=chrome` uses the installed Google Chrome
+// Chromium only. `AGENT_TRACE_E2E_CHANNEL=chrome` uses the installed Google Chrome
 // instead of Playwright's download, for machines that cannot fetch it.
 const channel = process.env.AGENT_TRACE_E2E_CHANNEL
 

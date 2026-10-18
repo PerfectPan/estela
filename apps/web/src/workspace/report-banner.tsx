@@ -3,7 +3,7 @@ import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatNumber } from '@/lib/format.ts'
 
-/** Report mode (plan 3.9): what the redaction did and did not remove, and how many originals are included. */
+/** Report mode: what the redaction did and did not remove, and how many originals are included. */
 export function ReportBanner(props: { report: ReportTrace }) {
   return (
     <div

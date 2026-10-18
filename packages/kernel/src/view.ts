@@ -5,7 +5,7 @@ import { isPlainObject } from 'es-toolkit/predicate'
 import { promptSnapshot } from './prompt-snapshot.ts'
 
 const DEFAULT_MAX = 4096
-/** Plan 1.3: at most 12 MB reaches the browser before an event is selected. */
+/** The view budget: at most 12 MB reaches the browser before an event is selected. */
 export const VIEW_BUDGET_BYTES = 12 * 1000 * 1000
 /**
  * The lowest cap, whatever a caller asks for: `fitView` stops lowering here. Capping cuts keys and string values, and
@@ -209,7 +209,7 @@ function draftView(trace: Trace, max: number): ViewDraft {
 }
 
 /**
- * The trace the browser receives (D6, plan 3.3). Pure: the input is not changed.
+ * The trace the browser receives. Pure: the input is not changed.
  *
  * - Drops `original`; `get-event` reads it back from the source pointer.
  * - Caps every string and object key at `maxString` UTF-16 units (default

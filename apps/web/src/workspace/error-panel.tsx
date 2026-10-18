@@ -4,7 +4,7 @@ import { translate as t } from '@/i18n/locale.ts'
 import { agentName } from '@/lib/agent-names.ts'
 import { ConnectionLost } from '@/shell/connection-lost.tsx'
 
-/** A failed load: agent, file, and line when the message carries them, and a way back (3.7). */
+/** A failed load: agent, file, and line when the message carries them, and a way back. */
 export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void }) {
   if (props.failure.lost) {
     return (

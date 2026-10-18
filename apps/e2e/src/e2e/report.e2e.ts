@@ -40,7 +40,7 @@ test('S9: Export report writes a redacted report that opens from file:// without
   const server = await openWorkspace(page, launch, ctx.homes.main.claudeHomeCwd, { env: { AGENT_TRACE_REDACT: '0' } })
   await expect(page.locator('section').first()).toContainText(home)
 
-  // Export in Chinese: the report opens in the language it was exported in (plan 3.6).
+  // Export in Chinese: the report opens in the language it was exported in.
   await page.getByTestId('language-switch').click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
   await page.getByTestId('export-report').click()

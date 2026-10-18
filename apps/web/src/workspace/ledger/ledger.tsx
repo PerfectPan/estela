@@ -17,7 +17,7 @@ function rowId(key: string): string {
 }
 
 /**
- * The ledger (3.6): turns from `projectTurns` with hook runs folded, virtualized with
+ * The ledger: turns from `projectTurns` with hook runs folded, virtualized with
  * `@tanstack/solid-virtual` at fixed row heights. A listbox: up / down move the selection,
  * Enter / Space toggle a turn, a subagent lane, or a hook run.
  */

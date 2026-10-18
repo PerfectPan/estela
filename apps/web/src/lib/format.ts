@@ -1,5 +1,5 @@
 /**
- * Every date, time, duration, and number shown in the UI goes through this module (D13).
+ * Every date, time, duration, and number shown in the UI goes through this module.
  * `Intl.DateTimeFormat`, `Intl.RelativeTimeFormat`, and `Intl.NumberFormat` follow the locale;
  * the token abbreviation (`118.4k`, `2.41M`) does not.
  */

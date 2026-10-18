@@ -2,7 +2,7 @@ import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { EventDetail, TraceViewResult } from './trace-store.ts'
 
-/** Plan D8: a report holds the originals of at most the first 2,000 events or 20 MB, whichever is smaller. */
+/** A report holds the originals of at most the first 2,000 events or 20 MB, whichever is smaller. */
 export const REPORT_MAX_EVENTS = 2000
 export const REPORT_MAX_BYTES = 20 * 1000 * 1000
 
@@ -31,7 +31,7 @@ export interface ReportInput {
   view: TraceViewResult
   /** Full events (with `original`) for these ids, in the same order. */
   full: (ids: readonly string[]) => Promise<EventDetail[]>
-  /** Always applied (plan D10): the report is redacted whatever the server does. */
+  /** Always applied: the report is redacted whatever the server does. */
   redact: <T>(value: T) => T
   locale?: ReportLocale
   maxEvents?: number

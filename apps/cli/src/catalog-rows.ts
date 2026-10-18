@@ -36,7 +36,7 @@ export interface LiveRow {
   revision: number
 }
 
-/** Session text shown in the browser and the terminal: redacted like the workspace (D10) unless `AGENT_TRACE_REDACT=0`. */
+/** Session text shown in the browser and the terminal: redacted like the workspace unless `AGENT_TRACE_REDACT=0`. */
 export type Redactor = (text: string) => string
 
 /** The preview shows about nine lines; the whole prompt stays searchable in the index. */

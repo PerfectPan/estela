@@ -51,7 +51,7 @@ export function parseReportTrace(text: string): ReportTrace {
 /**
  * The report this page is, or `undefined` on the dev server. `build` and "Export report" put
  * the `report-trace` snapshot into `index.html` as JSON, because a page opened from `file://`
- * cannot fetch DevFrame's static dump. Finding it starts report mode (plan D8): the workspace
+ * cannot fetch DevFrame's static dump. Finding it starts report mode: the workspace
  * only, and no call that needs a server.
  */
 export function reportTrace(): ReportTrace | undefined {

@@ -44,7 +44,7 @@ function trackDrag(
 const CLICK_PX = 3
 
 /**
- * SVG timeline (3.6): one lane for the main agent and one per subagent, drawn from kernel
+ * SVG timeline: one lane for the main agent and one per subagent, drawn from kernel
  * projections. Dragging on the plot selects a range, which filters the ledger (S6); the two
  * handles are sliders that move with the arrow keys (Shift for 10 % steps, Home / End).
  */

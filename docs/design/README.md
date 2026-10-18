@@ -2,7 +2,7 @@
 
 Audience: someone implementing or reviewing the agent-trace UI.
 
-This directory holds the chosen high-fidelity design (direction A, "Instrument") for the two screens in [Spec 0001](../specs/0001-external-release.md). The HTML files are static mockups. Open them in a browser at 1440 × 900. All session content, paths, and numbers in them are sample data.
+This directory holds the chosen high-fidelity design (direction A, "Instrument") for the two screens of the viewer, the session browser and the session workspace ([README](../../README.md)). The HTML files are static mockups. Open them in a browser at 1440 × 900. All session content, paths, and numbers in them are sample data.
 
 | Screen | Dark | Light |
 |---|---|---|

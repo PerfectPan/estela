@@ -9,7 +9,7 @@ import { formatDuration, formatInOut, formatNumber, formatOptional, formatStart 
 import { agentName } from '@/lib/agent-names.ts'
 
 /**
- * Agent, working directory, start time, title, and the seven numbers from `fold` (3.6).
+ * Agent, working directory, start time, title, and the seven numbers from `fold`.
  * A number whose capability the agent does not declare is `undefined` and shows "—".
  */
 const dash = () => t('common.dash')

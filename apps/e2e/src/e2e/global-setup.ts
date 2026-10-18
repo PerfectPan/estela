@@ -18,7 +18,7 @@ export interface E2eContext extends Run {
 /** Where the context travels to the test workers: Playwright passes the environment on. */
 export const CONTEXT_ENV = 'AGENT_TRACE_E2E_CONTEXT'
 
-/** Packs and installs the tarball once, and builds the synthetic homes (plan 5.2). */
+/** Packs and installs the tarball once, and builds the synthetic homes. */
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const { context, cleanup } = await prepareRun('e2e', 'AGENT_TRACE_E2E_KEEP', async root => ({
     repo,

@@ -8,7 +8,7 @@ import './styles.css'
 
 initTheme()
 const report = reportTrace()
-// A report opens in the language it was exported in (plan 3.6); the switch still works.
+// A report opens in the language it was exported in; the switch still works.
 applyLocale(report?.locale ?? preferredLocale())
 
 const root = document.getElementById('app')

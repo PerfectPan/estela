@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Dependency direction for @rivus/* packages. See docs/plans/0001-external-release.md section 2.2.
+// Dependency direction for @rivus/* packages: the "May depend on" column of the Layers table in AGENTS.md.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
@@ -28,7 +28,7 @@ const HELP = `Usage:
 
 Reads every project from rush.json and checks each package.json @rivus/*
 dependency (dependencies, devDependencies, peerDependencies, optionalDependencies)
-against the "May depend on" column in docs/plans/0001-external-release.md section 2.2.
+against the "May depend on" column of the Layers table in AGENTS.md.
 @rivus/agent-trace-e2e may have no runtime dependencies at all.
 Exits 1 and prints one line per violation.
 `
@@ -66,7 +66,9 @@ for (const project of rush.projects) {
         continue
       }
       if (!allowed.has(name)) {
-        violations.push(`check-layers: ${manifest.name} depends on ${name} (${field}), which 2.2 does not allow`)
+        violations.push(
+          `check-layers: ${manifest.name} depends on ${name} (${field}), which the AGENTS.md Layers table does not allow`,
+        )
       }
     }
   }

@@ -310,7 +310,7 @@ export type VirtualRow =
       lane: boolean
     }
 
-/** Fixed heights (3.6): 36 px rows, 40 px turn headers; the design's hook fold row is 30 px and the compaction row 44 px. */
+/** Fixed heights: 36 px rows, 40 px turn headers; the design's hook fold row is 30 px and the compaction row 44 px. */
 export const ROW_SIZE = { turn: 40, event: 36, hooks: 30, compaction: 44 } as const
 
 function rowSize(row: { type: 'turn' } | { type: 'entry'; entry: Entry }): number {

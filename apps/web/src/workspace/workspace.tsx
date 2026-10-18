@@ -12,7 +12,7 @@ import { ReportBanner } from './report-banner.tsx'
 import { SessionView } from './session-view.tsx'
 
 /**
- * `#/s/<traceId>`: load with progress, then header, timeline, ledger, and inspector (plan 3.6).
+ * `#/s/<traceId>`: load with progress, then header, timeline, ledger, and inspector.
  * With a `report`, the same view over the baked session: no load, no export, no server calls.
  */
 export function Workspace(props: { traceId: string; report?: ReportTrace }) {
