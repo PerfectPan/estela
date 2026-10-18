@@ -6,7 +6,7 @@ import { messageOf } from '@/lib/error-message.ts'
 import { formatBytes, formatNumber } from '@/lib/format.ts'
 import { scopedClient } from '@/shell/client.ts'
 
-/** Must match `REPORT_MAX_EVENTS` and `REPORT_MAX_BYTES` in `@rivus/agent-trace-rpc` (plan D8). */
+/** Must match `REPORT_MAX_EVENTS` and `REPORT_MAX_BYTES` in `@rivus/agent-trace-rpc`. */
 const MAX_EVENTS = 2000
 const MAX_BYTES = 20 * 1000 * 1000
 
@@ -17,7 +17,7 @@ type ExportState =
   | { status: 'error'; reason: string }
 
 /**
- * "Export report" and its dialog (plan 3.9): what the report holds and what stays in it, then
+ * "Export report" and its dialog: what the report holds and what stays in it, then
  * `export-report` for this session, then where it was written.
  */
 export function ExportReport(props: { traceId: string }) {

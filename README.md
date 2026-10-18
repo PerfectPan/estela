@@ -6,6 +6,8 @@
 - **Session workspace**: a header with the session's numbers; a timeline with one bar per model request (height is input tokens), a lane per subagent, markers for prompts and failed tool calls, and a dashed rule at each compaction; a ledger of events grouped by turn; and an inspector whose "Model saw" tab reconstructs the context at the selected request, with the slots the session log does not record marked "unavailable".
 - **Report**: a redacted copy of one session's workspace as a single `index.html` that opens from disk.
 
+It is not related to Cursor's Agent Trace (agent-trace.dev), a code-attribution format.
+
 The screens are described in words here. Screenshots are not committed; the design mockups are in [`docs/design/`](docs/design/README.md).
 
 ## Quick start
@@ -58,12 +60,14 @@ npx @rivus/agent-trace mcp [path]
 | Claude Code | `~/.claude/projects/` | loads |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` | loads |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` | loads |
-| OpenCode | `opencode.db#<session-id>` | package kept, not registered |
-| dsh | — | package kept, not registered |
+| OpenCode | — | not supported |
+| dsh | — | not supported |
 
 The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `GROK_HOME` for Grok — with `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
 
 An agent whose folder does not exist shows 0 sessions and the path it checked. A file the agent's adapter cannot parse is listed as "could not read" with the file, line, and reason. A line inside a session that is not JSON is skipped and does not fail the session.
+
+Grok records token usage only per turn, so a Grok session has one request per turn, not one per model call.
 
 ## Privacy
 

@@ -58,7 +58,7 @@ export interface CatalogOptions {
 }
 
 /**
- * The shell's session catalog (plan 3.4): rows from the index and the latest `discover` pass,
+ * The shell's session catalog: rows from the index and the latest `discover` pass,
  * summaries computed newest (or visible) first at 4 at a time, and trace id → target resolution for
  * the TraceStore, which loads and holds the traces.
  */
@@ -285,14 +285,14 @@ export class SessionCatalog {
       }
       const result = await summarizeRow(this.platform, this.adapters, row.target)
       if ('error' in result) {
-        // Not cached (3.7): the head stays, the numbers stay undefined, and the reason is shown.
+        // Not cached: the head stays, the numbers stay undefined, and the reason is shown.
         row.error = result.error
       } else {
         row.summary = result.summary
         this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
       }
     } catch (error) {
-      // Not cached (3.7): the head stays, the numbers stay undefined, and the reason is shown.
+      // Not cached: the head stays, the numbers stay undefined, and the reason is shown.
       row.error = parseReadFailure(errorMessage(error), this.platform.home, row.target.path)
     }
     row.pending = false

@@ -197,7 +197,7 @@ function rebuildUnderLock(file: string, lock: string): DatabaseSync | undefined 
  * 0600 before SQLite touches it; SQLite gives `-wal` and `-shm` the database file's mode.
  * The schema is created inside `BEGIN IMMEDIATE`, so two processes opening a fresh cache at
  * once end with one schema. The file is rebuilt only when it is not a database, is corrupt, or
- * has another layout version (plan 3.4), and only by the process holding `<file>.lock`; the
+ * has another layout version, and only by the process holding `<file>.lock`; the
  * others wait for that lock to go and open again. Throws for anything else (for example EACCES),
  * or after `LOCK_WAIT_MS`; the caller runs without the index.
  */

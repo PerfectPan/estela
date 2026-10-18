@@ -47,7 +47,7 @@ export default defineDevframe({
       return
     }
     // Push: a small shared state tells every browser that rows changed. The browser then
-    // asks `list-sessions({ since })` for only those rows (M3 report: push vs poll).
+    // asks `list-sessions({ since })` for only those rows.
     void scoped.rpc.sharedState<SessionsSignal>(SESSIONS_STATE, { initialValue: emptySessionsSignal() }).then(state => {
       bindSessionPublisher(next => {
         state.mutate(draft => {

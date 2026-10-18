@@ -1,5 +1,5 @@
 export interface SummaryQueueOptions<T> {
-  /** At most this many jobs run at once (D7: 4). */
+  /** At most this many jobs run at once. */
   concurrency: number
   key: (job: T) => string
   /** Default order: larger first (newest activity). */

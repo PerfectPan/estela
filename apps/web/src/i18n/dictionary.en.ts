@@ -1,5 +1,5 @@
 /**
- * Base dictionary and the type source for every locale (D13).
+ * Base dictionary and the type source for every locale.
  * `dictionary.zh-CN.ts` is declared `satisfies Dictionary`, so a missing or extra key fails typecheck.
  * Session content (titles, prompts, paths) is never passed through a dictionary.
  */

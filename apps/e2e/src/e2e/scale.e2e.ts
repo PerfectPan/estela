@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { activePanel, ctx, expect, generateCodex, generateTrace, openWorkspace, test } from './harness.ts'
 
-/** Plan 1.3: at most 12 MB reaches the browser before an event is selected. */
+/** The view budget: at most 12 MB reaches the browser before an event is selected. */
 const BUDGET = 12 * 1000 * 1000
-/** S12 file size. The plan asks for at least 350 MB; a smaller value is only for trying the suite quickly. */
+/** S12 file size. S12 asks for at least 350 MB; a smaller value is only for trying the suite quickly. */
 const S12_BYTES = Number(process.env.AGENT_TRACE_E2E_S12_BYTES ?? 350 * 1024 * 1024)
 
 /** Measured numbers go to the test's output (and CI log) and to its annotations. */

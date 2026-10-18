@@ -20,7 +20,7 @@ import { packForFile } from './report-site.ts'
 /**
  * The report payload for `traceId`: the view from the store and the first events in full from `full`
  * (`build` passes the trace it loaded, so the file is read once; the export reads through the
- * store). Always redacted (plan D10), whatever `AGENT_TRACE_REDACT` says.
+ * store). Always redacted, whatever `AGENT_TRACE_REDACT` says.
  */
 export async function reportOf(
   store: TraceStore,

@@ -21,7 +21,7 @@ function formatTick(agent: AgentProgress): string {
 
 const TICK_MS = 80
 
-/** The "Session index" terminal moment (plan 3.1): clack `progress` in a TTY, plain lines otherwise. */
+/** The "Session index" terminal moment: clack `progress` in a TTY, plain lines otherwise. */
 export function startSessionIndex(): {
   tick: (agents: readonly AgentProgress[]) => void
   finish: () => void

@@ -29,7 +29,7 @@ export function SessionBrowser() {
   let listElement: HTMLDivElement | undefined
   let searchTimer: ReturnType<typeof setTimeout> | undefined
 
-  // Agent, project, and flag filters are client-side over rows; search is the server's index (3.4, 3.6).
+  // Agent, project, and flag filters are client-side over rows; search is the server's index.
   const visible = createMemo((): SessionListRow[] => {
     const matches = store.matches()
     const f = flags()

@@ -20,7 +20,7 @@ export interface LoadedSession {
   event: (id: string) => Promise<SessionEvent>
 }
 
-/** A load failure split like the CLI's `agent: <file>:<line>: <reason>` message (plan 3.7). */
+/** A load failure split like the CLI's `agent: <file>:<line>: <reason>` message. */
 export interface LoadFailure {
   agent?: string
   file?: string
@@ -82,7 +82,7 @@ function lostFailure(): LoadFailure {
 }
 
 /**
- * The workspace load flow (plan 3.5): `load-trace(traceId)`, subscribe to `load-progress` with the
+ * The workspace load flow: `load-trace(traceId)`, subscribe to `load-progress` with the
  * returned id at once (the server releases an unsubscribed hold after 5 s), then
  * `get-trace-view(traceId)`. Leaving the route cancels the stream, which releases the hold.
  * DevFrame 1.0.0 never reconnects a closed WebSocket, so a drop during the load ends it with

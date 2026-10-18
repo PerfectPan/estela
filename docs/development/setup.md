@@ -49,10 +49,10 @@ HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
 
 ## Bundle and tarball
 
-`rush build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`, D11):
+`rush build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`):
 
 - `dist/bin.mjs` is the package `bin`, built from `apps/cli/bin.mjs`. It checks the Node.js version and drops the `node:sqlite` ExperimentalWarning, then imports `dist/cli.mjs` (from source, the same file imports `src/main.ts`).
-- `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, and `@clack/prompts`. `devframe`, `@devframes/agentic`, and `cac` stay external as the package's only runtime dependencies.
+- `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, and `@clack/prompts`. `devframe`, `@devframes/agentic`, and `cac` stay external as the package's only runtime dependencies. `@devframes/agentic` declares an exact `devframe` peer dependency, so the two stay pinned to the same version.
 - `dist/web/` is a copy of `apps/web/dist`, and `dist/fixtures/demo.trace.json` is the default session for `build` and `mcp`. `src/paths.ts` picks these locations when the pack config defines `AGENT_TRACE_BUNDLE`; run from source (`node bin.mjs`), it uses `apps/web/dist` and `fixtures/` in the workspace.
 - `dist/THIRD-PARTY-NOTICES.txt` holds the license texts of the npm packages bundled into `cli.mjs` and of those the web build is made from, Vite and Rolldown included through vite-plus-core; the CLI section lists Rolldown too, for the runtime helpers in `cli.mjs` and `bin.mjs` (`apps/cli/scripts/third-party-notices.ts`, a Rolldown plugin).
 
@@ -63,11 +63,36 @@ node dist/bin.mjs --help          # the bundle, from the workspace
 npm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md
 ```
 
+`npm pack` leaves `workspace:*` in the packed `devDependencies`. `npm install` ignores them, but a registry publish should pack with Rush or pnpm.
+
 Never publish from a local checkout.
+
+## Acceptance scenarios
+
+Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `test:e2e`, both on the installed tarball.
+
+| ID | Behavior | Suite |
+|---|---|---|
+| S1 | With Claude Code, Codex, and Grok sessions in their default locations, the opened URL lists sessions from all three, with a count per agent | e2e |
+| S2 | `agent-trace <path>` opens that session's workspace | smoke, e2e |
+| S3 | An agent whose home is missing (no `~/.codex`) shows 0 sessions and the checked path; the other agents load | e2e |
+| S4 | A file in an unknown format generation is listed as "could not read"; its workspace shows agent, file, and line | e2e |
+| S5 | Request bars rise to a dashed compaction rule labeled with the tokens before and after, and are lower after it | e2e |
+| S6 | A timeline brush, dragged or moved with the arrow keys on a focused handle, filters the ledger and states the range and event count | e2e |
+| S7 | Model saw at the first request after a compaction: slots with the recorded token counts, system prompt and tools only when a prompt snapshot records them at or before that request, and the removed events | e2e |
+| S8 | A 10,000-event trace scrolls with fewer than 100 rendered rows and no long task over 200 ms | e2e |
+| S9 | An exported report opens from `file://` without a server, in the export language, and contains no home path | e2e |
+| S10 | `mcp` lists its tools, `reconstruct` returns the visible ids, unavailable slots, and completeness, and stdout carries only protocol | smoke, `apps/cli/src/smoke.test.ts` |
+| S11 | The theme follows the system color scheme; a manual switch survives a reload | e2e |
+| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `apps/cli/src/size-budget.test.ts` (opt-in) |
+| S13 | On Node.js 22 the CLI prints one line naming Node.js 24 and exits 1 | smoke |
+| S14 | A `zh-CN` browser gets Chinese labels and date formats with session content unchanged; a switch to English survives a reload | e2e |
+| S15 | `build` piped to a file writes plain lines with no escape sequences and no home path | smoke |
+| S16 | `--pick` in a terminal: typing part of a title and pressing Enter opens that session | smoke |
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 20 through `npx -y node@20`), S15, and S16 (in a pseudo-terminal through `node-pty`). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
+`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
 
 ```bash
 cd apps/e2e
@@ -78,9 +103,9 @@ node ../../common/scripts/install-run-rushx.js test:smoke
 
 ## Browser end-to-end on the installed tarball
 
-`test:e2e` in `apps/e2e` is the Playwright suite (plan 5.2), Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/agent-trace`, packs and installs it, builds synthetic homes from the agent fixtures (one with all three agents and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
+`test:e2e` in `apps/e2e` is the Playwright suite for the browser scenarios, Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/agent-trace`, packs and installs it, builds synthetic homes from the agent fixtures (one with all three agents and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
 
-The test titles name the scenarios of plan 5.2 they check, and each test file groups one area: the session browser, the workspace, appearance, the report, and scale.
+The test titles name the [scenarios](#acceptance-scenarios) they check, and each test file groups one area: the session browser, the workspace, appearance, the report, and scale.
 
 ```bash
 cd apps/e2e
@@ -93,7 +118,7 @@ S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/larg
 
 ## Check in a real browser
 
-Before a UI change is done, check it in a real browser (D16) with the dev server on a synthetic `HOME`. The web app is served from `apps/web/dist`, so rebuild it after a UI change:
+Before a UI change is done, check it in a real browser with the dev server on a synthetic `HOME`. The web app is served from `apps/web/dist`, so rebuild it after a UI change:
 
 ```bash
 node common/scripts/install-run-rush.js build --to @rivus/agent-trace-web

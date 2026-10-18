@@ -128,7 +128,7 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<agent>/` for the session logs the conformance suites read).
 - Shared lint, format, and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. The `lint` and `fmt` blocks of the root `vite.config.ts` spread its `vite-plus` export and `tsconfig.base.json` extends its tsconfig; both keep only this repository's rules. Change a shared default upstream, not here.
-- `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column in [`docs/plans/0001-external-release.md`](docs/plans/0001-external-release.md) section 2.2. CI and the pre-commit hook run it.
+- `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column of the [Layers table in `AGENTS.md`](AGENTS.md#layers). CI and the pre-commit hook run it.
 
 ## Runtime checks
 

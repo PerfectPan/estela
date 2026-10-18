@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// D5: bundle kernel and rpc for the browser, which keeps node:* out of them.
+// Bundle kernel and rpc for the browser, which keeps node:* out of them.
 // vite-plus is resolved from apps/cli, like the other root scripts that need a Rush-installed tool.
 import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'

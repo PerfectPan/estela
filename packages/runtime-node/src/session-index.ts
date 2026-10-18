@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import * as z from 'zod/mini'
 import { openDatabase, sqliteErrcode } from './session-index-schema.ts'
 
-/** User prompts kept per session (plan 3.4): the first 200, 500 characters each. */
+/** User prompts kept per session: the first 200, 500 characters each. */
 export const PROMPT_LIMIT = 200
 export const PROMPT_CHARS = 500
 

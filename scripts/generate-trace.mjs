@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Dev-only: writes a synthetic canonical agent-trace JSON file for local UI checks
-// (plan 5.2 S8: a 10,000-event trace). All text is generated; nothing comes from a real session.
+// (S8: a 10,000-event trace). All text is generated; nothing comes from a real session.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'

@@ -2,7 +2,7 @@ import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatBytes } from '@/lib/format.ts'
 
-/** Bytes read out of the file size while `load-trace` runs (3.5, S12). */
+/** Bytes read out of the file size while `load-trace` runs (S12). */
 export function LoadingPanel(props: { bytesRead: number; totalBytes: number }) {
   const ratio = () => (props.totalBytes > 0 ? Math.min(1, props.bytesRead / props.totalBytes) : 0)
   const done = () => props.totalBytes > 0 && props.bytesRead >= props.totalBytes

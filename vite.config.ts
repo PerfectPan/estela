@@ -51,7 +51,7 @@ export default {
         },
       },
       {
-        // No Node built-ins in the browser-safe core outside tests (D5).
+        // No Node built-ins in the browser-safe core outside tests.
         files: [
           'packages/schema/src/**/*.{ts,mts,cts,tsx}',
           'packages/kernel/src/**/*.{ts,mts,cts,tsx}',
