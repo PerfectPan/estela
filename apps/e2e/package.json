@@ -13,11 +13,11 @@
     "test:e2e": "playwright test --config playwright.config.ts"
   },
   "devDependencies": {
-    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",
+    "@perfectpan/lint-config": "catalog:",
     "@playwright/test": "1.63.0",
-    "@types/node": "^24.19.0",
+    "@types/node": "catalog:",
     "node-pty": "1.2.0-beta.15",
-    "typescript": "^7.0.2",
-    "vite-plus": "1.1.0"
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

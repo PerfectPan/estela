@@ -16,15 +16,15 @@
   "dependencies": {
     "@rivus/agent-trace-kernel": "workspace:*",
     "@rivus/agent-trace-schema": "workspace:*",
-    "devframe": "1.1.0",
-    "es-toolkit": "1.52.0",
-    "zod": "4.6.5"
+    "devframe": "catalog:",
+    "es-toolkit": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",
-    "@rivus/agent-kit": "0.14.0",
-    "@types/node": "^24.19.0",
-    "typescript": "^7.0.2",
-    "vite-plus": "1.1.0"
+    "@perfectpan/lint-config": "catalog:",
+    "@rivus/agent-kit": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

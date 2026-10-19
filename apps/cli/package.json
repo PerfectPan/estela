@@ -35,20 +35,20 @@
   "dependencies": {
     "@devframes/agentic": "1.1.0",
     "cac": "7.0.0",
-    "devframe": "1.1.0"
+    "devframe": "catalog:"
   },
   "devDependencies": {
     "@clack/prompts": "1.8.1",
-    "@perfectpan/lint-config": "github:PerfectPan/lint-config#v0.6.0",
-    "@rivus/agent-kit": "0.14.0",
+    "@perfectpan/lint-config": "catalog:",
+    "@rivus/agent-kit": "catalog:",
     "@rivus/agent-trace-kernel": "workspace:*",
     "@rivus/agent-trace-rpc": "workspace:*",
     "@rivus/agent-trace-runtime-node": "workspace:*",
     "@rivus/agent-trace-schema": "workspace:*",
     "@rivus/agent-trace-web": "workspace:*",
-    "@types/node": "^24.19.0",
-    "typescript": "^7.0.2",
-    "vite-plus": "1.1.0",
-    "zod": "4.6.5"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "zod": "catalog:"
   }
 }
