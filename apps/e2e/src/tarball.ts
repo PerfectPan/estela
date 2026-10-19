@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import process from 'node:process'
 import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
