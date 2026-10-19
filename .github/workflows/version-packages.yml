@@ -1,0 +1,38 @@
+name: Version Packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  version-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The action pushes the version commit and opens the PR through the GitHub API,
+          # so the checkout needs no persisted git credentials.
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          require-lockfile: true
+      # With pending changesets, runs the version script — `pnpm version -r`, which bumps
+      # versions, writes the package CHANGELOG.md, and consumes the changesets — and opens
+      # or updates the version PR. There is no publish script: npm publishing stays a
+      # separate decision for the first release.
+      - name: Create version pull request
+        id: changesets
+        uses: changesets/action@v2
+        with:
+          version-script: pnpm run version-packages
+          commit-message: 'chore(release): version packages'
+          pr-title: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

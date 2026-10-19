@@ -15,8 +15,8 @@ Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `buil
 - [ ] Repository checks: `gh repo-checks repository`
 - [ ] Docs, file conventions, layers: `node scripts/check-doc-translations.mjs`, `node scripts/check-conventions.mjs`, `node scripts/check-layers.mjs`
 - [ ] PR title and description: `gh repo-checks pr-title "<title>"`, `gh repo-checks pr-body <body-file>`
-- [ ] Release intent: `node scripts/release-intent.mjs check --base <merge-base>`
-- [ ] Lint, test, typecheck, build: `node common/scripts/install-run-rush.js lint`, `test`, `typecheck`, `build`
+- [ ] Changeset for shipped changes: a file under `.changeset/` (documentation-only and workflow-only PRs need none)
+- [ ] Lint, test, typecheck, build: `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`
 - [ ] Browser bundle: `node scripts/check-browser-bundle.mjs`
 
 ## Risks
