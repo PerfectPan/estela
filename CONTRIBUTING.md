@@ -99,7 +99,14 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 - The manual Version Packages workflow opens or updates the `chore(release): version packages` PR, which runs `pnpm version -r`: it consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the consumed intents to `.changeset/ledger.yaml`, and applies the version bump. It does not publish; npm publishing stays a separate decision for the first release.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
-Until `@rivus/agent-trace` has a version on npm, do not run Version Packages: pnpm judges "never published" by the registry, and for such a package `pnpm version -r` consumes the changesets into a changelog section for whatever version the manifest carries without bumping it (`0.0.0 → 0.0.0`; after a manual bump, a second section for the same version). The first release is manual: set the version (`pnpm --filter @rivus/agent-trace version 0.1.0`) and publish it. The workflow refuses to run before that first publish; from then on, the changesets → version PR flow above applies.
+Until `@rivus/agent-trace` has a version on npm, do not run Version Packages: pnpm judges "never published" by the registry, and for such a package `pnpm version -r` consumes the changesets into a changelog section for whatever version the manifest carries without bumping it (`0.0.0 → 0.0.0`; after a manual bump, a second section for the same version). The workflow refuses to run before the first publish.
+
+The first release is manual, and it also consumes the changesets the repository already carries — left to Version Packages after the first publish, they would land in the second release's changelog:
+
+1. Set the first version: `pnpm --filter @rivus/agent-trace version 0.1.0`. The command edits the manifest and does not commit.
+2. Commit, then run `pnpm version -r` once. The version stays (`0.1.0 → 0.1.0`), the pending changesets land in `apps/cli/CHANGELOG.md` under `## 0.1.0`, the `.changeset/*.md` files are deleted, and `.changeset/ledger.yaml` records the intents.
+3. Read the generated section and edit the entries that no longer hold for a published package (the `none` records never appear in the changelog). Commit.
+4. Publish the version; the publishing mechanics are their own decision. From the next release on, the changesets → version PR flow above applies.
 
 Documentation-only and workflow-only PRs need no changeset.
 
