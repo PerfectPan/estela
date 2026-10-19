@@ -59,10 +59,10 @@ HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
 pnpm --filter '@rivus/agent-trace...' run build
 cd apps/cli
 node dist/bin.mjs --help          # the bundle, from the workspace
-npm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md
+pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE
 ```
 
-`npm pack` leaves `workspace:*` in the packed `devDependencies`. `npm install` ignores them, but a registry publish should pack with pnpm.
+`pnpm pack` rewrites the `workspace:` and `catalog:` specifiers in the manifest into real versions. `npm pack` leaves them in, and the `catalog:` protocol makes the tarball uninstallable by npm.
 
 Never publish from a local checkout.
 
@@ -91,7 +91,7 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/agent-trace...' run build`, so the tarball never holds a stale bundle.
+`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/agent-trace...' run build`, so the tarball never holds a stale bundle.
 
 ```bash
 cd apps/e2e

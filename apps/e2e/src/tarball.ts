@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -9,7 +9,7 @@ export interface Installed {
   tarball: string
   /** Bytes of the `.tgz`. */
   tarballBytes: number
-  /** Paths inside the tarball, as `npm pack` lists them. */
+  /** Paths inside the tarball, as `pnpm pack --json` lists them. */
   files: string[]
   /** Empty project the tarball is installed into. */
   installDir: string
@@ -38,23 +38,28 @@ async function buildCli(repo: string): Promise<void> {
   }
 }
 
-/** Build, `npm pack` in `apps/cli`, then `npm install <tarball>` into an empty directory under `root`. */
+/**
+ * Build, `pnpm pack` in `apps/cli`, then `npm install <tarball>` into an empty directory under
+ * `root`. pnpm pack, not npm pack: it rewrites the `workspace:` and `catalog:` specifiers into
+ * real versions, which `npm install` of the tarball (and a registry publish) requires.
+ */
 export async function packAndInstall(root: string, repo: string): Promise<Installed> {
   await buildCli(repo)
   const cliDir = join(repo, 'apps/cli')
-  const { stdout } = await exec('npm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
-  const [packed] = JSON.parse(stdout) as { filename: string; size: number; files: { path: string }[] }[]
-  if (!packed) {
-    throw new Error(`npm pack printed no package: ${stdout}`)
+  const { stdout } = await exec('pnpm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
+  const packed = JSON.parse(stdout) as { filename: string; files: { path: string }[] }
+  const tarball = packed.filename
+  if (!tarball) {
+    throw new Error(`pnpm pack printed no package: ${stdout}`)
   }
-  const tarball = join(root, packed.filename)
+  const { size } = await stat(tarball)
   const installDir = join(root, 'install')
   await mkdir(installDir, { recursive: true })
   await writeFile(join(installDir, 'package.json'), `${JSON.stringify({ name: 'agent-trace-smoke', private: true })}\n`)
   await exec('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', tarball], { cwd: installDir })
   return {
     tarball,
-    tarballBytes: packed.size,
+    tarballBytes: size,
     files: packed.files.map(file => file.path).toSorted(),
     installDir,
     bin: join(installDir, 'node_modules/.bin/agent-trace'),
