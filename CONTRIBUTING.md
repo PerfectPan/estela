@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 24.x: the root `package.json` requires `>=24.0.0 <25`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm is pinned by `packageManager` in the root `package.json`; corepack activates it.
+Use Node.js 24.x: the root `package.json` requires `>=24.0.0 <25`, and `devEngines.runtime` fails `pnpm install` on any other version. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm switches itself to the version pinned by `packageManager` in the root `package.json`.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks
@@ -92,14 +92,14 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 
 `@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/agent-trace`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus `pnpm-lock.yaml`. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package.
 
-- Create the file with `pnpm change`, or copy an existing `.changeset/*.md` entry and edit it.
+- Create the file with `pnpm change @rivus/agent-trace --bump <major|minor|patch|none> --summary "<text>"`, which also runs without a terminal and invents a random file name — rename it to a kebab-case slug — or copy an existing `.changeset/*.md` entry and edit it.
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change: it neither bumps the version nor writes a changelog line, and its message may be empty.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI does not verify that a changeset is present; the PR template carries the reminder.
 - The manual Version Packages workflow opens or updates the `chore(release): version packages` PR, which runs `pnpm version -r`: it consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the consumed intents to `.changeset/ledger.yaml`, and applies the version bump. It does not publish; npm publishing stays a separate decision for the first release.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
-`@rivus/agent-trace` has never been published and sits at 0.0.0. pnpm does not invent a first version from pending intents: a package that has never been published debuts at the version its manifest carries, and the intents apply from the release after. When the first release is prepared, set the first version deliberately (for example `pnpm --filter @rivus/agent-trace version 0.1.0`) instead of relying on the bump types.
+Until `@rivus/agent-trace` has a version on npm, do not run Version Packages: pnpm judges "never published" by the registry, and for such a package `pnpm version -r` consumes the changesets into a changelog section for whatever version the manifest carries without bumping it (`0.0.0 → 0.0.0`; after a manual bump, a second section for the same version). The first release is manual: set the version (`pnpm --filter @rivus/agent-trace version 0.1.0`) and publish it. The workflow refuses to run before that first publish; from then on, the changesets → version PR flow above applies.
 
 Documentation-only and workflow-only PRs need no changeset.
 

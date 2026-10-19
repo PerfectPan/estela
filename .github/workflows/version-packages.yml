@@ -12,6 +12,8 @@ concurrency:
 
 jobs:
   version-packages:
+    # A manual dispatch on a feature branch would version that branch.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -19,6 +21,16 @@ jobs:
           # The action pushes the version commit and opens the PR through the GitHub API,
           # so the checkout needs no persisted git credentials.
           persist-credentials: false
+      # Before the package's first npm release, `pnpm version -r` consumes the changesets into a
+      # changelog section for whatever version the manifest carries, without bumping anything
+      # (0.0.0 → 0.0.0; after a manual bump, a second section for the same version). The first
+      # release is manual; this workflow only runs once npm has a version to judge by.
+      - name: Require a published version
+        run: |
+          if ! npm view @rivus/agent-trace versions --json --registry https://registry.npmjs.org/ > /dev/null 2>&1; then
+            echo "::error::@rivus/agent-trace has no published version on npm yet. Finish the first release manually (set the version and publish; see CONTRIBUTING.md#release-intent) before running Version Packages."
+            exit 1
+          fi
       - uses: pnpm/setup@v3
         with:
           runtime: node@24

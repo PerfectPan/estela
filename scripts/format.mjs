@@ -14,7 +14,7 @@ const HELP = `Usage:
 Formats the JS and TS files (.js .jsx .mjs .cjs .ts .tsx .mts .cts) that git
 tracks or would track under apps/, packages/, and scripts/, plus the root
 vite.config.ts, with "vp fmt" and the fmt block of the root vite.config.ts.
-Fixtures are skipped; Markdown, JSON, HTML, CSS, and common/ are not formatted.
+Fixtures are skipped; Markdown, JSON, HTML, and CSS are not formatted.
 
   --check  Write nothing. Exit 1 when a file is not formatted.
 

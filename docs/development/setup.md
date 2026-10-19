@@ -59,7 +59,7 @@ HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
 pnpm --filter '@rivus/agent-trace...' run build
 cd apps/cli
 node dist/bin.mjs --help          # the bundle, from the workspace
-pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE
+pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md once versioned
 ```
 
 `pnpm pack` rewrites the `workspace:` and `catalog:` specifiers in the manifest into real versions. `npm pack` leaves them in, and the `catalog:` protocol makes the tarball uninstallable by npm.
