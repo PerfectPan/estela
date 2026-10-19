@@ -18,11 +18,11 @@ Node.js 24 or later:
 npx @rivus/agent-trace
 ```
 
-This starts a server on `localhost`, indexes the sessions of the supported agents, and opens the session browser. `@rivus/agent-trace` is not published yet. Until then, build it from this repository and run the bundle. The build needs Node.js 24.x, because `rush.json` allows `>=24.0.0 <25`; the built CLI runs on Node.js 24 or later:
+This starts a server on `localhost`, indexes the sessions of the supported agents, and opens the session browser. `@rivus/agent-trace` is not published yet. Until then, build it from this repository and run the bundle. The build needs Node.js 24.x, because the root `package.json` requires `>=24.0.0 <25`; the built CLI runs on Node.js 24 or later:
 
 ```sh
-node common/scripts/install-run-rush.js install
-node common/scripts/install-run-rush.js build
+pnpm install
+pnpm build
 node apps/cli/dist/bin.mjs
 ```
 
@@ -80,7 +80,7 @@ Grok records token usage only per turn, so a Grok session has one request per tu
 
 ## Development
 
-Rush monorepo; the UI is Solid, Tailwind v4, and shadcn-solid; build, lint, format, and test run through Vite+ (`vp`). Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands, the tarball, and the smoke and browser test suites: [docs/development/setup.md](docs/development/setup.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
+pnpm workspace; the UI is Solid, Tailwind v4, and shadcn-solid; build, lint, format, and test run through Vite+ (`vp`). Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands, the tarball, and the smoke and browser test suites: [docs/development/setup.md](docs/development/setup.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

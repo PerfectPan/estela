@@ -2,34 +2,31 @@
 
 ## Development Setup
 
-Use Node.js 24.x: `rush.json` requires `>=24.0.0 <25`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. Rush installs its own pnpm. Do not run a root `pnpm install`.
+Use Node.js 24.x: the root `package.json` requires `>=24.0.0 <25`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm is pinned by `packageManager` in the root `package.json`; corepack activates it.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks
 ./scripts/install-git-hooks.sh
 gh repo-checks repository
 node scripts/check-doc-translations.mjs
-node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 gh repo-checks pr-title "docs: add external release plan"
 gh repo-checks pr-body pr-body.md
-node common/scripts/install-run-rush.js install
+pnpm install
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
-node common/scripts/install-run-rush.js lint
-node common/scripts/install-run-rush.js test
-node common/scripts/install-run-rush.js typecheck
-node common/scripts/install-run-rush.js build
-cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+pnpm lint
+pnpm test
+pnpm typecheck
+pnpm build
+cd apps/cli && pnpm run dev -- --no-auth
 ```
 
-The toolchain is Vite+ (`vp`): every Rush project lints with `vp lint` and tests with `vp test`, `apps/cli` builds with `vp pack` and `apps/web` with `vp build`, each from the project's one `vite.config.ts`. `tsc` stays the type check. The lint and format settings are the `lint` and `fmt` blocks of the root `vite.config.ts`; `vp lint` and `vp fmt` use the nearest config with such a block, and project configs have none.
+The toolchain is Vite+ (`vp`): every workspace package lints with `vp lint` and tests with `vp test`, `apps/cli` builds with `vp pack` and `apps/web` with `vp build`, each from the package's one `vite.config.ts`. `tsc` stays the type check. The lint and format settings are the `lint` and `fmt` blocks of the root `vite.config.ts`; `vp lint` and `vp fmt` use the nearest config with such a block, and package configs have none.
 
-`node scripts/format.mjs` formats the JS and TS files under `apps/`, `packages/`, and `scripts/`, and the root `vite.config.ts`, with `vp fmt`; `--check` writes nothing and fails on an unformatted file. It needs the Rush install, because it runs the vite-plus that `apps/cli` owns. Markdown, JSON, fixtures, and `common/` are not formatted. oxlint's `curly: all` requires a braced block for every `if`, `else`, `for`, `while`, and `do` body. `node scripts/lint-scripts.mjs` lints the root `scripts/` and `vite.config.ts`, which no Rush project covers, with the same settings. The CI `test` job and the pre-commit hook run the format check and the scripts lint.
-
-There is no package publish command.
+`node scripts/format.mjs` formats the JS and TS files under `apps/`, `packages/`, and `scripts/`, and the root `vite.config.ts`, with `vp fmt`; `--check` writes nothing and fails on an unformatted file. It needs `pnpm install` first, because it runs the vite-plus that `apps/cli` owns. Markdown, JSON, and fixtures are not formatted. oxlint's `curly: all` requires a braced block for every `if`, `else`, `for`, `while`, and `do` body. `node scripts/lint-scripts.mjs` lints the root `scripts/` and `vite.config.ts`, which no workspace package's lint covers, with the same settings. The CI `test` job and the pre-commit hook run the format check and the scripts lint.
 
 ## Contribution Flow
 
@@ -41,7 +38,7 @@ There is no package publish command.
 6. Implement the change, keeping responsibilities separated and using existing project patterns.
 7. Add or update tests for behavior changes.
 8. Update `README.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
-9. Run repository checks, title and description checks, the format check, and the Rush lint, test, typecheck, and build gates.
+9. Run repository checks, title and description checks, the format check, and the pnpm lint, test, typecheck, and build gates.
 10. Open a pull request with a conventional title, a summary of what changed and why, validation with skipped gates, and any risks.
 11. Keep the PR description current after review feedback, rebases, validation reruns, or scope changes.
 
@@ -93,18 +90,18 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 
 ## Release Intent
 
-`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a Rush change file under `common/changes/@rivus/agent-trace/`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus `common/config/rush/pnpm-lock.yaml`.
+`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/agent-trace`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus `pnpm-lock.yaml`. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package.
 
-- Create the file with `node common/scripts/install-run-rush.js change`. Rush only notices edits inside the published project's folder; when it reports nothing to do for an edit elsewhere, use `node scripts/release-intent.mjs add --type <major|minor|patch|none> --message "<text>"`.
-- The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change that should not trigger a release by itself; its message may be empty.
+- Create the file with `pnpm change`, or copy an existing `.changeset/*.md` entry and edit it.
+- The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change: it neither bumps the version nor writes a changelog line, and its message may be empty.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
-- CI runs `rush change --verify` and `node scripts/release-intent.mjs check` against the merge base. The checkout needs full history (`fetch-depth: 0`).
-- `rush version --bump --version-policy agent-trace` consumes the change files, sets the version, and writes `apps/cli/CHANGELOG.md` and `CHANGELOG.json`. It runs only in the release workflow, which is not set up yet.
-- Release notes come only from change files. Do not edit the generated changelogs or keep a hand-written root `CHANGELOG.md` beside them.
+- CI does not verify that a changeset is present; the PR template carries the reminder.
+- The manual Version Packages workflow opens or updates the `chore(release): version packages` PR, which runs `pnpm version -r`: it consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the consumed intents to `.changeset/ledger.yaml`, and applies the version bump. It does not publish; npm publishing stays a separate decision for the first release.
+- Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
-Documentation-only and workflow-only PRs need no change file.
+`@rivus/agent-trace` has never been published and sits at 0.0.0. pnpm does not invent a first version from pending intents: a package that has never been published debuts at the version its manifest carries, and the intents apply from the release after. When the first release is prepared, set the first version deliberately (for example `pnpm --filter @rivus/agent-trace version 0.1.0`) instead of relying on the bump types.
 
-Why a script: Rush requires change files only for projects in a version policy and does not follow dependencies, so an edit that only touches a bundled private package would reach users with no changelog entry. Changesets has the same gap ([changesets#944](https://github.com/changesets/changesets/issues/944), open since 2022). Putting the private packages into the version policy is not an option: `rush publish` publishes every project in a policy regardless of `"private"`. Remove `release-intent.mjs` if Rush gains this behavior.
+Documentation-only and workflow-only PRs need no changeset.
 
 ## License
 
@@ -114,7 +111,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 
 - File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.
 - Files under `fixtures/` keep the agent log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
-- Names fixed by convention or a platform keep their form: `README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CHANGELOG.json`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, `.gitlab/merge_request_templates/`, and everything under `common/`, which Rush owns.
+- Names fixed by convention or a platform keep their form: `README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, and `.gitlab/merge_request_templates/`.
 - A code file (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, and their variants) under `apps/`, `packages/`, or `scripts/` has at most 500 lines, tests included. Fixtures and documentation have no line limit. A file near the limit splits along a responsibility, not at an arbitrary line.
 
 `node scripts/check-conventions.mjs` checks every tracked file. CI and the pre-commit hook run it.
@@ -128,7 +125,7 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 - `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<agent>/` for the session logs the conformance suites read).
 - Shared lint, format, and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. The `lint` and `fmt` blocks of the root `vite.config.ts` spread its `vite-plus` export and `tsconfig.base.json` extends its tsconfig; both keep only this repository's rules. Change a shared default upstream, not here.
-- `node scripts/check-layers.mjs` checks each Rush project's `@rivus/*` dependencies against the "May depend on" column of the [Layers table in `AGENTS.md`](AGENTS.md#layers). CI and the pre-commit hook run it.
+- `node scripts/check-layers.mjs` checks each workspace package's `@rivus/*` dependencies against the "May depend on" column of the [Layers table in `AGENTS.md`](AGENTS.md#layers). CI and the pre-commit hook run it.
 
 ## Runtime checks
 
@@ -144,27 +141,27 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 CI runs when a Draft PR becomes Ready for review. Ordinary pushes, main merges and metadata edits do not start
 it. Finish local checks before requesting CI. After changing the head or base, update the branch and select Draft
 then Ready again; confirm that the current PR comparison passed before merging. The single `test` job includes
-the repository checks, the PR title and description checks, and release intent; there is no separate Review
+the repository checks and the PR title and description checks; there is no separate Review
 workflow. Editing the title or description does not re-run them; select Draft then Ready again after such an edit.
 GitHub's PR checkout tests the merge result. A manual `workflow_dispatch` runs the selected branch as `manual checks`
-for diagnosis, without the PR title, description, or release intent checks, and does not satisfy the required PR
+for diagnosis, without the PR title or description checks, and does not satisfy the required PR
 `test` check. Do not retry account/billing-blocked
 runs until the blocker is resolved.
 
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
-The tarball smoke step then builds `@rivus/agent-trace` with `vp pack` (`rush build --to @rivus/agent-trace`, which also
+The tarball smoke step then builds `@rivus/agent-trace` with `vp pack` (`pnpm --filter '@rivus/agent-trace...' run build`, which also
 runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
-a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses Rush install with
-the committed lockfile; use Rush update locally only when dependency inputs change. pnpm rejects versions published
-less than a day ago (`minimumReleaseAgeMinutes` in `common/config/rush/pnpm-config.json`), so pick versions at least a
-day old when upgrading. A `vite-plus` upgrade also moves the vite-plus-core version in that file's `globalOverrides`
-to the same version, and `apps/web`'s `rolldown` devDependency to that core's `bundledVersions.rolldown`; the CLI
-build fails while the `rolldown` pin differs.
+a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses
+`pnpm install --frozen-lockfile` with the committed lockfile; refresh the lockfile with `pnpm install` when dependency
+inputs change. pnpm rejects versions published
+less than a day ago (`minimumReleaseAge` in `pnpm-workspace.yaml`), so pick versions at least a day old when upgrading.
+A `vite-plus` upgrade also moves the catalog's `vite` entry (the vite-plus-core override) to the same version, and
+`apps/web`'s `rolldown` devDependency to that core's `bundledVersions.rolldown`; the CLI build fails while the
+`rolldown` pin differs.
 
-`actions/cache@v6` caches the pnpm content-addressed store at `common/temp/pnpm-store` and npm download cache at
-`~/.npm/_cacache`, keyed by runner OS and Rush/lockfile configuration. Every run still executes Rush install and the
-checks. Installed workspace links, build outputs, credentials and CI results are not cached. Cache misses use the
-same gate. Keep cache storage inside the included repository allowance.
+`pnpm/setup@v3` caches the pnpm content-addressed store, keyed by the lockfile's content hash. Every run still
+executes `pnpm install --frozen-lockfile` and the checks. Installed workspace links, build outputs, credentials and
+CI results are not cached. Keep cache storage inside the included repository allowance.
 
 ## Pull Request Expectations
 
