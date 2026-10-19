@@ -38,11 +38,13 @@ catalog:
   vite-plus: 1.1.0
   zod: 4.6.5
 
-# The vitest inside vite-plus and the web plugins peer on a real `vite` range, which the core's
-# version (see catalog) does not satisfy.
+# `allowedVersions` is the rule that silences the "missing peer vite" warning for
+# @tailwindcss/vite and the vite-plus plugins, whose peer ranges the vite-plus core's version
+# (see catalog) cannot satisfy; the substitution is deliberate. Measured on the first
+# regenerated lockfile: allowAny, which Rush's config carried over, does not suppress that
+# warning. With the committed lockfile the peer context is recorded and installs are quiet
+# either way; the rule guards a future re-resolution.
 peerDependencyRules:
-  allowAny:
-    - vite
   allowedVersions:
     vite: '*'
 
