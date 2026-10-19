@@ -26,27 +26,32 @@ const ALLOW = {
 const HELP = `Usage:
   node scripts/check-layers.mjs [--help]
 
-Reads every project from rush.json and checks each package.json @rivus/*
+Reads every workspace package below and checks each package.json @rivus/*
 dependency (dependencies, devDependencies, peerDependencies, optionalDependencies)
 against the "May depend on" column of the Layers table in AGENTS.md.
 @rivus/agent-trace-e2e may have no runtime dependencies at all.
 Exits 1 and prints one line per violation.
 `
 
+/** Every workspace package of the pnpm workspace; a new package needs an entry here. */
+const PROJECTS = [
+  'apps/cli',
+  'apps/e2e',
+  'apps/web',
+  'packages/kernel',
+  'packages/rpc',
+  'packages/runtime-node',
+  'packages/schema',
+]
+
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   process.stdout.write(HELP)
   process.exit(0)
 }
 
-const rush = JSON.parse(readFileSync('rush.json', 'utf8'))
 const violations = []
-for (const project of rush.projects) {
-  const manifest = JSON.parse(readFileSync(join(project.projectFolder, 'package.json'), 'utf8'))
-  if (manifest.name !== project.packageName) {
-    violations.push(
-      `check-layers: ${project.projectFolder} package.json name ${manifest.name} does not match rush.json ${project.packageName}`,
-    )
-  }
+for (const project of PROJECTS) {
+  const manifest = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'))
   if (manifest.name === '@rivus/agent-trace-e2e' && Object.keys(manifest.dependencies ?? {}).length > 0) {
     violations.push(
       `check-layers: ${manifest.name} has runtime dependencies; it may only use devDependencies (test tooling)`,
@@ -81,4 +86,4 @@ if (violations.length > 0) {
   process.exit(1)
 }
 
-console.log(`check-layers: ok (${rush.projects.length} projects)`)
+console.log(`check-layers: ok (${PROJECTS.length} projects)`)

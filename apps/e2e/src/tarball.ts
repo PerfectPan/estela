@@ -19,20 +19,23 @@ export interface Installed {
 }
 
 /**
- * Builds `@rivus/agent-trace` and what it depends on, so the tarball never holds a stale bundle.
- * Rush skips projects whose inputs did not change, so this is quick after a build.
+ * Builds `@rivus/agent-trace` and the workspace packages it depends on, so the tarball never
+ * holds a stale bundle.
  */
 async function buildCli(repo: string): Promise<void> {
   try {
-    await exec(process.execPath, ['common/scripts/install-run-rush.js', 'build', '--to', '@rivus/agent-trace'], {
+    await exec('pnpm', ['--filter', '@rivus/agent-trace...', 'run', 'build'], {
       cwd: repo,
       maxBuffer: 64 * 1024 * 1024,
     })
   } catch (error) {
     const { stdout = '', stderr = '' } = error as { stdout?: string; stderr?: string }
-    throw new Error(`rush build --to @rivus/agent-trace failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`, {
-      cause: error,
-    })
+    throw new Error(
+      `pnpm --filter '@rivus/agent-trace...' run build failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`,
+      {
+        cause: error,
+      },
+    )
   }
 }
 

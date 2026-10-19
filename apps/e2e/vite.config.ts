@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite-plus'
 
-// `test:smoke` only: it packs and installs the CLI, so it is not part of `rush test`.
+// `test:smoke` only: it packs and installs the CLI, so it is not part of the root `pnpm test`.
 export default defineConfig({
   test: {
     include: ['src/**/*.smoke.ts'],
