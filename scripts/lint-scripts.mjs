@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Lints the root scripts/ directory and the root vite.config.ts, which no Rush project's lint covers, with `vp lint`
-// and the `lint` block of the root vite.config.ts. vite-plus is resolved from apps/cli, as in format.mjs.
+// Lints the root scripts/ directory and the root vite.config.ts, which no workspace package's lint covers,
+// with `vp lint` and the `lint` block of the root vite.config.ts. vite-plus is resolved from apps/cli, as in format.mjs.
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
@@ -12,10 +12,9 @@ const HELP = `Usage:
 
 Runs "vp lint" with the lint block of the root vite.config.ts (curly included)
 over the JS files in scripts/ and the root vite.config.ts. Exits 1 on a lint
-error or warning (the shared config sets denyWarnings), as in "rush lint".
+error or warning (the shared config sets denyWarnings), as in "pnpm -r lint".
 
-vite-plus comes from apps/cli's devDependencies; run
-"node common/scripts/install-run-rush.js install" first.
+vite-plus comes from apps/cli's devDependencies; run "pnpm install" first.
 `
 
 const args = process.argv.slice(2)
@@ -35,9 +34,7 @@ try {
   const require = createRequire(join(root, 'apps/cli/package.json'))
   bin = join(dirname(require.resolve('vite-plus/package.json')), 'bin/vp')
 } catch {
-  process.stderr.write(
-    'lint-scripts: vite-plus is not installed. Run "node common/scripts/install-run-rush.js install".\n',
-  )
+  process.stderr.write('lint-scripts: vite-plus is not installed. Run "pnpm install".\n')
   process.exit(1)
 }
 

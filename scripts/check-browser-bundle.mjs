@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Bundle kernel and rpc for the browser, which keeps node:* out of them.
-// vite-plus is resolved from apps/cli, like the other root scripts that need a Rush-installed tool.
+// vite-plus is resolved from apps/cli, like the other root scripts that need the workspace install.
 import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'

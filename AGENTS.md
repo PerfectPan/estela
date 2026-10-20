@@ -36,13 +36,13 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 ## Tooling
 
-- Rush + pnpm. Do not use a root `pnpm-workspace.yaml`.
+- pnpm workspace. Workspace settings, the shared external versions (`catalog:`), and the versioning config live in the root `pnpm-workspace.yaml`.
 - UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
-- The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each Rush project has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web`); `tsc` stays the type check. Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
+- The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each workspace package has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web`); `tsc` stays the type check. Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
 - Lint and format settings live only in the `lint` and `fmt` blocks of the root `vite.config.ts`, built on `@perfectpan/lint-config/vite-plus`; a project's `vite.config.ts` has neither block, so `vp lint` and `vp fmt` find the root one.
-- Lint is oxlint through `vp lint`: `rush lint` per project, and `node scripts/lint-scripts.mjs` for the root `scripts/` and `vite.config.ts`. `curly: all` is on: every `if`, `else`, `for`, `while`, and `do` body is a braced block.
+- Lint is oxlint through `vp lint`: `pnpm -r lint` per package, and `node scripts/lint-scripts.mjs` for the root `scripts/` and `vite.config.ts`. `curly: all` is on: every `if`, `else`, `for`, `while`, and `do` body is a braced block.
 - Format is oxfmt through `vp fmt` (`apps/cli` owns the vite-plus that the root scripts run) over JS and TS under `apps/`, `packages/`, and `scripts/`, and the root `vite.config.ts`. `node scripts/format.mjs` writes; `--check` verifies. Markdown, JSON, and fixtures are not formatted.
-- A PR that changes shipped files under `apps/` or `packages/` carries a Rush change file; rules in `CONTRIBUTING.md#release-intent`. Do not edit generated changelogs or add a hand-written root `CHANGELOG.md`.
+- A PR that changes shipped files under `apps/` or `packages/` carries a changeset under `.changeset/`; rules in `CONTRIBUTING.md#release-intent`. Do not edit generated changelogs or add a hand-written root `CHANGELOG.md`.
 - Contribution workflow, Specs, and Plans live in `CONTRIBUTING.md`, `docs/specs/`, and `docs/plans/`. Do not copy the `technical-design-docs` skill into this repo.
 - File and directory names are kebab-case, and a code file has at most 500 lines; rules in `CONTRIBUTING.md#file-conventions`.
 - Every Spec and Plan ships with a `.zh-CN.md` reading copy in the same PR; rules in `CONTRIBUTING.md#bilingual-specs-and-plans`.
@@ -65,18 +65,18 @@ node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
 gh repo-checks pr-title "<title>"
 gh repo-checks pr-body pr-body.md
-node common/scripts/install-run-rush.js install
+pnpm install
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
-node common/scripts/install-run-rush.js lint
-node common/scripts/install-run-rush.js test
-node common/scripts/install-run-rush.js typecheck
-node common/scripts/install-run-rush.js build
+pnpm lint
+pnpm test
+pnpm typecheck
+pnpm build
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
-cd apps/cli && node ../../common/scripts/install-run-rushx.js dev -- --no-auth
-cd apps/e2e && node ../../common/scripts/install-run-rushx.js test:smoke
-cd apps/e2e && node ../../common/scripts/install-run-rushx.js test:e2e
+cd apps/cli && pnpm run dev -- --no-auth
+cd apps/e2e && pnpm run test:smoke
+cd apps/e2e && pnpm run test:e2e
 ```
 
-`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `rush test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Never run `npm publish` or `rush publish`.
+`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Never run `npm publish`; publishing is a decision for the first release (see `CONTRIBUTING.md#release-intent`).

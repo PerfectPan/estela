@@ -7,32 +7,31 @@ Audience: someone running or testing the viewer locally.
 ```bash
 gh extension install PerfectPan/gh-repo-checks
 ./scripts/install-git-hooks.sh
-node common/scripts/install-run-rush.js install
+pnpm install
 ```
 
-Use Node.js 24.x: `rush.json` requires `>=24.0.0 <25`. The built CLI runs on Node.js 24 or later and exits before loading when Node is older.
+Use Node.js 24.x: the root `package.json` requires `>=24.0.0 <25`. The built CLI runs on Node.js 24 or later and exits before loading when Node is older.
 
 ## Checks
 
 ```bash
 gh repo-checks repository
 node scripts/check-doc-translations.mjs
-node scripts/release-intent.mjs check --base "$(git merge-base origin/main HEAD)"
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 node scripts/format.mjs --check
-node common/scripts/install-run-rush.js lint
-node common/scripts/install-run-rush.js test
-node common/scripts/install-run-rush.js typecheck
-node common/scripts/install-run-rush.js build
+pnpm lint
+pnpm test
+pnpm typecheck
+pnpm build
 ```
 
 ## Run the UI
 
 ```bash
 cd apps/cli
-node ../../common/scripts/install-run-rushx.js dev -- --no-auth
+pnpm run dev -- --no-auth
 ```
 
 Open `http://localhost:7392/__agent-trace/`.
@@ -49,7 +48,7 @@ HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
 
 ## Bundle and tarball
 
-`rush build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`):
+`pnpm --filter '@rivus/agent-trace...' run build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`):
 
 - `dist/bin.mjs` is the package `bin`, built from `apps/cli/bin.mjs`. It checks the Node.js version and drops the `node:sqlite` ExperimentalWarning, then imports `dist/cli.mjs` (from source, the same file imports `src/main.ts`).
 - `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, and `@clack/prompts`. `devframe`, `@devframes/agentic`, and `cac` stay external as the package's only runtime dependencies. `@devframes/agentic` declares an exact `devframe` peer dependency, so the two stay pinned to the same version.
@@ -57,13 +56,13 @@ HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
 - `dist/THIRD-PARTY-NOTICES.txt` holds the license texts of the npm packages bundled into `cli.mjs` and of those the web build is made from, Vite and Rolldown included through vite-plus-core; the CLI section lists Rolldown too, for the runtime helpers in `cli.mjs` and `bin.mjs` (`apps/cli/scripts/third-party-notices.ts`, a Rolldown plugin).
 
 ```bash
-node common/scripts/install-run-rush.js build --to @rivus/agent-trace
+pnpm --filter '@rivus/agent-trace...' run build
 cd apps/cli
 node dist/bin.mjs --help          # the bundle, from the workspace
-npm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md
+pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md once versioned
 ```
 
-`npm pack` leaves `workspace:*` in the packed `devDependencies`. `npm install` ignores them, but a registry publish should pack with Rush or pnpm.
+`pnpm pack` rewrites the `workspace:` and `catalog:` specifiers in the manifest into real versions. `npm pack` leaves them in, and the `catalog:` protocol makes the tarball uninstallable by npm.
 
 Never publish from a local checkout.
 
@@ -92,11 +91,11 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `npm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `rush test`, because it packs and installs. Setup first runs `node common/scripts/install-run-rush.js build --to @rivus/agent-trace`, so the tarball never holds a stale bundle; Rush skips the projects whose inputs did not change.
+`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/agent-trace...' run build`, so the tarball never holds a stale bundle.
 
 ```bash
 cd apps/e2e
-node ../../common/scripts/install-run-rushx.js test:smoke
+pnpm run test:smoke
 ```
 
 `TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js 24.
@@ -110,8 +109,8 @@ The test titles name the [scenarios](#acceptance-scenarios) they check, and each
 ```bash
 cd apps/e2e
 npx playwright install chromium                                   # once; CI adds --with-deps
-node ../../common/scripts/install-run-rushx.js test:e2e
-AGENT_TRACE_E2E_CHANNEL=chrome node ../../common/scripts/install-run-rushx.js test:e2e   # use the installed Google Chrome instead
+pnpm run test:e2e
+AGENT_TRACE_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome instead
 ```
 
 S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `tarball` job on Node.js 24 only.
@@ -121,7 +120,7 @@ S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/larg
 Before a UI change is done, check it in a real browser with the dev server on a synthetic `HOME`. The web app is served from `apps/web/dist`, so rebuild it after a UI change:
 
 ```bash
-node common/scripts/install-run-rush.js build --to @rivus/agent-trace-web
+pnpm --filter @rivus/agent-trace-web run build
 ```
 
 ### Synthetic home and generated traces

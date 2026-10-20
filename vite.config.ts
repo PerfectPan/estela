@@ -1,10 +1,10 @@
 // Repository-wide lint and format settings. `vp lint` and `vp fmt` use the nearest vite.config.ts with a `lint` or
-// `fmt` block, so every Rush project, whose own vite.config.ts has neither, lints and formats with this one; override
-// globs are relative to this directory.
+// `fmt` block, so every workspace package, whose own vite.config.ts has neither, lints and formats with this one;
+// override globs are relative to this directory.
 //
-// Rush installs no root node_modules, so nothing here is imported by package name. Every Rush project declares
-// @perfectpan/lint-config at the same version; packages/schema's copy is used because every project depends on
-// schema, so any install includes its node_modules. For the same reason this file does not call vite-plus's
+// The workspace root installs no dependencies, so nothing here is imported by package name. Every workspace package
+// declares @perfectpan/lint-config at the same version; packages/schema's copy is used because every project depends
+// on schema, so any install includes its node_modules. For the same reason this file does not call vite-plus's
 // `defineConfig`.
 import { fmt, lint } from './packages/schema/node_modules/@perfectpan/lint-config/vite-plus.js'
 
@@ -18,7 +18,7 @@ const agentKitTypesOnly = {
 export default {
   lint: {
     ...lint,
-    ignorePatterns: ['**/dist/**', '**/node_modules/**', 'common/temp/**', 'common/deploy/**'],
+    ignorePatterns: ['**/dist/**', '**/node_modules/**'],
     categories: { ...lint.categories, suspicious: 'warn' },
     rules: {
       ...lint.rules,
@@ -119,6 +119,6 @@ export default {
     bracketSpacing: true,
     experimentalOperatorPosition: 'start',
     embeddedLanguageFormatting: 'off',
-    ignorePatterns: ['common/**', '**/fixtures/**', 'docs/**', '**/*.md', '**/*.json', '**/*.html', '**/*.css'],
+    ignorePatterns: ['**/fixtures/**', 'docs/**', '**/*.md', '**/*.json', '**/*.html', '**/*.css'],
   },
 }

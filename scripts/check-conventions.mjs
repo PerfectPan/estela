@@ -22,7 +22,6 @@ const FIXED_NAMES = new Set([
 ])
 /** Paths whose names a platform or tool decides. */
 const FIXED_PATHS = [
-  /^common\//, // Rush owns this tree, including change files
   /^\.github\/ISSUE_TEMPLATE\//,
   /^\.github\/pull_request_template\.md$/,
   /^\.gitlab\/merge_request_templates\//,

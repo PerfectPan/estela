@@ -1,0 +1,58 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Rush installed with autoInstallPeers false, and its comment warns against the invisible
+# heuristic; pnpm 8+ defaults to true, so this stays explicit.
+autoInstallPeers: false
+
+# A release must be at least a day old before pnpm installs it. From pnpm 12.3 on, the explicit
+# value also turns on strict mode: when a range is met only by a too-young release, a frozen
+# install fails instead of asking to add an exception, so deliberate exceptions belong here.
+# @rivus/agent-kit is owner-published and validated across repositories right after publication.
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - '@rivus/agent-kit'
+
+# pnpm runs no dependency build scripts unless listed here.
+allowBuilds:
+  # apps/e2e uses node-pty's prebuilt binaries; its install script would fall back to node-gyp.
+  node-pty: false
+
+# Versions shared by two or more workspace packages live here; catalogMode keeps `pnpm add`
+# on them instead of writing a second range. It is not Rush's ensureConsistentVersions: a
+# range hand-edited in a package.json, or a dependency outside the catalog, still installs
+# without an error. Nothing checks that automatically; reviewers do.
+catalogMode: strict
+catalog:
+  '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.6.0
+  '@rivus/agent-kit': 0.14.0
+  '@types/node': ^24.19.0
+  devframe: 1.1.0
+  es-toolkit: 1.52.0
+  typescript: ^7.0.2
+  # Vite+ supplies Vite: every `vite` in the graph (the web plugins' peer included) resolves to
+  # the core that vite-plus ships, so the catalog's `vite` must stay at the `vite-plus` version
+  # above; a lone vite-plus bump leaves the override on the old core.
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
+  vite-plus: 1.1.0
+  zod: 4.6.5
+
+# `allowedVersions` is the rule that silences the "missing peer vite" warning for
+# @tailwindcss/vite and the vite-plus plugins, whose peer ranges the vite-plus core's version
+# (see catalog) cannot satisfy; the substitution is deliberate. Measured on the first
+# regenerated lockfile: allowAny, which Rush's config carried over, does not suppress that
+# warning. With the committed lockfile the peer context is recorded and installs are quiet
+# either way; the rule guards a future re-resolution.
+peerDependencyRules:
+  allowedVersions:
+    vite: '*'
+
+overrides:
+  vite@*: 'catalog:'
+
+versioning:
+  changelog:
+    # Commit CHANGELOG.md and drop consumed changesets at `pnpm version -r`. The default
+    # `registry` keeps them until a publish is confirmed, which no workflow here does yet.
+    storage: repository

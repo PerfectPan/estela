@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Formats the repository's JS and TS code with `vp fmt` and the `fmt` block of the root vite.config.ts.
-// vite-plus is resolved from apps/cli, like the other root scripts that need a Rush-installed tool.
+// vite-plus is resolved from apps/cli, like the other root scripts that need the workspace install.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -14,12 +14,11 @@ const HELP = `Usage:
 Formats the JS and TS files (.js .jsx .mjs .cjs .ts .tsx .mts .cts) that git
 tracks or would track under apps/, packages/, and scripts/, plus the root
 vite.config.ts, with "vp fmt" and the fmt block of the root vite.config.ts.
-Fixtures are skipped; Markdown, JSON, HTML, CSS, and common/ are not formatted.
+Fixtures are skipped; Markdown, JSON, HTML, and CSS are not formatted.
 
   --check  Write nothing. Exit 1 when a file is not formatted.
 
-vite-plus comes from apps/cli's devDependencies; run
-"node common/scripts/install-run-rush.js install" first.
+vite-plus comes from apps/cli's devDependencies; run "pnpm install" first.
 `
 
 const args = process.argv.slice(2)
@@ -52,7 +51,7 @@ try {
   const require = createRequire(join(root, 'apps/cli/package.json'))
   bin = join(dirname(require.resolve('vite-plus/package.json')), 'bin/vp')
 } catch {
-  process.stderr.write('format: vite-plus is not installed. Run "node common/scripts/install-run-rush.js install".\n')
+  process.stderr.write('format: vite-plus is not installed. Run "pnpm install".\n')
   process.exit(1)
 }
 
