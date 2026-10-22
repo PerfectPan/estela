@@ -12,7 +12,10 @@ import { sessionProviders } from './session-adapters.ts'
 
 export interface LoadSessionOptions {
   platform: CatalogPlatform
-  /** Omit to use the kit's built-in session services. */
+  /**
+   * Extend or override the kit's built-in session adapters by agent id; omit to use the built-ins.
+   * A target without an agent still runs detection on built-ins that were not overridden.
+   */
   adapters?: SessionAdapters
   signal?: AbortSignal
   onProgress?: (bytes: number) => void

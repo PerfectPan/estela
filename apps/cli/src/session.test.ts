@@ -78,7 +78,14 @@ describe('loadSession', () => {
       redacts: false,
       resolve: () => ({ key: 'custom', target }),
     })
+    const handle = await store.open('custom', {})
+    const storeProgress: number[] = []
+    handle.onProgress(({ bytesRead }) => storeProgress.push(bytesRead))
     expect((await store.view('custom')).trace.events).toHaveLength(trace.events.length)
+    await handle.done
+    // The store emits completion itself; the preceding notifications must come from the adapter.
+    expect(storeProgress.slice(0, -1)).toEqual(progress)
+    handle.release()
     expect(reads).toEqual(['custom-code', 'custom-code'])
   })
 

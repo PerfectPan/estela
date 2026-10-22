@@ -45,6 +45,10 @@ const INDEX_CONTENT_REVISION = 1
 const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION
 
 export interface CatalogOptions {
+  /**
+   * Omit to enumerate the kit's built-in adapters. When supplied, discovery enumerates only
+   * these adapters, while summary reads merge them with the built-ins by agent id.
+   */
   adapters?: SessionAdapters
   platform?: CatalogPlatform
   index?: SessionIndex
