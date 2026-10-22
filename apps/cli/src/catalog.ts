@@ -2,12 +2,7 @@ import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node
 import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { redactText } from '@rivus/agent-kit/redact'
-import {
-  builtinSessionAdapters,
-  sessionAdapterHome,
-  type SessionAdapter,
-  type SessionAdapters,
-} from '@rivus/agent-kit/sessions'
+import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { emitSessions } from '@rivus/agent-trace-rpc'
@@ -27,6 +22,7 @@ import {
 import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { oneLine, traceIdOf } from './session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
+import { builtinAdapters } from './session-adapters.ts'
 
 export type { AgentProgress } from './catalog-discover.ts'
 
@@ -49,6 +45,10 @@ const INDEX_CONTENT_REVISION = 1
 const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION
 
 export interface CatalogOptions {
+  /**
+   * Omit to enumerate the kit's built-in adapters. When supplied, discovery enumerates only
+   * these adapters, while summary reads merge them with the built-ins by agent id.
+   */
   adapters?: SessionAdapters
   platform?: CatalogPlatform
   index?: SessionIndex
@@ -63,7 +63,7 @@ export interface CatalogOptions {
  * the TraceStore, which loads and holds the traces.
  */
 export class SessionCatalog {
-  private readonly adapters: SessionAdapters
+  private readonly adapters: SessionAdapters | undefined
   private readonly adapterList: readonly SessionAdapter[]
   private readonly platform: CatalogPlatform
   private readonly index: SessionIndex
@@ -83,8 +83,8 @@ export class SessionCatalog {
   private flushTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(options: CatalogOptions = {}) {
-    this.adapters = options.adapters ?? builtinSessionAdapters
-    this.adapterList = Object.values(this.adapters).filter(adapter => adapter !== undefined)
+    this.adapters = options.adapters
+    this.adapterList = Object.values(this.adapters ?? builtinAdapters).filter(adapter => adapter !== undefined)
     this.platform = options.platform ?? createNodePlatform()
     const home = this.platform.home
     // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.

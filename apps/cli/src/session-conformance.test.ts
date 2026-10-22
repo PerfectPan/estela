@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
+import { builtinAdapters } from './session-adapters.ts'
 import {
   oversizedSession,
   sessionAdapterConformance,
@@ -100,9 +100,9 @@ afterAll(() => {
 
 describe('session adapter conformance', () => {
   for (const [agent, adapter, sessions] of [
-    ['claude-code', builtinSessionAdapters['claude-code'], CLAUDE],
-    ['codex', builtinSessionAdapters.codex, CODEX],
-    ['grok', builtinSessionAdapters.grok, GROK],
+    ['claude-code', builtinAdapters['claude-code']!, CLAUDE],
+    ['codex', builtinAdapters.codex!, CODEX],
+    ['grok', builtinAdapters.grok!, GROK],
   ] as const) {
     const fixtures: SessionAdapterFixtures = {
       platform,

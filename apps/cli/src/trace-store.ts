@@ -4,7 +4,7 @@ import process from 'node:process'
 import { isCanonicalTraceFile } from '@rivus/agent-trace-kernel'
 import { redact } from '@rivus/agent-kit/redact'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { builtinSessionAdapters, type SessionAdapters } from '@rivus/agent-kit/sessions'
+import type { SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_TRACE_ID, TraceStore } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import type { CatalogPlatform } from './catalog-rows.ts'
@@ -13,7 +13,7 @@ import { loadSession } from './session.ts'
 export interface TraceStoreOptions {
   /** Defaults to `createNodePlatform()`. */
   platform?: CatalogPlatform
-  /** Defaults to `builtinSessionAdapters`. */
+  /** Omit to use the kit's built-in session services. */
   adapters?: SessionAdapters
   redacts: boolean
   /** Other trace ids: on the dev server, the session catalog (every list row and the launch session's row trace id). */
@@ -46,7 +46,7 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
       const [trace, canonical] = await Promise.all([
         loadSession(session.target, {
           platform,
-          adapters: options.adapters ?? builtinSessionAdapters,
+          ...(options.adapters ? { adapters: options.adapters } : {}),
           signal: opts.signal,
           onProgress: opts.onProgress,
         }),

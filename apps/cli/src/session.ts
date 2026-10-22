@@ -2,17 +2,20 @@ import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { SessionAdapters } from '@rivus/agent-kit/sessions'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
-import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { isTrace } from '@rivus/agent-trace-schema'
 import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadErrorMessage } from './read-failure.ts'
 import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
+import { sessionProviders } from './session-adapters.ts'
 
 export interface LoadSessionOptions {
   platform: CatalogPlatform
-  /** Defaults to `builtinSessionAdapters`. */
+  /**
+   * Extend or override the kit's built-in session adapters by agent id; omit to use the built-ins.
+   * A target without an agent still runs detection on built-ins that were not overridden.
+   */
   adapters?: SessionAdapters
   signal?: AbortSignal
   onProgress?: (bytes: number) => void
@@ -44,7 +47,7 @@ export async function loadSession(target: SessionTarget, options: LoadSessionOpt
     }
   }
   const loaded = await loadTranscript(options.platform, target, {
-    adapters: options.adapters ?? builtinSessionAdapters,
+    ...(options.adapters ? { providers: sessionProviders(options.adapters) } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.onProgress ? { onProgress: options.onProgress } : {}),
   })

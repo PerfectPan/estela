@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
+import type { SessionAdapter } from '@rivus/agent-kit/sessions'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { loadSession } from './session.ts'
+import { builtinAdapters } from './session-adapters.ts'
+import { createTraceStore } from './trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const dirs: string[] = []
@@ -49,6 +52,43 @@ async function grokUnknownGeneration(): Promise<string> {
 }
 
 describe('loadSession', () => {
+  it('routes a named custom adapter through direct and store loads, keeping progress', async () => {
+    const path = join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')
+    const platform = createNodePlatform({ home: '/u/me', env: {} })
+    const builtin = builtinAdapters['claude-code']!
+    const reads: string[] = []
+    const adapter: SessionAdapter = {
+      ...builtin,
+      agent: 'custom-code',
+      detect: async () => false,
+      load: async (files, ref, options) => {
+        reads.push(ref.agent)
+        return builtin.load(files, { ...ref, agent: builtin.agent }, options)
+      },
+    }
+    const adapters = { 'custom-code': adapter }
+    const target = { agent: 'custom-code', path }
+    const progress: number[] = []
+    const trace = await loadSession(target, { platform, adapters, onProgress: bytes => progress.push(bytes) })
+    expect(trace.events.length).toBeGreaterThan(0)
+    expect(progress.at(-1)).toBeGreaterThan(0)
+    const { store } = createTraceStore({
+      platform,
+      adapters,
+      redacts: false,
+      resolve: () => ({ key: 'custom', target }),
+    })
+    const handle = await store.open('custom', {})
+    const storeProgress: number[] = []
+    handle.onProgress(({ bytesRead }) => storeProgress.push(bytesRead))
+    expect((await store.view('custom')).trace.events).toHaveLength(trace.events.length)
+    await handle.done
+    // The store emits completion itself; the preceding notifications must come from the adapter.
+    expect(storeProgress.slice(0, -1)).toEqual(progress)
+    handle.release()
+    expect(reads).toEqual(['custom-code', 'custom-code'])
+  })
+
   it('throws the unknown-generation wording, which the web parses into agent, file, and line', async () => {
     const path = await unknownGeneration()
     await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
