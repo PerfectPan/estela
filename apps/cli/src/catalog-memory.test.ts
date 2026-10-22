@@ -1,7 +1,6 @@
 import type { CatalogPlatform } from './catalog-rows.ts'
 import v8 from 'node:v8'
 import vm from 'node:vm'
-import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { createMemoryPlatform } from '@rivus/agent-kit/testing'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
@@ -20,7 +19,7 @@ const megabytes = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(
 
 const load = (sampled: CatalogPlatform, path: string) => loadTranscript(sampled, { agent: 'claude-code', path })
 const catalogSummary = (sampled: CatalogPlatform, path: string) =>
-  summarizeRow(sampled, builtinSessionAdapters, { agent: 'claude-code', path })
+  summarizeRow(sampled, undefined, { agent: 'claude-code', path })
 
 function timestamp(turn: number): string {
   const total = turn * 2
@@ -116,7 +115,7 @@ describe('catalog summary memory', () => {
     const files = createMemoryPlatform({
       files: { '/claude/large/session.jsonl': sessionContent(LARGE_TURNS) },
     })
-    const result = await summarizeRow(files, builtinSessionAdapters, {
+    const result = await summarizeRow(files, undefined, {
       agent: 'claude-code',
       path: '/claude/large/session.jsonl',
     })

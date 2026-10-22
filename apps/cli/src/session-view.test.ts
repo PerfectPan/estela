@@ -1,7 +1,6 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { builtinSessionAdapters } from '@rivus/agent-kit/sessions'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { fold, projectLanes, reconstruct, summaryOf, toView } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vite-plus/test'
@@ -55,7 +54,7 @@ describe('catalog summary equals the workspace header summary', () => {
       if (!loaded.ok) {
         throw new Error(`${path}: ${loaded.error._tag}`)
       }
-      const listed = await summarizeRow(platform, builtinSessionAdapters, { agent, path })
+      const listed = await summarizeRow(platform, undefined, { agent, path })
       if (!('summary' in listed)) {
         throw new Error(`${path}: ${listed.error.reason}`)
       }

@@ -168,8 +168,8 @@ catalogs:
       specifier: github:PerfectPan/lint-config#v0.6.0
       version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0
     '@rivus/agent-kit':
-      specifier: 0.14.0
-      version: 0.14.0
+      specifier: 0.20.0
+      version: 0.20.0
     '@types/node':
       specifier: ^24.19.0
       version: 24.19.0
@@ -216,7 +216,7 @@ importers:
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
         specifier: 'catalog:'
-        version: 0.14.0
+        version: 0.20.0
       '@rivus/agent-trace-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
@@ -313,7 +313,7 @@ importers:
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
         specifier: 'catalog:'
-        version: 0.14.0
+        version: 0.20.0
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3
@@ -353,7 +353,7 @@ importers:
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
         specifier: 'catalog:'
-        version: 0.14.0
+        version: 0.20.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.0
@@ -387,7 +387,7 @@ importers:
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
         specifier: 'catalog:'
-        version: 0.14.0
+        version: 0.20.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.0
@@ -412,7 +412,7 @@ importers:
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
         specifier: 'catalog:'
-        version: 0.14.0
+        version: 0.20.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.0
@@ -434,7 +434,7 @@ importers:
         version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/28be8c1e152dde6a44fce9e43fdb282957959cc0(oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(oxlint-tsgolint@7.0.2003)(oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2)))(typescript@7.0.2)(vite-plus@1.1.0(@types/node@24.19.0)(@vitest/ui@5.0.3)(jiti@2.7.0)(playwright@1.63.0)(typescript@7.0.2))
       '@rivus/agent-kit':
         specifier: 'catalog:'
-        version: 0.14.0
+        version: 0.20.0
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.0
@@ -447,8 +447,8 @@ importers:
 
 packages:
 
-  '@agentclientprotocol/sdk@1.7.0':
-    resolution: {integrity: sha512-ZORuxsuEnLjRly7t6Ad7zAsWitjWsyprswyPUHz/yycPb+tTm3DGa8XheaHhRXqX8LS9snuxaYavXSRA50TlHw==}
+  '@agentclientprotocol/sdk@1.8.0':
+    resolution: {integrity: sha512-fbP7qHZsFyTJVT0/RPrcWJ8An26qLXHEuGCHHEKDyxD1xpXV+Ejyh2LAE6vBAFePkpVjZeeohnbgvuEhZ7wLMg==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
@@ -935,11 +935,11 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
-  '@rivus/agent-kit@0.14.0':
-    resolution: {integrity: sha512-KF05LHzKfFSPwskHy9q8hDhs7rFJZ7clhXsZaTuRuPP/DIxKOT8Uo36+4BlBnc0eM8/1kTE1xde3/iQHTpWpTQ==, tarball: https://registry.npmjs.org/@rivus/agent-kit/-/agent-kit-0.14.0.tgz}
+  '@rivus/agent-kit@0.20.0':
+    resolution: {integrity: sha512-i+Yywj4OuDC0ib1CgrIFmJeQAJdkrZqrKr6Z4m6tAj3FMI9g/mZNsR4uvGqoK6HtKZ6wxN815DWDfkDCeYWd6g==}
     engines: {node: '>=22.13'}
     peerDependencies:
-      effect: 4.0.1
+      effect: 4.0.4
     peerDependenciesMeta:
       effect:
         optional: true
@@ -2210,6 +2210,10 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
+  shell-quote@1.12.0:
+    resolution: {integrity: sha512-PcByqNyT/38F2kDNi006HAMRJaULuBzq/FOsw3qdZvX/GA9W/jamDaRskgHjubHiftXK5sIFxLNkvrXUwcof6Q==}
+    engines: {node: '>= 0.4'}
+
   sirv@3.0.2:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
     engines: {node: '>=18'}
@@ -2406,11 +2410,14 @@ packages:
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
 snapshots:
 
-  '@agentclientprotocol/sdk@1.7.0(zod@4.6.5)':
+  '@agentclientprotocol/sdk@1.8.0(zod@4.6.7)':
     dependencies:
-      zod: 4.6.5
+      zod: 4.6.7
 
   '@babel/code-frame@7.29.7':
     dependencies:
@@ -2790,13 +2797,14 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@rivus/agent-kit@0.14.0':
+  '@rivus/agent-kit@0.20.0':
     dependencies:
-      '@agentclientprotocol/sdk': 1.7.0(zod@4.6.5)
+      '@agentclientprotocol/sdk': 1.8.0(zod@4.6.7)
       '@decimalturn/toml-patch': 3.3.0
       es-toolkit: 1.52.0
       jsonc-parser: 3.3.1
-      zod: 4.6.5
+      shell-quote: 1.12.0
+      zod: 4.6.7
 
   '@rolldown/binding-android-arm-eabi@1.2.12':
     optional: true
@@ -3775,6 +3783,8 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
+  shell-quote@1.12.0: {}
+
   sirv@3.0.2:
     dependencies:
       '@polka/url': 1.0.0-next.29
@@ -4083,3 +4093,5 @@ snapshots:
       '@yuku-parser/binding-win32-x64': 0.9.5
 
   zod@4.6.5: {}
+
+  zod@4.6.7: {}
