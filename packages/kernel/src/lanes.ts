@@ -38,6 +38,20 @@ export function recordKey(event: TraceEvent): string {
 }
 
 /**
+ * Index in `events` where the prompt record at `at` starts: the record's first
+ * user-kind event on the walk back. The kit marks a record's host-added blocks
+ * (system reminders, IDE context) `injected` per block, so they are user-kind
+ * but no prompt; a tool_result in the record stays outside, with its call.
+ */
+export function recordUserStart(events: readonly TraceEvent[], at: number): number {
+  let first = at
+  while (first > 0 && events[first - 1]!.kind === 'user' && recordKey(events[first - 1]!) === recordKey(events[at]!)) {
+    first -= 1
+  }
+  return first
+}
+
+/**
  * Ids of the events that start a turn on `lane`: the first event of each
  * prompt record (several content blocks of one record start one turn).
  */
