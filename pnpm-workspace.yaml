@@ -26,7 +26,7 @@ allowBuilds:
 catalogMode: strict
 catalog:
   '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.6.0
-  '@rivus/agent-kit': 0.20.0
+  '@rivus/agent-kit': 0.21.1
   '@types/node': ^24.19.0
   devframe: 1.1.0
   es-toolkit: 1.52.0

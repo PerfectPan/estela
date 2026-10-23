@@ -7,7 +7,7 @@ import type {
   Trace,
   TraceEvent,
 } from '@rivus/agent-trace-schema'
-import { isPrompt, laneOf, mainAgentId, recordKey, requestUsage, shadowedIn } from './lanes.ts'
+import { isPrompt, laneOf, mainAgentId, recordUserStart, requestUsage, shadowedIn } from './lanes.ts'
 import {
   latestSnapshot,
   promptSnapshot,
@@ -59,9 +59,12 @@ function summaryIds(prefix: TraceEvent[]): Set<string> {
 
 /**
  * Index in `visible` where the current turn starts: the last prompt record's
- * first event. A subagent lane with no prompt record (its task arrives as a
- * tool call) starts its turn at the lane start; the main lane without a prompt
- * has no current turn (-1), so everything visible is `messages`.
+ * first user-kind event, the rule `projectTurns` uses, so a record's host-added
+ * blocks (system reminders, IDE context) are the turn's start and its
+ * tool_result stays in history. A subagent lane with no prompt record (its task
+ * arrives as a tool call) starts its turn at the lane start; the main lane
+ * without a prompt has no current turn (-1), so everything visible is
+ * `messages`.
  */
 function turnStart(visible: TraceEvent[], mainLane: boolean): number {
   for (let cursor = visible.length - 1; cursor >= 0; cursor--) {
@@ -69,11 +72,7 @@ function turnStart(visible: TraceEvent[], mainLane: boolean): number {
     if (!isPrompt(event)) {
       continue
     }
-    let first = cursor
-    while (first > 0 && isPrompt(visible[first - 1]!) && recordKey(visible[first - 1]!) === recordKey(event)) {
-      first -= 1
-    }
-    return first
+    return recordUserStart(visible, cursor)
   }
   return mainLane ? -1 : 0
 }
