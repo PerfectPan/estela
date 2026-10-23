@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
+import { projectTurns } from '@rivus/agent-trace-kernel'
 import { builtinAdapters } from './session-adapters.ts'
 import {
   oversizedSession,
@@ -49,6 +50,7 @@ const CLAUDE: ConformanceSession[] = [
     records: 13,
     capabilities: ['requests', 'usage', 'subagents', 'systemPrompt', 'toolSchemas'],
   },
+  { path: 'host-context/session.jsonl', records: 6, capabilities: [] },
 ]
 
 const CODEX: ConformanceSession[] = [
@@ -135,4 +137,36 @@ describe('unknown generations fail loud on the repo fixtures', () => {
       )
     })
   }
+})
+
+describe('claude-code host context stays in its own turn', () => {
+  it('starts the turn at the record and points promptEventId at the user text', async () => {
+    const trace = await loadSession(
+      { path: join(repo, 'fixtures/sessions/claude-code/conformance/host-context/session.jsonl') },
+      { platform },
+    )
+    const turns = projectTurns(trace)
+    expect(turns).toHaveLength(3)
+    const byId = new Map(trace.events.map(event => [event.id, event]))
+    // Each turn holds its record's host blocks (IDE context, system reminder) beside the user text.
+    expect(
+      turns.map(turn =>
+        turn.eventIds
+          .map(id => byId.get(id)!)
+          .filter(event => event.kind === 'user')
+          .map(event => event.payload.text ?? ''),
+      ),
+    ).toEqual([
+      ['Run the tests'],
+      ['<ide_opened_file>/work/app/src/index.ts</ide_opened_file>', 'Fix this file'],
+      ['<system-reminder>Lint failed: unused import.</system-reminder>', 'Now rename it'],
+    ])
+    const [first, ide, reminder] = turns.map(turn => byId.get(turn.promptEventId!)!)
+    expect(first?.payload.text).toBe('Run the tests')
+    expect(ide?.payload.text).toBe('Fix this file')
+    expect(reminder?.payload.text).toBe('Now rename it')
+    // The host block opens its record's turn and is marked injected.
+    expect(byId.get(turns[1]!.eventIds[0]!)?.payload.injected).toBe(true)
+    expect(byId.get(turns[2]!.eventIds[0]!)?.payload.injected).toBe(true)
+  })
 })

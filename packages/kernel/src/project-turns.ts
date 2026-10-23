@@ -1,5 +1,5 @@
 import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { mainAgentId, promptStarts, requestUsage, shadowedIn } from './lanes.ts'
+import { laneOf, mainAgentId, promptStarts, recordKey, requestUsage, shadowedIn } from './lanes.ts'
 
 /** A ledger row: one event, or one run of consecutive `hook` events. */
 export type TurnRow = { type: 'event'; eventId: string } | { type: 'hooks'; eventIds: string[]; count: number }
@@ -105,17 +105,39 @@ function turnOf(index: number, events: TraceEvent[], prompt?: TraceEvent): Turn 
  * spawned it.
  */
 export function projectTurns(trace: Trace): Turn[] {
-  const starts = new Set(promptStarts(trace, mainAgentId(trace)).map(event => event.id))
+  const mainId = mainAgentId(trace)
+  // The kit marks a prompt record's host blocks (IDE context, system reminders)
+  // `injected` per block, so the block `isPrompt` accepts can sit behind them. A
+  // record with an accepted block starts its turn at its first event on the main
+  // lane; `promptEventId` still points at the accepted block, the user's text.
+  const firstOfRecord = new Map<string, string>()
+  for (const event of trace.events) {
+    if (laneOf(event, mainId) !== mainId) {
+      continue
+    }
+    const key = `${mainId}\0${recordKey(event)}`
+    if (!firstOfRecord.has(key)) {
+      firstOfRecord.set(key, event.id)
+    }
+  }
+  const starts = new Map<string, TraceEvent>()
+  for (const event of promptStarts(trace, mainId)) {
+    const first = firstOfRecord.get(`${mainId}\0${recordKey(event)}`)
+    if (first !== undefined) {
+      starts.set(first, event)
+    }
+  }
   const turns: Turn[] = []
   let current: TraceEvent[] = []
   let prompt: TraceEvent | undefined
   for (const event of trace.events) {
-    if (starts.has(event.id) && current.length > 0) {
+    const start = starts.get(event.id)
+    if (start !== undefined && current.length > 0) {
       turns.push(turnOf(turns.length, current, prompt))
       current = []
     }
-    if (starts.has(event.id)) {
-      prompt = event
+    if (start !== undefined) {
+      prompt = start
     }
     current.push(event)
   }
