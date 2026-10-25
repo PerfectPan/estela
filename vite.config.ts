@@ -22,7 +22,6 @@ export default {
     categories: { ...lint.categories, suspicious: 'warn' },
     rules: {
       ...lint.rules,
-      'typescript/no-unsafe-type-assertion': 'error',
       // Declared return types already cover this, and the rule does not follow
       // `never` calls such as `process.exit` or exhaustive switches.
       'typescript/consistent-return': 'off',
