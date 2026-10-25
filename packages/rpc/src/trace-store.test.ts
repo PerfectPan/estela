@@ -1,6 +1,6 @@
 import type { LoadProgress } from './trace-store.ts'
 import { describe, expect, it } from 'vite-plus/test'
-import { deferred, fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
+import { deferred, fixture, HOME, present, recordOf, storeOf } from '../testing/store-fixture.ts'
 import { LoadCancelledError, TraceStore } from './trace-store.ts'
 
 const encoder = new TextEncoder()
@@ -194,7 +194,7 @@ describe('TraceStore', () => {
     const got = await store.withEvents('a', async read => {
       const first = await read(['e0', 'e1', 'e2'])
       const second = await read(['e3', 'e4', 'e5'])
-      return [...first, ...second].map(event => (event.original as { id: string }).id)
+      return [...first, ...second].map(event => recordOf(event.original).id)
     })
     expect(got).toEqual(['e0', 'e1', 'e2', 'e3', 'e4', 'e5'])
     // One load for the view, one reload for both batches.

@@ -7,12 +7,35 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
 import { test as base, expect } from '@playwright/test'
+import * as z from 'zod/mini'
 import { openedUrls, smokeEnv, start, waitFor } from '../cli-process.ts'
 import { CONTEXT_ENV } from './global-setup.ts'
 
 export { expect }
 
 const exec = promisify(execFile)
+
+const fixtureHome = z.object({
+  home: z.string(),
+  claudePlain: z.string(),
+  claudeRising: z.string(),
+  claudeHomeCwd: z.string(),
+  claudeSnapshot: z.string(),
+  counts: z.object({ 'claude-code': z.number(), codex: z.number(), grok: z.number() }),
+})
+
+/** `E2eContext` as it travels through `AGENT_TRACE_E2E_CONTEXT`, parsed once at this boundary. */
+const e2eContext = z.object({
+  repo: z.string(),
+  root: z.string(),
+  fakeBin: z.string(),
+  tarball: z.string(),
+  tarballBytes: z.number(),
+  files: z.array(z.string()),
+  installDir: z.string(),
+  bin: z.string(),
+  homes: z.object({ main: fixtureHome, noCodex: fixtureHome }),
+})
 
 export interface Launched {
   /** `http://localhost:<port>/__agent-trace/`. */
@@ -48,7 +71,7 @@ function readContext(): E2eContext {
   if (!raw) {
     throw new Error(`${CONTEXT_ENV} is not set; run through playwright.config.ts`)
   }
-  return JSON.parse(raw) as E2eContext
+  return z.parse(e2eContext, JSON.parse(raw))
 }
 
 export const ctx = readContext()
@@ -144,5 +167,8 @@ export async function generateCodex(
     [join(ctx.repo, 'apps/cli/src/testsupport/large-session.ts'), dir, String(bytes)],
     { maxBuffer: 1024 * 1024 },
   )
-  return JSON.parse(stdout) as { path: string; bytes: number; turns: number; longOutputs: number }
+  return z.parse(
+    z.object({ path: z.string(), bytes: z.number(), turns: z.number(), longOutputs: z.number() }),
+    JSON.parse(stdout),
+  )
 }

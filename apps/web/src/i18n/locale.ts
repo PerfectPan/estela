@@ -59,7 +59,7 @@ export function chooseLocale(next: Locale): void {
 }
 
 export function translate(key: MessageKey, params?: Record<string, string | number>): string {
-  const value = t(key, params as Record<string, string>)
+  const value = t(key, params)
   return typeof value === 'string' ? value : key
 }
 

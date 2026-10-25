@@ -1,5 +1,5 @@
 // Adapted from shadcn-solid (MIT, copyright 2023 shadcn and hngngn). Notice: third-party-notices.md.
-import type { ComponentProps, ValidComponent } from 'solid-js'
+import type { ComponentProps } from 'solid-js'
 import { splitProps } from 'solid-js'
 import { Root as ButtonPrimitive } from '@kobalte/core/button'
 import type { VariantProps } from 'cva'
@@ -34,11 +34,10 @@ export const buttonVariants = cva({
   },
 })
 
-export type ButtonProps<T extends ValidComponent = 'button'> = ComponentProps<typeof ButtonPrimitive<T>>
-  & VariantProps<typeof buttonVariants>
+export type ButtonProps = ComponentProps<typeof ButtonPrimitive> & VariantProps<typeof buttonVariants>
 
-export function Button<T extends ValidComponent = 'button'>(props: ButtonProps<T>) {
-  const [, rest] = splitProps(props as ButtonProps, ['class', 'variant', 'size'])
+export function Button(props: ButtonProps) {
+  const [, rest] = splitProps(props, ['class', 'variant', 'size'])
   return (
     <ButtonPrimitive
       data-slot="button"

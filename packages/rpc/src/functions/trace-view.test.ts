@@ -1,6 +1,7 @@
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { StreamSink } from 'devframe/utils/streaming-channel'
 import type { LoadProgress } from '../trace-store.ts'
+import type { TraceRpcContext } from './trace-view.ts'
 import { createStreamSink } from 'devframe/utils/streaming-channel'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { TraceStore } from '../trace-store.ts'
@@ -60,7 +61,7 @@ function harness() {
   const sinks: StreamSink<LoadProgress>[] = []
   const chunks = new Map<string, LoadProgress[]>()
   const owner: { subscribedStreams?: Set<string> } = {}
-  const ctx = {
+  const ctx: TraceRpcContext = {
     rpc: {
       getCurrentRpcSession: () => ({ meta: owner }),
       streaming: {
@@ -80,20 +81,29 @@ function harness() {
   return { signals, releases, progress, sinks, chunks, ctx, owner }
 }
 
-async function handlers(ctx: unknown) {
-  const setup = loadTrace.setup as (context: unknown) => Promise<{
-    handler: (args: { traceId: string }) => Promise<{ loadId: string; totalBytes: number; cached: boolean }>
-  }>
-  const view = getTraceView.setup as (
-    context: unknown,
-  ) => Promise<{ handler: (args: { traceId: string }) => Promise<{ traceId: string; trace: Trace }> }>
-  const rebuild = reconstructAt.setup as (
-    context: unknown,
-  ) => Promise<{ handler: (args: { traceId?: string; eventId: string }) => Promise<{ visibleIds: string[] }> }>
+/**
+ * Runs a definition's optional `setup` against the context double and returns its handler, which
+ * `setup` may itself leave out.
+ */
+async function handlerOf<T>(
+  definition: { setup?: (context: TraceRpcContext) => { handler?: T } | Promise<{ handler?: T }> },
+  ctx: TraceRpcContext,
+): Promise<T> {
+  if (!definition.setup) {
+    throw new Error('definition has no setup')
+  }
+  const { handler } = await definition.setup(ctx)
+  if (!handler) {
+    throw new Error('setup produced no handler')
+  }
+  return handler
+}
+
+async function handlers(ctx: TraceRpcContext) {
   return {
-    load: (await setup(ctx)).handler,
-    view: (await view(ctx)).handler,
-    reconstruct: (await rebuild(ctx)).handler,
+    load: await handlerOf(loadTrace, ctx),
+    view: await handlerOf(getTraceView, ctx),
+    reconstruct: await handlerOf(reconstructAt, ctx),
   }
 }
 

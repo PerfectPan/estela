@@ -46,7 +46,10 @@ function sessionContent(turns: number): string {
 /** `gc` comes from `v8.setFlagsFromString` because the test runner does not start Node with `--expose-gc`. */
 const gc = (() => {
   v8.setFlagsFromString('--expose-gc')
-  return vm.runInNewContext('gc') as () => void
+  const context = vm.createContext({})
+  return () => {
+    vm.runInContext('gc()', context)
+  }
 })()
 
 /**

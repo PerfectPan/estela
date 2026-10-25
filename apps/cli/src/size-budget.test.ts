@@ -6,6 +6,7 @@ import process from 'node:process'
 import type { LoadProgress } from '@rivus/agent-trace-rpc'
 import { VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vite-plus/test'
+import * as z from 'zod/mini'
 import { createTraceStore } from './trace-store.ts'
 import { writeLargeCodexSession } from './testsupport/large-session.ts'
 
@@ -93,10 +94,10 @@ describe.skipIf(!enabled)('S12 size budget', () => {
         event => event.kind === 'tool_result' && event.payload.callId === session.longest.callId,
       )!
       expect(longest.payload.$truncated).toEqual([['output']])
-      expect((longest.payload.output as string).length).toBe(m.view.trace.view!.maxString)
+      expect(z.parse(z.string(), longest.payload.output).length).toBe(m.view.trace.view!.maxString)
       expect(m.view.bytes).toBeLessThan(m.payloadBytes)
       const full = await m.store.event(SIZE_TRACE_ID, longest.id)
-      expect((full.payload.output as string).length).toBe(session.longest.length)
+      expect(z.parse(z.string(), full.payload.output).length).toBe(session.longest.length)
       expect(full.original).toEqual(await lineAt(session.path, full.source.offset, full.source.length))
     } finally {
       rmSync(dir, { recursive: true, force: true })

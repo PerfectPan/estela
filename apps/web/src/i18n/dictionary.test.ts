@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vite-plus/test'
 import { en } from './dictionary.en.ts'
 import { zhCN } from './dictionary.zh-CN.ts'
 
-function flat(value: unknown, prefix = ''): Map<string, string> {
+/** The shape both dictionaries have: nested records of template strings. */
+type Nested = { [key: string]: string | Nested }
+
+function flat(value: Nested, prefix = ''): Map<string, string> {
   const out = new Map<string, string>()
-  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, item] of Object.entries(value)) {
     const path = prefix ? `${prefix}.${key}` : key
     if (typeof item === 'string') {
       out.set(path, item)

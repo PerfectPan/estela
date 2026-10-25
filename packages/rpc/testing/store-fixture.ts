@@ -16,6 +16,11 @@ export function present<T>(value: T): T {
 /** The records the tests write: an id, one of the kinds the fixture maps, and optional text. */
 const fixtureRecord = z.looseObject({ id: z.string(), kind: z.enum(['user', 'request']), text: z.optional(z.string()) })
 
+/** Parses one record the fixture wrote, for tests that read an event's `original` back. */
+export function recordOf(original: unknown) {
+  return z.parse(fixtureRecord, original)
+}
+
 /** Synthetic JSONL files in memory with size and mtime, and a loader that points each event at its line. */
 export function fixture() {
   const files = new Map<string, Uint8Array>()

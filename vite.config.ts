@@ -22,9 +22,7 @@ export default {
     categories: { ...lint.categories, suspicious: 'warn' },
     rules: {
       ...lint.rules,
-      // Off while the web app and the tests cast DOM, library, internal-union, and test-double types, which are known
-      // types rather than unknown data; unknown data is parsed by schema (AGENTS.md).
-      'typescript/no-unsafe-type-assertion': 'off',
+      'typescript/no-unsafe-type-assertion': 'error',
       // Declared return types already cover this, and the rule does not follow
       // `never` calls such as `process.exit` or exhaustive switches.
       'typescript/consistent-return': 'off',

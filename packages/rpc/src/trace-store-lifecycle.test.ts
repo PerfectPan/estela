@@ -3,13 +3,17 @@ import { describe, expect, it } from 'vite-plus/test'
 import { deferred, fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
 import { TraceStore } from './trace-store.ts'
 
-interface EntryShape {
-  trace: Trace
-  reload?: unknown
+/** Rejections the tests read back as `Error`s; anything else keeps its string form. */
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
 }
 
-function cachedEntry(store: TraceStore, key: string): EntryShape {
-  return (store as unknown as { entries: Map<string, EntryShape> }).entries.get(key)!
+/**
+ * The store's cached entry for `key`. `entries` is private, so it is reached by index — a rename
+ * or a type change here fails typecheck, which an assertion would hide.
+ */
+function cachedEntry(store: TraceStore, key: string) {
+  return store['entries'].get(key)!
 }
 
 function cachedTrace(store: TraceStore, key: string): Trace {
@@ -43,9 +47,7 @@ describe('TraceStore lifecycle', () => {
     const entry = cachedEntry(store, 'a')
     expect(entry.trace.events.some(event => 'original' in event)).toBe(false)
     expect(entry.reload).toBeUndefined()
-    expect(JSON.stringify(Object.values(entry as object).filter(value => !(value instanceof Map)))).not.toContain(
-      '"original"',
-    )
+    expect(JSON.stringify(Object.values(entry).filter(value => !(value instanceof Map)))).not.toContain('"original"')
   })
 
   it('the latest open from one connection wins even when an earlier open is slower', async () => {
@@ -108,12 +110,18 @@ describe('TraceStore lifecycle', () => {
     })
     const failure = await store.view('a').then(
       () => undefined,
-      (error: unknown) => error as Error,
+      (error: unknown) => asError(error),
     )
     expect(failure?.message).toBe('codex: ~/logs/a.jsonl:3: invalid JSON')
     const handle = await store.open('b', {})
-    const done = await handle.done.catch((error: unknown) => error as Error)
-    expect((done as Error).message).not.toContain(HOME)
+    const done = await handle.done.then(
+      () => undefined,
+      (error: unknown) => asError(error),
+    )
+    if (!(done instanceof Error)) {
+      throw new Error('open of b was expected to fail')
+    }
+    expect(done.message).not.toContain(HOME)
   })
 
   it('keeps originals readable when a live file grows, and says so when a record changed or is gone', async () => {

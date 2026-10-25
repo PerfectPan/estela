@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { NAMESPACE } from '@rivus/agent-trace-rpc'
 import { describe, expect, it } from 'vite-plus/test'
+import * as z from 'zod/mini'
 import { packForFile } from './report-site.ts'
 
 const cliDir = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -33,12 +34,15 @@ describe('report site', () => {
       expect(html).not.toContain(homedir())
       expect(html).not.toMatch(/<script[^>]+src=|<link rel="stylesheet"|url\(\.\//)
       const json = /<script type="application\/json" id="report-trace">(.*?)<\/script>/s.exec(html)?.[1]
-      const report = JSON.parse(json!) as {
-        trace: { events: unknown[]; sourceFiles?: string[] }
-        events: { original?: unknown }[]
-        total: number
-        truncated: boolean
-      }
+      const report = z.parse(
+        z.object({
+          trace: z.object({ events: z.array(z.unknown()), sourceFiles: z.optional(z.array(z.string())) }),
+          events: z.array(z.object({ original: z.optional(z.unknown()) })),
+          total: z.number(),
+          truncated: z.boolean(),
+        }),
+        JSON.parse(json!),
+      )
       expect(report.total).toBe(report.trace.events.length)
       expect(report.truncated).toBe(false)
       expect(report.events.every(event => event.original !== undefined)).toBe(true)
