@@ -5,7 +5,6 @@ import { describe, expect, inject, it } from 'vite-plus/test'
 import { openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
 
 const ctx = inject('smoke')
-const savedTarball = process.env.AGENT_TRACE_SMOKE_TARBALL
 
 async function filesContaining(dir: string, needle: string): Promise<string[]> {
   const hits: string[] = []
@@ -22,10 +21,6 @@ async function filesContaining(dir: string, needle: string): Promise<string[]> {
 }
 
 describe('installed tarball', () => {
-  it.runIf(savedTarball)('preserves the exact installed tarball for publishing', async () => {
-    expect(await readFile(savedTarball!)).toEqual(await readFile(ctx.tarball))
-  })
-
   it('ships only dist, the README, the license, and the notices', () => {
     expect(ctx.files).toEqual(
       expect.arrayContaining([

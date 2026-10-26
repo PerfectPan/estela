@@ -1,54 +1,87 @@
 name: Publish
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry-run:
-        description: Build, smoke-test, and inspect the tarball without uploading it
+        description: Build, smoke-test, and inspect packages without uploading them
         type: boolean
         default: true
 
-permissions:
-  contents: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
+  queue: max
 
 jobs:
+  version:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      has-changesets: ${{ steps.changesets.outputs.has-changesets }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          require-lockfile: true
+      - name: Create or update the version pull request
+        id: changesets
+        uses: changesets/action@v2
+        with:
+          version-script: pnpm run version-packages
+          commit-message: 'chore(release): version packages'
+          pr-title: 'chore(release): version packages'
+          # CI starts when a maintainer marks the updated version PR ready for review.
+          pr-draft: always
+
   publish:
-    if: github.ref == 'refs/heads/main'
+    needs: version
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' || needs.version.outputs.has-changesets == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/setup@v3
         with:
           runtime: node@24
-          cache: true
           require-lockfile: true
-      # The smoke setup preserves the exact installed tgz; publishing never packs the checkout again.
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
-        env:
-          AGENT_TRACE_SMOKE_TARBALL: ${{ runner.temp }}/agent-trace.tgz
         run: pnpm run test:smoke
-      - name: Publish the tested tarball
+      - name: Publish unpublished package versions
         env:
-          DRY_RUN: ${{ inputs.dry-run }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
         run: |
-          args=(--access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000)
+          args=(-r --access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000 --report-summary)
           if [ "$DRY_RUN" = "true" ]; then
             args+=(--dry-run)
           fi
-          pnpm publish "$RUNNER_TEMP/agent-trace.tgz" "${args[@]}"
+          pnpm publish "${args[@]}"
       - name: Tag the published version and create its GitHub Release
-        if: inputs.dry-run == false
+        if: github.event_name == 'push' || inputs.dry-run == false
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="$(node -p "require('./apps/cli/package.json').version")"
+          version="$(jq -r '.publishedPackages[] | select(.name == "@rivus/agent-trace") | .version' pnpm-publish-summary.json)"
+          if [ -z "$version" ]; then
+            exit 0
+          fi
           tag="v$version"
           awk -v heading="## $version" '
             $0 == heading { active = 1; next }
@@ -57,3 +90,10 @@ jobs:
           ' apps/cli/CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
           git push origin "$GITHUB_SHA:refs/tags/$tag"
           gh release create "$tag" --verify-tag --title "$tag" --notes-file "$RUNNER_TEMP/release-notes.md"
+      - name: Save the native publish result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: publish-summary
+          path: pnpm-publish-summary.json
+          if-no-files-found: ignore
