@@ -19,7 +19,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
 </p>
 
-`npx @rivus/agent-trace` brings the Claude Code, Codex, and Grok sessions on this machine into one local interface. Each session has a timeline, an event ledger, and token counts; each request has the context the model received.
+`npx @rivus/agent-trace` brings the Agent sessions on this machine into one local interface. Each session has a timeline, an event ledger, and token counts; each request has the context the model received.
 
 The core capability is request-level context reconstruction. For any request, agent-trace rebuilds the context the model received — system prompt, tools, messages, and the events a compaction removed. Slots the log never recorded are marked `unavailable`; nothing is estimated.
 
