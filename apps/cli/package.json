@@ -25,6 +25,9 @@
     "LICENSE",
     "CHANGELOG.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "node bin.mjs",
     "build": "vp pack",

@@ -64,7 +64,7 @@ pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD
 
 `pnpm pack` rewrites the `workspace:` and `catalog:` specifiers in the manifest into real versions. `npm pack` leaves them in, and the `catalog:` protocol makes the tarball uninstallable by npm.
 
-Never publish from a local checkout.
+Never publish from a local checkout. Use the manual Publish workflow's default dry run to build and test a release tarball before uploading it to npm ([`CONTRIBUTING.md`](../../CONTRIBUTING.md#publishing-to-npm)).
 
 ## Acceptance scenarios
 

@@ -1,0 +1,58 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build, smoke-test, and inspect the tarball without uploading it
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  # npm trusted publishing works for private GitHub repositories too; provenance is not requested.
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          cache: true
+          require-lockfile: true
+      - name: Preserve the smoke-tested artifact
+        run: printf 'AGENT_TRACE_SMOKE_TARBALL=%s/agent-trace.tgz\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Require a release version
+        run: node scripts/publish.mjs --check-version
+      - name: Build Web
+        run: pnpm --filter @rivus/agent-trace-web run build
+      # The smoke setup preserves the exact installed tgz; publishing never packs the checkout again.
+      - name: CLI smoke on the installed tarball
+        working-directory: apps/e2e
+        run: pnpm run test:smoke
+      # The first release needs a token until the package exists and its trusted publisher is configured.
+      - name: Configure the seeding token
+        if: inputs.dry-run == false
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" >> "$HOME/.npmrc"
+          fi
+      - name: Inspect the tested tarball
+        if: inputs.dry-run
+        run: node scripts/publish.mjs --dry-run
+      - name: Publish the tested tarball and create its GitHub Release
+        if: inputs.dry-run == false
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish.mjs --publish

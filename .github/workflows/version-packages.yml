@@ -37,8 +37,7 @@ jobs:
           require-lockfile: true
       # With pending changesets, runs the version script — `pnpm version -r`, which bumps
       # versions, writes the package CHANGELOG.md, and consumes the changesets — and opens
-      # or updates the version PR. There is no publish script: npm publishing stays a
-      # separate decision for the first release.
+      # or updates the version PR. The separate manual Publish workflow releases the merged version.
       - name: Create version pull request
         id: changesets
         uses: changesets/action@v2

@@ -1,8 +1,8 @@
 import type { TestProject } from 'vite-plus/test/node'
 import type { FixtureHome } from './fixture-home.ts'
 import type { Run } from './prepare-run.ts'
-import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { copyFile, mkdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { buildFixtureHome } from './fixture-home.ts'
 import { prepareRun, repo } from './prepare-run.ts'
@@ -26,6 +26,11 @@ export default async function setup(project: TestProject): Promise<() => Promise
   })
   for (const file of context.files) {
     process.stdout.write(`  ${file}\n`)
+  }
+  const tarballDestination = process.env.AGENT_TRACE_SMOKE_TARBALL
+  if (tarballDestination) {
+    await mkdir(dirname(tarballDestination), { recursive: true })
+    await copyFile(context.tarball, tarballDestination)
   }
   project.provide('smoke', context)
   return cleanup

@@ -96,17 +96,29 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change: it neither bumps the version nor writes a changelog line, and its message may be empty.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI does not verify that a changeset is present; the PR template carries the reminder.
-- The manual Version Packages workflow opens or updates the `chore(release): version packages` PR, which runs `pnpm version -r`: it consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the consumed intents to `.changeset/ledger.yaml`, and applies the version bump. It does not publish; npm publishing stays a separate decision for the first release.
+- The manual Version Packages workflow opens or updates the `chore(release): version packages` PR, which runs `pnpm version -r`: it consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the consumed intents to `.changeset/ledger.yaml`, and applies the version bump. That PR does not publish; the [Publish workflow](#publishing-to-npm) does, after it is merged.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
 Until `@rivus/agent-trace` has a version on npm, do not run Version Packages: pnpm judges "never published" by the registry, and for such a package `pnpm version -r` consumes the changesets into a changelog section for whatever version the manifest carries without bumping it (`0.0.0 → 0.0.0`; after a manual bump, a second section for the same version). The workflow refuses to run before the first publish.
 
 The first release is manual, and it also consumes the changesets the repository already carries — left to Version Packages after the first publish, they would land in the second release's changelog:
 
-1. Set the first version: `pnpm --filter @rivus/agent-trace version 0.1.0`. The command edits the manifest and does not commit.
+1. Review the pending changeset messages and correct any that no longer describe the package. Commit the release preparation so the working tree is clean, then set the first version: `pnpm --filter @rivus/agent-trace version 0.1.0 --no-git-tag-version`. The command edits the manifest and does not commit or tag.
 2. Commit, then run `pnpm version -r` once. The version stays (`0.1.0 → 0.1.0`), the pending changesets land in `apps/cli/CHANGELOG.md` under `## 0.1.0`, the `.changeset/*.md` files are deleted, and `.changeset/ledger.yaml` records the intents.
-3. Read the generated section and edit the entries that no longer hold for a published package (the `none` records never appear in the changelog). Commit.
-4. Publish the version; the publishing mechanics are their own decision. From the next release on, the changesets → version PR flow above applies.
+3. Check the generated section against the reviewed changesets (the `none` records never appear in the changelog), then commit the generated changelog, ledger, and consumed changesets.
+4. Publish the version with the [Publish workflow](#publishing-to-npm), unchecking `dry-run`. This first version goes out with a token, because the package does not exist on npm yet. From the next release on, the changesets → version PR flow above applies.
+
+### Publishing to npm
+
+`.github/workflows/publish.yml` publishes the version `apps/cli/package.json` carries, to `https://registry.npmjs.org/`, and only when it is dispatched on `main`. It rebuilds the Web app, uses `pnpm pack` to rewrite the manifest's `workspace:` and `catalog:` specifiers, installs the tarball and runs the CLI smoke scenarios, then publishes that same tarball with `pnpm publish`.
+
+The `dry-run` input defaults to true. It builds and tests the tarball and checks the version, changelog, and tag without uploading a package or creating a Release; it needs no npm publishing credential. Uncheck it to publish.
+
+The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): `id-token: write` supplies the OIDC token, which pnpm exchanges for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
+
+A trusted publisher can only be configured for a package that exists, so the first version needs a repository secret named `NPM_TOKEN`: a short-lived granular access token with read and write access to `@rivus` and permission to bypass 2FA for CI publishing. Configure the trusted publisher once the first version appears. Verify an OIDC publish before removing the bootstrap secret and revoking its token; never put the token in a tracked file or PR.
+
+A real publish waits for the exact version and its tarball to become available before creating `v<version>` and its GitHub Release. Release notes come from that version's generated `apps/cli/CHANGELOG.md` section. An existing version is reused only when its tarball integrity matches; an existing tag must resolve to the workflow's commit. These checks let a rerun finish the Release after an accepted upload without replacing an npm version or moving a tag.
 
 Documentation-only and workflow-only PRs need no changeset.
 
