@@ -110,15 +110,28 @@ The first release is manual, and it also consumes the changesets the repository 
 
 ### Publishing to npm
 
-`.github/workflows/publish.yml` publishes the version `apps/cli/package.json` carries, to `https://registry.npmjs.org/`, and only when it is dispatched on `main`. It rebuilds the Web app, uses `pnpm pack` to rewrite the manifest's `workspace:` and `catalog:` specifiers, installs the tarball and runs the CLI smoke scenarios, then publishes that same tarball with `pnpm publish`.
+`.github/workflows/publish.yml` publishes the version `apps/cli/package.json` carries, to `https://registry.npmjs.org/`, and only when it is dispatched on `main`. It builds with `NODE_ENV=production`, uses `pnpm pack` to rewrite the manifest's `workspace:` and `catalog:` specifiers, installs the tarball and runs the CLI smoke scenarios, then publishes that same tarball with `pnpm publish`.
 
-The `dry-run` input defaults to true. It builds and tests the tarball and checks the version, changelog, and tag without uploading a package or creating a Release; it needs no npm publishing credential. Uncheck it to publish.
+The `dry-run` input defaults to true and passes `--dry-run` to `pnpm publish`. It builds and tests the tarball and checks the version, changelog, and tag without uploading a package or creating a Release; it needs no npm publishing credential. Uncheck it to publish. Preflight rejects `0.0.0`, requires the current version's changelog section, and rejects an existing `v<version>` tag unless it resolves to the workflow's `GITHUB_SHA`.
 
 The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): `id-token: write` supplies the OIDC token, which pnpm exchanges for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
 
 A trusted publisher can only be configured for a package that exists, so the first version needs a repository secret named `NPM_TOKEN`: a short-lived granular access token with read and write access to `@rivus` and permission to bypass 2FA for CI publishing. Configure the trusted publisher once the first version appears. Verify an OIDC publish before removing the bootstrap secret and revoking its token; never put the token in a tracked file or PR.
 
-A real publish waits for the exact version and its tarball to become available before creating `v<version>` and its GitHub Release. Release notes come from that version's generated `apps/cli/CHANGELOG.md` section. An existing version is reused only when its tarball integrity matches; an existing tag must resolve to the workflow's commit. These checks let a rerun finish the Release after an accepted upload without replacing an npm version or moving a tag.
+A real publish runs `pnpm publish "$AGENT_TRACE_SMOKE_TARBALL" --access public --no-git-checks --registry https://registry.npmjs.org/ --publish-wait-timeout 600000`. It waits for the exact version and its tarball to become available before creating `v<version>` and its GitHub Release. Tags are pushed without force, and Release notes come from that version's generated `apps/cli/CHANGELOG.md` section. The workflow does not skip an existing npm version or recover a partially completed release automatically.
+
+If the workflow fails before uploading, rerun it. If an upload may have succeeded, including an availability timeout, query the exact version first:
+
+```bash
+version=0.1.0 # Use the failed run's version.
+npm view "@rivus/agent-trace@$version" name version dist gitHead --json --registry https://registry.npmjs.org/
+```
+
+Authentication, network, and other query failures do not establish that a version is absent. An `E404` after an accepted upload or an availability timeout can mean the package is not visible yet: wait and query again without re-uploading. Rerun publishing only after confirming that the upload was not accepted. If the version exists, do not republish it or rerun the whole workflow. Complete only the missing tag and Release:
+
+1. Use a clean checkout of the original run's `GITHUB_SHA`. Confirm the published package came from that run using its publish output and registry metadata; check `gitHead` against the commit when the field is present. Stop if the package's source cannot be confirmed.
+2. Inspect the remote tag with `git ls-remote --tags origin "refs/tags/v$version" "refs/tags/v$version^{}"`. An existing tag must resolve to the original commit. If it is absent, create it at that commit with `git tag "v$version" "$release_sha"` and push it with `git push origin "refs/tags/v$version"`, setting `release_sha` to the original run's SHA. Stop on any conflict; do not move or force-push a tag.
+3. If the GitHub Release is missing, save the body of that version's `apps/cli/CHANGELOG.md` section to a temporary notes file, then run `gh release create "v$version" --verify-tag --title "v$version" --notes-file "$notes_file"`, setting `notes_file` to that file. Verify an existing Release against the same tag instead of creating another one.
 
 Documentation-only and workflow-only PRs need no changeset.
 
