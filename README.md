@@ -9,7 +9,7 @@
 <h1 align="center">agent-trace</h1>
 
 <p align="center">
-  <strong>Local DevTools for coding-agent session logs</strong><br>
+  <strong>Local DevTools for Agent session logs</strong><br>
   Session browser · request timeline · context reconstruction
 </p>
 
