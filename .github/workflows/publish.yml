@@ -27,31 +27,11 @@ jobs:
           runtime: node@24
           cache: true
           require-lockfile: true
-      - name: Check the release version, notes, and tag
-        run: |
-          version="$(node -p "require('./apps/cli/package.json').version")"
-          if [ "$version" = "0.0.0" ]; then
-            echo "::error::Set the release version and consume its changesets first."
-            exit 1
-          fi
-          tag="v$version"
-          git fetch --tags origin
-          if git show-ref --verify --quiet "refs/tags/$tag"; then
-            if [ "$(git rev-parse "$tag^{commit}")" != "$GITHUB_SHA" ]; then
-              echo "::error::$tag points to another commit."
-              exit 1
-            fi
-          fi
-          awk -v heading="## $version" '
-            $0 == heading { found++; active = 1; next }
-            active && /^## / { active = 0 }
-            active { print; if (NF) nonempty = 1 }
-            END { if (found != 1 || !nonempty) exit 1 }
-          ' apps/cli/CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
-          printf 'RELEASE_TAG=%s\nAGENT_TRACE_SMOKE_TARBALL=%s/agent-trace.tgz\n' "$tag" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       # The smoke setup preserves the exact installed tgz; publishing never packs the checkout again.
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
+        env:
+          AGENT_TRACE_SMOKE_TARBALL: ${{ runner.temp }}/agent-trace.tgz
         run: pnpm run test:smoke
       # The first release needs a token until the package exists and its trusted publisher is configured.
       - name: Configure the seeding token
@@ -66,19 +46,23 @@ jobs:
         env:
           DRY_RUN: ${{ inputs.dry-run }}
         run: |
-          args=(--access public --no-git-checks --registry https://registry.npmjs.org/ --publish-wait-timeout 600000)
+          args=(--access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000)
           if [ "$DRY_RUN" = "true" ]; then
             args+=(--dry-run)
           fi
-          pnpm publish "$AGENT_TRACE_SMOKE_TARBALL" "${args[@]}"
+          pnpm publish "$RUNNER_TEMP/agent-trace.tgz" "${args[@]}"
       - name: Tag the published version and create its GitHub Release
         if: inputs.dry-run == false
         env:
           GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
-            git tag "$RELEASE_TAG" "$GITHUB_SHA"
-          fi
-          git push origin "refs/tags/$RELEASE_TAG"
-          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          version="$(node -p "require('./apps/cli/package.json').version")"
+          tag="v$version"
+          awk -v heading="## $version" '
+            $0 == heading { active = 1; next }
+            active && /^## / { exit }
+            active { print }
+          ' apps/cli/CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          git push origin "$GITHUB_SHA:refs/tags/$tag"
+          gh release create "$tag" --verify-tag --title "$tag" --notes-file "$RUNNER_TEMP/release-notes.md"
