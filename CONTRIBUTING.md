@@ -96,17 +96,37 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change: it neither bumps the version nor writes a changelog line, and its message may be empty.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI does not verify that a changeset is present; the PR template carries the reminder.
-- The manual Version Packages workflow opens or updates the `chore(release): version packages` PR, which runs `pnpm version -r`: it consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the consumed intents to `.changeset/ledger.yaml`, and applies the version bump. It does not publish; npm publishing stays a separate decision for the first release.
+- On a push to `main`, the [Publish workflow](#publishing-to-npm) uses `changesets/action@v2` and `pnpm version -r` to open or update the `chore(release): version packages` PR when changesets are pending. It consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the intents to `.changeset/ledger.yaml`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
-Until `@rivus/agent-trace` has a version on npm, do not run Version Packages: pnpm judges "never published" by the registry, and for such a package `pnpm version -r` consumes the changesets into a changelog section for whatever version the manifest carries without bumping it (`0.0.0 → 0.0.0`; after a manual bump, a second section for the same version). The workflow refuses to run before the first publish.
+### Publishing to npm
 
-The first release is manual, and it also consumes the changesets the repository already carries — left to Version Packages after the first publish, they would land in the second release's changelog:
+`.github/workflows/publish.yml` runs on every push to `main`. Its version job prepares the draft version PR when changesets are pending; publishing waits until none remain. With no pending changesets, the publish job runs CLI smoke tests against a production-built, installed tarball, then uses pnpm's recursive publishing to upload only workspace versions absent from npm. A `main` push whose package versions are already on npm uploads nothing.
 
-1. Set the first version: `pnpm --filter @rivus/agent-trace version 0.1.0`. The command edits the manifest and does not commit.
-2. Commit, then run `pnpm version -r` once. The version stays (`0.1.0 → 0.1.0`), the pending changesets land in `apps/cli/CHANGELOG.md` under `## 0.1.0`, the `.changeset/*.md` files are deleted, and `.changeset/ledger.yaml` records the intents.
-3. Read the generated section and edit the entries that no longer hold for a published package (the `none` records never appear in the changelog). Commit.
-4. Publish the version; the publishing mechanics are their own decision. From the next release on, the changesets → version PR flow above applies.
+Manual dispatch is also restricted to `main`. It bypasses the version job and defaults to `dry-run`, which passes `--dry-run` to `pnpm publish`. It builds and tests the package and runs pnpm's Git checks without uploading or creating a Release; it needs no npm publishing credential. Uncheck it only for an intentional manual publish.
+
+The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): `id-token: write` supplies the OIDC token, which pnpm exchanges for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
+
+A new package must exist before npm accepts a trusted publisher: publish an empty bootstrap prerelease from a temporary directory using local npm login and 2FA, configure its trusted publisher, then enable the automatic version flow. Workflow publishing uses only OIDC and no repository npm token secret.
+
+A new trusted publisher expires unless it completes a successful publish within two days. If the release is delayed, recreate the expired configuration before publishing; a dry run does not validate it.
+
+A real publish runs `pnpm publish -r --access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000 --report-summary`, with pnpm's Git checks enabled. Recursive publishing packs the same production build output again rather than uploading the smoke archive; pnpm rewrites `workspace:` and `catalog:` specifiers. The tag and Release step runs only when `pnpm-publish-summary.json` lists `@rivus/agent-trace` as published; an empty summary skips it. The workflow saves the summary as the `publish-summary` artifact.
+
+For each published version, Release notes come from its generated `apps/cli/CHANGELOG.md` section. The workflow pushes `"$GITHUB_SHA:refs/tags/$tag"` without force, then creates the Release with `--verify-tag` and those notes. If tagging or Release creation fails, rerunning skips the existing npm version and does not repair its missing tag or Release; recover those manually.
+
+If the workflow fails before uploading, rerun it. If an upload may have succeeded, including an availability timeout, query the exact version first:
+
+```bash
+version=0.1.0 # Use the failed run's version.
+npm view "@rivus/agent-trace@$version" name version dist gitHead --json --registry https://registry.npmjs.org/
+```
+
+Authentication, network, and other query failures do not establish that a version is absent. An `E404` after an accepted upload or an availability timeout can mean the package is not visible yet: wait and query again without re-uploading. Rerun publishing only after confirming that the upload was not accepted. If the version exists, do not republish it or rerun the whole workflow. Complete only the missing tag and Release:
+
+1. Use a clean checkout of the original run's `GITHUB_SHA`. Confirm the published package came from that run using its publish output and registry metadata; check `gitHead` against the commit when the field is present. Stop if the package's source cannot be confirmed.
+2. Inspect the remote tag with `git ls-remote --tags origin "refs/tags/v$version" "refs/tags/v$version^{}"`. An existing tag must resolve to the original commit. If absent, set `release_sha` to the original run's SHA and run `git push origin "$release_sha:refs/tags/v$version"`. Stop on any conflict; do not move or force-push a tag.
+3. If the GitHub Release is missing, save the body of that version's `apps/cli/CHANGELOG.md` section to a temporary notes file, then run `gh release create "v$version" --verify-tag --title "v$version" --notes-file "$notes_file"`, setting `notes_file` to that file. Verify an existing Release against the same tag instead of creating another one.
 
 Documentation-only and workflow-only PRs need no changeset.
 

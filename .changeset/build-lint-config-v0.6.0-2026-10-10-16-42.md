@@ -1,5 +1,0 @@
----
-"@rivus/agent-trace": none
----
-
-

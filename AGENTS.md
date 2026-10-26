@@ -79,4 +79,4 @@ cd apps/e2e && pnpm run test:smoke
 cd apps/e2e && pnpm run test:e2e
 ```
 
-`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Never run `npm publish`; publishing is a decision for the first release (see `CONTRIBUTING.md#release-intent`).
+`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Never run `pnpm publish` or `npm publish` from a checkout; the Publish workflow releases merged versions to npm (see `CONTRIBUTING.md#publishing-to-npm`).

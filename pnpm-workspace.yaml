@@ -54,5 +54,5 @@ overrides:
 versioning:
   changelog:
     # Commit CHANGELOG.md and drop consumed changesets at `pnpm version -r`. The default
-    # `registry` keeps them until a publish is confirmed, which no workflow here does yet.
+    # `registry` keeps them until a publish is confirmed; version PRs need them consumed first.
     storage: repository

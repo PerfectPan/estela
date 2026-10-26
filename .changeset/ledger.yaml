@@ -1,0 +1,16 @@
+"@rivus/agent-trace@0.1.0":
+  dir: apps/cli
+  intents:
+    - feat-m1-layout-runtime-2026-09-24-21-37
+    - feat-m2-host-protocol-2026-09-25-01-21
+    - feat-m3-session-browser-2026-09-25-04-07
+    - feat-m4a-trace-view-2026-09-25-04-11
+    - feat-m4b-workspace-2026-09-25-07-39
+    - feat-m5a-bundle-2026-09-25-07-14
+    - feat-m5b-report-e2e-2026-09-25-10-04
+    - feat-m5b-report-e2e-2026-09-25-11-54
+    - fix-claude-prompt-snapshot-2026-09-25-12-45
+    - refactor-kit-redact-2026-10-10-17-18
+    - refactor-kit-sessions-2026-10-11-00-01
+    - refactor-kit-summaries-2026-10-11-10-52
+    - upgrade-agent-kit-0-21-1
