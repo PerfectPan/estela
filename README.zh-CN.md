@@ -11,7 +11,8 @@
 <h1 align="center">agent-trace</h1>
 
 <p align="center">
-  <strong>看清你的编码代理做了什么，也看清模型看到了什么。</strong>
+  <strong>coding agent 会话日志的本地查看器</strong><br>
+  会话浏览器 · 请求时间线 · 模型上下文重建
 </p>
 
 <p align="center">
@@ -20,19 +21,19 @@
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
 </p>
 
-`npx @rivus/agent-trace` 会启动本地服务器，索引这台机器上所有 Claude Code、Codex 和 Grok 会话，然后打开会话浏览器。选中一个会话，查看它的时间线、事件列表和 Token 用量；选中一个请求，查看模型当时看到了什么。
+`npx @rivus/agent-trace` 在本机启动服务，将这台机器上的 Claude Code、Codex 与 Grok 会话统一呈现在一个本地界面中。每个会话包含时间线、事件列表和 Token 用量；每个请求包含模型当时收到的上下文。
 
-重建本身就是产品。普通的日志浏览器只告诉你代理做了什么；agent-trace 展示的是模型在那个请求点依据的上下文，包括已被上下文压缩移除的事件。日志没有记录的内容会标记为 `unavailable`，不做任何推测。
+核心能力是请求级上下文重建。对任意请求，agent-trace 重建模型当时收到的上下文——系统提示词、工具、消息，以及被上下文压缩移除的事件。日志没有记录的槽位标记为 `unavailable`，不做任何推测。
 
 ## 功能
 
-- **会话浏览器。** 本机找到的所有会话，按天分组，最近活动在前。每一行包含代理、标题、项目、轮次、请求、Token、时长、最近活动，以及上下文压缩、子代理和失败的工具调用标记。可按代理、项目或标记筛选；搜索覆盖标题和你自己的提示词；选中一行会预览该会话的上下文变化。
-- **会话工作区。** 顶部是会话的各项数字；时间线里每个请求一根柱子（高度是输入 Token），每个子代理一条泳道，并有提示词和失败的工具调用标记，以及每次上下文压缩处的虚线；下方是按轮次分组的事件列表，以及所选事件的检查器。
-- **模型所见。** 选中请求后，检查器会重建模型当时获得的上下文：系统提示词、工具、消息，以及被上下文压缩移除的事件。日志没有记录的槽位保持 `unavailable`。
-- **报告。** 把单个会话的工作区导出为一个经过脱敏的 `index.html`，可以直接从磁盘打开，无需服务器。
-- **MCP。** `agent-trace mcp <path>` 通过 stdio 提供 `reconstruct` 工具。
+- **会话浏览器。** 本机会话的统一入口：按天分组、最近活动在前。每行包含代理、标题、项目、轮次、请求、Token、时长、最近活动，以及上下文压缩、子代理和失败的工具调用标记。筛选支持代理、项目和标记；搜索覆盖标题和用户提示词；并提供所选会话的上下文变化预览。
+- **会话工作区。** 会话指标、请求时间线、事件列表和事件检查器。时间线中每个请求一根柱子（高度为输入 Token），每个子代理一条泳道，标注提示词、失败的工具调用和上下文压缩；事件列表按轮次分组，检查器显示所选事件。
+- **模型所见。** 所选请求的上下文重建：系统提示词、工具、消息，以及被上下文压缩移除的事件；日志没有记录的槽位显示为 `unavailable`。
+- **报告。** 单个会话工作区的脱敏静态导出：一个 `index.html`，可直接从磁盘打开，无需服务器。
+- **MCP。** `agent-trace mcp <path>`：通过 stdio 提供 `reconstruct` 工具。
 
-两个页面的静态设计稿在 [`docs/design/`](docs/design/README.md)。
+两个页面的静态设计稿见 [`docs/design/`](docs/design/README.md)。
 
 ## 快速开始
 
@@ -42,7 +43,7 @@
 npx @rivus/agent-trace
 ```
 
-它会在 `localhost` 上启动（默认端口 7392），打开浏览器，并索引受支持代理的会话。`--no-open` 只打印 URL，不打开浏览器；`--port 0` 会选择一个空闲端口。
+它会在 `localhost:7392` 启动服务，自动打开浏览器，并索引受支持代理的会话。`--no-open` 只打印 URL；`--port 0` 选择空闲端口。
 
 从源码构建需要 Node.js 24.x；构建出的 CLI 可在 Node.js 24 或更高版本运行：
 
@@ -89,15 +90,15 @@ npx @rivus/agent-trace mcp [path]
 
 不支持 OpenCode 和 dsh。
 
-- 各代理的 home 覆盖项会替换默认 home：Claude Code 用 `CLAUDE_CONFIG_DIR`，Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`。设置 `CLAUDE_CONFIG_DIR` 后，只位于 `~/.claude` 下的会话不会被列出。
+- 各代理的 home 环境变量会替换默认 home：Claude Code 用 `CLAUDE_CONFIG_DIR`，Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`。设置 `CLAUDE_CONFIG_DIR` 后，只位于 `~/.claude` 下的会话不会被列出。
 - 代理目录不存在时会显示 0 个会话，并给出它检查过的路径。适配器无法解析的文件会列为“无法读取”，并给出文件、行号和原因。会话中不是 JSON 的行会被跳过，不会让整个会话失败。
 - Grok 只按轮次记录 Token 用量，所以 Grok 会话每轮只有一个请求，而不是每次模型调用一个请求。
 
 ## 隐私
 
-- 所有内容都在本机运行。服务器只绑定 `localhost`，不会把任何内容发送到别处。
+- 所有处理都在本机完成。服务器只绑定 `localhost`，不会把任何内容发送到别处。
 - 会话文件只读，不写入。
-- 会话索引位于 `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`（默认 `~/.cache/rivus-agent-trace/`），权限为 0600。它保存标题、路径、数字，以及用户输入的前 200 条提示词（每条 500 字符）用于搜索——不保存代理注入或自己记录的文本。可以随时删除；它会从日志重建。`--no-index` 可以在没有索引的情况下运行。
+- 会话索引位于 `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`（默认 `~/.cache/rivus-agent-trace/`），权限为 0600。它保存标题、路径、数字，以及用户输入的前 200 条提示词（每条 500 字符）用于搜索——不保存代理注入或代理自己记录的文本。可以随时删除；它会从日志重建。`--no-index` 可以在没有索引的情况下运行。
 - URL 只携带不透明的 trace id，从不包含路径。
 - 本地服务器会把 home 目录替换成 `~`，并把已知的凭据模式替换成占位符；`AGENT_TRACE_REDACT=0` 只对本地服务器关闭这一行为。
 - 报告（`build`，或工作区里的“导出报告”）无论 `AGENT_TRACE_REDACT` 如何设置，都会按同样的方式脱敏。**报告仍保留会话文本和文件内容，分享前请先阅读。** 报告包含每个事件的视图，以及前 2,000 个事件或 20 MB（取较小者）的原始记录；如果实际更少，报告头部会说明。

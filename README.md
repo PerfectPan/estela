@@ -9,7 +9,8 @@
 <h1 align="center">agent-trace</h1>
 
 <p align="center">
-  <strong>See what your coding agent did — and what the model saw.</strong>
+  <strong>Local DevTools for coding-agent session logs</strong><br>
+  Session browser · request timeline · context reconstruction
 </p>
 
 <p align="center">
@@ -18,17 +19,17 @@
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
 </p>
 
-`npx @rivus/agent-trace` starts a local server, indexes every Claude Code, Codex, and Grok session on this machine, and opens the session browser. Select a session to see its timeline, ledger, and token use; select a request to see what the model was shown.
+`npx @rivus/agent-trace` brings the Claude Code, Codex, and Grok sessions on this machine into one local interface. Each session has a timeline, an event ledger, and token counts; each request has the context the model received.
 
-The reconstruction is the product. A transcript browser tells you what the agent did; agent-trace shows what the model was working from at that point, including the events a compaction removed. Anything the log never recorded is marked `unavailable`; nothing is estimated.
+The core capability is request-level context reconstruction. For any request, agent-trace rebuilds the context the model received — system prompt, tools, messages, and the events a compaction removed. Slots the log never recorded are marked `unavailable`; nothing is estimated.
 
 ## Features
 
-- **Session browser.** Every session found on this machine, newest first and grouped by day. Each row carries the agent, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filter by agent, project, or flag; search titles and your own prompts; a preview shows the selected session's context-over-time shape.
-- **Session workspace.** A header with the session's numbers; a timeline with one bar per model request (height is input tokens), a lane per subagent, markers for prompts and failed tool calls, and a dashed rule at each compaction; a ledger of events grouped by turn; an inspector for the selected event.
-- **Model saw.** For the selected request, the inspector rebuilds the context the model was given: system prompt, tools, messages, and the events dropped by compaction. Slots the log does not record stay `unavailable`.
-- **Report.** A redacted copy of one session's workspace as a single `index.html` that opens from disk with no server.
-- **MCP.** `agent-trace mcp <path>` serves a `reconstruct` tool over stdio.
+- **Session browser.** One place for every session found on this machine, grouped by day and newest first. Each row carries the agent, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by agent, project, and flag; search across titles and your own prompts; a preview of the selected session's context-over-time shape.
+- **Session workspace.** Session metrics, a request timeline, an event ledger, and an event inspector. The timeline shows one bar per request (height is input tokens), one lane per subagent, and markers for prompts, failed tool calls, and compactions; the ledger groups events by turn, and the inspector shows the selected event.
+- **Model saw.** The context reconstruction for the selected request: system prompt, tools, messages, and the events a compaction removed; slots the log never recorded are marked `unavailable`.
+- **Report.** A redacted static export of one session's workspace: one `index.html` that opens from disk with no server.
+- **MCP.** `agent-trace mcp <path>`: a `reconstruct` tool over stdio.
 
 Static mockups of both screens are in [`docs/design/`](docs/design/README.md).
 
@@ -40,7 +41,7 @@ Node.js 24 or later:
 npx @rivus/agent-trace
 ```
 
-It starts on `localhost` (port 7392 by default), opens the browser, and indexes the sessions of the supported agents. `--no-open` prints the URL instead; `--port 0` picks a free port.
+It starts a server on `localhost:7392`, opens the browser, and indexes the sessions of the supported agents. `--no-open` prints the URL instead; `--port 0` picks a free port.
 
 To build from source, use Node.js 24.x; the built CLI runs on Node.js 24 or later:
 
