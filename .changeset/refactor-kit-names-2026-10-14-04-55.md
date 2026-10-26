@@ -1,5 +1,0 @@
----
-"@rivus/agent-trace": none
----
-
-Names follow @rivus/agent-kit, which changes some UI labels: reasoning events read REASONING / Reasoning / 推理 instead of THINK / Thinking / 思考, and a request shows "finish <reason>" / "结束原因 <reason>" instead of "stop <reason>" / "停止原因 <reason>". A canonical trace file stores the agent id as "agent" with "agentVersion" beside it; RPC inputs and session list rows name the opaque session id traceId, and the session index is rebuilt once for its renamed columns.
