@@ -4,6 +4,14 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { activePanel, ctx, expect, generateCodex, generateTrace, openWorkspace, test } from './harness.ts'
 
+/** The page's `window.longTasks`, typed by this `declare global` merge. */
+declare global {
+  interface Window {
+    /** Long-task durations collected by this suite's `PerformanceObserver` on the page. */
+    longTasks: number[]
+  }
+}
+
 /** The view budget: at most 12 MB reaches the browser before an event is selected. */
 const BUDGET = 12 * 1000 * 1000
 /** S12 file size. S12 asks for at least 350 MB; a smaller value is only for trying the suite quickly. */
@@ -24,11 +32,10 @@ test('S8: 10,000 events scroll with fewer than 100 rendered rows and no long tas
     await openWorkspace(page, launch, await generateTrace(dir, 10000))
     await expect(page.getByTestId('timeline-range')).toContainText(/10,\d{3} events/)
     await page.evaluate(() => {
-      const w = window as unknown as { longTasks: number[] }
-      w.longTasks = []
+      window.longTasks = []
       new PerformanceObserver(list => {
         for (const entry of list.getEntries()) {
-          w.longTasks.push(entry.duration)
+          window.longTasks.push(entry.duration)
         }
       }).observe({ type: 'longtask' })
     })
@@ -50,7 +57,7 @@ test('S8: 10,000 events scroll with fewer than 100 rendered rows and no long tas
       await expect.poll(async () => (current = await state()).top).toBeGreaterThan(before)
       maxRows = Math.max(maxRows, current.rows)
     }
-    const longTasks = await page.evaluate(() => (window as unknown as { longTasks: number[] }).longTasks)
+    const longTasks = await page.evaluate(() => window.longTasks)
     note(
       'S8',
       `${steps} scroll steps, at most ${maxRows} rendered rows, longest task ${Math.round(Math.max(0, ...longTasks))} ms`,

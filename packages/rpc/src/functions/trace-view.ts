@@ -1,9 +1,7 @@
 import type { ReconstructResult } from '@rivus/agent-trace-schema'
-import type { DevframeNodeRpcSession, RpcStreamingChannel } from 'devframe'
-
-type DevframeNodeRpcSessionMeta = DevframeNodeRpcSession['meta']
+import type { RpcStreamingChannel, RpcStreamingChannelOptions } from 'devframe'
 import type { EventDetail, LoadProgress, TraceStore, TraceViewResult } from '../trace-store.ts'
-import { defineRpcFunction } from 'devframe'
+import { createDefineWrapperWithContext } from 'devframe/rpc'
 import * as z from 'zod/mini'
 import { parseInput } from './parse-input.ts'
 
@@ -15,6 +13,32 @@ export const LOAD_PROGRESS_CHANNEL = 'load-progress'
 
 /** Progress chunks: at most one per this many milliseconds, plus the final one. */
 const PROGRESS_INTERVAL_MS = 100
+
+/**
+ * What `load-trace` uses of a streaming channel: `start`, which yields the sink it writes to.
+ */
+interface LoadProgressChannel {
+  start: RpcStreamingChannel<LoadProgress>['start']
+}
+
+/**
+ * The context slice the trace functions read: the calling connection and the `load-progress`
+ * channel.
+ */
+export interface TraceRpcContext {
+  rpc: {
+    /** `create` opens the `load-progress` channel. */
+    streaming: { create: (name: string, opts?: RpcStreamingChannelOptions) => LoadProgressChannel }
+    getCurrentRpcSession: () => { meta: { subscribedStreams?: Set<string> } } | undefined
+  }
+}
+
+/**
+ * devframe's root `defineRpcFunction` pins the full `DevframeNodeContext`, whose surface a test
+ * double cannot honestly carry. The definitions are built with a wrapper bound to the slice they
+ * read; the real context satisfies it where `apps/cli` registers them.
+ */
+const defineTraceFunction = createDefineWrapperWithContext<TraceRpcContext>()
 
 /**
  * A connection that calls `load-trace` must subscribe to the returned stream
@@ -47,9 +71,7 @@ let store: TraceStore | undefined
  * The calling browser connection, or `undefined` outside a WebSocket/SSE call
  * (MCP and in-process calls, where DevFrame throws DF0007 instead).
  */
-function ownerOf(ctx: {
-  rpc: { getCurrentRpcSession: () => { meta: DevframeNodeRpcSessionMeta } | undefined }
-}): DevframeNodeRpcSessionMeta | undefined {
+function ownerOf(ctx: TraceRpcContext): { subscribedStreams?: Set<string> } | undefined {
   try {
     return ctx.rpc.getCurrentRpcSession()?.meta
   } catch {
@@ -105,15 +127,15 @@ export interface LoadTraceResult {
  * `load-trace` again from the same connection releases this hold; the last
  * release aborts the load.
  */
-export const loadTrace = defineRpcFunction({
+export const loadTrace = defineTraceFunction({
   name: 'load-trace',
   type: 'action',
   jsonSerializable: true,
-  setup: ctx => {
-    let channel: RpcStreamingChannel<LoadProgress> | undefined
-    const progressChannel = (): RpcStreamingChannel<LoadProgress> => {
+  setup: (ctx: TraceRpcContext) => {
+    let channel: LoadProgressChannel | undefined
+    const progressChannel = (): LoadProgressChannel => {
       // Qualified with the rpc NAMESPACE (`agent-trace`); the scoped client subscribes by the bare name.
-      channel ??= ctx.rpc.streaming.create<LoadProgress>(`agent-trace:${LOAD_PROGRESS_CHANNEL}`, { replayWindow: 1 })
+      channel ??= ctx.rpc.streaming.create(`agent-trace:${LOAD_PROGRESS_CHANNEL}`, { replayWindow: 1 })
       return channel
     }
     return {
@@ -167,21 +189,21 @@ export const loadTrace = defineRpcFunction({
   },
 })
 
-export const getTraceView = defineRpcFunction({
+export const getTraceView = defineTraceFunction({
   name: 'get-trace-view',
   type: 'query',
   jsonSerializable: true,
-  setup: ctx => ({
+  setup: (ctx: TraceRpcContext) => ({
     handler: async (input: { traceId: string }): Promise<TraceViewResult> =>
       requireStore().view(parseInput(traceViewInput, input).traceId, ownerOf(ctx)),
   }),
 })
 
-export const getEvent = defineRpcFunction({
+export const getEvent = defineTraceFunction({
   name: 'get-event',
   type: 'query',
   jsonSerializable: true,
-  setup: ctx => ({
+  setup: (ctx: TraceRpcContext) => ({
     handler: async (input: { traceId: string; id: string }): Promise<EventDetail> => {
       const { traceId, id } = parseInput(eventInput, input)
       return requireStore().event(traceId, id, ownerOf(ctx))
@@ -189,7 +211,7 @@ export const getEvent = defineRpcFunction({
   }),
 })
 
-export const reconstructAt = defineRpcFunction({
+export const reconstructAt = defineTraceFunction({
   name: 'reconstruct',
   type: 'query',
   jsonSerializable: true,

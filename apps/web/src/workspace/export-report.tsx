@@ -70,11 +70,12 @@ export function ExportReport(props: { traceId: string }) {
     }
     const first = focusable[0]!
     const last = focusable.at(-1)!
-    const inside = focusable.includes(document.activeElement as HTMLElement)
-    if (event.shiftKey && (document.activeElement === first || !inside)) {
+    const active = document.activeElement
+    const inside = active instanceof HTMLElement && focusable.includes(active)
+    if (event.shiftKey && (active === first || !inside)) {
       event.preventDefault()
       last.focus()
-    } else if (!event.shiftKey && (document.activeElement === last || !inside)) {
+    } else if (!event.shiftKey && (active === last || !inside)) {
       event.preventDefault()
       first.focus()
     }

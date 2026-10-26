@@ -1,4 +1,4 @@
-import type { Entry, VirtualRow } from '@/lib/ledger-model.ts'
+import type { VirtualRow } from '@/lib/ledger-model.ts'
 import type { WorkspaceState } from '../workspace-state.ts'
 import type { RowContext } from './row-frame.tsx'
 import { Match, Switch } from 'solid-js'
@@ -13,12 +13,29 @@ export function LedgerEntryBody(props: {
   state: WorkspaceState
 }) {
   const entry = () => props.row.entry
+  // Each accessor narrows the entry union to one variant, so `Match` hands the row its typed entry.
+  const event = () => {
+    const current = entry()
+    return current.type === 'event' ? current : undefined
+  }
+  const subagent = () => {
+    const current = entry()
+    return current.type === 'subagent' ? current : undefined
+  }
+  const hooks = () => {
+    const current = entry()
+    return current.type === 'hooks' ? current : undefined
+  }
+  const compaction = () => {
+    const current = entry()
+    return current.type === 'compaction' ? current : undefined
+  }
   return (
     <Switch>
-      <Match when={entry().type === 'event' ? (entry() as Extract<Entry, { type: 'event' }>) : undefined}>
+      <Match when={event()}>
         {current => <EventRow entry={current()} depth={props.row.depth} ctx={props.ctx} lane={props.row.lane} />}
       </Match>
-      <Match when={entry().type === 'subagent' ? (entry() as Extract<Entry, { type: 'subagent' }>) : undefined}>
+      <Match when={subagent()}>
         {current => (
           <SubagentRow
             entry={current()}
@@ -28,12 +45,8 @@ export function LedgerEntryBody(props: {
           />
         )}
       </Match>
-      <Match when={entry().type === 'hooks' ? (entry() as Extract<Entry, { type: 'hooks' }>) : undefined}>
-        {current => <HooksRow entry={current()} depth={props.row.depth} />}
-      </Match>
-      <Match when={entry().type === 'compaction' ? (entry() as Extract<Entry, { type: 'compaction' }>) : undefined}>
-        {current => <CompactionRow entry={current()} ctx={props.ctx} />}
-      </Match>
+      <Match when={hooks()}>{current => <HooksRow entry={current()} depth={props.row.depth} />}</Match>
+      <Match when={compaction()}>{current => <CompactionRow entry={current()} ctx={props.ctx} />}</Match>
     </Switch>
   )
 }

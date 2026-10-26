@@ -3,8 +3,19 @@ import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
+import * as z from 'zod/mini'
 
 const exec = promisify(execFile)
+
+const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+/** `execFile` failures carry `stdout` and `stderr` as own properties on the thrown `Error`. */
+function execOutput(error: unknown): { stdout: string; stderr: string } {
+  if (!(error instanceof Error) || !('stdout' in error) || !('stderr' in error)) {
+    return { stdout: '', stderr: '' }
+  }
+  return { stdout: text(error.stdout), stderr: text(error.stderr) }
+}
 
 export interface Installed {
   tarball: string
@@ -31,7 +42,7 @@ async function buildCli(repo: string): Promise<void> {
       maxBuffer: 64 * 1024 * 1024,
     })
   } catch (error) {
-    const { stdout = '', stderr = '' } = error as { stdout?: string; stderr?: string }
+    const { stdout, stderr } = execOutput(error)
     throw new Error(
       `pnpm --filter '@rivus/agent-trace...' run build failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`,
       {
@@ -50,7 +61,10 @@ export async function packAndInstall(root: string, repo: string): Promise<Instal
   await buildCli(repo)
   const cliDir = join(repo, 'apps/cli')
   const { stdout } = await exec('pnpm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
-  const packed = JSON.parse(stdout) as { filename: string; files: { path: string }[] }
+  const packed = z.parse(
+    z.object({ filename: z.string(), files: z.array(z.object({ path: z.string() })) }),
+    JSON.parse(stdout),
+  )
   const tarball = packed.filename
   if (!tarball) {
     throw new Error(`pnpm pack printed no package: ${stdout}`)

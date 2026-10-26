@@ -22,20 +22,15 @@ function measureLabel(text: string): number {
 }
 
 /** Pointer capture on `target` until the button is released or the pointer is lost. */
-function trackDrag(
-  target: Element,
-  event: PointerEvent,
-  onMove: (move: PointerEvent) => void,
-  onEnd: () => void,
-): void {
+function trackDrag(target: Element, event: PointerEvent, onMove: (move: Event) => void, onEnd: () => void): void {
   target.setPointerCapture(event.pointerId)
   const end = () => {
-    target.removeEventListener('pointermove', onMove as EventListener)
+    target.removeEventListener('pointermove', onMove)
     target.removeEventListener('pointerup', end)
     target.removeEventListener('pointercancel', end)
     onEnd()
   }
-  target.addEventListener('pointermove', onMove as EventListener)
+  target.addEventListener('pointermove', onMove)
   target.addEventListener('pointerup', end)
   target.addEventListener('pointercancel', end)
 }
@@ -110,18 +105,25 @@ export function Timeline(props: {
     if (event.button !== 0) {
       return
     }
+    const target = event.currentTarget
+    if (!(target instanceof Element)) {
+      return
+    }
     const startX = localX(event)
     const anchor = tsOf(scale(), startX)
     let moved = false
     trackDrag(
-      event.currentTarget as Element,
+      target,
       event,
-      next => {
-        if (!moved && Math.abs(localX(next) - startX) < CLICK_PX) {
+      move => {
+        if (!(move instanceof PointerEvent)) {
+          return
+        }
+        if (!moved && Math.abs(localX(move) - startX) < CLICK_PX) {
           return
         }
         moved = true
-        commit(normalizeRange(anchor, tsOf(scale(), localX(next)), scale().start, scale().end))
+        commit(normalizeRange(anchor, tsOf(scale(), localX(move)), scale().start, scale().end))
       },
       () => {
         if (moved) {
@@ -144,13 +146,19 @@ export function Timeline(props: {
       return
     }
     event.stopPropagation()
-    const target = event.currentTarget as SVGRectElement
+    const target = event.currentTarget
+    if (!(target instanceof SVGRectElement)) {
+      return
+    }
     target.focus()
     trackDrag(
       target,
       event,
-      next => {
-        const at = tsOf(scale(), localX(next))
+      move => {
+        if (!(move instanceof PointerEvent)) {
+          return
+        }
+        const at = tsOf(scale(), localX(move))
         const current = edges()
         commit(
           edge === 'from'

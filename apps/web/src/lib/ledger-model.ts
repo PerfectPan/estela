@@ -227,8 +227,8 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
         continue
       }
       const spawnAt = entries.findIndex(entry => entry.type === 'event' && spawnOf.get(entry.eventId) === laneId)
-      if (spawnAt >= 0) {
-        const spawn = entries[spawnAt] as Extract<Entry, { type: 'event' }>
+      const spawn = spawnAt >= 0 ? entries[spawnAt] : undefined
+      if (spawn?.type === 'event') {
         const entry: Entry = {
           type: 'subagent',
           id,
