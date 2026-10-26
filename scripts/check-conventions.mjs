@@ -18,6 +18,7 @@ const FIXED_NAMES = new Set([
   'CONTRIBUTING.md',
   'LICENSE',
   'README.md',
+  'README.zh-CN.md',
   'SECURITY.md',
 ])
 /** Paths whose names a platform or tool decides. */
