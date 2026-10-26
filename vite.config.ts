@@ -21,20 +21,8 @@ export default {
     ignorePatterns: ['**/dist/**', '**/node_modules/**'],
     rules: {
       ...lint.rules,
-      // Declared return types already cover this, and the rule does not follow
-      // `never` calls such as `process.exit` or exhaustive switches.
-      'typescript/consistent-return': 'off',
       // Vitest's `expect(value, message)` takes a failure message.
       'vitest/valid-expect': ['error', { maxArgs: 2 }],
-      // Fire-and-forget `.then` at the end of a chain has nothing to return.
-      'promise/always-return': ['warn', { ignoreLastCallback: true }],
-      'import/no-unassigned-import': ['warn', { allow: ['**/*.css'] }],
-      // agent-kit's Result errors carry their discriminator as `_tag`.
-      'eslint/no-underscore-dangle': ['warn', { allow: ['_tag'] }],
-      // Under verbatimModuleSyntax, `import { type X } from 'm'` compiles to `import 'm'`, so the
-      // module still loads at runtime. `allowTypeImports` in the agent-kit override below accepts
-      // that form; this rule requires `import type { X }` instead.
-      'typescript/no-import-type-side-effects': 'error',
     },
     overrides: [
       ...lint.overrides,
