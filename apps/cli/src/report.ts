@@ -107,7 +107,6 @@ export async function exportReport(
     }
   } catch (error) {
     // No cause: it would carry the unredacted home path to the browser.
-    // oxlint-disable-next-line preserve-caught-error
     throw new Error(redactText(error instanceof Error ? error.message : String(error), { home }))
   }
 }

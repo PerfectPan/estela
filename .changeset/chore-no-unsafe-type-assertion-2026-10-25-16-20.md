@@ -2,4 +2,4 @@
 "@rivus/agent-trace": none
 ---
 
-Internal: the lint rule `typescript/no-unsafe-type-assertion` is on and every type assertion it flagged is replaced by narrowing, boundary schemas, or typed test doubles.
+Internal: known-type assertions are replaced by narrowing, boundary schemas, and typed test doubles, and the lint config no longer opts into the suspicious category.

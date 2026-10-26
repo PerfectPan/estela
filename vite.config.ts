@@ -19,7 +19,6 @@ export default {
   lint: {
     ...lint,
     ignorePatterns: ['**/dist/**', '**/node_modules/**'],
-    categories: { ...lint.categories, suspicious: 'warn' },
     rules: {
       ...lint.rules,
       // Declared return types already cover this, and the rule does not follow
