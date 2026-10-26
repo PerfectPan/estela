@@ -1,7 +1,7 @@
 {
   "name": "@rivus/agent-trace",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
   "homepage": "https://github.com/PerfectPan/agent-trace",
   "repository": {
