@@ -12,6 +12,7 @@ import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
 import { SessionCatalog } from './catalog.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
+import { writeExport, type ExportFormat } from './export.ts'
 import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
 import { exportReport, reportOf, writeReport } from './report.ts'
@@ -145,6 +146,21 @@ export async function main(): Promise<void> {
       })
     } catch (error) {
       sayError(`Could not build ${sessionPath}: ${messageOf(error)}`, FIX)
+      process.exit(1)
+    }
+    return
+  }
+
+  if (parsed.command === 'export-atif' || parsed.command === 'export-otlp') {
+    const format: ExportFormat = parsed.command === 'export-atif' ? 'atif' : 'otlp'
+    const target = sessionTargetOf(parsed.path ?? process.env.AGENT_TRACE_PATH ?? demoFixturePath())
+    const sessionPath = sessionTargetLabel(target)
+    try {
+      const trace = await loadSession(target, { platform: createNodePlatform() })
+      const written = await writeExport(trace, format, parsed.outFile)
+      process.stdout.write(`Wrote ${written}\n`)
+    } catch (error) {
+      sayError(`Could not export ${sessionPath}: ${messageOf(error)}`, FIX)
       process.exit(1)
     }
     return

@@ -25,6 +25,18 @@ describe('parseCommand', () => {
     expect(parse('build', '--out-dir=x').outDir).toBe('x')
   })
 
+  it('takes export-atif <path> --out x and export-otlp <path>', () => {
+    const atif = parse('export-atif', '/tmp/session.jsonl', '--out', 'x.json')
+    expect(atif.command).toBe('export-atif')
+    expect(atif.path).toBe('/tmp/session.jsonl')
+    expect(atif.outFile).toBe('x.json')
+    expect(atif.userArgs).toContain('--out')
+    const otlp = parse('export-otlp', '--out=y.json', '/tmp/session.jsonl')
+    expect(otlp.command).toBe('export-otlp')
+    expect(otlp.outFile).toBe('y.json')
+    expect(otlp.path).toBe('/tmp/session.jsonl')
+  })
+
   it('keeps --port before the path', () => {
     const parsed = parse('--port', '7392', '/tmp/session.json')
     expect(parsed.path).toBe('/tmp/session.json')
