@@ -21,7 +21,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
 </p>
 
-`npx @rivus/agent-trace` 在本机启动服务，将这台机器上的 Claude Code、Codex 与 Grok 会话统一呈现在一个本地界面中。每个会话包含时间线、事件列表和 Token 用量；每个请求包含模型当时收到的上下文。
+`npx @rivus/agent-trace` 在本机启动服务，将这台机器上的 Claude Code、Codex 与 Grok 会话统一呈现在一个本地界面中。每个会话包含时间线、事件列表和 Token 用量；每个请求对应模型当时收到的上下文。
 
 核心能力是请求级上下文重建。对任意请求，agent-trace 重建模型当时收到的上下文——系统提示词、工具、消息，以及被上下文压缩移除的事件。日志没有记录的槽位标记为 `unavailable`，不做任何推测。
 
