@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import process from 'node:process'
 import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
@@ -25,6 +26,8 @@ async function buildCli(repo: string): Promise<void> {
   try {
     await exec('pnpm', ['--filter', '@rivus/agent-trace...', 'run', 'build'], {
       cwd: repo,
+      // Vitest sets NODE_ENV=test; the published artifact must use the production build conditions.
+      env: { ...process.env, NODE_ENV: 'production' },
       maxBuffer: 64 * 1024 * 1024,
     })
   } catch (error) {
