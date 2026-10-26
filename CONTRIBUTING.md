@@ -106,7 +106,7 @@ The first release is manual, and it also consumes the changesets the repository 
 1. Review the pending changeset messages and correct any that no longer describe the package. Commit the release preparation so the working tree is clean, then set the first version: `pnpm --filter @rivus/agent-trace version 0.1.0 --no-git-tag-version`. The command edits the manifest and does not commit or tag.
 2. Commit, then run `pnpm version -r` once. The version stays (`0.1.0 → 0.1.0`), the pending changesets land in `apps/cli/CHANGELOG.md` under `## 0.1.0`, the `.changeset/*.md` files are deleted, and `.changeset/ledger.yaml` records the intents.
 3. Check the generated section against the reviewed changesets (the `none` records never appear in the changelog), then commit the generated changelog, ledger, and consumed changesets.
-4. Publish the version with the [Publish workflow](#publishing-to-npm), unchecking `dry-run`. This first version goes out with a token, because the package does not exist on npm yet. From the next release on, the changesets → version PR flow above applies.
+4. Complete the bootstrap package and trusted publisher setup below, then publish the version with the [Publish workflow](#publishing-to-npm), unchecking `dry-run`. From the next release on, the changesets → version PR flow above applies.
 
 ### Publishing to npm
 
@@ -116,7 +116,9 @@ The `dry-run` input defaults to true and passes `--dry-run` to `pnpm publish`. I
 
 The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): `id-token: write` supplies the OIDC token, which pnpm exchanges for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
 
-A trusted publisher can only be configured for a package that exists, so the first version needs a repository secret named `NPM_TOKEN`: a short-lived granular access token with read and write access to `@rivus` and permission to bypass 2FA for CI publishing. Configure the trusted publisher once the first version appears. Verify an OIDC publish before removing the bootstrap secret and revoking its token; never put the token in a tracked file or PR.
+A trusted publisher requires an existing npm package. For a new package, log in locally with npm and complete 2FA, then publish an empty `@rivus/agent-trace@0.0.0-bootstrap.0` from a temporary directory outside this checkout to the official registry with `--access public --tag bootstrap`. This creates the package without consuming `0.1.0`. Then configure the trusted publisher above; subsequent workflow publishing uses only OIDC and needs no repository npm token secret.
+
+A new trusted publisher expires unless it completes a successful publish within two days. If the release is delayed, recreate the expired configuration before publishing; a dry run does not validate it.
 
 A real publish runs `pnpm publish "$RUNNER_TEMP/agent-trace.tgz" --access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000`, with pnpm's Git checks enabled. After the exact version and its tarball become available, the Release step reads the version and its generated `apps/cli/CHANGELOG.md` section, pushes `"$GITHUB_SHA:refs/tags/$tag"` without force, then creates the GitHub Release with `--verify-tag` and those notes. The workflow does not skip existing npm versions or recover partially completed releases automatically.
 
