@@ -7,6 +7,7 @@ Keep collaboration policy in `CONTRIBUTING.md`, AI-agent instructions in `AGENTS
 ## What Belongs Here
 
 - `architecture/` for the current system shape: domain boundaries, module boundaries, data flow, trust boundaries, storage, integrations, deployment topology, and major tradeoffs.
+- `assets/` for images referenced by the root README and by these docs.
 - `development/` for local setup, common development tasks, debugging workflows, test strategy, fixtures, release dry-runs, and stack-specific commands.
 - `reference/` for stable factual material such as APIs, CLI commands, configuration, protocols, schemas, error codes, and generated interfaces.
 - `operations/` for runbooks, incident response, monitoring, backups, migrations, and rollback procedures when the project has operational responsibilities.
