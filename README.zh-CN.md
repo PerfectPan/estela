@@ -21,7 +21,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
 </p>
 
-`npx @rivus/agent-trace` 将本机的 Agent 会话集中呈现在一个界面中。每个会话包含时间线、事件列表和 Token 用量；每个请求对应模型当时收到的上下文。
+agent-trace 将本机的 Agent 会话集中呈现在一个界面中。每个会话包含时间线、事件列表和 Token 用量；每个请求对应模型当时收到的上下文。
 
 核心能力是请求级上下文重建。对任意请求，agent-trace 重建模型当时收到的上下文——系统提示词、工具、消息，以及被上下文压缩移除的事件。日志未记录的槽位标记为 `unavailable`，不作任何推测。
 
