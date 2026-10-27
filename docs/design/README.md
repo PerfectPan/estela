@@ -72,6 +72,16 @@ Assistant replies use a neutral outlined square.
 - Chinese: both stacks continue with `"PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei"`. `<html lang>` follows the UI language.
 - Sizes: session title 26 px / 600, section labels 12 px / 600, body 13 px, data 11.5–12 px. Section labels are uppercase with 0.04em tracking in English only (`:lang(en)`); Chinese labels keep normal case and tracking.
 
+## Logo
+
+<img src="../assets/logo.svg" width="128" height="128" alt="agent-trace logo">
+
+The mark is [`../assets/logo.svg`](../assets/logo.svg): a request trace inside a rounded tile, ending at the selected request in the request blue. The hollow nodes are cut with a mask, so the tile gradient shows through; the baseline and its ticks are the workspace's time axis.
+
+- The tile carries its own dark background, so the mark reads on light and dark surfaces. Keep the tile; do not set the bare glyph on a light background.
+- The in-app top bar uses the same glyph without the tile (`apps/web/src/shell/logo.tsx`). The favicon is the same shape with filled nodes, which stays legible at 16 px (`apps/web/src/index.html`).
+- Colors: tile `#1b2229` → `#0d1013`, trace `#c3ccd5` → `#eef1f4`, request `#4d97de`; the tile border is white at 11%, the axis `#2f373f`, and its ticks `#262e35`.
+
 ## Not chosen
 
 Two low-fidelity alternates were reviewed and not chosen: a light single-column reading layout, and a timeline-first layout with one lane per agent. The lane idea may return as a view toggle inside the workspace.

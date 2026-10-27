@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Checks that every active Spec and Plan has a Chinese reading copy that matches its structure.
-// English is the source of truth. See CONTRIBUTING.md#bilingual-specs-and-plans.
+// Checks that every active Spec and Plan, and the root README, has a Chinese reading copy that
+// matches its structure. English is the source of truth.
+// See CONTRIBUTING.md#bilingual-specs-and-plans and CONTRIBUTING.md#bilingual-readme.
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
@@ -45,6 +46,37 @@ function shape(text) {
 const problems = []
 let pairs = 0
 
+/** Checks one English file against its Chinese reading copy. */
+function checkPair(english, chinese) {
+  if (!existsSync(join(root, chinese))) {
+    problems.push(`${english}: missing Chinese reading copy ${chinese}`)
+    return
+  }
+  pairs++
+  const enText = readFileSync(join(root, english), 'utf8')
+  const zhText = readFileSync(join(root, chinese), 'utf8')
+  const first = zhText.split('\n').find(l => l.trim() !== '')
+  if (first !== banner(english)) {
+    problems.push(`${chinese}: first line must be: ${banner(english)}`)
+  }
+  const a = shape(enText)
+  const b = shape(zhText)
+  a.headings.forEach((count, i) => {
+    if (count !== b.headings[i]) {
+      problems.push(`${chinese}: ${b.headings[i]} level-${i + 1} headings, English has ${count}`)
+    }
+  })
+  if (a.fences.length !== b.fences.length) {
+    problems.push(`${chinese}: ${b.fences.length} code blocks, English has ${a.fences.length}`)
+  } else {
+    a.fences.forEach((body, i) => {
+      if (body !== b.fences[i]) {
+        problems.push(`${chinese}: code block ${i + 1} differs from English; code and diagrams are copied unchanged`)
+      }
+    })
+  }
+}
+
 for (const dir of dirs) {
   const abs = join(root, dir)
   if (!existsSync(abs)) {
@@ -64,35 +96,12 @@ for (const dir of dirs) {
     }
     const en = `${dir}/${name}`
     const zh = `${dir}/${name.slice(0, -3)}${ZH}`
-    if (!existsSync(join(root, zh))) {
-      problems.push(`${en}: missing Chinese reading copy ${zh}`)
-      continue
-    }
-    pairs++
-    const enText = readFileSync(join(root, en), 'utf8')
-    const zhText = readFileSync(join(root, zh), 'utf8')
-    const first = zhText.split('\n').find(l => l.trim() !== '')
-    if (first !== banner(en)) {
-      problems.push(`${zh}: first line must be: ${banner(en)}`)
-    }
-    const a = shape(enText)
-    const b = shape(zhText)
-    a.headings.forEach((count, i) => {
-      if (count !== b.headings[i]) {
-        problems.push(`${zh}: ${b.headings[i]} level-${i + 1} headings, English has ${count}`)
-      }
-    })
-    if (a.fences.length !== b.fences.length) {
-      problems.push(`${zh}: ${b.fences.length} code blocks, English has ${a.fences.length}`)
-    } else {
-      a.fences.forEach((body, i) => {
-        if (body !== b.fences[i]) {
-          problems.push(`${zh}: code block ${i + 1} differs from English; code and diagrams are copied unchanged`)
-        }
-      })
-    }
+    checkPair(en, zh)
   }
 }
+
+// The root README is the only README with a Chinese copy; see CONTRIBUTING.md#bilingual-readme.
+checkPair('README.md', `README${ZH}`)
 
 if (problems.length) {
   console.error('check-doc-translations: failed')

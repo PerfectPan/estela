@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-labelledby="title">
+  <title id="title">agent-trace</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2229"/>
+      <stop offset="1" stop-color="#0d1013"/>
+    </linearGradient>
+    <linearGradient id="trace" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#c3ccd5"/>
+      <stop offset="1" stop-color="#eef1f4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4d97de" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#4d97de" stop-opacity="0"/>
+    </radialGradient>
+    <!-- The line stops at each ring so the tile shows through the hole. -->
+    <mask id="nodes" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="104" cy="356" r="30" fill="#000"/>
+      <circle cx="216" cy="188" r="30" fill="#000"/>
+      <circle cx="304" cy="276" r="30" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#tile)"/>
+  <rect x="9" y="9" width="494" height="494" rx="115" fill="none" stroke="#ffffff" stroke-opacity="0.11" stroke-width="2"/>
+  <path d="M104 396 H408" stroke="#2f373f" stroke-width="6" stroke-linecap="round"/>
+  <path d="M180 388 V396 M256 388 V396 M332 388 V396" stroke="#262e35" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="408" cy="132" r="84" fill="url(#glow)"/>
+  <path d="M104 356 L216 188 L304 276 L408 132" fill="none" stroke="url(#trace)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" mask="url(#nodes)"/>
+  <circle cx="104" cy="356" r="30" fill="none" stroke="#e6e9ec" stroke-width="16"/>
+  <circle cx="216" cy="188" r="30" fill="none" stroke="#e6e9ec" stroke-width="16"/>
+  <circle cx="304" cy="276" r="30" fill="none" stroke="#e6e9ec" stroke-width="16"/>
+  <circle cx="408" cy="132" r="30" fill="#4d97de"/>
+</svg>

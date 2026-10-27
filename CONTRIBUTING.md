@@ -84,9 +84,21 @@ Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/000
 - It keeps the English structure: the same headings at every level, the same scenario and decision IDs, the same table rows, and every code block and diagram copied unchanged.
 - It states the same content. It does not summarize, add, or settle an ambiguity the English leaves open.
 - Chinese prose uses plain statements and noun-phrase headings. Identifiers, paths, commands, and field names stay as written in English.
-- Templates and README files have no Chinese copy.
+- Templates and README files other than the root README have no Chinese copy; see [Bilingual README](#bilingual-readme).
 
 `node scripts/check-doc-translations.mjs` checks the pairing, the first line, heading counts per level, and code blocks. CI and the pre-commit hook run it. It cannot tell whether the prose says the same thing; reviewers check that.
+
+## Bilingual README
+
+The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is the source of truth for review and implementation.
+
+- The English file changes first; the Chinese copy follows in the same PR.
+- The Chinese copy starts with `> 中文阅读版。以英文原文 README.md 为准。`
+- It keeps the English structure: the same headings at every level, and every code block copied unchanged.
+- It states the same content. It does not summarize, add, or settle an ambiguity the English leaves open.
+- Chinese prose uses plain statements and noun-phrase headings. Identifiers, paths, commands, and field names stay as written in English.
+
+`node scripts/check-doc-translations.mjs` checks the README pair along with the Spec and Plan pairs.
 
 ## Release Intent
 
@@ -138,7 +150,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 
 - File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.
 - Files under `fixtures/` keep the agent log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
-- Names fixed by convention or a platform keep their form: `README.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, and `.gitlab/merge_request_templates/`.
+- Names fixed by convention or a platform keep their form: `README.md`, `README.zh-CN.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, and `.gitlab/merge_request_templates/`.
 - A code file (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, and their variants) under `apps/`, `packages/`, or `scripts/` has at most 500 lines, tests included. Fixtures and documentation have no line limit. A file near the limit splits along a responsibility, not at an arbitrary line.
 
 `node scripts/check-conventions.mjs` checks every tracked file. CI and the pre-commit hook run it.

@@ -1,14 +1,37 @@
-# agent-trace
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-`@rivus/agent-trace` is a local DevTools for coding-agent session logs. One command opens it in the browser. You pick a session from Claude Code, Codex, or Grok and see, on one screen, what the agent did and what the model was shown at each request.
+<p align="center">
+  <img src="docs/assets/logo.svg" width="96" height="96" alt="agent-trace">
+</p>
 
-- **Session browser**: every session found on this machine, newest first, grouped by day. Each row has the agent, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by agent, project, and flag; search covers titles and the user's own prompts. Selecting a row shows a preview with the context-over-time shape.
-- **Session workspace**: a header with the session's numbers; a timeline with one bar per model request (height is input tokens), a lane per subagent, markers for prompts and failed tool calls, and a dashed rule at each compaction; a ledger of events grouped by turn; and an inspector whose "Model saw" tab reconstructs the context at the selected request, with the slots the session log does not record marked "unavailable".
-- **Report**: a redacted copy of one session's workspace as a single `index.html` that opens from disk.
+<h1 align="center">agent-trace</h1>
 
-It is not related to Cursor's Agent Trace (agent-trace.dev), a code-attribution format.
+<p align="center">
+  <strong>Local DevTools for Agent session logs</strong><br>
+  Session browser · request timeline · context reconstruction
+</p>
 
-The screens are described in words here. Screenshots are not committed; the design mockups are in [`docs/design/`](docs/design/README.md).
+<p align="center">
+  <a href="https://www.npmjs.com/package/@rivus/agent-trace"><img src="https://img.shields.io/npm/v/@rivus/agent-trace?style=flat-square" alt="npm version"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@rivus/agent-trace?style=flat-square" alt="Node.js 24 or later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
+</p>
+
+agent-trace brings the Agent sessions on this machine into one local interface. Each session has a timeline, an event ledger, and token counts; each request has the context the model received.
+
+The core capability is request-level context reconstruction. For any request, agent-trace rebuilds the context the model received — system prompt, tools, messages, and the events a compaction removed. Slots the log never recorded are marked `unavailable`; nothing is estimated.
+
+## Features
+
+- **Session browser.** One place for every session found on this machine, grouped by day and newest first. Each row carries the agent, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by agent, project, and flag; search across titles and your own prompts; a preview of the selected session's context-over-time shape.
+- **Session workspace.** Session metrics, a request timeline, an event ledger, and an event inspector. The timeline shows one bar per request (height is input tokens), one lane per subagent, and markers for prompts, failed tool calls, and compactions; the ledger groups events by turn, and the inspector shows the selected event.
+- **Model saw.** The context reconstruction for the selected request: system prompt, tools, messages, and the events a compaction removed; slots the log never recorded are marked `unavailable`.
+- **Report.** A redacted static export of one session's workspace: one `index.html` that opens from disk with no server.
+- **MCP.** `agent-trace mcp <path>`: a `reconstruct` tool over stdio.
+
+Static mockups of both screens are in [`docs/design/`](docs/design/README.md).
 
 ## Quick start
 
@@ -18,7 +41,9 @@ Node.js 24 or later:
 npx @rivus/agent-trace
 ```
 
-This starts a server on `localhost`, indexes the sessions of the supported agents, and opens the session browser. To build from source, use Node.js 24.x; the built CLI runs on Node.js 24 or later:
+It starts a server on `localhost:7392`, opens the browser, and indexes the sessions of the supported agents. `--no-open` prints the URL instead; `--port 0` picks a free port.
+
+To build from source, use Node.js 24.x; the built CLI runs on Node.js 24 or later:
 
 ```sh
 pnpm install
@@ -55,33 +80,49 @@ npx @rivus/agent-trace mcp [path]
 
 ## Supported agents
 
-| Agent | Where sessions are found | Status |
-|---|---|---|
-| Claude Code | `~/.claude/projects/` | loads |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` | loads |
-| Grok | `~/.grok/sessions/<cwd>/<session-id>/` | loads |
-| OpenCode | — | not supported |
-| dsh | — | not supported |
+| Agent | Where sessions are found |
+|---|---|
+| Claude Code | `~/.claude/projects/` |
+| Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` |
+| Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
 
-The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `GROK_HOME` for Grok — with `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
+OpenCode and dsh are not supported.
 
-An agent whose folder does not exist shows 0 sessions and the path it checked. A file the agent's adapter cannot parse is listed as "could not read" with the file, line, and reason. A line inside a session that is not JSON is skipped and does not fail the session.
-
-Grok records token usage only per turn, so a Grok session has one request per turn, not one per model call.
+- The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `GROK_HOME` for Grok. With `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
+- An agent whose folder does not exist shows 0 sessions and the path it checked. A file the adapter cannot parse is listed as "could not read" with the file, line, and reason. A line inside a session that is not JSON is skipped and does not fail the session.
+- Grok records token usage only per turn, so a Grok session has one request per turn, not one per model call.
 
 ## Privacy
 
 - Everything runs on this machine. The server binds `localhost`, and nothing is sent anywhere.
 - Session files are read, never written.
-- The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite` (default `~/.cache/rivus-agent-trace/`), with mode 0600. It holds titles, paths, numbers, and the first 200 prompts the user typed, 500 characters each, for search — not the text the agent injected or recorded itself. Deleting it is safe; it is rebuilt from the logs. `--no-index` runs without it.
+- The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite` (default `~/.cache/rivus-agent-trace/`), with mode 0600. It holds titles, paths, numbers, and the first 200 prompts the user typed (500 characters each) for search — not the text the agent injected or recorded itself. Deleting it is safe; it is rebuilt from the logs. `--no-index` runs without it.
 - URLs carry opaque trace ids, never paths.
 - The local server replaces the home directory with `~` and known credential patterns with placeholders; `AGENT_TRACE_REDACT=0` turns that off for the local server only.
-- A report (`build`, or "Export report" in the workspace) is always redacted the same way, whatever `AGENT_TRACE_REDACT` says. Session text and file contents remain in it, so read a report before you share it. It holds the view of every event and the original records of the first 2,000 events or 20 MB, whichever is smaller; its header says when it holds fewer.
+- A report (`build`, or "Export report" in the workspace) is always redacted the same way, whatever `AGENT_TRACE_REDACT` says. **Session text and file contents remain in it, so read a report before you share it.** It holds the view of every event and the original records of the first 2,000 events or 20 MB, whichever is smaller; its header says when it holds fewer.
 
 ## Development
 
-pnpm workspace; the UI is Solid, Tailwind v4, and shadcn-solid; build, lint, format, and test run through Vite+ (`vp`). Current behavior: [docs/architecture/overview.md](docs/architecture/overview.md). Local commands, the tarball, and the smoke and browser test suites: [docs/development/setup.md](docs/development/setup.md). Contribution rules: [CONTRIBUTING.md](CONTRIBUTING.md).
+The repository is a pnpm workspace. The UI is Solid, Tailwind v4, and shadcn-solid; build, lint, format, and test run through Vite+ (`vp`).
+
+- [Architecture](docs/architecture/overview.md): current behavior and the system shape.
+- [Visual design](docs/design/README.md): screens, tokens, and the logo.
+- [Development setup](docs/development/setup.md): local commands, the tarball, and the smoke and browser suites.
+- [Contributing](CONTRIBUTING.md): workflow, change gates, and release intent.
+- [Security](SECURITY.md): how to report a vulnerability.
+
+```sh
+pnpm install
+pnpm lint
+pnpm test
+pnpm typecheck
+pnpm build
+```
 
 ## License
 
 GPL-3.0-only. See [LICENSE](LICENSE).
+
+---
+
+_Not affiliated with [Cursor's Agent Trace](https://agent-trace.dev), a code-attribution format._
