@@ -11,7 +11,7 @@
 <h1 align="center">agent-trace</h1>
 
 <p align="center">
-  <strong>Agent 会话日志的本地查看器</strong><br>
+  <strong>Agent 会话日志的本地 DevTools</strong><br>
   会话浏览器 · 请求时间线 · 模型上下文重建
 </p>
 
