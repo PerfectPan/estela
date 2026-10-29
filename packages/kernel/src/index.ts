@@ -1,4 +1,25 @@
 export { readRange, type SessionFs } from './fs.ts'
+export {
+  ATIF_SCHEMA_VERSION,
+  toAtif,
+  type AtifAgent,
+  type AtifFinalMetrics,
+  type AtifMetrics,
+  type AtifObservation,
+  type AtifObservationResult,
+  type AtifStep,
+  type AtifSubagentRef,
+  type AtifToolCall,
+  type AtifTrajectory,
+} from './export-atif.ts'
+export {
+  OTLP_SEMCONV_VERSION,
+  toOtlp,
+  type OtlpAnyValue,
+  type OtlpExportTraceRequest,
+  type OtlpKeyValue,
+  type OtlpSpan,
+} from './export-otlp.ts'
 export { fold, summaryOf, type TraceFold } from './fold.ts'
 export { isCanonicalTraceFile } from './load.ts'
 export { mainAgentId } from './lanes.ts'

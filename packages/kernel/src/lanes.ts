@@ -100,3 +100,21 @@ export function shadowedIn(events: readonly TraceEvent[]): Set<string> {
   }
   return hidden
 }
+
+/** Every lane of a trace: the main lane, then the declared lanes, then any lane an event names. */
+export function laneIds(trace: Trace): string[] {
+  const mainId = mainAgentId(trace)
+  const out = [mainId]
+  for (const lane of trace.agents) {
+    if (lane.id !== mainId && !out.includes(lane.id)) {
+      out.push(lane.id)
+    }
+  }
+  for (const event of trace.events) {
+    const laneId = laneOf(event, mainId)
+    if (!out.includes(laneId)) {
+      out.push(laneId)
+    }
+  }
+  return out
+}

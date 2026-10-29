@@ -57,6 +57,8 @@ node apps/cli/dist/bin.mjs
 npx @rivus/agent-trace [path] [--port <n>] [--host <host>] [--no-open] [--no-auth] [--pick] [--no-index]
 npx @rivus/agent-trace build [path] [--out-dir <dir>]
 npx @rivus/agent-trace mcp [path]
+npx @rivus/agent-trace export-atif [path] [--out <file>]
+npx @rivus/agent-trace export-otlp [path] [--out <file>]
 ```
 
 | Command | What it does |
@@ -66,6 +68,8 @@ npx @rivus/agent-trace mcp [path]
 | `agent-trace --pick` | Searchable session list in the terminal; Enter opens the chosen session. Needs an interactive terminal. |
 | `agent-trace build <path> --out-dir <dir>` | Writes the report of one session to `<dir>/index.html` (default `dist-static`). |
 | `agent-trace mcp <path>` | MCP server over stdio with a `reconstruct` tool for that session. Only protocol messages go to stdout. |
+| `agent-trace export-atif <path> --out <file>` | Writes the session as one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory (default `agent-trace-<session>.atif.json`) for Harbor datasets and evaluation. |
+| `agent-trace export-otlp <path> --out <file>` | Writes the session as one OTLP/JSON `ExportTraceServiceRequest` (default `agent-trace-<session>.otlp.json`) whose spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`, for Langfuse, LangSmith, and Phoenix. |
 
 | Flag | Meaning |
 |---|---|
@@ -76,7 +80,29 @@ npx @rivus/agent-trace mcp [path]
 | `--pick` | Pick the session in the terminal. |
 | `--no-index` | Do not read or write the session index; summaries are computed again on each launch and not stored. |
 
-`AGENT_TRACE_PATH` is the default session path. `build` and `mcp` fall back to a bundled demo trace when no path is given. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
+`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
+
+## Taking a session elsewhere
+
+`export-atif` and `export-otlp` project the canonical trace onto two interchange formats. Each step or span names the canonical events it came from (`extra.agent_trace.eventIds` in ATIF), so an export can be traced back to the workspace.
+
+```sh
+# Harbor datasets and evaluation (ATIF v1.8)
+npx @rivus/agent-trace export-atif <path> --out trajectory.json
+python -m harbor.utils.trajectory_validator trajectory.json   # Harbor's validator
+
+# Langfuse (OTLP/JSON goes up as is)
+curl -H "Content-Type: application/json" -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
+  --data-binary @agent-trace-<session>.otlp.json https://cloud.langfuse.com/api/public/otel/v1/traces
+
+# LangSmith or Phoenix (OTLP/protobuf receivers: convert once, then post)
+uv run --with opentelemetry-proto python -c \
+  "from google.protobuf.json_format import Parse; from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest as R; import sys; sys.stdout.buffer.write(Parse(open(sys.argv[1],'rb').read(), R()).SerializeToString())" \
+  agent-trace-<session>.otlp.json > session.otlp.pb
+curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
+```
+
+Exports are redacted like the server (`~` for the home directory, known credential patterns replaced); `AGENT_TRACE_REDACT=0` writes the unredacted bytes. Events a compaction removed produce no ATIF step; steps kept across a compaction are marked `is_copied_context`, and the compaction is a system step with `extra.context_management`.
 
 ## Supported agents
 

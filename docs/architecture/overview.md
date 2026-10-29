@@ -104,6 +104,10 @@ A report is one session's workspace as a static page that opens from `file://` w
 
 The SPA starts in report mode when it finds that element (`apps/web/src/shell/report.ts`): no DevFrame connection, no session browser, no Export button. The workspace reads the view trace from the report; `get-event` becomes a lookup in the included events, and any other event shows its view with "not included in this report" in Raw. Model saw runs `reconstruct` in the browser as on the dev server. A banner says that session text and file contents remain, and how many originals are included when the report holds fewer than all events. The report opens in the UI locale recorded at export time (`build` records none, so the browser's language decides) and keeps the language and theme switches.
 
+## Exports
+
+`export-atif <path> [--out <file>]` and `export-otlp <path> [--out <file>]` (`apps/cli/src/export.ts`) load a session once and write one file: an ATIF v1.8 trajectory (`toAtif`, `packages/kernel/src/export-atif.ts`) or an OTLP/JSON `ExportTraceServiceRequest` (`toOtlp`, `packages/kernel/src/export-otlp.ts`). Both projections are pure functions over a checked `Trace` with no `node:*` import; the CLI redacts and writes. ATIF maps per the delivery plan's table ([plan 0002](../plans/0002-export-atif-otlp.md)): one step per user event, per `requestId` group, and per compaction (a system step with `extra.context_management`), subagent lanes as embedded `subagent_trajectories` referenced from the spawn step, fields ATIF has no place for under `extra.agent_trace` with the canonical event ids. OTLP pins the semconv version named by `OTLP_SEMCONV_VERSION` (`gen-ai-dev/1.42.0-dev` at implementation time): one `invoke_agent` span per lane, one `chat` span per request with the `gen_ai.usage.*` counts and the model-visible surface from `reconstruct` as `gen_ai.input.messages` / `gen_ai.output.messages` / `gen_ai.system_instructions` / `gen_ai.tool.definitions`, and one `execute_tool` span per tool call. A trace with nothing the formats can hold (no user, agent, or system-prompt content) fails the export with that reason; a subagent lane with no exportable events is left out, its spawn ref with it. Exports are redacted like the server unless `AGENT_TRACE_REDACT=0`; `node scripts/validate-exports.mjs` exports every agent's fixtures and runs Harbor's validator.
+
 ## Bundle
 
 `apps/cli` builds with `vp pack` into `dist/bin.mjs` (Node version check, then a dynamic import) and `dist/cli.mjs` (the CLI with every `@rivus/*` package bundled; `devframe`, `@devframes/agentic`, and `cac` stay runtime dependencies). The web build is copied into `dist/web/`, and `src/paths.ts` finds it there through the build-time constant `AGENT_TRACE_BUNDLE`. The web bundle includes `zod/mini` and the trace schemas for the report check (about 8 KB gzip); no size budget is set. `apps/e2e` tests the packed tarball from outside: `test:smoke` (CLI, S2, S10, S13, S15, S16) and `test:e2e` (Playwright, the browser scenarios).
@@ -114,7 +118,7 @@ Commands are parsed by DevFrame's cac. In a terminal the CLI draws with `@clack/
 
 ## Trust
 
-Session files stay on disk. The dev server binds localhost. The index holds titles, user prompts (500 characters each), paths, and numbers, in the user's cache directory with mode 0600. `build`, "Export report", and `mcp` always redact (home directory and token patterns); a report still holds session text and file contents, and says so. Redaction (`packages/kernel/src/redact.ts`) replaces the home directory wherever it appears in a string (also inside `a/<home>/…` in a git diff header), without its leading `/` (`Users/<name>/…`), JSON-escaped (`\/Users\/<name>`), and in Claude's dash slug and Grok's `%2F` form, ignoring case, in values and keys; a longer name (`/Users/<name>x`, `/Users/<name>.bak`) stays. The dev server redacts the view trace, `get-event`, error messages, and list rows alike, unless `AGENT_TRACE_REDACT=0`. Do not put machine paths or live secrets into fixtures.
+Session files stay on disk. The dev server binds localhost. The index holds titles, user prompts (500 characters each), paths, and numbers, in the user's cache directory with mode 0600. `build`, "Export report", and `mcp` always redact (home directory and token patterns); a report still holds session text and file contents, and says so. The ATIF and OTLP exports are redacted like the server, with `AGENT_TRACE_REDACT=0` writing the unredacted bytes. Redaction is the kit's (`@rivus/agent-kit/redact`, imported by `apps/cli`): it replaces the home directory wherever it appears in a string (also inside `a/<home>/…` in a git diff header), without its leading `/` (`Users/<name>/…`), JSON-escaped (`\/Users\/<name>`), and in Claude's dash slug and Grok's `%2F` form, ignoring case, in values and keys; a longer name (`/Users/<name>x`, `/Users/<name>.bak`) stays. The dev server redacts the view trace, `get-event`, error messages, and list rows alike, unless `AGENT_TRACE_REDACT=0`. Do not put machine paths or live secrets into fixtures.
 
 ## Compatibility
 
@@ -129,7 +133,6 @@ Not supported:
 - agents other than Claude Code, Codex, and Grok, OpenCode and dsh included;
 - live follow of a running session, and editing or replaying a session;
 - search over session content beyond titles and the user's prompts;
-- ATIF or OTLP export;
 - UI languages other than English and Simplified Chinese;
 - accounts, upload, or a hosted service.
 

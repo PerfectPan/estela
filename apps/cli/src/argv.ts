@@ -1,6 +1,6 @@
-export type CommandName = 'dev' | 'build' | 'mcp'
+export type CommandName = 'dev' | 'build' | 'mcp' | 'export-atif' | 'export-otlp'
 
-const VALUE_FLAGS = new Set(['--port', '--host', '--out-dir'])
+const VALUE_FLAGS = new Set(['--port', '--host', '--out-dir', '--out'])
 
 export interface ParsedCommand {
   command: CommandName
@@ -8,6 +8,8 @@ export interface ParsedCommand {
   pick: boolean
   noIndex: boolean
   outDir?: string
+  /** `--out` of `export-atif` / `export-otlp`: the file to write. */
+  outFile?: string
   /** Arguments after the program name, without the session positional or `--pick`. */
   userArgs: string[]
   /** Set when more than one positional path was given. Names both paths. */
@@ -19,8 +21,8 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   const raw = argv.slice(2)
   let command: CommandName = 'dev'
   let index = 0
-  if (raw[0] === 'build' || raw[0] === 'mcp') {
-    command = raw[0]
+  if (raw[0] === 'build' || raw[0] === 'mcp' || raw[0] === 'export-atif' || raw[0] === 'export-otlp') {
+    command = raw[0]!
     index = 1
   }
   const userArgs: string[] = command === 'dev' ? [] : [command]
@@ -28,6 +30,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   let pick = false
   let noIndex = false
   let outDir: string | undefined
+  let outFile: string | undefined
   let options = true
   let error: string | undefined
 
@@ -62,6 +65,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
           if (flag === '--out-dir') {
             outDir = inline
           }
+          if (flag === '--out') {
+            outFile = inline
+          }
           userArgs.push(arg)
           index += 1
           continue
@@ -74,6 +80,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
         }
         if (flag === '--out-dir') {
           outDir = next
+        }
+        if (flag === '--out') {
+          outFile = next
         }
         userArgs.push(flag, next)
         index += 2
@@ -93,6 +102,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     pick,
     noIndex,
     outDir,
+    outFile,
     userArgs,
     error:
       error
