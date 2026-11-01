@@ -106,17 +106,40 @@ curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb ht
 
 导出和服务器一样进行脱敏（home 目录替换为 `~`，已知凭据模式被替换）；`AGENT_TRACE_REDACT=0` 会写出未脱敏的字节。被上下文压缩移除的事件不生成 ATIF step；跨压缩保留的 step 标记为 `is_copied_context`，压缩本身是携带 `extra.context_management` 的 system step。
 
+## 把会话带到别处
+
+`export-atif` 和 `export-otlp` 把规范 trace 投影成两种交换格式。每个 step/span 都标出来源事件（ATIF 的 `extra.agent_trace.eventIds`），导出后可以追回 workspace。
+
+```sh
+# Harbor datasets and evaluation (ATIF v1.8)
+npx @rivus/agent-trace export-atif <path> --out trajectory.json
+python -m harbor.utils.trajectory_validator trajectory.json   # Harbor's validator
+
+# Langfuse (OTLP/JSON goes up as is)
+curl -H "Content-Type: application/json" -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
+  --data-binary @agent-trace-<session>.otlp.json https://cloud.langfuse.com/api/public/otel/v1/traces
+
+# LangSmith or Phoenix (OTLP/protobuf receivers: convert once, then post)
+uv run --with opentelemetry-proto python -c \
+  "from google.protobuf.json_format import Parse; from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest as R; import sys; sys.stdout.buffer.write(Parse(open(sys.argv[1],'rb').read(), R()).SerializeToString())" \
+  agent-trace-<session>.otlp.json > session.otlp.pb
+curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
+```
+
+导出会像服务端一样脱敏（home 目录显示为 `~`，已知凭证模式会被替换）；`AGENT_TRACE_REDACT=0` 会写出未脱敏内容。被 compaction 移除的事件不会生成 ATIF step；跨越 compaction 保留的 step 会标 `is_copied_context`，compaction 本身是一个带 `extra.context_management` 的 system step。
+
 ## 支持的 Agent
 
 | Agent | 会话位置 |
 |---|---|
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`、`~/.codex/archived_sessions/**/rollout-*.jsonl` |
+| DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
+| OpenCode | `~/.local/share/opencode/opencode.db` |
+| Pi | `~/.pi/agent/sessions/<cwd>/<time>_<id>.jsonl` |
 
-不支持 OpenCode 和 dsh。
-
-- 各 Agent 的 home 环境变量会替换默认 home：Claude Code 用 `CLAUDE_CONFIG_DIR`，Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`。设置 `CLAUDE_CONFIG_DIR` 后，只位于 `~/.claude` 下的会话不会被列出。
+- 各 Agent 的 home 环境变量会替换默认 home：Claude Code 用 `CLAUDE_CONFIG_DIR`，Codex 用 `CODEX_HOME`，DeepSeek Harness 用 `DSH_HOME`，Grok 用 `GROK_HOME`，OpenCode 用 `XDG_DATA_HOME`，Pi 用 `PI_CODING_AGENT_DIR`。设置 `CLAUDE_CONFIG_DIR` 后，只位于 `~/.claude` 下的会话不会被列出。
 - Agent 目录不存在时会显示 0 个会话，并给出它检查过的路径。适配器无法解析的文件会列为“无法读取”，并给出文件、行号和原因。会话中不是 JSON 的行会被跳过，不会让整个会话失败。
 - Grok 只按轮次记录 Token 用量，所以 Grok 会话每轮只有一个请求，而不是每次模型调用一个请求。
 

@@ -73,8 +73,18 @@ export async function stampFiles(trace: Trace, fs: SessionFs): Promise<Map<strin
 
 export type OriginalResult = { original: unknown } | { unavailable: string }
 
+/** Reads one source pointer through the platform, for compressed files and SQLite rows. Throws when it cannot. */
+export type ReadOriginal = (source: SourcePointer) => Promise<unknown>
+
 /** The record bytes at a source pointer, parsed. Throws when they are no longer one JSON value. */
-async function recordAt(fs: SessionFs, source: SourcePointer): Promise<unknown> {
+async function recordAt(
+  fs: SessionFs,
+  source: SourcePointer,
+  readOriginal: ReadOriginal | undefined,
+): Promise<unknown> {
+  if (readOriginal !== undefined) {
+    return readOriginal(source)
+  }
   const bytes = await readRange(fs, source.file, { start: source.offset, end: source.offset + source.length })
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown
 }
@@ -88,6 +98,7 @@ async function recordAt(fs: SessionFs, source: SourcePointer): Promise<unknown> 
  */
 export async function checkedOriginal(
   fs: SessionFs,
+  readOriginal: ReadOriginal | undefined,
   event: TraceEvent,
   stamp: FileStamp | undefined,
   expected: number,
@@ -99,14 +110,19 @@ export async function checkedOriginal(
   }
   const changed = !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
   if (!changed) {
-    return { original: await recordAt(fs, source) }
+    try {
+      return { original: await recordAt(fs, source, readOriginal) }
+    } catch {
+      return { unavailable: `${source.file} changed since it was loaded; line ${source.line} could not be read` }
+    }
   }
-  if (now.size < source.offset + source.length) {
+  const direct = source.codec === undefined && source.sqlite === undefined
+  if (direct && now.size < source.offset + source.length) {
     return { unavailable: `${source.file} shrank since it was loaded; line ${source.line} is gone` }
   }
   let original: unknown
   try {
-    original = await recordAt(fs, source)
+    original = await recordAt(fs, source, readOriginal)
   } catch {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record` }
   }

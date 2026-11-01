@@ -1,7 +1,7 @@
 import type { SessionSummary, SessionTarget } from '@rivus/agent-kit/transcript'
 import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
 import type { FittedView, SessionFs } from '@rivus/agent-trace-kernel'
-import type { FileStamp } from './source-check.ts'
+import type { FileStamp, ReadOriginal } from './source-check.ts'
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
 
@@ -36,6 +36,8 @@ export interface TraceStoreDeps {
   load: (session: ResolvedSession, opts: LoadOpts) => Promise<LoadedTrace>
   /** Reads for the source-pointer originals: stamps, `checkedOriginal`, and `totalBytes`. */
   fs: SessionFs
+  /** Reads one original through its source pointer (compressed files, SQLite rows); defaults to a raw file range. */
+  readOriginal?: ReadOriginal
   /** Applied to everything sent out: view trace, events, and error messages. Redaction lives here. */
   present?: <T>(value: T) => T
   /** Server log, for conditions the operator should see (a view over budget). */
@@ -214,6 +216,7 @@ export class TraceStore {
       }
       const checked = await checkedOriginal(
         this.deps.fs,
+        this.deps.readOriginal,
         event,
         entry.stamps.get(event.source.file),
         entry.prints[index]!,

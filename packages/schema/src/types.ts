@@ -30,11 +30,19 @@ const capabilitySchema = z.enum([
  * An event's `source`: the kit's `SourcePointer`, which the `satisfies` ties it to. In a view trace `file` is an
  * index into `Trace.sourceFiles`.
  */
+const sqliteSourceSchema = z.object({
+  table: z.string(),
+  column: z.string(),
+  rowid: z.number(),
+})
+
 const sourcePointerSchema = z.object({
   file: z.string(),
   offset: z.number(),
   length: z.number(),
   line: z.number(),
+  codec: z.optional(z.literal('zstd')),
+  sqlite: z.optional(sqliteSourceSchema),
 }) satisfies z.ZodMiniType<SourcePointer, SourcePointer>
 
 /**

@@ -5,7 +5,10 @@
 const AGENT_NAMES: Record<string, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex',
+  dsh: 'DeepSeek Harness',
   grok: 'Grok',
+  opencode: 'OpenCode',
+  pi: 'Pi',
 }
 
 export function agentName(id: string): string {
