@@ -110,11 +110,12 @@ Exports are redacted like the server (`~` for the home directory, known credenti
 |---|---|
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` |
+| DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
+| OpenCode | `~/.local/share/opencode/opencode.db` |
+| Pi | `~/.pi/agent/sessions/<cwd>/<time>_<id>.jsonl` |
 
-OpenCode and dsh are not supported.
-
-- The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `GROK_HOME` for Grok. With `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
+- The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `DSH_HOME` for DeepSeek Harness, `GROK_HOME` for Grok, `XDG_DATA_HOME` for OpenCode, and `PI_CODING_AGENT_DIR` for Pi. With `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
 - An agent whose folder does not exist shows 0 sessions and the path it checked. A file the adapter cannot parse is listed as "could not read" with the file, line, and reason. A line inside a session that is not JSON is skipped and does not fail the session.
 - Grok records token usage only per turn, so a Grok session has one request per turn, not one per model call.
 

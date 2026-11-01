@@ -1,7 +1,10 @@
 const LETTER: Record<string, string> = {
   'claude-code': 'C',
   codex: 'X',
+  dsh: 'D',
   grok: 'G',
+  opencode: 'O',
+  pi: 'P',
 }
 
 function agentLetter(id: string): string {

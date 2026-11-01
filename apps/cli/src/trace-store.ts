@@ -4,7 +4,7 @@ import process from 'node:process'
 import { isCanonicalTraceFile } from '@rivus/agent-trace-kernel'
 import { redact } from '@rivus/agent-kit/redact'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import type { SessionAdapters } from '@rivus/agent-kit/sessions'
+import { readOriginal, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_TRACE_ID, TraceStore } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import type { CatalogPlatform } from './catalog-rows.ts'
@@ -53,6 +53,20 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
         canonicalOf(session),
       ])
       return { trace, canonical }
+    },
+    readOriginal: async source => {
+      const read = await readOriginal(platform, source)
+      if (!read.ok) {
+        const error = read.error
+        throw new Error(
+          error._tag === 'ReadFailed'
+            ? error.message
+            : error._tag === 'SourceChanged'
+              ? 'the source changed since it was loaded'
+              : 'the session no longer exists',
+        )
+      }
+      return read.value
     },
     present: options.redacts ? value => redact(value, { home }) : undefined,
     log: message => process.stderr.write(`agent-trace: ${options.redacts ? redact(message, { home }) : message}\n`),
