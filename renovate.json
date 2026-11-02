@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["npm"],
+  "ignorePaths": ["**/node_modules/**"],
+  "timezone": "Asia/Shanghai",
+  "schedule": ["* 0-6 * * 1"],
+  "minimumReleaseAge": "7 days",
+  "rangeStrategy": "bump",
+  "prConcurrentLimit": 5,
+  "osvVulnerabilityAlerts": true,
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "prBodyNotes": [
+    "Bot PRs carry no changeset. The lockfile counts as what the CLI ships, so an npm update needs a patch changeset for @rivus/agent-trace added by the reviewer before merging, per [Release Intent](https://github.com/PerfectPan/agent-trace/blob/main/CONTRIBUTING.md#release-intent)."
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-6 1 * *"],
+    "prBodyNotes": [
+      "Lock-file-only updates follow the same rule: check whether a bundled dependency changed what the CLI ships and add a patch changeset if so; see [Release Intent](https://github.com/PerfectPan/agent-trace/blob/main/CONTRIBUTING.md#release-intent)."
+    ]
+  },
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm minor and patch"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "npm major"
+    },
+    {
+      "extends": ["packages:vitePlus"],
+      "groupName": "vite-plus toolchain"
+    },
+    {
+      "matchPackageNames": ["@rivus/agent-kit"],
+      "groupName": "rivus agent-kit"
+    },
+    {
+      "matchPackageNames": ["@rivus/*"],
+      "minimumReleaseAge": null
+    },
+    {
+      "matchDepTypes": ["packageManager"],
+      "groupName": "pnpm"
+    },
+    {
+      "matchDepTypes": ["engines", "devEngines.runtime"],
+      "enabled": false
+    },
+    {
+      "matchPackageNames": ["@types/node"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "matchPackageNames": ["@perfectpan/lint-config"],
+      "enabled": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "rangeStrategy": "bump"
+  }
+}

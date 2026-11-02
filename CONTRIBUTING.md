@@ -111,6 +111,36 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 - On a push to `main`, the [Publish workflow](#publishing-to-npm) uses `changesets/action@v2` and `pnpm version -r` to open or update the `chore(release): version packages` PR when changesets are pending. It consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the intents to `.changeset/ledger.yaml`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
+### Bot Pull Requests
+
+- **Renovate npm PRs**: [`renovate.json`](renovate.json) enables only the npm manager; GitHub Actions stay with Dependabot.
+  Renovate checks on Mondays from 00:00 to 06:59 in Asia/Shanghai, waits seven days after a release, and opens at
+  most five concurrent version-update PRs. The waiting period stays above the workspace's one-day install policy in
+  [`pnpm-workspace.yaml`](pnpm-workspace.yaml). `@rivus/*` packages are exempt from the wait, so a kit release
+  reaches this repository in the next run. `rangeStrategy: "bump"` updates declared ranges and regenerates the pnpm
+  lockfile through `pnpm install`.
+
+  The catch-all groups separate minor/patch updates from majors. Later rules give the `packages:vitePlus` toolchain
+  its own group and `@rivus/agent-kit` a group of its own, so a kit release is reviewed separately from routine
+  updates; if a package adopts an Effect entry, add `effect` to that group.
+
+  Node upgrades remain deliberate: `engines`, `devEngines.runtime` and major `@types/node` updates are disabled.
+  `@perfectpan/lint-config` stays disabled because it is a Git dependency whose upgrades need accompanying code fixes.
+
+  Lock-file maintenance runs on the first day of each month from 00:00 to 06:59 in Asia/Shanghai.
+
+  Renovate opens a **Dependency Dashboard** issue through `config:recommended`; use its checkboxes to retry or
+  recreate an update. npm security findings come from Renovate's OSV checks (`osvVulnerabilityAlerts`), and
+  `vulnerabilityAlerts.rangeStrategy: "bump"` keeps security fixes on the tested `pnpm install` path. Security PRs
+  can bypass release-age and schedule limits.
+
+- **Dependabot actions PRs**: `.github/dependabot.yml` updates GitHub Actions weekly with the `chore(deps)` prefix.
+
+- **Changesets**: bot PRs carry none. Because the lockfile counts as what the CLI ships, an npm update that passes
+  CI still needs a patch changeset for `@rivus/agent-trace` added by the reviewer before merging (`pnpm change
+  @rivus/agent-trace --bump patch --summary "..."`), per the Release Intent rules above. Lock-file-only updates
+  follow the same rule when a bundled dependency changed the shipped output.
+
 ### Publishing to npm
 
 `.github/workflows/publish.yml` runs on every push to `main`. Its version job prepares the draft version PR when changesets are pending; publishing waits until none remain. With no pending changesets, the publish job runs CLI smoke tests against a production-built, installed tarball, then uses pnpm's recursive publishing to upload only workspace versions absent from npm. A `main` push whose package versions are already on npm uploads nothing.
