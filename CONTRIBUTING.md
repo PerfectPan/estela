@@ -245,11 +245,18 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 ## Pull Request Gates
 
-CI runs when a Draft PR becomes Ready for review. Ordinary pushes, main merges and metadata edits do not start
-it. Finish local checks before requesting CI. After changing the head or base, update the branch and select Draft
-then Ready again; confirm that the current PR comparison passed before merging. The single `test` job includes
-the repository checks and the PR title and description checks; there is no separate Review
-workflow. Editing the title or description does not re-run them; select Draft then Ready again after such an edit.
+CI listens for PRs being opened, reopened, updated with new commits (`synchronize`), or marked Ready for review.
+The `test` job runs for non-Draft PRs, including ordinary and Renovate PRs opened directly as Ready. New commits
+on a Ready PR run CI automatically; they no longer require another Draft-to-Ready transition. Keep work in Draft
+until local checks are finished. When a Draft PR event starts this workflow, its `test` job is skipped. GitHub
+reports that skipped job as successful, but the skipped status is not validation evidence. Mark the PR Ready and confirm that the actual `test` job ran
+and passed for its current head and merge result before merging. Release PRs still return to Draft on every
+version update and wait for a maintainer to mark them Ready.
+
+There is no general `push` trigger: pushes to branches without a PR and main merges do not trigger this
+workflow. Draft PR updates skip its `test` job. Metadata edits also do not trigger it. After changing only the title, description, or base, refresh the branch if needed
+and select Draft then Ready again to validate the current comparison and metadata. The single `test` job
+includes repository checks and the PR title and description checks; there is no separate Review workflow.
 GitHub's PR checkout tests the merge result. A manual `workflow_dispatch` runs the selected branch as `manual checks`
 for diagnosis, without the PR title or description checks, and does not satisfy the required PR
 `test` check. Do not retry account/billing-blocked
