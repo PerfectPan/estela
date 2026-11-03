@@ -113,7 +113,8 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 
 ### Bot Pull Requests
 
-- **Renovate npm PRs**: [`renovate.json`](renovate.json) enables only the npm manager; GitHub Actions stay with Dependabot.
+- **Renovate version PRs**: [`renovate.json`](renovate.json) enables the npm manager (including pnpm) and the
+  GitHub Actions manager. Renovate is the only owner of routine version-update PRs for these ecosystems.
   Renovate checks on Mondays from 00:00 to 06:59 in Asia/Shanghai, waits seven days after a release, and opens at
   most five concurrent version-update PRs. The waiting period stays above the workspace's one-day install policy in
   [`pnpm-workspace.yaml`](pnpm-workspace.yaml). `@rivus/*` packages are exempt from the wait, so a kit release
@@ -124,7 +125,8 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   its own group and `@rivus/agent-kit` a group of its own, so a kit release is reviewed separately from routine
   updates; if a package adopts an Effect entry, add `effect` to that group.
 
-  Node upgrades remain deliberate: `engines`, `devEngines.runtime` and major `@types/node` updates are disabled.
+  Node upgrades remain deliberate: `engines`, `devEngines.runtime`, workflow runtime versions extracted from
+  `pnpm/setup` (`github-actions` / `node-version`), and major `@types/node` updates are disabled.
   `@perfectpan/lint-config` stays disabled because it is a Git dependency whose upgrades need accompanying code fixes.
 
   Lock-file maintenance runs on the first day of each month from 00:00 to 06:59 in Asia/Shanghai.
@@ -132,9 +134,35 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   Renovate opens a **Dependency Dashboard** issue through `config:recommended`; use its checkboxes to retry or
   recreate an update. npm security findings come from Renovate's OSV checks (`osvVulnerabilityAlerts`), and
   `vulnerabilityAlerts.rangeStrategy: "bump"` keeps security fixes on the tested `pnpm install` path. Security PRs
-  can bypass release-age and schedule limits.
+  can bypass release-age and schedule limits. OSV checks do not prove that Renovate can read GitHub Dependabot alerts.
 
-- **Dependabot actions PRs**: `.github/dependabot.yml` updates GitHub Actions weekly with the `chore(deps)` prefix.
+  GitHub Actions minor and patch updates have their own group, separate from npm. Each Actions major update is
+  reviewed separately. Workflows keep their major-version action tags; automatic merging is disabled for all
+  Renovate PRs, and required CI must pass before a maintainer merges. Workflow-only updates need no changeset.
+
+- **Rollout and security ownership**: this configuration does not install or authorize the Renovate App and does
+  not change GitHub repository security settings. Keep the adoption PR in Draft until the owner verifies the
+  hosted Renovate App is authorized for this repository and records a successful real repository run with npm and
+  GitHub Actions extraction, the Dependency Dashboard, and update-PR creation when an update is available.
+  Local config validation and extraction are not evidence of a hosted run. Do not add a second routine updater
+  while Renovate owns these ecosystems.
+
+  Rollout snapshot (2026-11-03): the repository's [security settings](https://github.com/PerfectPan/agent-trace/settings/security_analysis)
+  show the dependency graph, Dependabot alerts, and Dependabot security updates disabled. The Renovate App is
+  installed on the owner account, but it is not listed among this repository's installed Apps. Full repository
+  selection and alert-read permissions remain unverified: GitHub requires the owner's sudo/MFA confirmation to
+  open the account installation settings. No hosted Renovate
+  Dashboard, update PR, or run has been verified for this repository. These remain owner handoff items.
+
+  Keep the dependency graph and Dependabot alerts enabled independently of the version-update bot. If either is
+  disabled, enabling it is a separate owner action; the config does not enable it. Security-fix PR ownership is
+  also separate from `.github/dependabot.yml`. Before changing the existing security-update setting, verify the
+  Renovate App's Dependabot-alert read permission and a hosted run that reads the repository's alerts, then
+  confirm a security fix can produce a PR and pass required CI. OSV support alone is not that verification.
+  Once coverage is demonstrated, the owner can select Renovate as the primary security-PR owner and explicitly
+  disable Dependabot security updates, leaving the dependency graph and alerts enabled. Until then, preserve
+  any existing security-PR coverage. If alerts or security updates are already disabled, record that gap and
+  confirm the intended owner settings separately; do not describe the config-only change as security coverage.
 
 - **Changesets**: bot PRs carry none. Because the lockfile counts as what the CLI ships, an npm update that passes
   CI still needs a patch changeset for `@rivus/agent-trace` added by the reviewer before merging (`pnpm change
@@ -260,7 +288,7 @@ The review checks come from [`PerfectPan/gh-repo-checks`](https://github.com/Per
 
 Run `gh repo-checks repository` locally before opening review. This generic check does not replace stack-specific tests, but it catches missing template files, tracked local artifacts, obvious secrets, private paths, and drift in review templates.
 
-Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Workflow files copied from `PerfectPan/project-template` take action upgrades from the template rather than local edits.
+Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Renovate proposes action-version updates for review; keep workflow structure synchronized with `PerfectPan/project-template` when adopting template changes.
 
 ## Local Git Hooks
 

@@ -59,6 +59,8 @@ node apps/cli/dist/bin.mjs
 npx @rivus/agent-trace [path] [--port <n>] [--host <host>] [--no-open] [--no-auth] [--pick] [--no-index]
 npx @rivus/agent-trace build [path] [--out-dir <dir>]
 npx @rivus/agent-trace mcp [path]
+npx @rivus/agent-trace export-atif [path] [--out <file>]
+npx @rivus/agent-trace export-otlp [path] [--out <file>]
 ```
 
 | 命令 | 作用 |
@@ -68,6 +70,8 @@ npx @rivus/agent-trace mcp [path]
 | `agent-trace --pick` | 在终端中可搜索的会话列表；按 Enter 打开选中的会话。需要交互式终端。 |
 | `agent-trace build <path> --out-dir <dir>` | 把单个会话的报告写到 `<dir>/index.html`（默认 `dist-static`）。 |
 | `agent-trace mcp <path>` | 通过 stdio 提供该会话的 MCP 服务，包含 `reconstruct` 工具。只有协议消息会写到 stdout。 |
+| `agent-trace export-atif <path> --out <file>` | 将会话写成一条 [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) 轨迹（默认 `agent-trace-<session>.atif.json`），用于 Harbor 数据集和评估。 |
+| `agent-trace export-otlp <path> --out <file>` | 将会话写成一个 OTLP/JSON `ExportTraceServiceRequest`（默认 `agent-trace-<session>.otlp.json`），其中的 span 携带 `gen-ai-dev/1.42.0-dev` 的 OpenTelemetry GenAI 属性，用于 Langfuse、LangSmith 和 Phoenix。 |
 
 | 参数 | 含义 |
 |---|---|
@@ -78,7 +82,29 @@ npx @rivus/agent-trace mcp [path]
 | `--pick` | 在终端中选择会话。 |
 | `--no-index` | 不读写会话索引；每次启动重新计算摘要，不存储。 |
 
-`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build` 和 `mcp` 会回退到内置的演示 trace。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
+`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
+
+## 会话导出
+
+`export-atif` 和 `export-otlp` 将规范 trace 映射为两种交换格式。每个 step 或 span 都会标明它来自哪些规范事件（ATIF 中为 `extra.agent_trace.eventIds`），因此可以从导出结果追溯到工作区。
+
+```sh
+# Harbor datasets and evaluation (ATIF v1.8)
+npx @rivus/agent-trace export-atif <path> --out trajectory.json
+python -m harbor.utils.trajectory_validator trajectory.json   # Harbor's validator
+
+# Langfuse (OTLP/JSON goes up as is)
+curl -H "Content-Type: application/json" -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
+  --data-binary @agent-trace-<session>.otlp.json https://cloud.langfuse.com/api/public/otel/v1/traces
+
+# LangSmith or Phoenix (OTLP/protobuf receivers: convert once, then post)
+uv run --with opentelemetry-proto python -c \
+  "from google.protobuf.json_format import Parse; from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest as R; import sys; sys.stdout.buffer.write(Parse(open(sys.argv[1],'rb').read(), R()).SerializeToString())" \
+  agent-trace-<session>.otlp.json > session.otlp.pb
+curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
+```
+
+导出和服务器一样进行脱敏（home 目录替换为 `~`，已知凭据模式被替换）；`AGENT_TRACE_REDACT=0` 会写出未脱敏的字节。被上下文压缩移除的事件不生成 ATIF step；跨压缩保留的 step 标记为 `is_copied_context`，压缩本身是携带 `extra.context_management` 的 system step。
 
 ## 支持的 Agent
 
