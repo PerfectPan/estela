@@ -111,6 +111,74 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 - On a push to `main`, the [Publish workflow](#publishing-to-npm) uses `changesets/action@v2` and `pnpm version -r` to open or update the `chore(release): version packages` PR when changesets are pending. It consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the intents to `.changeset/ledger.yaml`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
+### Bot Pull Requests
+
+- **Renovate version PRs**: [`renovate.json`](renovate.json) enables the npm manager (including pnpm) and the
+  GitHub Actions manager. Renovate is configured as the routine version updater for these ecosystems.
+  Renovate checks on Mondays from 00:00 to 06:59 in Asia/Shanghai, waits seven days after a release, and opens at
+  most five concurrent version-update PRs. The waiting period stays above the workspace's one-day install policy in
+  [`pnpm-workspace.yaml`](pnpm-workspace.yaml). `@rivus/*` packages are exempt from the wait, so a kit release
+  reaches this repository in the next run. `rangeStrategy: "bump"` updates declared ranges and regenerates the pnpm
+  lockfile through `pnpm install`.
+
+  The catch-all groups separate minor/patch updates from majors. Later rules give the `packages:vitePlus` toolchain
+  its own group and `@rivus/agent-kit` a group of its own, so a kit release is reviewed separately from routine
+  updates; if a package adopts an Effect entry, add `effect` to that group.
+
+  Node upgrades remain deliberate: `engines`, `devEngines.runtime`, workflow runtime versions extracted from
+  `pnpm/setup` (`github-actions` / `node-version`), and major `@types/node` updates are disabled.
+  `@perfectpan/lint-config` stays disabled because it is a Git dependency whose upgrades need accompanying code fixes.
+
+  Lock-file maintenance runs on the first day of each month from 00:00 to 06:59 in Asia/Shanghai.
+
+  Renovate opens a **Dependency Dashboard** issue through `config:recommended`; use its checkboxes to retry or
+  recreate an update. npm security findings come from Renovate's OSV checks (`osvVulnerabilityAlerts`), and
+  `vulnerabilityAlerts.rangeStrategy: "bump"` keeps security fixes on the tested `pnpm install` path. Security PRs
+  can bypass release-age and schedule limits. OSV checks do not prove that Renovate can read GitHub Dependabot alerts.
+
+  GitHub Actions minor and patch updates have their own group, separate from npm. Each Actions major update is
+  reviewed separately. Workflows keep their major-version action tags; automatic merging is disabled for all
+  Renovate PRs, and required CI must pass before a maintainer merges. Workflow-only updates need no changeset.
+
+- **Rollout and security ownership**: this configuration does not install or authorize the Renovate App and does
+  not change GitHub repository security settings. At the 2026-11-03 adoption baseline, `main` had neither Renovate
+  nor Dependabot version-update configuration, so this change adds no temporary Dependabot configuration.
+  Introduce the initial configuration through normal PR review. Once it is available on the default branch,
+  verify a real hosted run using this policy with npm and GitHub Actions extraction, the Dependency Dashboard,
+  and update-PR creation when an update is available. Keep rollout under this policy marked unverified until
+  this evidence is recorded. Local config validation and extraction are not evidence of a hosted run. Do not
+  add a second routine updater while Renovate owns these ecosystems.
+
+  Rollout snapshot (2026-11-03): the owner authorized this repository for the existing Renovate App; its existing
+  permissions include reading Dependabot alerts and writing workflows. The [hosted onboarding run](https://developer.mend.io/github/PerfectPan/agent-trace/-/job/6df4e1d0-a6af-4e67-a065-da20b0dc27df)
+  completed at 05:28:06 UTC with exit code 0 against `main` at
+  `4d9610c3d1d9b8e5a048f9f6269bec2568c1e785`: it extracted 2 GitHub Actions files / 21 dependencies and
+  9 npm files / 89 dependencies, and created [onboarding PR #73](https://github.com/PerfectPan/agent-trace/pull/73).
+  Its result was `onboarding` with `onboarded: false`; it used generated onboarding configuration, not this
+  hand-authored policy. A Dependency Dashboard and an actual dependency-update PR with passing CI remain
+  unverified. Keep [issue #59](https://github.com/PerfectPan/agent-trace/issues/59) open until its remaining
+  acceptance criteria, including a real kit-update PR and CI, are met.
+
+  At the same audit, the repository's [security settings](https://github.com/PerfectPan/agent-trace/settings/security_analysis)
+  showed the dependency graph, Dependabot alerts, and Dependabot security updates disabled. The hosted run
+  reported that vulnerability alerts were not enabled. App permission alone does not prove alert-to-fix
+  coverage, and no security setting was changed as part of this rollout.
+
+  Keep the dependency graph and Dependabot alerts enabled independently of the version-update bot. If either is
+  disabled, enabling it is a separate owner action; the config does not enable it. Security-fix PR ownership is
+  also separate from `.github/dependabot.yml`. Before changing the existing security-update setting, verify the
+  Renovate App's Dependabot-alert read permission and a hosted run that reads the repository's alerts, then
+  confirm a security fix can produce a PR and pass required CI. OSV support alone is not that verification.
+  Once coverage is demonstrated, the owner can select Renovate as the primary security-PR owner and explicitly
+  disable Dependabot security updates, leaving the dependency graph and alerts enabled. Until then, preserve
+  any existing security-PR coverage. If alerts or security updates are already disabled, record that gap and
+  confirm the intended owner settings separately; do not describe the config-only change as security coverage.
+
+- **Changesets**: bot PRs carry none. Because the lockfile counts as what the CLI ships, an npm update that passes
+  CI still needs a patch changeset for `@rivus/agent-trace` added by the reviewer before merging (`pnpm change
+  @rivus/agent-trace --bump patch --summary "..."`), per the Release Intent rules above. Lock-file-only updates
+  follow the same rule when a bundled dependency changed the shipped output.
+
 ### Publishing to npm
 
 `.github/workflows/publish.yml` runs on every push to `main`. Its version job prepares the draft version PR when changesets are pending; publishing waits until none remain. With no pending changesets, the publish job runs CLI smoke tests against a production-built, installed tarball, then uses pnpm's recursive publishing to upload only workspace versions absent from npm. A `main` push whose package versions are already on npm uploads nothing.
@@ -177,11 +245,18 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 ## Pull Request Gates
 
-CI runs when a Draft PR becomes Ready for review. Ordinary pushes, main merges and metadata edits do not start
-it. Finish local checks before requesting CI. After changing the head or base, update the branch and select Draft
-then Ready again; confirm that the current PR comparison passed before merging. The single `test` job includes
-the repository checks and the PR title and description checks; there is no separate Review
-workflow. Editing the title or description does not re-run them; select Draft then Ready again after such an edit.
+CI listens for PRs being opened, reopened, updated with new commits (`synchronize`), or marked Ready for review.
+The `test` job runs for non-Draft PRs, including ordinary and Renovate PRs opened directly as Ready. New commits
+on a Ready PR run CI automatically; they no longer require another Draft-to-Ready transition. Keep work in Draft
+until local checks are finished. When a Draft PR event starts this workflow, its `test` job is skipped. GitHub
+reports that skipped job as successful, but the skipped status is not validation evidence. Mark the PR Ready and confirm that the actual `test` job ran
+and passed for its current head and merge result before merging. Release PRs still return to Draft on every
+version update and wait for a maintainer to mark them Ready.
+
+There is no general `push` trigger: pushes to branches without a PR and main merges do not trigger this
+workflow. Draft PR updates skip its `test` job. Metadata edits also do not trigger it. After changing only the title, description, or base, refresh the branch if needed
+and select Draft then Ready again to validate the current comparison and metadata. The single `test` job
+includes repository checks and the PR title and description checks; there is no separate Review workflow.
 GitHub's PR checkout tests the merge result. A manual `workflow_dispatch` runs the selected branch as `manual checks`
 for diagnosis, without the PR title or description checks, and does not satisfy the required PR
 `test` check. Do not retry account/billing-blocked
@@ -230,7 +305,7 @@ The review checks come from [`PerfectPan/gh-repo-checks`](https://github.com/Per
 
 Run `gh repo-checks repository` locally before opening review. This generic check does not replace stack-specific tests, but it catches missing template files, tracked local artifacts, obvious secrets, private paths, and drift in review templates.
 
-Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Workflow files copied from `PerfectPan/project-template` take action upgrades from the template rather than local edits.
+Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Renovate proposes action-version updates for review; keep workflow structure synchronized with `PerfectPan/project-template` when adopting template changes.
 
 ## Local Git Hooks
 
