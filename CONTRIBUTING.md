@@ -114,7 +114,7 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 ### Bot Pull Requests
 
 - **Renovate version PRs**: [`renovate.json`](renovate.json) enables the npm manager (including pnpm) and the
-  GitHub Actions manager. Renovate is the only owner of routine version-update PRs for these ecosystems.
+  GitHub Actions manager. Renovate is configured as the routine version updater for these ecosystems.
   Renovate checks on Mondays from 00:00 to 06:59 in Asia/Shanghai, waits seven days after a release, and opens at
   most five concurrent version-update PRs. The waiting period stays above the workspace's one-day install policy in
   [`pnpm-workspace.yaml`](pnpm-workspace.yaml). `@rivus/*` packages are exempt from the wait, so a kit release
@@ -141,11 +141,14 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   Renovate PRs, and required CI must pass before a maintainer merges. Workflow-only updates need no changeset.
 
 - **Rollout and security ownership**: this configuration does not install or authorize the Renovate App and does
-  not change GitHub repository security settings. Keep the adoption PR in Draft until the owner verifies the
-  hosted Renovate App is authorized for this repository and records a successful real repository run with npm and
-  GitHub Actions extraction, the Dependency Dashboard, and update-PR creation when an update is available.
-  Local config validation and extraction are not evidence of a hosted run. Do not add a second routine updater
-  while Renovate owns these ecosystems.
+  not change GitHub repository security settings. At the 2026-11-03 adoption baseline, `main` had neither Renovate
+  nor Dependabot version-update configuration, so this change adds no temporary Dependabot configuration.
+  Introduce the initial configuration through normal PR review and, separately, have the owner authorize this
+  repository for the existing Renovate App. Once the configuration is available on the default branch and the
+  authorization is effective, verify a real hosted run with npm and GitHub Actions extraction, the Dependency
+  Dashboard, and update-PR creation when an update is available. Keep rollout coverage marked unverified until
+  this evidence is recorded. Local config validation and extraction are not evidence of a hosted run. Do not add
+  a second routine updater while Renovate owns these ecosystems.
 
   Rollout snapshot (2026-11-03): the repository's [security settings](https://github.com/PerfectPan/agent-trace/settings/security_analysis)
   show the dependency graph, Dependabot alerts, and Dependabot security updates disabled. The Renovate App is
