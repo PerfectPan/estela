@@ -11,10 +11,20 @@ const INDEX_LAYOUT_VERSION = 3
  * (the caller skips that write; the index is a cache).
  */
 const BUSY_TIMEOUT_MS = 200
-/** SQLITE_CORRUPT and SQLITE_NOTADB. */
+/** SQLITE_CORRUPT and SQLITE_NOTADB, matched as primary codes (so SQLITE_CORRUPT_VTAB, 267, is corrupt too). */
 const BROKEN_CODES = new Set([11, 26])
-/** SQLITE_BUSY and SQLITE_LOCKED: another process holds the write lock; open again. */
+/**
+ * SQLITE_BUSY and SQLITE_LOCKED, matched as primary codes: node:sqlite reports extended ones, and
+ * a reader that opens while another process converts the file to WAL or recovers it gets
+ * SQLITE_BUSY_RECOVERY (261). Another process holds the lock; open again.
+ */
 const BUSY_CODES = new Set([5, 6])
+/**
+ * SQLITE_IOERR, matched by the primary code. During a concurrent rebuild another process deletes
+ * the database a reader still has open, which surfaces as I/O errors (SQLITE_IOERR_WRITE among
+ * them) until the next open resolves the path anew.
+ */
+const IOERR_CODE = 10
 /** A rebuild lock older than this is left over from a crashed process. */
 const STALE_LOCK_MS = 10_000
 /** How long an open waits for another process's rebuild or write lock before it gives up. */
@@ -45,14 +55,32 @@ export function sqliteErrcode(error: unknown): number | undefined {
   return z.safeParse(sqliteError, error).data?.errcode
 }
 
-function isBroken(error: unknown): boolean {
+/** The primary result code: the low byte of an extended one (`SQLITE_BUSY_RECOVERY` is 261, `SQLITE_BUSY` 5). */
+function primaryCode(error: unknown): number | undefined {
   const code = sqliteErrcode(error)
+  return code === undefined ? undefined : code & 0xff
+}
+
+export function isBroken(error: unknown): boolean {
+  const code = primaryCode(error)
   return code !== undefined && BROKEN_CODES.has(code)
 }
 
-function isBusy(error: unknown): boolean {
-  const code = sqliteErrcode(error)
+/** Another process holds the write lock or is recovering the database (hot journal, WAL): wait and retry. */
+export function isBusy(error: unknown): boolean {
+  const code = primaryCode(error)
   return code !== undefined && BUSY_CODES.has(code)
+}
+
+/**
+ * A disturbance that a fresh open does not see again: the busy codes, or an I/O error from another
+ * process's concurrent rebuild deleting the file this one still has open. The open loop retries
+ * these until its deadline; a genuine disk problem keeps failing and the caller runs without the
+ * index.
+ */
+export function isTransient(error: unknown): boolean {
+  const code = primaryCode(error)
+  return code !== undefined && (BUSY_CODES.has(code) || code === IOERR_CODE)
 }
 
 /** 0 when the pragma returns no number: `prepare` then creates the schema in an empty file or rebuilds the file. */
@@ -198,7 +226,8 @@ function rebuildUnderLock(file: string, lock: string): DatabaseSync | undefined 
  * The schema is created inside `BEGIN IMMEDIATE`, so two processes opening a fresh cache at
  * once end with one schema. The file is rebuilt only when it is not a database, is corrupt, or
  * has another layout version, and only by the process holding `<file>.lock`; the
- * others wait for that lock to go and open again. Throws for anything else (for example EACCES),
+ * others wait for that lock to go and open again. A busy or I/O error from a concurrent rebuild
+ * is retried until the open succeeds. Throws for anything else (for example EACCES),
  * or after `LOCK_WAIT_MS`; the caller runs without the index.
  */
 export function openDatabase(file: string): DatabaseSync {
@@ -216,14 +245,22 @@ export function openDatabase(file: string): DatabaseSync {
     }
     const rebuilding = existsSync(lock)
     if (!rebuilding && (isBroken(failure) || failure instanceof LayoutMismatch)) {
-      const rebuilt = rebuildUnderLock(file, lock)
-      if (rebuilt) {
-        return rebuilt
+      try {
+        const rebuilt = rebuildUnderLock(file, lock)
+        if (rebuilt) {
+          return rebuilt
+        }
+      } catch (error) {
+        // The rebuild itself hit a concurrent process (busy, or I/O from its delete): open again.
+        if (!isTransient(error)) {
+          throw error
+        }
+        failure = error
       }
-    } else if (!rebuilding && !isBusy(failure)) {
+    } else if (!rebuilding && !isTransient(failure)) {
       throw failure
     }
-    // Another process holds the rebuild lock or the write lock: open again once it lets go.
+    // Another process holds the rebuild lock or the write lock, or is mid-rebuild: open again once it lets go.
     if (Date.now() > deadline) {
       throw rebuilding ? new Error(`index rebuild is locked by another process (${lock})`) : failure
     }

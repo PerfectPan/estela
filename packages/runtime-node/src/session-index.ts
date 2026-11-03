@@ -3,7 +3,7 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import * as z from 'zod/mini'
-import { openDatabase, sqliteErrcode } from './session-index-schema.ts'
+import { isTransient, openDatabase } from './session-index-schema.ts'
 
 /** User prompts kept per session: the first 200, 500 characters each. */
 export const PROMPT_LIMIT = 200
@@ -155,12 +155,6 @@ function clip(text: string): string {
   return text.slice(0, PROMPT_CHARS)
 }
 
-/** SQLITE_BUSY and SQLITE_LOCKED, including their extended codes. */
-function isBusy(error: unknown): boolean {
-  const code = sqliteErrcode(error)
-  return code !== undefined && ((code & 0xff) === 5 || (code & 0xff) === 6)
-}
-
 /** A NULL or empty column stays `undefined`. */
 function headOf(row: z.output<typeof headRow>): IndexHead {
   const { trace_id: traceId, agent, path, size, mtime: mtimeMs } = row
@@ -295,8 +289,9 @@ class SqliteIndex implements SessionIndex {
       ).all(phrase)
       return traceIdsOf(rows)
     } catch (error) {
-      // Busy or locked: let the caller search in memory. Anything else is a query that matches nothing.
-      return isBusy(error) ? undefined : []
+      // A concurrent process holds the lock or is rebuilding (busy or I/O): let the caller search in
+      // memory. Anything else is a query that matches nothing.
+      return isTransient(error) ? undefined : []
     }
   }
 
