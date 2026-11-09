@@ -21,11 +21,11 @@ afterEach(async () => {
 
 describe('dsh-plugin patch merge', () => {
   it('appends its marker block to an empty patch and merges idempotently', () => {
-    const once = withDshTracePatch('', '/home/.dsh/plugins/agent-trace-dsh.mjs')
+    const once = withDshTracePatch('', '/opt/dsh-home/.dsh/plugins/agent-trace-dsh.mjs')
     expect(once).toContain(START)
-    expect(once).toContain('name: /home/.dsh/plugins/agent-trace-dsh.mjs')
+    expect(once).toContain('name: /opt/dsh-home/.dsh/plugins/agent-trace-dsh.mjs')
     expect(once).toContain(END)
-    const twice = withDshTracePatch(once, '/home/.dsh/plugins/agent-trace-dsh.mjs')
+    const twice = withDshTracePatch(once, '/opt/dsh-home/.dsh/plugins/agent-trace-dsh.mjs')
     expect(twice).toBe(once)
     // A moved plugin file replaces its entry in place, and the foreign lines around it stay.
     const moved = withDshTracePatch('keep: me\n', '/elsewhere/agent-trace-dsh.mjs')
@@ -36,7 +36,7 @@ describe('dsh-plugin patch merge', () => {
 
   it('repairs an orphaned start marker left by a crash mid-write', () => {
     const orphan = `${START}\n- insert:\n    - id: old\n`
-    const merged = withDshTracePatch(orphan, '/home/.dsh/plugins/agent-trace-dsh.mjs')
+    const merged = withDshTracePatch(orphan, '/opt/dsh-home/.dsh/plugins/agent-trace-dsh.mjs')
     expect(merged.match(new RegExp(START, 'g'))).toHaveLength(1)
     expect(merged.match(new RegExp(END, 'g'))).toHaveLength(1)
     expect(merged).toContain('agent-trace-dsh.mjs')
@@ -117,7 +117,7 @@ describe('dsh-plugin install and uninstall', () => {
 
 describe('dsh-plugin source', () => {
   it('subscribes to the lifecycle events the traces need, and writes into the traces dir', () => {
-    const source = buildDshTracePluginSource('/home/.dsh/agent-trace')
+    const source = buildDshTracePluginSource('/opt/dsh-home/.dsh/agent-trace')
     for (const event of [
       'agent/session-start',
       'agent/status',
@@ -130,7 +130,7 @@ describe('dsh-plugin source', () => {
       expect(source).toContain(`ctx.on("${event}"`)
     }
     expect(source).toContain('assistant/message')
-    expect(source).toContain('/home/.dsh/agent-trace')
+    expect(source).toContain('/opt/dsh-home/.dsh/agent-trace')
     // The plugin never lets a write failure break dsh: the record chain swallows its own errors.
     expect(source).toContain('() => {}')
   })
