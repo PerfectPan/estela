@@ -59,6 +59,7 @@ npx @rivus/agent-trace build [path] [--out-dir <dir>]
 npx @rivus/agent-trace mcp [path]
 npx @rivus/agent-trace export-atif [path] [--out <file>]
 npx @rivus/agent-trace export-otlp [path] [--out <file>]
+npx @rivus/agent-trace dsh-plugin install|uninstall
 ```
 
 | Command | What it does |
@@ -70,6 +71,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `agent-trace mcp <path>` | MCP server over stdio with a `reconstruct` tool for that session. Only protocol messages go to stdout. |
 | `agent-trace export-atif <path> --out <file>` | Writes the session as one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory (default `agent-trace-<session>.atif.json`) for Harbor datasets and evaluation. |
 | `agent-trace export-otlp <path> --out <file>` | Writes the session as one OTLP/JSON `ExportTraceServiceRequest` (default `agent-trace-<session>.otlp.json`) whose spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`, for Langfuse, LangSmith, and Phoenix. |
+| `agent-trace dsh-plugin install` | Installs the managed DeepSeek Harness plugin (`~/.dsh/plugins/agent-trace-dsh.mjs`, registered in `~/.dsh/cordis.patch.yml`), which records each run into `~/.dsh/agent-trace/`; `uninstall` removes both. The recorded sessions appear as `dsh-plugin` in the browser. |
 
 | Flag | Meaning |
 |---|---|

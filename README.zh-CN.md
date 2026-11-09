@@ -61,6 +61,7 @@ npx @rivus/agent-trace build [path] [--out-dir <dir>]
 npx @rivus/agent-trace mcp [path]
 npx @rivus/agent-trace export-atif [path] [--out <file>]
 npx @rivus/agent-trace export-otlp [path] [--out <file>]
+npx @rivus/agent-trace dsh-plugin install|uninstall
 ```
 
 | 命令 | 作用 |

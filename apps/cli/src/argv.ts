@@ -1,4 +1,4 @@
-export type CommandName = 'dev' | 'build' | 'mcp' | 'export-atif' | 'export-otlp'
+export type CommandName = 'dev' | 'build' | 'mcp' | 'export-atif' | 'export-otlp' | 'dsh-plugin'
 
 const VALUE_FLAGS = new Set(['--port', '--host', '--out-dir', '--out'])
 
@@ -25,7 +25,20 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     command = raw[0]!
     index = 1
   }
+  let dshPluginSub: string | undefined
+  if (raw[0] === 'dsh-plugin') {
+    command = raw[0]!
+    index = 1
+    // The subcommand names the action, never a session path.
+    if (raw[1] === 'install' || raw[1] === 'uninstall') {
+      dshPluginSub = raw[1]
+      index = 2
+    }
+  }
   const userArgs: string[] = command === 'dev' ? [] : [command]
+  if (dshPluginSub !== undefined) {
+    userArgs.push(dshPluginSub)
+  }
   const positionals: string[] = []
   let pick = false
   let noIndex = false
