@@ -189,50 +189,53 @@ describe('keyboard and counts', () => {
     expect(countEvents(trace)).toBe(13)
     expect(countEvents(trace, { from: 0, to: 2000 })).toBe(3)
   })
-describe('flattenLanes', () => {
-  it('draws one header per agent lane with its own events flat, sharing the turn layout\'s entries', () => {
-    const model = buildLedgerModel(sample())
-    const rows = flattenLanes(model, view())
-    // main lane first, then the sub agent; headers carry `l:` keys and the drawn row count.
-    const lanes = rows.filter(row => row.type === 'lane')
-    expect(lanes.map(lane => [lane.laneId, lane.count])).toEqual([
-      ['main', 8],
-      ['sub', 2],
-    ])
-    expect(lanes[0]).toMatchObject({ key: 'l:main', type: 'lane', size: ROW_SIZE.turn })
-    // The sub lane's header is followed by its own rows, flat like every lane row.
-    const afterSub = rows.slice(rows.findIndex(row => row.type === 'lane' && row.laneId === 'sub') + 1)
-    expect(afterSub.map(row => row.key)).toEqual(['e:s1', 'e:s2'])
-    // The main lane's flat rows keep the turn layout's entry ids: one event, one row identity.
-    const beforeSub = rows.slice(0, rows.findIndex(row => row.type === 'lane' && row.laneId === 'sub'))
-    const mainEntries = beforeSub.filter(row => row.type === 'entry').map(row => row.key)
-    expect(mainEntries).toEqual(['e:p1', 'e:r1', 'e:c1', 'h:h1', 'e:spawn', 'e:k1', 'e:p2', 'e:r2'])
-  })
+  describe('flattenLanes', () => {
+    it("draws one header per agent lane with its own events flat, sharing the turn layout's entries", () => {
+      const model = buildLedgerModel(sample())
+      const rows = flattenLanes(model, view())
+      // main lane first, then the sub agent; headers carry `l:` keys and the drawn row count.
+      const lanes = rows.filter(row => row.type === 'lane')
+      expect(lanes.map(lane => [lane.laneId, lane.count])).toEqual([
+        ['main', 8],
+        ['sub', 2],
+      ])
+      expect(lanes[0]).toMatchObject({ key: 'l:main', type: 'lane', size: ROW_SIZE.turn })
+      // The sub lane's header is followed by its own rows, flat like every lane row.
+      const afterSub = rows.slice(rows.findIndex(row => row.type === 'lane' && row.laneId === 'sub') + 1)
+      expect(afterSub.map(row => row.key)).toEqual(['e:s1', 'e:s2'])
+      // The main lane's flat rows keep the turn layout's entry ids: one event, one row identity.
+      const beforeSub = rows.slice(
+        0,
+        rows.findIndex(row => row.type === 'lane' && row.laneId === 'sub'),
+      )
+      const mainEntries = beforeSub.filter(row => row.type === 'entry').map(row => row.key)
+      expect(mainEntries).toEqual(['e:p1', 'e:r1', 'e:c1', 'h:h1', 'e:spawn', 'e:k1', 'e:p2', 'e:r2'])
+    })
 
-  it('collapses a lane to its header with an `l:` key, disjoint from the turn layout\'s', () => {
-    const model = buildLedgerModel(sample())
-    const collapsed = flattenLanes(model, view({ collapsed: new Set(['l:main']) }))
-    expect(collapsed.filter(row => row.type === 'lane').map(row => row.key)).toEqual(['l:main', 'l:sub'])
-    expect(collapsed.filter(row => row.type === 'entry').map(row => row.key)).toEqual(['e:s1', 'e:s2'])
-    // The turn layout is untouched by the `l:` key.
-    expect(flattenLedger(model, view({ collapsed: new Set(['l:main']) }))).toEqual(flattenLedger(model, view()))
-  })
+    it("collapses a lane to its header with an `l:` key, disjoint from the turn layout's", () => {
+      const model = buildLedgerModel(sample())
+      const collapsed = flattenLanes(model, view({ collapsed: new Set(['l:main']) }))
+      expect(collapsed.filter(row => row.type === 'lane').map(row => row.key)).toEqual(['l:main', 'l:sub'])
+      expect(collapsed.filter(row => row.type === 'entry').map(row => row.key)).toEqual(['e:s1', 'e:s2'])
+      // The turn layout is untouched by the `l:` key.
+      expect(flattenLedger(model, view({ collapsed: new Set(['l:main']) }))).toEqual(flattenLedger(model, view()))
+    })
 
-  it('applies the chip and range, and drops a lane with nothing left', () => {
-    const model = buildLedgerModel(sample())
-    const rows = flattenLanes(model, view({ filter: 'requests' }))
-    expect(rows.map(row => row.key)).toEqual(['l:main', 'e:r1', 'e:r2', 'l:sub', 'e:s1'])
-    const ranged = flattenLanes(model, view({ range: { from: 0, to: 2000 } }))
-    expect(ranged.filter(row => row.type === 'lane').map(row => row.key)).toEqual(['l:main'])
-    expect(ranged.filter(row => row.type === 'entry').map(row => row.key)).toEqual(['e:p1', 'e:r1', 'e:c1'])
-  })
+    it('applies the chip and range, and drops a lane with nothing left', () => {
+      const model = buildLedgerModel(sample())
+      const rows = flattenLanes(model, view({ filter: 'requests' }))
+      expect(rows.map(row => row.key)).toEqual(['l:main', 'e:r1', 'e:r2', 'l:sub', 'e:s1'])
+      const ranged = flattenLanes(model, view({ range: { from: 0, to: 2000 } }))
+      expect(ranged.filter(row => row.type === 'lane').map(row => row.key)).toEqual(['l:main'])
+      expect(ranged.filter(row => row.type === 'entry').map(row => row.key)).toEqual(['e:p1', 'e:r1', 'e:c1'])
+    })
 
-  it('continues the keyboard from the lane header when the selected row is hidden', () => {
-    const model = buildLedgerModel(sample())
-    const collapsed = flattenLanes(model, view({ collapsed: new Set(['l:main']) }))
-    // `p1` lives on the main lane, which the collapse hid: the anchor falls to `l:main`.
-    expect(anchorIndex(collapsed, model, 'e:p1')).toBe(0)
-    expect(anchorIndex(collapsed, model, 'e:s1')).toBe(2)
+    it('continues the keyboard from the lane header when the selected row is hidden', () => {
+      const model = buildLedgerModel(sample())
+      const collapsed = flattenLanes(model, view({ collapsed: new Set(['l:main']) }))
+      // `p1` lives on the main lane, which the collapse hid: the anchor falls to `l:main`.
+      expect(anchorIndex(collapsed, model, 'e:p1')).toBe(0)
+      expect(anchorIndex(collapsed, model, 'e:s1')).toBe(2)
+    })
   })
-})
 })
