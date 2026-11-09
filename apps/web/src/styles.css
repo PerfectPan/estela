@@ -78,6 +78,7 @@ html[data-theme="dark"] {
   --agent-codex: var(--foreground);
   --agent-dsh: #4d6bfe;
   --agent-grok: var(--muted-foreground);
+  --agent-gemini-cli: #4796e3;
   --agent-opencode: #9aa4ae;
   --agent-pi: #8b7cf6;
   /* "Unavailable" hatching and its edge, the muted reasoning text, and the subagent "open lane" link (design mockup values). */
@@ -114,6 +115,7 @@ html[data-theme="light"] {
   --agent-claude-code: #c15f3c;
   --agent-dsh: #3355e6;
   --agent-grok: #5a6169;
+  --agent-gemini-cli: #6ea8dc;
   --agent-opencode: #5f6b76;
   --agent-pi: #6d5bd0;
   --hatch: #c9c6bf;

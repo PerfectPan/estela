@@ -7,6 +7,7 @@ const AGENT_NAMES: Record<string, string> = {
   codex: 'Codex',
   dsh: 'DeepSeek Harness',
   grok: 'Grok',
+  'gemini-cli': 'Gemini CLI',
   opencode: 'OpenCode',
   pi: 'Pi',
 }

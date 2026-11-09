@@ -3,6 +3,7 @@ const LETTER: Record<string, string> = {
   codex: 'X',
   dsh: 'D',
   grok: 'G',
+  'gemini-cli': 'GM',
   opencode: 'O',
   pi: 'P',
 }
