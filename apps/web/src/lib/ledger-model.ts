@@ -289,6 +289,9 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
 
 export type LedgerFilter = 'all' | 'requests' | 'tools' | 'failures'
 
+/** How the ledger groups its rows: by turn (the default) or one lane per agent. */
+export type LedgerLayout = 'turns' | 'lanes'
+
 export interface LedgerView {
   collapsed: ReadonlySet<string>
   expanded: ReadonlySet<string>
@@ -309,6 +312,7 @@ export type VirtualRow =
       /** Inside an expanded subagent lane. */
       lane: boolean
     }
+  | { key: string; type: 'lane'; laneId: string; title?: string; collapsed: boolean; count: number; size: number }
 
 /** Fixed heights: 36 px rows, 40 px turn headers; the design's hook fold row is 30 px and the compaction row 44 px. */
 export const ROW_SIZE = { turn: 40, event: 36, hooks: 30, compaction: 44 } as const
@@ -420,6 +424,49 @@ export function flattenLedger(model: LedgerModel, view: LedgerView): VirtualRow[
   return out
 }
 
+/**
+ * The rows the lane layout draws: one header per agent lane (`projectLanes` order, the main lane
+ * first), then the lane's own events flat — no subagent nesting, since each agent already has its
+ * lane. Entries come from the same map the turn layout built, so both layouts draw one event with
+ * one id, and the chip and range rules are `entryMatches` either way. A lane with no passing entry
+ * is left out while a filter or range is active. The collapse keys are `l:<lane id>`, disjoint
+ * from the turn layout's `t<index>`.
+ */
+export function flattenLanes(model: LedgerModel, view: LedgerView): VirtualRow[] {
+  const out: VirtualRow[] = []
+  const filtering = view.filter !== 'all' || view.range !== undefined
+  const mainId = mainAgentId(model.trace)
+  for (const lane of model.lanes) {
+    const rows: VirtualRow[] = []
+    const events = model.trace.events.filter(event => (event.agentId ?? mainId) === lane.id)
+    for (const row of foldHookRuns(events)) {
+      const key = row.type === 'hooks' ? `h:${row.eventIds[0]}` : `e:${row.eventId}`
+      const entry = model.entries.get(key)
+      if (entry) {
+        pushEntry(rows, entry, 0, false, model, view)
+      }
+    }
+    if (filtering && rows.length === 0) {
+      continue
+    }
+    const key = `l:${lane.id}`
+    const collapsed = view.collapsed.has(key)
+    out.push({
+      key,
+      type: 'lane',
+      laneId: lane.id,
+      title: lane.title,
+      collapsed,
+      count: rows.length,
+      size: ROW_SIZE.turn,
+    })
+    if (!collapsed) {
+      out.push(...rows)
+    }
+  }
+  return out
+}
+
 /** Up / down in the list: the next row index, clamped; `-1` selects the first row. */
 export function moveSelection(count: number, current: number, delta: number): number {
   if (count === 0) {
@@ -447,7 +494,7 @@ export function countEvents(trace: Trace, range?: { from: number; to: number }):
 
 /**
  * The row the keyboard continues from: the selected row when it is drawn, else the header
- * of its turn (collapse, a chip, or the range hid it), else nothing.
+ * of its turn (collapse, a chip, or the range hid it), else the header of its lane, else nothing.
  */
 export function anchorIndex(rows: readonly VirtualRow[], model: LedgerModel, key: string | undefined): number {
   if (!key) {
@@ -459,6 +506,17 @@ export function anchorIndex(rows: readonly VirtualRow[], model: LedgerModel, key
   }
   const entry = model.entries.get(key)
   const eventId = entry ? entryEventIds(entry)[0] : undefined
-  const turnId = eventId ? model.locate.get(eventId)?.turnId : undefined
-  return turnId ? rows.findIndex(row => row.key === turnId) : -1
+  if (!eventId) {
+    return -1
+  }
+  const turnId = model.locate.get(eventId)?.turnId
+  if (turnId !== undefined) {
+    const at = rows.findIndex(row => row.key === turnId)
+    if (at >= 0) {
+      return at
+    }
+  }
+  // The lane layout: the event's own agent header.
+  const laneId = model.byId.get(eventId)?.agentId ?? mainAgentId(model.trace)
+  return rows.findIndex(row => row.key === `l:${laneId}`)
 }

@@ -1,4 +1,4 @@
-import type { LedgerFilter } from '@/lib/ledger-model.ts'
+import type { LedgerFilter, LedgerLayout } from '@/lib/ledger-model.ts'
 import type { MessageKey } from '@/i18n/locale.ts'
 import { For, Show } from 'solid-js'
 import { EyeIcon } from '@/components/icons.tsx'
@@ -13,11 +13,18 @@ const CHIPS: { id: LedgerFilter; label: MessageKey }[] = [
   { id: 'failures', label: 'ledger.failures' },
 ]
 
-/** 42 px bar over the ledger: kind chips and the "dim hidden events" toggle. */
+const LAYOUTS: { id: LedgerLayout; label: MessageKey; testId: string }[] = [
+  { id: 'turns', label: 'ledger.layoutTurns', testId: 'layout-turns' },
+  { id: 'lanes', label: 'ledger.layoutLanes', testId: 'layout-lanes' },
+]
+
+/** 42 px bar over the ledger: kind chips, the layout toggle, and the "dim hidden events" switch. */
 export function LedgerToolbar(props: {
   filter: LedgerFilter
   onFilter: (filter: LedgerFilter) => void
   failures: number
+  layout: LedgerLayout
+  onLayout: (layout: LedgerLayout) => void
   dim: boolean
   onDim: (dim: boolean) => void
 }) {
@@ -46,21 +53,44 @@ export function LedgerToolbar(props: {
           )}
         </For>
       </div>
-      <button
-        type="button"
-        aria-pressed={props.dim}
-        class={cx(
-          'flex items-center gap-2 rounded-[7px] border px-2 py-1 text-[12.5px] whitespace-nowrap',
-          props.dim
-            ? 'border-input bg-muted text-foreground'
-            : 'border-transparent text-muted-foreground hover:text-foreground',
-        )}
-        data-testid="dim-hidden"
-        onClick={() => props.onDim(!props.dim)}
-      >
-        <EyeIcon />
-        {t('ledger.dimHidden')}
-      </button>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1" role="radiogroup" aria-label={t('ledger.layoutLabel')}>
+          <For each={LAYOUTS}>
+            {item => (
+              <button
+                type="button"
+                role="radio"
+                aria-checked={props.layout === item.id}
+                class={cx(
+                  'flex items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-[12.5px] whitespace-nowrap',
+                  props.layout === item.id
+                    ? 'border-input bg-muted text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+                data-testid={item.testId}
+                onClick={() => props.onLayout(item.id)}
+              >
+                {t(item.label)}
+              </button>
+            )}
+          </For>
+        </div>
+        <button
+          type="button"
+          aria-pressed={props.dim}
+          class={cx(
+            'flex items-center gap-2 rounded-[7px] border px-2 py-1 text-[12.5px] whitespace-nowrap',
+            props.dim
+              ? 'border-input bg-muted text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+          data-testid="dim-hidden"
+          onClick={() => props.onDim(!props.dim)}
+        >
+          <EyeIcon />
+          {t('ledger.dimHidden')}
+        </button>
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { LedgerFilter, LedgerModel } from '@/lib/ledger-model.ts'
+import type { LedgerFilter, LedgerLayout, LedgerModel } from '@/lib/ledger-model.ts'
 import type { TimeRange } from '@/lib/timeline-scale.ts'
 import type { LoadedSession } from './load-session.ts'
 import { batch, createMemo, createSignal } from 'solid-js'
@@ -7,9 +7,11 @@ import {
   countEvents,
   entryEventIds,
   entryMatches,
+  flattenLanes,
   flattenLedger,
   isFailedResult,
 } from '@/lib/ledger-model.ts'
+import { mainAgentId } from '@rivus/agent-trace-kernel'
 import { timelineData } from './timeline/timeline-data.ts'
 
 function toggled(set: ReadonlySet<string>, id: string): Set<string> {
@@ -31,17 +33,19 @@ export function createWorkspaceState(session: LoadedSession) {
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
   const [range, setRange] = createSignal<TimeRange>()
   const [dim, setDim] = createSignal(false)
-  /** Key of the selected ledger row (an entry id or a turn id). */
+  const [layout, setLayout] = createSignal<LedgerLayout>('turns')
+  /** Key of the selected ledger row (an entry id, a turn id, or a lane id). */
   const [selectedKey, setSelectedKey] = createSignal<string>()
 
-  const rows = createMemo(() =>
-    flattenLedger(model, {
+  const rows = createMemo(() => {
+    const view = {
       collapsed: collapsed(),
       expanded: expanded(),
       filter: filter(),
       range: range(),
-    }),
-  )
+    }
+    return layout() === 'lanes' ? flattenLanes(model, view) : flattenLedger(model, view)
+  })
   const eventCount = createMemo(() => countEvents(session.trace, range()))
   // The header's number (fold) and the chip use one rule: every failed tool result.
   const failures = session.summary.failedTools ?? session.trace.events.filter(isFailedResult).length
@@ -63,6 +67,11 @@ export function createWorkspaceState(session: LoadedSession) {
     batch(() => {
       if (collapsed().has(place.turnId)) {
         setCollapsed(toggled(collapsed(), place.turnId))
+      }
+      // The lane layout collapses by `l:<agent>`: open the event's lane the same way.
+      const laneId = model.byId.get(eventId)?.agentId ?? mainAgentId(model.trace)
+      if (collapsed().has(`l:${laneId}`)) {
+        setCollapsed(toggled(collapsed(), `l:${laneId}`))
       }
       const open = new Set(expanded())
       for (const parent of place.parents) {
@@ -99,8 +108,11 @@ export function createWorkspaceState(session: LoadedSession) {
     setRange,
     dim,
     setDim,
+    layout,
+    setLayout,
     collapsed,
     toggleTurn: (id: string) => setCollapsed(toggled(collapsed(), id)),
+    toggleLane: (id: string) => setCollapsed(toggled(collapsed(), id)),
     expanded,
     toggleEntry: (id: string) => setExpanded(toggled(expanded(), id)),
     selectedKey,

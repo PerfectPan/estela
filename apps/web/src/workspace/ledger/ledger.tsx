@@ -71,6 +71,8 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
   function activate(row: VirtualRow): void {
     if (row.type === 'turn') {
       state.toggleTurn(row.group.id)
+    } else if (row.type === 'lane') {
+      state.toggleLane(row.laneId)
     } else if (row.entry.type === 'subagent' || row.entry.type === 'hooks') {
       state.toggleEntry(row.entry.id)
     }
@@ -119,6 +121,8 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
         filter={state.filter()}
         onFilter={state.setFilter}
         failures={state.failures}
+        layout={state.layout()}
+        onLayout={state.setLayout}
         dim={state.dim()}
         onDim={state.setDim}
       />
@@ -148,11 +152,11 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
                       // Bind the union once per accessor so its variant is narrowed, not asserted.
                       const expanded = () => {
                         const drawn = current()
-                        return drawn.type === 'turn' ? !drawn.collapsed : undefined
+                        return drawn.type === 'entry' ? undefined : !drawn.collapsed
                       }
                       const rowType = () => {
                         const drawn = current()
-                        return drawn.type === 'turn' ? 'turn' : drawn.entry.type
+                        return drawn.type === 'entry' ? drawn.entry.type : drawn.type
                       }
                       return (
                         <div
@@ -170,7 +174,7 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
                           style={{ height: `${item.size}px`, transform: `translateY(${item.start}px)` }}
                           onClick={() => {
                             state.setSelectedKey(current().key)
-                            if (current().type === 'turn') {
+                            if (current().type !== 'entry') {
                               activate(current())
                             }
                           }}

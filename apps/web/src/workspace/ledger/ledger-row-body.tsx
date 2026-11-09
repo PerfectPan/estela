@@ -3,6 +3,7 @@ import type { WorkspaceState } from '../workspace-state.ts'
 import type { RowContext } from './row-frame.tsx'
 import { Match, Switch } from 'solid-js'
 import { TurnHeader } from './turn-header.tsx'
+import { LaneHeader } from './lane-header.tsx'
 import { LedgerEntryBody } from './ledger-entry-body.tsx'
 
 export function LedgerRowBody(props: {
@@ -13,6 +14,7 @@ export function LedgerRowBody(props: {
 }) {
   const turn = () => (props.row.type === 'turn' ? props.row : undefined)
   const entry = () => (props.row.type === 'entry' ? props.row : undefined)
+  const lane = () => (props.row.type === 'lane' ? props.row : undefined)
   return (
     <Switch>
       <Match when={turn()}>
@@ -23,6 +25,16 @@ export function LedgerRowBody(props: {
             collapsed={row().collapsed}
             ctx={props.ctx}
             onToggle={() => props.state.toggleTurn(row().group.id)}
+          />
+        )}
+      </Match>
+      <Match when={lane()}>
+        {row => (
+          <LaneHeader
+            row={row()}
+            collapsed={row().collapsed}
+            ctx={props.ctx}
+            onToggle={() => props.state.toggleLane(row().laneId)}
           />
         )}
       </Match>
