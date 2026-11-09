@@ -72,10 +72,7 @@ function definedUsage(usage: NonNullable<DshTraceRecord['usage']>): { inputToken
 /** The events one record becomes: its request, or a lifecycle marker under `system`. */
 function eventsOf(record: DshTraceRecord, ts: number, id: string, path: string, line: number): TranscriptEvent[] {
   const source = { file: path, offset: 0, length: 1, line }
-  const base = <K extends TranscriptEvent['kind']>(
-    kind: K,
-    payload: TranscriptEventPayloads[K],
-  ): TranscriptEvent =>
+  const base = <K extends TranscriptEvent['kind']>(kind: K, payload: TranscriptEventPayloads[K]): TranscriptEvent =>
     ({
       id,
       seq: 0,

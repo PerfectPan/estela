@@ -39,10 +39,17 @@ describe('dsh-plugin adapter', () => {
     const home = await mkdtemp(join(tmpdir(), 'agent-trace-dsh-adapter-'))
     const file = join(home, 'agent-trace', `${SESSION_ID}.ndjson`)
     await mkdir(join(home, 'agent-trace'), { recursive: true })
-    await writeFile(file, RECORDS.map(record => (typeof record === 'string' ? record : JSON.stringify(record))).join('\n'))
+    await writeFile(
+      file,
+      RECORDS.map(record => (typeof record === 'string' ? record : JSON.stringify(record))).join('\n'),
+    )
     const platform = createNodePlatform({ home, env: {} })
     const loaded = value(await dshPluginSessionAdapter.load(platform, { agent: 'dsh-plugin', path: file }))
-    expect(loaded.session).toMatchObject({ id: SESSION_ID, cwd: '/work/demo', startedAt: Date.parse('2026-11-10T09:00:00.000Z') })
+    expect(loaded.session).toMatchObject({
+      id: SESSION_ID,
+      cwd: '/work/demo',
+      startedAt: Date.parse('2026-11-10T09:00:00.000Z'),
+    })
     const kinds = loaded.events.map(event => event.kind)
     // The endpoints carry no event; the message is one request; the rest are system markers.
     expect(kinds).toEqual(['system', 'request', 'system', 'system', 'system'])
@@ -80,8 +87,12 @@ describe('dsh-plugin adapter', () => {
     })
     expect(found).toMatchObject({ cwd: '/work/demo' })
     // detect recognises its own files by shape, cheaply.
-    expect(await dshPluginSessionAdapter.detect(platform, { agent: 'dsh-plugin', path: join(dir, `${SESSION_ID}.ndjson`) })).toBe(true)
-    expect(await dshPluginSessionAdapter.detect(platform, { agent: 'dsh-plugin', path: join(home, 'other.jsonl') })).toBe(false)
+    expect(
+      await dshPluginSessionAdapter.detect(platform, { agent: 'dsh-plugin', path: join(dir, `${SESSION_ID}.ndjson`) }),
+    ).toBe(true)
+    expect(
+      await dshPluginSessionAdapter.detect(platform, { agent: 'dsh-plugin', path: join(home, 'other.jsonl') }),
+    ).toBe(false)
     await rm(home, { recursive: true, force: true }).catch(() => {})
   })
 
