@@ -45,4 +45,3 @@ export function flattenLanes(model: LedgerModel, view: LedgerView): VirtualRow[]
   }
   return out
 }
-
