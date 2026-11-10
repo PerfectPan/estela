@@ -108,6 +108,9 @@ export async function checkedOriginal(
   expected: number,
 ): Promise<OriginalResult> {
   const source: SourcePointer = event.source
+  if (readOriginal === undefined && (source.codec !== undefined || source.sqlite !== undefined)) {
+    return { unavailable: `${source.file} needs a platform reader to resolve line ${source.line}` }
+  }
   const now = await fs.stat(source.file, { followSymlinks: true })
   if (!now) {
     return { unavailable: `${source.file} no longer exists` }

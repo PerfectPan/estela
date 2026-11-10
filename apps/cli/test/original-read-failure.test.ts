@@ -1,19 +1,25 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { zstdCompressSync } from 'node:zlib'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { Trace } from '@rivus/agent-trace-schema'
 import { expect, it } from 'vite-plus/test'
 import { createTraceStore } from '../src/trace-store.ts'
 
-it.each(['invalid-json', 'removed'] as const)(
-  'marks an original unavailable on a resolver %s failure after stat',
-  async fault => {
+it.each([
+  ['invalid-json', false],
+  ['removed', false],
+  ['invalid-json', true],
+  ['removed', true],
+] as const)(
+  'marks an original unavailable on a resolver %s failure after stat (compressed %s)',
+  async (fault, compressed) => {
     const home = await mkdtemp(join(tmpdir(), 'original-read-'))
     const path = join(home, 'session.jsonl')
     const original = { type: 'user', text: 'original' }
     const text = JSON.stringify(original)
-    await writeFile(path, text)
+    await writeFile(path, compressed ? zstdCompressSync(Buffer.from(text)) : text)
     const platform = createNodePlatform({ home, env: {} })
     let fail = false
     const trace: Trace = {
@@ -31,7 +37,13 @@ it.each(['invalid-json', 'removed'] as const)(
           kind: 'user',
           payload: { text: 'original' },
           original,
-          source: { file: path, offset: 0, length: Buffer.byteLength(text), line: 1 },
+          source: {
+            file: path,
+            offset: 0,
+            length: Buffer.byteLength(text),
+            line: 1,
+            ...(compressed ? { codec: 'zstd' as const } : {}),
+          },
         },
       ],
     }

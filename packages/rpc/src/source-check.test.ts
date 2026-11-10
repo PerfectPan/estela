@@ -28,26 +28,39 @@ const event = {
 } satisfies TraceEvent
 
 describe('checkedOriginal', () => {
-  it('resolves decompressed offsets even when the compressed file is shorter', async () => {
-    const compressedEvent = {
-      ...event,
-      source: { file: '/data/session.zst', offset: 1000, length: 200, line: 2, codec: 'zstd' as const },
-    }
-    let calls = 0
-    const result = await checkedOriginal(
-      fs,
-      async source => {
-        calls += 1
-        expect(source.codec).toBe('zstd')
-        return original
-      },
-      compressedEvent,
-      undefined,
-      fingerprint(original),
-    )
-    expect(result).toEqual({ original })
-    expect(calls).toBe(1)
-  })
+  it.each(['sqlite', 'codec'] as const)(
+    'reports a missing %s platform resolver without attempting a raw read',
+    async kind => {
+      const source =
+        kind === 'sqlite' ? event.source : { file: 'f.zst', offset: 50, length: 10, line: 1, codec: 'zstd' as const }
+      const result = await checkedOriginal(fs, undefined, { ...event, source }, undefined, 0)
+      expect(result).toEqual({ unavailable: expect.stringContaining('needs a platform reader') })
+    },
+  )
+
+  it.each([undefined, { size: 0, mtimeMs: 1 }])(
+    'resolves decompressed offsets even when the compressed file is shorter (stamp %j)',
+    async stamp => {
+      const compressedEvent = {
+        ...event,
+        source: { file: '/data/session.zst', offset: 1000, length: 200, line: 2, codec: 'zstd' as const },
+      }
+      let calls = 0
+      const result = await checkedOriginal(
+        fs,
+        async source => {
+          calls += 1
+          expect(source.codec).toBe('zstd')
+          return original
+        },
+        compressedEvent,
+        stamp,
+        fingerprint(original),
+      )
+      expect(result).toEqual({ original })
+      expect(calls).toBe(1)
+    },
+  )
 
   it('reads a SQLite source through the injected resolver', async () => {
     const result = await checkedOriginal(

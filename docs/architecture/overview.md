@@ -130,7 +130,7 @@ Not built: the ⌘K jump palette (the box focuses the ledger) and a composer ove
 
 Not supported:
 
-- agents other than Claude Code, Codex, and Grok, OpenCode and dsh included;
+- agents outside the supported-agent list in the [README](../../README.md#supported-agents);
 - live follow of a running session, and editing or replaying a session;
 - search over session content beyond titles and the user's prompts;
 - UI languages other than English and Simplified Chinese;
