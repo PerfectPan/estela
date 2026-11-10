@@ -80,7 +80,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | Pick the session in the terminal. |
 | `--no-index` | Do not read or write the session index; summaries are computed again on each launch and not stored. |
 
-`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. A session in a shared database is named with its id: `agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
+`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. A session in a shared database is named with its id: `agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences. `agent-trace --help` and `agent-trace <command> --help` list each command's arguments and flags; an unknown flag exits 1 before any session is read.
 
 ## Taking a session elsewhere
 
