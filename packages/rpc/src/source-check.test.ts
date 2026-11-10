@@ -38,7 +38,7 @@ describe('checkedOriginal', () => {
       },
       event,
       undefined,
-      fingerprint(original),
+      fingerprint(original, true),
     )
     expect(result).toEqual({ original })
   })
@@ -51,8 +51,20 @@ describe('checkedOriginal', () => {
       },
       event,
       undefined,
-      fingerprint(original),
+      fingerprint(original, true),
     )
     expect('unavailable' in result).toBe(true)
+  })
+
+  it('rejects nested and long SQLite row changes even when the main file stamp is unchanged', async () => {
+    const loaded = { type: 'text', content: { text: 'a'.repeat(300) } }
+    const result = await checkedOriginal(
+      fs,
+      async () => ({ ...loaded, content: { text: 'b'.repeat(300) } }),
+      event,
+      { size: 0, mtimeMs: 1 },
+      fingerprint(loaded, true),
+    )
+    expect(result).toEqual({ unavailable: expect.stringContaining('holds a different record') })
   })
 })

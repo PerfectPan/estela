@@ -7,7 +7,7 @@ Audience: someone changing the viewer or the session reading. Session reading (d
 ```text
 agent roots
   -> kit adapter.discover (head/tail, 64 KB each end)      -> rows
-  -> session index (index.sqlite, path + size + mtime)     -> cached numbers
+  -> session index (index.sqlite, trace id + size + mtime) -> cached numbers
   -> kit summarize pass, 4 at a time, newest first         -> summary updates
   -> DevFrame list-sessions + shared state `sessions`      -> session browser
 

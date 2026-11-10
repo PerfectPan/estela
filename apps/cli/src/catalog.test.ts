@@ -75,7 +75,7 @@ describe('session catalog', () => {
     expect(broken?.error?.reason).toContain('unknown format generation')
     expect(broken?.pending).toBe(false)
     const info = await stat(badPath)
-    expect(index.get(badPath, info.size, info.mtimeMs)).toBeUndefined()
+    expect(index.get(broken!.traceId, info.size, info.mtimeMs)).toBeUndefined()
     const plain = done.rows.find(row => row.firstPrompt === 'Run the tests')
     expect(plain?.pending).toBe(false)
     expect(plain?.requests).toBeGreaterThan(0)
@@ -199,7 +199,7 @@ describe('session catalog', () => {
     expect(listed.rows[0]?.error?.line).toBe(3)
     expect(listed.rows[0]?.requests).toBeUndefined()
     const info = await stat(path)
-    expect(index.get(path, info.size, info.mtimeMs)).toBeUndefined()
+    expect(index.get(listed.rows[0]!.traceId, info.size, info.mtimeMs)).toBeUndefined()
     index.close()
   })
 
