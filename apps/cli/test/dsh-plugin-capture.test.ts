@@ -164,3 +164,52 @@ it('contains each failed write and recovers the metadata after storage is restor
   expect(trace.session.id).toBe('recovered')
   expect(trace.events).toHaveLength(1)
 })
+
+it('contains callback and serialization failures while the flush checkpoint still awaits later records', async () => {
+  const root = await tempRoot()
+  const runtime = await capture(root)
+  for (const event of [
+    'session/created',
+    'agent/created',
+    'agent/status',
+    'session/event',
+    'tools/result',
+    'agent/turn-stopping',
+    'agent/disposed',
+    'session/disposed',
+  ]) {
+    await expect(runtime.emit(event)).resolves.toBeUndefined()
+  }
+  const active = session('guarded')
+  await runtime.emit('agent/created', { agent: { session: active } })
+  await expect(runtime.emit('session/event', active, { type: 'assistant/message', data: {} })).resolves.toBeUndefined()
+  await expect(runtime.emit('tools/result', { agent: { session: active } })).resolves.toBeUndefined()
+  await expect(
+    runtime.emit('session/event', active, {
+      type: 'assistant/message',
+      data: { message: { source: { model: 'bad' } }, usage: { inputTokens: 1n } },
+    }),
+  ).resolves.toBeUndefined()
+  await runtime.emit('session/event', active, assistant('healthy'))
+  await runtime.emit('session/disposed', active)
+  await runtime.emit('session/flush', active)
+  const captured = await readRecords(join(runtime.tracesDir, 'guarded.ndjson'))
+  expect(captured.map(record => record.type)).toEqual(['session_start', 'assistant_message', 'session_end'])
+  expect(captured[1]?.model).toBe('healthy')
+})
+
+it('retries session metadata after a synchronous capture failure', async () => {
+  const root = await tempRoot()
+  const runtime = await capture(root)
+  const header: { cwd: bigint | string } = { cwd: 1n }
+  const active = { id: 'metadata-recovered', header }
+  await expect(runtime.emit('agent/created', { agent: { session: active } })).resolves.toBeUndefined()
+  header.cwd = '/restored'
+  await runtime.emit('session/event', active, assistant('healthy'))
+  await runtime.emit('session/flush', active)
+  const path = join(runtime.tracesDir, 'metadata-recovered.ndjson')
+  const captured = await readRecords(path)
+  expect(captured.map(record => record.type)).toEqual(['session_start', 'assistant_message'])
+  const trace = await loadSession({ path }, { platform: createNodePlatform({ home: root, env: {} }) })
+  expect(trace.session).toMatchObject({ id: active.id, cwd: '/restored' })
+})

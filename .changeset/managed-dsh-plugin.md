@@ -7,3 +7,5 @@ Read DeepSeek Harness through a managed dsh plugin. `agent-trace dsh-plugin inst
 Use dsh's actual agent/session/tools callbacks, route concurrent and resumed agents to the correct session, and drain pending writes at its durability checkpoint. Validate capture generations and usage without inventing missing counts, retain UTF-8 source ranges for raw reads, and register the adapter for every load/report path. Reject invalid CLI actions and ambiguous patch markers, quote plugin paths, preserve other registrations, replace files atomically, and return failure when registration fails.
 
 Normalize dsh input usage to include cache reads and writes, and derive turn boundaries only from session turn events. Validate actual YAML sequences before registration; preserve empty-list comments and refuse nonempty flow lists or symbolic-link destinations before modifying them.
+
+Keep synchronous capture callback and serialization failures inside the generated plugin while preserving the awaited session flush checkpoint.

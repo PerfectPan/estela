@@ -172,8 +172,8 @@ function append(session, type, fields) {
 /** A resumed session keeps its id; metadata is logged once per live Session object. */
 function start(session) {
   if (!session || ended.has(session) || started.has(session)) { return }
-  started.add(session)
   append(session, "session_start", { sessionId: session.id, cwd: session.header?.cwd })
+  started.add(session)
 }
 
 function record(session, type, fields) {
@@ -188,16 +188,27 @@ function stop(session) {
   ended.add(session)
 }
 
+/** Capture callbacks are observational: serialization or payload errors must stay inside the plugin. */
+function guard(listener) {
+  return (...args) => {
+    try {
+      return listener(...args)
+    } catch {
+      return undefined
+    }
+  }
+}
+
 export const name = "agent-trace-dsh"
 
 export async function apply(ctx) {
   await mkdir(TRACES_DIR, { recursive: true, mode: 0o700 }).catch(() => {})
-  ctx.on("session/created", start)
-  ctx.on("agent/created", ({ agent }) => start(agent.session))
-  ctx.on("agent/status", ({ agent, status }) => {
+  ctx.on("session/created", guard(start))
+  ctx.on("agent/created", guard(({ agent }) => start(agent.session)))
+  ctx.on("agent/status", guard(({ agent, status }) => {
     record(agent.session, "agent_status", { status })
-  })
-  ctx.on("session/event", (session, event) => {
+  }))
+  ctx.on("session/event", guard((session, event) => {
     if (event.type === "turn/start") {
       record(session, "turn_started", { turn: event.data.turn })
     } else if (event.type === "turn/end") {
@@ -210,13 +221,13 @@ export async function apply(ctx) {
     } else {
       record(session, "session_event", { eventType: event.type })
     }
-  })
-  ctx.on("tools/result", (exec, result) => {
+  }))
+  ctx.on("tools/result", guard((exec, result) => {
     record(exec.agent?.session, "tool_result", { callId: exec.callId, name: exec.name, isError: result.isError })
-  })
-  ctx.on("agent/turn-stopping", ({ agent, turn }) => record(agent.session, "turn_stopping", { turn }))
-  ctx.on("agent/disposed", ({ agent }) => record(agent.session, "agent_disposed", {}))
-  ctx.on("session/disposed", session => stop(session))
+  }))
+  ctx.on("agent/turn-stopping", guard(({ agent, turn }) => record(agent.session, "turn_stopping", { turn })))
+  ctx.on("agent/disposed", guard(({ agent }) => record(agent.session, "agent_disposed", {})))
+  ctx.on("session/disposed", guard(session => stop(session)))
   ctx.on("session/flush", () => write)
 }
 `
