@@ -28,7 +28,7 @@ allowBuilds:
 catalogMode: strict
 catalog:
   '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.6.0
-  '@rivus/agent-kit': 0.24.0
+  '@rivus/agent-kit': 0.24.1
   '@types/node': ^24.19.0
   devframe: 1.1.0
   es-toolkit: 1.52.0
@@ -58,7 +58,3 @@ versioning:
     # Commit CHANGELOG.md and drop consumed changesets at `pnpm version -r`. The default
     # `registry` keeps them until a publish is confirmed; version PRs need them consumed first.
     storage: repository
-
-# Claude and Gemini JSONL share loose head hints; validate Gemini's distinct header in the reader.
-patchedDependencies:
-  '@rivus/agent-kit@0.24.0': patches/agent-kit-0.24.0.patch
