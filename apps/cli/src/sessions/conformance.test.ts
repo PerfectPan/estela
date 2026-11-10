@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { projectTurns, reconstruct } from '@rivus/agent-trace-kernel'
-import { builtinAdapters } from './session-adapters.ts'
+import { builtinAdapters } from './adapters.ts'
 import {
   oversizedSession,
   sessionAdapterConformance,
@@ -12,10 +12,10 @@ import {
   type SessionAdapterFixtures,
 } from '@rivus/agent-kit/testing'
 import { afterAll, describe, expect, it } from 'vite-plus/test'
-import { loadSession } from './session.ts'
+import { loadSession } from './load-session.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const repo = join(here, '../../..')
+const repo = join(here, '../../../..')
 const fixturesOf = (agent: string): string => join(repo, 'fixtures/sessions', agent, 'conformance')
 const platform = createNodePlatform()
 

@@ -81,9 +81,9 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 | S7 | Model saw at the first request after a compaction: slots with the recorded token counts, system prompt and tools only when a prompt snapshot records them at or before that request, and the removed events | e2e |
 | S8 | A 10,000-event trace scrolls with fewer than 100 rendered rows and no long task over 200 ms | e2e |
 | S9 | An exported report opens from `file://` without a server, in the export language, and contains no home path | e2e |
-| S10 | `mcp` lists its tools, `reconstruct` returns the visible ids, unavailable slots, and completeness, and stdout carries only protocol | smoke, `apps/cli/src/smoke.test.ts` |
+| S10 | `mcp` lists its tools, `reconstruct` returns the visible ids, unavailable slots, and completeness, and stdout carries only protocol | smoke, `apps/cli/test/cli-smoke.test.ts` |
 | S11 | The theme follows the system color scheme; a manual switch survives a reload | e2e |
-| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `apps/cli/src/size-budget.test.ts` (opt-in) |
+| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `apps/cli/test/size-budget.test.ts` (opt-in) |
 | S13 | On Node.js 22 the CLI prints one line naming Node.js 24 and exits 1 | smoke |
 | S14 | A `zh-CN` browser gets Chinese labels and date formats with session content unchanged; a switch to English survives a reload | e2e |
 | S15 | `build` piped to a file writes plain lines with no escape sequences and no home path | smoke |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { adapterDisplayName, builtinAdapters } from './session-adapters.ts'
+import { adapterDisplayName, builtinAdapters } from './adapters.ts'
 
 describe('adapterDisplayName', () => {
   it('names every builtin agent by its product name', () => {

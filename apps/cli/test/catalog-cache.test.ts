@@ -10,10 +10,10 @@ import { fileURLToPath } from 'node:url'
 import { CURRENT_TRACE_ID } from '@rivus/agent-trace-rpc'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import { SessionCatalog } from './catalog.ts'
-import { loadSession } from './session.ts'
-import { oneLine } from './session-target.ts'
-import { createTraceStore } from './trace-store.ts'
+import { SessionCatalog } from '../src/catalog/session-catalog.ts'
+import { loadSession } from '../src/sessions/load-session.ts'
+import { oneLine } from '../src/sessions/session-target.ts'
+import { createTraceStore } from '../src/server/trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 

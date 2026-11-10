@@ -7,12 +7,11 @@ import { createNodePlatform } from '@rivus/agent-kit/node'
 import { readOriginal, type ReadOriginalError, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_TRACE_ID, TraceStore } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
-import type { CatalogPlatform } from './catalog-rows.ts'
-import { loadSession } from './session.ts'
+import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
 
 export interface TraceStoreOptions {
   /** Defaults to `createNodePlatform()`. */
-  platform?: CatalogPlatform
+  platform?: ShellPlatform
   /** Omit to use the kit's built-in session services. */
   adapters?: SessionAdapters
   redacts: boolean

@@ -2,7 +2,7 @@ import { Writable } from 'node:stream'
 import { stripVTControlCharacters } from 'node:util'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { installPlainFilter, sayReady } from './terminal.ts'
-import { startSessionIndex } from './terminal-index.ts'
+import { startSessionIndex } from './index-progress.ts'
 
 const stdout = process.stdout as NodeJS.WriteStream & { columns: number | undefined }
 const stderr = process.stderr

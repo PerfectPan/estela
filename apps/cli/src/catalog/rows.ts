@@ -1,18 +1,15 @@
 import { summaryOf } from '@rivus/agent-trace-kernel'
 import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
-import type { SessionAdapters, SessionHead, SessionPlatform, SessionRef } from '@rivus/agent-kit/sessions'
-import type { Platform } from '@rivus/agent-kit/platform'
+import type { SessionAdapters, SessionHead, SessionRef } from '@rivus/agent-kit/sessions'
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
-import { loadFailure } from './read-failure.ts'
-import { projectName, traceIdOf, sessionTargetLabel } from './session-target.ts'
-import { sessionProviders } from './session-adapters.ts'
-
-/** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
-export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
+import type { ShellPlatform } from '../sessions/load-session.ts'
+import { loadFailure } from '../sessions/read-failure.ts'
+import { projectName, traceIdOf, sessionTargetLabel } from '../sessions/session-target.ts'
+import { sessionProviders } from '../sessions/adapters.ts'
 
 /** Server-side row. `path` never leaves the server; the browser gets `traceId`. */
 export interface LiveRow {
@@ -87,7 +84,7 @@ export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | {
  * index know, so a kit-side addition cannot leak into rows unchecked.
  */
 export async function summarizeRow(
-  platform: CatalogPlatform,
+  platform: ShellPlatform,
   adapters: SessionAdapters | undefined,
   target: SessionRef,
 ): Promise<SummarizeResult> {

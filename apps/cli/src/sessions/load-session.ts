@@ -1,17 +1,20 @@
 import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
 import type { Trace } from '@rivus/agent-trace-schema'
-import type { SessionAdapters } from '@rivus/agent-kit/sessions'
+import type { Platform } from '@rivus/agent-kit/platform'
+import type { SessionAdapters, SessionPlatform } from '@rivus/agent-kit/sessions'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { isTrace } from '@rivus/agent-trace-schema'
-import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadErrorMessage } from './read-failure.ts'
 import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
-import { sessionProviders } from './session-adapters.ts'
+import { sessionProviders } from './adapters.ts'
+
+/** What the shell's kit calls take: reads plus the environment the agent homes resolve from. */
+export type ShellPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
 
 export interface LoadSessionOptions {
-  platform: CatalogPlatform
+  platform: ShellPlatform
   /**
    * Extend or override the kit's built-in session adapters by agent id; omit to use the built-ins.
    * A target without an agent still runs detection on built-ins that were not overridden.
@@ -58,7 +61,7 @@ export async function loadSession(target: SessionTarget, options: LoadSessionOpt
 }
 
 /** The one session `build` and `mcp` work on: loaded once, with its original records. */
-export function sessionLoader(target: SessionTarget, platform: CatalogPlatform): () => Promise<Trace> {
+export function sessionLoader(target: SessionTarget, platform: ShellPlatform): () => Promise<Trace> {
   let loaded: Promise<Trace> | undefined
   return () => {
     loaded ??= loadSession(target, { platform })

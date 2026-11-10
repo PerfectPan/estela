@@ -7,9 +7,10 @@ import {
   type SessionRef,
 } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
-import { errorRow, rowFromHead, type CatalogPlatform, type LiveRow } from './catalog-rows.ts'
-import { adapterDisplayName } from './session-adapters.ts'
-import { errorMessage, listError } from './read-failure.ts'
+import type { ShellPlatform } from '../sessions/load-session.ts'
+import { adapterDisplayName } from '../sessions/adapters.ts'
+import { errorMessage, listError } from '../sessions/read-failure.ts'
+import { errorRow, rowFromHead, type LiveRow } from './rows.ts'
 
 /** Parallel `stat` calls while building rows. */
 const STAT_BATCH = 64
@@ -62,7 +63,7 @@ export function progressOf(states: readonly AgentState[], homeDir: string): Agen
  */
 export async function discoverRows(
   states: readonly AgentState[],
-  platform: CatalogPlatform,
+  platform: ShellPlatform,
   report: () => void,
 ): Promise<Map<string, LiveRow>> {
   const rows = new Map<string, LiveRow>()
@@ -126,7 +127,7 @@ export async function discoverRows(
         perFile.set(head.ref.path, (perFile.get(head.ref.path) ?? 0) + 1)
       }
       // All sessions in a database share one snapshot of its main file and WAL in this pass.
-      const stats = new Map<string, ReturnType<CatalogPlatform['fs']['stat']>>()
+      const stats = new Map<string, ReturnType<ShellPlatform['fs']['stat']>>()
       const statFile = (path: string) => {
         let pending = stats.get(path)
         if (!pending) {

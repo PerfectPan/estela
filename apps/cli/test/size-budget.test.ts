@@ -7,8 +7,8 @@ import type { LoadProgress } from '@rivus/agent-trace-rpc'
 import { VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
-import { createTraceStore } from './trace-store.ts'
-import { writeLargeCodexSession } from './testsupport/large-session.ts'
+import { createTraceStore } from '../src/server/trace-store.ts'
+import { writeLargeCodexSession } from '../src/testsupport/large-session.ts'
 
 // S12 size budget. Opt-in: it writes about 350 MB to a temp directory.
 //   AGENT_TRACE_SIZE_TEST=1 vp test src/size-budget.test.ts

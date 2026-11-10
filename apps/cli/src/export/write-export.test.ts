@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { describe, expect, it } from 'vite-plus/test'
 import type { Trace } from '@rivus/agent-trace-schema'
-import { exportOf, writeExport } from './export.ts'
-import { loadSession } from './session.ts'
+import { exportOf, writeExport } from './write-export.ts'
+import { loadSession } from '../sessions/load-session.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const repo = join(here, '../../..')
+const repo = join(here, '../../../..')
 const fixture = (agent: string, relative: string): string =>
   join(repo, 'fixtures/sessions', agent, 'conformance', relative)
 const platform = createNodePlatform()

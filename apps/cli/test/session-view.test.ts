@@ -4,9 +4,9 @@ import { createNodePlatform } from '@rivus/agent-kit/node'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { fold, projectLanes, reconstruct, summaryOf, toView } from '@rivus/agent-trace-kernel'
 import { describe, expect, it } from 'vite-plus/test'
-import { summarizeRow } from './catalog-rows.ts'
-import { loadSession } from './session.ts'
-import { transcriptToTrace } from './transcript-trace.ts'
+import { summarizeRow } from '../src/catalog/rows.ts'
+import { loadSession } from '../src/sessions/load-session.ts'
+import { transcriptToTrace } from '../src/sessions/transcript-trace.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, '../../..')

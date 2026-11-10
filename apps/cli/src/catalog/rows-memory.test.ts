@@ -1,11 +1,11 @@
-import type { CatalogPlatform } from './catalog-rows.ts'
+import type { ShellPlatform } from '../sessions/load-session.ts'
 import v8 from 'node:v8'
 import vm from 'node:vm'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { createMemoryPlatform } from '@rivus/agent-kit/testing'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
 import { describe, expect, it } from 'vite-plus/test'
-import { summarizeRow } from './catalog-rows.ts'
+import { summarizeRow } from './rows.ts'
 
 // A Claude Code session whose turns are one 40 KB prompt, one request and one turn duration:
 // memory-hungry for a reader that materializes the transcript, while the summary pass's own
@@ -17,8 +17,8 @@ const LARGE_TURNS = 384
 const at = (value: number): string => String(value).padStart(2, '0')
 const megabytes = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
-const load = (sampled: CatalogPlatform, path: string) => loadTranscript(sampled, { agent: 'claude-code', path })
-const catalogSummary = (sampled: CatalogPlatform, path: string) =>
+const load = (sampled: ShellPlatform, path: string) => loadTranscript(sampled, { agent: 'claude-code', path })
+const catalogSummary = (sampled: ShellPlatform, path: string) =>
   summarizeRow(sampled, undefined, { agent: 'claude-code', path })
 
 function timestamp(turn: number): string {
@@ -59,7 +59,7 @@ const gc = (() => {
  * transcript holds it from mid-read on; the catalog's summary pass holds its running
  * numbers and capped prompts. The tail after the last chunk is not sampled.
  */
-function withSampledReads(inner: CatalogPlatform, peak: { value: number }): CatalogPlatform {
+function withSampledReads(inner: ShellPlatform, peak: { value: number }): ShellPlatform {
   return {
     home: inner.home,
     env: inner.env,
@@ -85,7 +85,7 @@ describe('catalog summary memory', () => {
         '/claude/large/session.jsonl': sessionContent(LARGE_TURNS),
       },
     })
-    const peakDuring = async (run: (sampled: CatalogPlatform) => Promise<unknown>): Promise<number> => {
+    const peakDuring = async (run: (sampled: ShellPlatform) => Promise<unknown>): Promise<number> => {
       gc()
       await new Promise(resolve => setImmediate(resolve))
       const before = process.memoryUsage().heapUsed

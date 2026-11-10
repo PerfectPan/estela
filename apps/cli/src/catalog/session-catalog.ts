@@ -7,7 +7,7 @@ import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/tr
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { emitSessions } from '@rivus/agent-trace-rpc'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
-import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './catalog-discover.ts'
+import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './discover.ts'
 import {
   activityLabel,
   indexHeadOf,
@@ -15,16 +15,16 @@ import {
   rowFromIndex,
   sameRow,
   summarizeRow,
-  type CatalogPlatform,
   type LiveRow,
   type Redactor,
-} from './catalog-rows.ts'
-import { errorMessage, parseReadFailure } from './read-failure.ts'
-import { oneLine, traceIdOf } from './session-target.ts'
+} from './rows.ts'
+import type { ShellPlatform } from '../sessions/load-session.ts'
+import { errorMessage, parseReadFailure } from '../sessions/read-failure.ts'
+import { oneLine, traceIdOf } from '../sessions/session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
-import { adapterDisplayName, builtinAdapters } from './session-adapters.ts'
+import { adapterDisplayName, builtinAdapters } from '../sessions/adapters.ts'
 
-export type { AgentProgress } from './catalog-discover.ts'
+export type { AgentProgress } from './discover.ts'
 
 const CONCURRENCY = 4
 /** A file at least this large is summarized alone (a 355 MB Codex log loads to about 3 GB). */
@@ -50,7 +50,7 @@ export interface CatalogOptions {
    * these adapters, while summary reads merge them with the built-ins by agent id.
    */
   adapters?: SessionAdapters
-  platform?: CatalogPlatform
+  platform?: ShellPlatform
   index?: SessionIndex
   noIndex?: boolean
   /** Queue summaries without running them until `resumeSummaries()`: the server starts first. */
@@ -65,7 +65,7 @@ export interface CatalogOptions {
 export class SessionCatalog {
   private readonly adapters: SessionAdapters | undefined
   private readonly adapterList: readonly SessionAdapter[]
-  private readonly platform: CatalogPlatform
+  private readonly platform: ShellPlatform
   private readonly index: SessionIndex
   private readonly redact: Redactor
   private readonly agentStates: AgentState[]

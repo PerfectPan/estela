@@ -8,8 +8,8 @@ import {
   serverFunctions,
   SESSIONS_STATE,
 } from '@rivus/agent-trace-rpc'
-import pkg from '../package.json' with { type: 'json' }
-import { webDistDir } from './paths.ts'
+import pkg from '../../package.json' with { type: 'json' }
+import { webDistDir } from '../paths.ts'
 
 export const BASE_PATH = '/__agent-trace/'
 

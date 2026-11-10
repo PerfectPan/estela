@@ -14,7 +14,7 @@ import { bindReportSource, buildReport } from '@rivus/agent-trace-rpc'
 import { homeDir } from '@rivus/agent-trace-runtime-node'
 import { createBuild } from 'devframe/adapters/build'
 import * as z from 'zod/mini'
-import devframe from './devframe.ts'
+import devframe from '../server/devframe.ts'
 import { packForFile } from './report-site.ts'
 
 /**

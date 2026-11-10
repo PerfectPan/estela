@@ -10,15 +10,15 @@ import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
-import { SessionCatalog } from './catalog.ts'
-import devframe, { BASE_PATH } from './devframe.ts'
-import { writeExport, type ExportFormat } from './export.ts'
-import { openBrowser } from './open-browser.ts'
+import { SessionCatalog } from './catalog/session-catalog.ts'
+import devframe, { BASE_PATH } from './server/devframe.ts'
+import { writeExport, type ExportFormat } from './export/write-export.ts'
+import { openBrowser } from './server/open-browser.ts'
 import { demoFixturePath } from './paths.ts'
-import { exportReport, reportOf, writeReport } from './report.ts'
-import { loadSession, sessionLoader } from './session.ts'
-import { parseSessionTarget, sessionTargetLabel } from './session-target.ts'
-import { createTraceStore } from './trace-store.ts'
+import { exportReport, reportOf, writeReport } from './report/report.ts'
+import { loadSession, sessionLoader } from './sessions/load-session.ts'
+import { parseSessionTarget, sessionTargetLabel } from './sessions/session-target.ts'
+import { createTraceStore } from './server/trace-store.ts'
 import {
   installPlainFilter,
   pickSession,
@@ -28,8 +28,8 @@ import {
   sayStart,
   sayWarning,
   startLoad,
-} from './terminal.ts'
-import { sayIndexFromCache, startSessionIndex } from './terminal-index.ts'
+} from './cli/ui/terminal.ts'
+import { sayIndexFromCache, startSessionIndex } from './cli/ui/index-progress.ts'
 
 const FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered agent adapter accepts.'
 

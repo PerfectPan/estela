@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { packForFile } from './report-site.ts'
 
-const cliDir = join(dirname(fileURLToPath(import.meta.url)), '..')
+const cliDir = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const compaction = join(cliDir, '../../fixtures/sessions/claude-code/conformance/compaction/session.jsonl')
 
 function build(path: string, outDir: string): Promise<number> {

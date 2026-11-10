@@ -1,4 +1,4 @@
-import type { AgentProgress } from './catalog-discover.ts'
+import type { AgentProgress } from '../../catalog/discover.ts'
 import { log, progress } from '@clack/prompts'
 import { isPlainOutput } from './terminal.ts'
 
