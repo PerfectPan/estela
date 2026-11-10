@@ -267,7 +267,9 @@ describe('session catalog cache', () => {
     })
     const row = (await catalog.listSessions()).rows[0]!
     expect(row.error?.line).toBe(4)
-    expect(row.lastActiveAt).toBe((await stat(bad)).mtimeMs)
+    // The platform recomputes `mtimeMs` from the stat's nanoseconds, so the two reads round
+    // the same instant differently at the last fraction; compare within a microsecond.
+    expect(row.lastActiveAt).toBeCloseTo((await stat(bad)).mtimeMs, 3)
   })
 
   it('runs without the index when the cache directory is not writable', async () => {
