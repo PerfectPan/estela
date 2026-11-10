@@ -52,6 +52,18 @@ async function grokUnknownGeneration(): Promise<string> {
 }
 
 describe('loadSession', () => {
+  it('detects Gemini chats before Claude head matching and preserves explicit reader selection', async () => {
+    const path = join(repo, 'fixtures/sessions/gemini-cli/conformance/plain/chats/session-1.jsonl')
+    const platform = createNodePlatform({ home: '/u/me', env: {} })
+    const target = { path }
+    const trace = await loadSession(target, { platform })
+    expect(trace.agent).toBe('gemini-cli')
+    expect(trace.events.some(event => event.kind === 'request')).toBe(true)
+    await expect(loadSession({ ...target, agent: 'claude-code' }, { platform })).rejects.toThrow(
+      'unknown format generation',
+    )
+  })
+
   it('routes a named custom adapter through direct and store loads, keeping progress', async () => {
     const path = join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')
     const platform = createNodePlatform({ home: '/u/me', env: {} })

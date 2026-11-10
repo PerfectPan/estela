@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 import type { TraceEvent } from '@rivus/agent-trace-schema'
-import { fingerprint } from './source-check.ts'
-import { checkedOriginal } from './source-check.ts'
+import { fingerprint, checkedOriginal } from './source-check.ts'
 
 const fs = {
   stat: async () => ({ kind: 'file', size: 0, mtimeMs: 1 }),
@@ -29,6 +28,27 @@ const event = {
 } satisfies TraceEvent
 
 describe('checkedOriginal', () => {
+  it('resolves decompressed offsets even when the compressed file is shorter', async () => {
+    const compressedEvent = {
+      ...event,
+      source: { file: '/data/session.zst', offset: 1000, length: 200, line: 2, codec: 'zstd' as const },
+    }
+    let calls = 0
+    const result = await checkedOriginal(
+      fs,
+      async source => {
+        calls += 1
+        expect(source.codec).toBe('zstd')
+        return original
+      },
+      compressedEvent,
+      undefined,
+      fingerprint(original),
+    )
+    expect(result).toEqual({ original })
+    expect(calls).toBe(1)
+  })
+
   it('reads a SQLite source through the injected resolver', async () => {
     const result = await checkedOriginal(
       fs,

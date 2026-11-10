@@ -73,6 +73,13 @@ const CODEX: ConformanceSession[] = [
   { path: 'rollout-unknown.jsonl', records: 6, capabilities: [] },
 ]
 
+const GEMINI: ConformanceSession[] = [
+  { path: 'plain/chats/session-1.jsonl', records: 9, capabilities: ['requests', 'usage', 'reasoning'] },
+  { path: 'compaction/chats/session-1.jsonl', records: 6, capabilities: ['compaction', 'compactionTokens'] },
+  { path: 'message-update/chats/session-1.jsonl', records: 5, capabilities: ['requests', 'usage'] },
+  { path: 'unknown-type/chats/session-1.jsonl', records: 2, capabilities: [] },
+]
+
 const PI: ConformanceSession[] = [
   { path: 'plain/session.jsonl', records: 8, capabilities: ['requests', 'usage', 'reasoning'] },
   {
@@ -127,6 +134,7 @@ const OVERSIZED_LINES: Record<string, string | undefined> = {
   pi: '{"type":"message","id":"big","parentId":null,"timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"x"}}',
   dsh: '{"type":"user/message","seq":1,"time":1767225600000,"data":{"role":"user","content":[{"type":"text","text":"x"}],"source":{"kind":"user"}}}',
   opencode: undefined,
+  'gemini-cli': '{"id":"u-oversized","type":"user","content":"x","timestamp":"2026-01-01T00:00:00.000Z"}',
 }
 const overRoots: string[] = []
 function oversizedOf(agent: string): SessionAdapterFixtures['oversized'] {
@@ -144,7 +152,9 @@ function oversizedOf(agent: string): SessionAdapterFixtures['oversized'] {
         ? 'updates.jsonl'
         : agent === 'dsh'
           ? 'session.v4.jsonl'
-          : 'session.jsonl'
+          : agent === 'gemini-cli'
+            ? 'session-over.jsonl'
+            : 'session.jsonl'
   const file = join(root, name)
   writeFileSync(file, oversizedSession(line))
   return { root, file }
@@ -161,6 +171,7 @@ describe('session adapter conformance', () => {
     ['codex', builtinAdapters.codex!, CODEX],
     ['grok', builtinAdapters.grok!, GROK],
     ['pi', builtinAdapters.pi!, PI],
+    ['gemini-cli', builtinAdapters['gemini-cli']!, GEMINI],
     ['dsh', builtinAdapters.dsh!, DSH],
     ['opencode', builtinAdapters.opencode!, OPENCODE],
   ] as const) {
