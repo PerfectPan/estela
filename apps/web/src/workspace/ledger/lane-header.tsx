@@ -1,7 +1,8 @@
 import { Show } from 'solid-js'
+import { mainAgentId } from '@rivus/agent-trace-kernel'
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/icons.tsx'
 import { agentName } from '@/lib/agent-names.ts'
-import { locale, plural } from '@/i18n/locale.ts'
+import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { formatNumber } from '@/lib/format.ts'
 import type { VirtualRow } from '@/lib/ledger-model.ts'
 import { AgentMark } from '@/browser/agent-mark.tsx'
@@ -30,7 +31,10 @@ export function LaneHeader(props: {
       </button>
       <AgentMark id={props.row.laneId} />
       <span class="min-w-0 flex-1 truncate text-[13px] font-semibold whitespace-nowrap text-foreground">
-        {props.row.title ?? agentName(props.row.laneId)}
+        {props.row.title
+          ?? (props.row.laneId === mainAgentId(props.ctx.model.trace)
+            ? t('timeline.mainAgent')
+            : agentName(props.row.laneId))}
       </span>
       <Show when={props.row.count > 0}>
         <span class="shrink-0 text-[12px] text-muted-foreground">

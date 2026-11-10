@@ -154,7 +154,7 @@ export const zhCN = {
     dimHidden: '淡化模型已看不到的事件',
     layoutLabel: '布局',
     layoutTurns: '轮次',
-    layoutLanes: '智能体',
+    layoutLanes: '代理',
     turn: '第 {{ index }} 轮',
     beforePrompt: '首条提示词之前',
     hiddenBadge: '上下文压缩后模型已看不到',
