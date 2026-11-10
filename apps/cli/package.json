@@ -52,6 +52,7 @@
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
+    "yaml": "catalog:",
     "zod": "catalog:"
   }
 }

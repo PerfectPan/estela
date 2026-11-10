@@ -6,6 +6,23 @@ function parse(...args: string[]) {
 }
 
 describe('parseCommand', () => {
+  it('accepts only valid dsh plugin actions before any files can be changed', () => {
+    expect(parse('dsh-plugin').dshPluginAction).toBeUndefined()
+    expect(parse('dsh-plugin', 'install').dshPluginAction).toBe('install')
+    expect(parse('dsh-plugin', 'uninstall').dshPluginAction).toBe('uninstall')
+    for (const args of [
+      ['uninstal'],
+      ['install', 'extra'],
+      ['--oops'],
+      ['--pick'],
+      ['--no-index'],
+      ['--port', '1234'],
+    ]) {
+      expect(parse('dsh-plugin', ...args).error).toContain('only install or uninstall')
+    }
+    expect(parse('dsh-plugin', '--help').error).toBeUndefined()
+  })
+
   it('takes a positional path on the default command', () => {
     const parsed = parse('/tmp/session.json')
     expect(parsed.command).toBe('dev')

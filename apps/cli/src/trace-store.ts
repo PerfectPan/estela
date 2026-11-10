@@ -13,7 +13,7 @@ import { loadSession } from './session.ts'
 export interface TraceStoreOptions {
   /** Defaults to `createNodePlatform()`. */
   platform?: CatalogPlatform
-  /** Omit to use the kit's built-in session services. */
+  /** Omit to use the shell's default session readers. */
   adapters?: SessionAdapters
   redacts: boolean
   /** Other trace ids: on the dev server, the session catalog (every list row and the launch session's row trace id). */

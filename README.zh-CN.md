@@ -69,6 +69,7 @@ npx @rivus/agent-trace dsh-plugin install|uninstall
 | `agent-trace` | 本机的会话浏览器。 |
 | `agent-trace <path>` | 在服务器开始监听前加载该会话（若没有适配器接受，会以退出码 1 退出并说明原因），然后打开它的工作区。 |
 | `agent-trace --pick` | 在终端中可搜索的会话列表；按 Enter 打开选中的会话。需要交互式终端。 |
+| `agent-trace dsh-plugin install` | 安装托管的 DeepSeek Harness 插件（`~/.dsh/plugins/agent-trace-dsh.mjs`，在 `~/.dsh/cordis.patch.yml` 中注册），将会话记录到 `~/.dsh/agent-trace/`；`uninstall` 移除插件和注册项。记录的会话以 `dsh-plugin` 显示在浏览器中。 |
 | `agent-trace build <path> --out-dir <dir>` | 把单个会话的报告写到 `<dir>/index.html`（默认 `dist-static`）。 |
 | `agent-trace mcp <path>` | 通过 stdio 提供该会话的 MCP 服务，包含 `reconstruct` 工具。只有协议消息会写到 stdout。 |
 | `agent-trace export-atif <path> --out <file>` | 将会话写成一条 [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) 轨迹（默认 `agent-trace-<session>.atif.json`），用于 Harbor 数据集和评估。 |
@@ -114,6 +115,7 @@ curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb ht
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`、`~/.codex/archived_sessions/**/rollout-*.jsonl` |
 | DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
+| DeepSeek Harness（托管插件） | `~/.dsh/agent-trace/<session-id>.ndjson`（可用 `DSH_AGENT_TRACE_DIR` 覆盖目录） |
 | Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl` |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
 | OpenCode | `~/.local/share/opencode/opencode.db` |

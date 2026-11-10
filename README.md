@@ -113,6 +113,7 @@ Exports are redacted like the server (`~` for the home directory, known credenti
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` |
 | DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
+| DeepSeek Harness (managed plugin) | `~/.dsh/agent-trace/<session-id>.ndjson` (optional `DSH_AGENT_TRACE_DIR` override) |
 | Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl` |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
 | OpenCode | `~/.local/share/opencode/opencode.db` |

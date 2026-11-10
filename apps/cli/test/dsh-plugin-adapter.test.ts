@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from 'vite-plus/test'
+import { readOriginal } from '@rivus/agent-kit/sessions'
+import type { Result } from '@rivus/agent-kit/catalog'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { dshPluginSessionAdapter } from './dsh-plugin-adapter.ts'
+import { dshPluginSessionAdapter } from '../src/dsh-plugin-adapter.ts'
 
 const SESSION_ID = '01abc-trace'
 const RECORDS = [
@@ -23,18 +25,99 @@ const RECORDS = [
   'not json at all',
 ]
 
-afterEach(async () => {
-  // Each test builds its own traces dir under a temp home; the platform reads only what it is given.
-})
-
-function value<T>(result: { ok: boolean; value?: T; error?: unknown }): T {
+function value<T>(result: Result<T, unknown>): T {
   if (!result.ok) {
     throw new Error(`unexpected failure: ${JSON.stringify(result.error)}`)
   }
-  return result.value as T
+  return result.value
 }
 
 describe('dsh-plugin adapter', () => {
+  it('normalizes uncached input plus cache usage while keeping original values and missing input', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'dsh-cache-'))
+    const file = join(home, 'capture.ndjson')
+    const complete = {
+      v: 1,
+      ts: '2026-11-10T09:00:01.000Z',
+      type: 'assistant_message',
+      usage: { inputTokens: 10, outputTokens: 3, cacheReadTokens: 20, cacheWriteTokens: 2, costUsd: 'unknown extra' },
+    }
+    const partial = { ...complete, usage: { cacheReadTokens: 20 } }
+    try {
+      await writeFile(file, [RECORDS[0], complete, partial].map(record => JSON.stringify(record)).join('\n'))
+      const platform = createNodePlatform({ home, env: {} })
+      const trace = value(await dshPluginSessionAdapter.load(platform, { agent: 'dsh-plugin', path: file }))
+      const first = trace.events[0]!
+      const second = trace.events[1]!
+      expect(first.kind === 'request' && first.payload.usage).toEqual({
+        inputTokens: 32,
+        outputTokens: 3,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 2,
+      })
+      expect(second.kind === 'request' && second.payload.usage).toEqual({ cacheReadTokens: 20 })
+      const original = await readOriginal(platform, first.source)
+      expect(original.ok && original.value).toEqual(complete)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps UTF-8 source bytes and physical lines while validating shapes and preserving missing usage', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'dsh-sources-'))
+    const file = join(home, 'capture.ndjson')
+    const start = { v: 1, ts: '2026-11-10T09:00:00.000Z', type: 'session_start', sessionId: '中文', cwd: '/项目' }
+    const request = {
+      v: 1,
+      ts: '2026-11-10T09:00:01.000Z',
+      type: 'assistant_message',
+      model: '模型',
+      usage: { outputTokens: 3 },
+    }
+    const prefix = '\r\n' + JSON.stringify(start) + '\r\nnull\r\n  \r\n'
+    await writeFile(
+      file,
+      prefix
+        + JSON.stringify(request)
+        + '\r\n'
+        + JSON.stringify({ ...request, usage: { inputTokens: 'bad' } })
+        + '\n'
+        + JSON.stringify({ ...request, ts: 'invalid' }),
+    )
+    const platform = createNodePlatform({ home, env: {} })
+    try {
+      const loaded = value(await dshPluginSessionAdapter.load(platform, { agent: 'dsh-plugin', path: file }))
+      expect(loaded.events).toHaveLength(1)
+      const event = loaded.events[0]!
+      expect(event.source).toMatchObject({
+        offset: Buffer.byteLength(prefix),
+        length: Buffer.byteLength(JSON.stringify(request)) + 1,
+        line: 5,
+      })
+      expect(event.kind === 'request' && event.payload.usage).toEqual({ outputTokens: 3 })
+      expect(loaded.skipped).toHaveLength(3)
+      const raw = await readOriginal(platform, event.source)
+      expect(raw.ok && raw.value).toEqual(request)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it('fails loudly on an unknown generation even when its envelope changes', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'dsh-generation-'))
+    const file = join(home, 'capture.ndjson')
+    try {
+      await writeFile(file, JSON.stringify(RECORDS[0]) + '\n' + JSON.stringify({ v: 2, renamedPayload: true }))
+      const result = await dshPluginSessionAdapter.load(createNodePlatform({ home, env: {} }), {
+        agent: 'dsh-plugin',
+        path: file,
+      })
+      expect(result).toMatchObject({ ok: false, error: { _tag: 'UnknownFormatGeneration', line: 2 } })
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
   it('folds the trace into one request per model message and system markers', async () => {
     const home = await mkdtemp(join(tmpdir(), 'agent-trace-dsh-adapter-'))
     const file = join(home, 'agent-trace', `${SESSION_ID}.ndjson`)

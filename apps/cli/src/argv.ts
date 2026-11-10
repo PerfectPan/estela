@@ -5,6 +5,7 @@ const VALUE_FLAGS = new Set(['--port', '--host', '--out-dir', '--out'])
 export interface ParsedCommand {
   command: CommandName
   path?: string
+  dshPluginAction?: 'install' | 'uninstall'
   pick: boolean
   noIndex: boolean
   outDir?: string
@@ -12,7 +13,7 @@ export interface ParsedCommand {
   outFile?: string
   /** Arguments after the program name, without the session positional or `--pick`. */
   userArgs: string[]
-  /** Set when more than one positional path was given. Names both paths. */
+  /** A malformed command or more than one session path. */
   error?: string
 }
 
@@ -25,7 +26,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     command = raw[0]!
     index = 1
   }
-  let dshPluginSub: string | undefined
+  let dshPluginSub: ParsedCommand['dshPluginAction']
   if (raw[0] === 'dsh-plugin') {
     command = raw[0]!
     index = 1
@@ -55,6 +56,12 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
       continue
     }
     if (options && arg.startsWith('-')) {
+      if (command === 'dsh-plugin' && !['--help', '-h', '--version', '-v'].includes(arg)) {
+        error ??= 'dsh-plugin accepts only install or uninstall, with no extra arguments'
+        index += 1
+        continue
+      }
+
       if (arg === '--pick') {
         pick = true
         index += 1
@@ -112,6 +119,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   return {
     command,
     path: positionals[0],
+    dshPluginAction: dshPluginSub,
     pick,
     noIndex,
     outDir,
@@ -119,6 +127,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
     userArgs,
     error:
       error
+      ?? (command === 'dsh-plugin' && positionals.length > 0
+        ? 'dsh-plugin accepts only install or uninstall, with no extra arguments'
+        : undefined)
       ?? (positionals.length > 1 ? `Two session paths were given: ${positionals[0]} and ${positionals[1]}` : undefined),
   }
 }

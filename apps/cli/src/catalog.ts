@@ -22,7 +22,7 @@ import {
 import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { oneLine, traceIdOf } from './session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
-import { builtinAdapters } from './session-adapters.ts'
+import { defaultAdapters } from './session-adapters.ts'
 
 export type { AgentProgress } from './catalog-discover.ts'
 
@@ -41,12 +41,12 @@ const HOST_ERA_OFFSET = 1
  * Bump this whenever what the index stores for a session (such as its prompt rule) changes
  * without a change to the kit's SESSION_SUMMARY_VERSION, so cached rows are recomputed.
  */
-const INDEX_CONTENT_REVISION = 2
+const INDEX_CONTENT_REVISION = 3
 const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION
 
 export interface CatalogOptions {
   /**
-   * Omit to enumerate the kit's built-in adapters. When supplied, discovery enumerates only
+   * Omit to enumerate the default readers (kit built-ins and the managed dsh capture). When supplied, discovery enumerates only
    * these adapters, while summary reads merge them with the built-ins by agent id.
    */
   adapters?: SessionAdapters
@@ -84,8 +84,10 @@ export class SessionCatalog {
 
   constructor(options: CatalogOptions = {}) {
     this.adapters = options.adapters
-    this.adapterList = Object.values(this.adapters ?? builtinAdapters).filter(adapter => adapter !== undefined)
     this.platform = options.platform ?? createNodePlatform()
+    this.adapterList = Object.values(this.adapters ?? defaultAdapters(this.platform.env)).filter(
+      adapter => adapter !== undefined,
+    )
     const home = this.platform.home
     // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
     this.redact = this.platform.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, { home })

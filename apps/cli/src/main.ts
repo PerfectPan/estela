@@ -11,7 +11,6 @@ import { createCac } from 'devframe/adapters/cac'
 import pkg from '../package.json' with { type: 'json' }
 import { parseCommand, programArgv, wantsUsage } from './argv.ts'
 import { SessionCatalog } from './catalog.ts'
-import { dshPluginSessionAdapter } from './dsh-plugin-adapter.ts'
 import { installDshTracePlugin, resolveDshTracePluginPaths, uninstallDshTracePlugin } from './dsh-plugin.ts'
 import devframe, { BASE_PATH } from './devframe.ts'
 import { writeExport, type ExportFormat } from './export.ts'
@@ -19,7 +18,6 @@ import { openBrowser } from './open-browser.ts'
 import { demoFixturePath } from './paths.ts'
 import { exportReport, reportOf, writeReport } from './report.ts'
 import { loadSession, sessionLoader } from './session.ts'
-import { builtinAdapters } from './session-adapters.ts'
 import { parseSessionTarget, sessionTargetLabel } from './session-target.ts'
 import { createTraceStore } from './trace-store.ts'
 import {
@@ -156,16 +154,12 @@ export async function main(): Promise<void> {
 
   if (parsed.command === 'dsh-plugin') {
     const paths = resolveDshTracePluginPaths()
-    const sub = parsed.userArgs[1] ?? 'install'
-    if (sub !== 'install' && sub !== 'uninstall') {
-      process.stderr.write(`dsh-plugin needs install or uninstall, not ${sub}\n`)
-      process.exit(1)
-    }
+    const sub = parsed.dshPluginAction ?? 'install'
     try {
       const result = sub === 'install' ? await installDshTracePlugin(paths) : await uninstallDshTracePlugin(paths)
       process.stdout.write(
         `${result.status} plugin ${result.pluginPath}; patch ${result.patchPath}`
-          + `${result.patchUpdated ? ' updated' : ` failed: ${result.patchError ?? 'unknown error'}`}\n`,
+          + `${result.patchUpdated ? ' updated' : ' unchanged'}\n`,
       )
     } catch (error) {
       sayError(error instanceof Error ? error.message : String(error), 'Fix the dsh home, then rerun the install.')
@@ -196,8 +190,6 @@ export async function main(): Promise<void> {
     platform,
     noIndex: parsed.noIndex,
     deferSummaries: true,
-    // The managed dsh plugin's traces, alongside every built-in adapter.
-    adapters: { ...builtinAdapters, 'dsh-plugin': dshPluginSessionAdapter },
   })
   const traces = createTraceStore({ platform, redacts, resolve: traceId => catalog.resolve(traceId) })
   bindTraceStore(traces.store)

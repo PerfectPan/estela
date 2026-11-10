@@ -8,12 +8,12 @@ import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadErrorMessage } from './read-failure.ts'
 import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
-import { sessionProviders } from './session-adapters.ts'
+import { defaultAdapters, sessionProviders } from './session-adapters.ts'
 
 export interface LoadSessionOptions {
   platform: CatalogPlatform
   /**
-   * Extend or override the kit's built-in session adapters by agent id; omit to use the built-ins.
+   * Extend or override the default session readers by agent id; omit to use the kit and managed capture readers.
    * A target without an agent still runs detection on built-ins that were not overridden.
    */
   adapters?: SessionAdapters
@@ -47,7 +47,7 @@ export async function loadSession(target: SessionTarget, options: LoadSessionOpt
     }
   }
   const loaded = await loadTranscript(options.platform, target, {
-    ...(options.adapters ? { providers: sessionProviders(options.adapters) } : {}),
+    providers: sessionProviders({ ...defaultAdapters(options.platform.env), ...options.adapters }),
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.onProgress ? { onProgress: options.onProgress } : {}),
   })
