@@ -8,7 +8,7 @@ import type { CatalogPlatform } from './catalog-rows.ts'
 import { loadErrorMessage } from './read-failure.ts'
 import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
-import { sessionProviders } from './session-adapters.ts'
+import { builtinAdapters, sessionProviders } from './session-adapters.ts'
 
 export interface LoadSessionOptions {
   platform: CatalogPlatform
@@ -47,7 +47,7 @@ export async function loadSession(target: SessionTarget, options: LoadSessionOpt
     }
   }
   const loaded = await loadTranscript(options.platform, target, {
-    ...(options.adapters ? { providers: sessionProviders(options.adapters) } : {}),
+    providers: sessionProviders(options.adapters ?? builtinAdapters),
     ...(options.signal ? { signal: options.signal } : {}),
     ...(options.onProgress ? { onProgress: options.onProgress } : {}),
   })

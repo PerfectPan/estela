@@ -97,7 +97,7 @@ incremental export, no new package.
 ### A2: Every registered agent's fixtures export to valid ATIF
 
 - Given the conformance fixture sessions of every registered agent
-  (claude-code, codex, dsh, grok, opencode, pi),
+  (claude-code, codex, dsh, gemini-cli, grok, opencode, pi),
 - When each session is exported with `export-atif`,
 - Then every document passes Harbor's ATIF validator.
 

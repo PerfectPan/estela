@@ -35,6 +35,7 @@ export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, 
     'CODEX_HOME',
     'DSH_HOME',
     'GROK_HOME',
+    'GEMINI_CLI_HOME',
     'PI_CODING_AGENT_DIR',
     'XDG_DATA_HOME',
   ]) {
