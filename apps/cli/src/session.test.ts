@@ -59,6 +59,29 @@ describe('loadSession', () => {
     const trace = await loadSession(target, { platform })
     expect(trace.agent).toBe('gemini-cli')
     expect(trace.events.some(event => event.kind === 'request')).toBe(true)
+    const custom: SessionAdapter = { ...builtinAdapters.pi!, agent: 'custom', detect: async () => false }
+    expect((await loadSession(target, { platform, adapters: { custom } })).agent).toBe('gemini-cli')
+    const dir = await tempDir()
+    await mkdir(join(dir, 'chats'))
+    const claude = join(dir, 'chats', 'claude.jsonl')
+    await cp(join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'), claude)
+    const original = await loadSession({ path: claude }, { platform })
+    expect(original.agent).toBe('claude-code')
+    expect(original.events).toHaveLength(9)
+    const legacy = join(dir, 'chats', 'session-legacy.json')
+    const records = (await readFile(path, 'utf8'))
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line) as unknown)
+    await writeFile(
+      legacy,
+      JSON.stringify({ sessionId: 'legacy', projectHash: 'test', messages: records.slice(1) }, null, 2),
+    )
+    const expected = await loadSession({ path: legacy, agent: 'gemini-cli' }, { platform })
+    const detected = await loadSession({ path: legacy }, { platform })
+    expect(expected.events.length).toBeGreaterThan(0)
+    expect(detected).toEqual(expected)
+
     await expect(loadSession({ ...target, agent: 'claude-code' }, { platform })).rejects.toThrow(
       'unknown format generation',
     )
