@@ -21,14 +21,14 @@ export function defaultExportPath(sessionId: string, format: ExportFormat): stri
 
 /**
  * Serializes the export (two-space JSON) and writes it, creating the directory when
- * `--out` names one that does not exist yet. Content is redacted like the report unless
- * `AGENT_TRACE_REDACT=0`; the returned path always shows `~` for home.
+ * `--out` names one that does not exist yet. `redacts` is the CLI's reading of
+ * `AGENT_TRACE_REDACT`; the returned path always shows `~` for home.
  */
 export async function writeExport(
   trace: Trace,
   format: ExportFormat,
   outFile: string | undefined,
-  redacts = process.env.AGENT_TRACE_REDACT !== '0',
+  redacts: boolean,
 ): Promise<string> {
   const home = homeDir()
   const path = outFile !== undefined ? resolve(outFile) : defaultExportPath(trace.session.id, format)

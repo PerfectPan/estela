@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, inject, it } from 'vite-plus/test'
+import cliPackage from '../../cli/package.json' with { type: 'json' }
 import { openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
 
 const ctx = inject('smoke')
@@ -47,10 +48,22 @@ describe('installed tarball', () => {
       env: smokeEnv(ctx, openLogPath(ctx, 'help')),
     })
     expect(result.code).toBe(0)
-    expect(result.stdout).toContain('agent-trace/')
+    expect(result.stdout.split('\n')[0]).toBe(`agent-trace ${cliPackage.version}`)
     expect(result.stdout).toContain('Usage:')
     expect(result.stdout).toContain('--pick')
+    expect(result.stdout).toContain('export-otlp')
     expect(result.stderr).toBe('')
+  })
+
+  it('--version names the package version, and an unknown flag fails before any session is read', async () => {
+    const env = smokeEnv(ctx, openLogPath(ctx, 'version'))
+    const version = await run(process.execPath, [ctx.bin, '--version'], { cwd: ctx.installDir, env })
+    expect(version.code).toBe(0)
+    expect(version.stdout).toBe(`agent-trace ${cliPackage.version}\n`)
+    const unknown = await run(process.execPath, [ctx.bin, '--bogus', ctx.claudePlain], { cwd: ctx.installDir, env })
+    expect(unknown.code).toBe(1)
+    expect(unknown.stdout).toBe('')
+    expect(unknown.stderr).toBe('unexpected: `--bogus`\nRun agent-trace --help for usage.\n')
   })
 
   it("S2: a session path opens that session's workspace", async () => {

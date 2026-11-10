@@ -24,14 +24,8 @@ export default defineDevframe({
   icon: 'ph:path-duotone',
   basePath: BASE_PATH,
   clientAssets: webDistDir(),
-  cli: {
-    command: 'agent-trace',
-    port: 7392,
-    configure(cli) {
-      cli.option('--pick', 'Pick a session in the terminal')
-      cli.option('--no-index', 'Do not read or write the session index')
-    },
-  },
+  // The dev server's default port; the CLI's own route table (`cli/routes.ts`) owns every option.
+  cli: { port: 7392 },
   setup(ctx) {
     const scoped = ctx.scope(NAMESPACE)
     for (const fn of serverFunctions) {

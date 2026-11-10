@@ -1,6 +1,5 @@
 import type { Trace } from '@rivus/agent-trace-schema'
 import type { ResolvedSession } from '@rivus/agent-trace-rpc'
-import process from 'node:process'
 import { isCanonicalTraceFile } from '@rivus/agent-trace-kernel'
 import { redact } from '@rivus/agent-kit/redact'
 import { createNodePlatform } from '@rivus/agent-kit/node'
@@ -17,6 +16,8 @@ export interface TraceStoreOptions {
   redacts: boolean
   /** Other trace ids: on the dev server, the session catalog (every list row and the launch session's row trace id). */
   resolve?: (traceId: string) => ResolvedSession | undefined
+  /** Where the store's warnings go, one line each and redacted like the store; omit to drop them. */
+  log?: (line: string) => void
 }
 
 export interface ShellTraceStore {
@@ -50,6 +51,7 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   const fs = platform.fs
   const canonicalOf = (session: ResolvedSession): Promise<boolean> => isCanonicalTraceFile(session.target.path, fs)
   let current: ResolvedSession | undefined
+  const log = options.log
   const store = new TraceStore({
     resolve: traceId => (traceId === CURRENT_TRACE_ID ? current : options.resolve?.(traceId)),
     fs,
@@ -73,7 +75,7 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
       return read.value
     },
     present: options.redacts ? value => redact(value, { home }) : undefined,
-    log: message => process.stderr.write(`agent-trace: ${options.redacts ? redact(message, { home }) : message}\n`),
+    log: log ? message => log(options.redacts ? redact(message, { home }) : message) : undefined,
   })
   return {
     store,

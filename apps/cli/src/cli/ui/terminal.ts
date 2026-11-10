@@ -198,14 +198,30 @@ export function sayError(cause: string, fix: string): void {
   log.error(text)
 }
 
-export async function pickSession(options: { value: string; label: string }[]): Promise<string> {
+/** The picked trace id, or `undefined` when the prompt was cancelled; the prompt prints its own cancel line. */
+export async function pickSession(options: { value: string; label: string }[]): Promise<string | undefined> {
   const choice = await autocomplete({
     message: 'Pick a session',
     options,
   })
   if (isCancel(choice)) {
     cancel('Cancelled')
-    process.exit(1)
+    return undefined
   }
   return choice
+}
+
+/** `mcp` is serving: stderr only, because stdout carries the protocol. */
+export function sayMcpReady(name: string, transport: string): void {
+  process.stderr.write(`[devframe] "${name}" MCP server ready (${transport})\n`)
+}
+
+/** A TraceStore warning: one plain stderr line in a terminal and in a pipe alike, so `mcp` stdout stays protocol. */
+export function sayStoreWarning(line: string): void {
+  process.stderr.write(`agent-trace: ${line}\n`)
+}
+
+/** The file an export wrote: one plain line in a terminal and in a pipe alike. */
+export function sayWrote(path: string): void {
+  process.stdout.write(`Wrote ${path}\n`)
 }

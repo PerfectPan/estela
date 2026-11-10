@@ -220,7 +220,7 @@ export function thirdPartyNotices(options: { webPackage: string; sourceNotices: 
         'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section; rolldown is listed there',
         'for the runtime helpers it writes into them. dist/web/ is built from the packages in the second',
         'section; it may list a package whose code was tree-shaken away.',
-        'devframe, @devframes/agentic, and cac are installed as dependencies with their own licenses.',
+        'devframe and @devframes/agentic are installed as dependencies with their own licenses.',
         'The last section covers code adapted into the agent-trace sources themselves.',
         '',
         render('dist/cli.mjs', sorted([...[...bundled].map(noticeOf), rolldown])),
