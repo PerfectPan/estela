@@ -138,8 +138,8 @@ export function rowFromHead(
 ): LiveRow {
   return {
     ...headFields(head, homeDir),
-    // The session id is part of the trace id only when several sessions share one file.
-    traceId: traceIdOf(sharedFile ? target : { agent: target.agent, path: target.path }),
+    // A database session keeps its id even while it is the only row in that database.
+    traceId: traceIdOf(sharedFile || target.agent === 'opencode' ? target : { agent: target.agent, path: target.path }),
     target,
     size: info.size,
     mtimeMs: info.mtimeMs,

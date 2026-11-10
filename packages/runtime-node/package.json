@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "lint": "vp lint src vite.config.ts 2>&1",
+    "lint": "vp lint src test vite.config.ts 2>&1",
     "test": "vp test 2>&1",
     "typecheck": "tsc --noEmit"
   },

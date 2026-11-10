@@ -9,7 +9,7 @@ import { isTransient, openDatabase } from './session-index-schema.ts'
 export const PROMPT_LIMIT = 200
 export const PROMPT_CHARS = 500
 
-/** Head fields from `discover`, keyed by path. `size` and `mtimeMs` are the cache key. */
+/** Head fields from `discover`, keyed by trace id. `size` and `mtimeMs` are the cache key. */
 export interface IndexHead {
   traceId: string
   agent: string
@@ -42,10 +42,10 @@ export interface SessionIndex {
   readonly unavailable?: string
   /** Every stored row, newest activity first. A second launch shows these before `discover` finishes. */
   rows: () => IndexRow[]
-  /** Drop rows whose files are gone. */
-  remove: (paths: readonly string[]) => void
+  /** Drop sessions that disappeared from discovery, without removing other sessions in the same file. */
+  remove: (traceIds: readonly string[]) => void
   /** The cached summary, only when size, mtime, and the summary version all match. */
-  get: (path: string, size: number, mtimeMs: number) => SessionSummary | undefined
+  get: (traceId: string, size: number, mtimeMs: number) => SessionSummary | undefined
   /** One transaction for the whole discover batch. A changed key drops the cached summary. */
   putHeads: (rows: readonly IndexHead[]) => void
   /** One transaction per batch. A failed summary is never passed in, so it is never cached. */
@@ -227,28 +227,28 @@ class SqliteIndex implements SessionIndex {
         this.transaction(() => this.dropUnparsable(unparsable))
       } catch {
         // The cleanup is optional: on any error (busy, full, read-only, I/O) the rows read above are still returned,
-        // the damaged rows stay hidden, and `writeHead` drops each one when discover writes its path.
+        // the damaged rows stay hidden, and `writeHead` drops each one when discover writes its trace id.
       }
     }
     return out
   }
 
-  get(path: string, size: number, mtimeMs: number): SessionSummary | undefined {
+  get(traceId: string, size: number, mtimeMs: number): SessionSummary | undefined {
     return this.summaryOf(
-      this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE path = ? AND size = ? AND mtime = ?`).get(
-        path,
+      this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE trace_id = ? AND size = ? AND mtime = ?`).get(
+        traceId,
         size,
         mtimeMs,
       ),
     )
   }
 
-  remove(paths: readonly string[]): void {
-    if (paths.length === 0) {
+  remove(traceIds: readonly string[]): void {
+    if (traceIds.length === 0) {
       return
     }
     this.transaction(() => {
-      this.drop(paths.map(path => this.sql('SELECT id FROM sessions WHERE path = ?').get(path)))
+      this.drop(traceIds.map(traceId => this.sql('SELECT id FROM sessions WHERE trace_id = ?').get(traceId)))
     })
   }
 
@@ -330,7 +330,7 @@ class SqliteIndex implements SessionIndex {
   }
 
   private writeHead(row: IndexHead): void {
-    const found = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE path = ?`).get(row.path)
+    const found = this.sql(`SELECT id, ${HEAD_SELECT} FROM sessions WHERE trace_id = ?`).get(row.traceId)
     const stored = z.safeParse(headRow, found).data
     if (found && !stored) {
       // Its old trace id is unknown, so its prompts go with it here, and the row is written fresh below.
@@ -350,8 +350,8 @@ class SqliteIndex implements SessionIndex {
     this.sql(
       `INSERT INTO sessions (path, trace_id, agent, size, mtime, session_id, title, cwd, first_prompt, started_at, last_active_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(path) DO UPDATE SET
-         trace_id = excluded.trace_id, agent = excluded.agent, size = excluded.size, mtime = excluded.mtime,
+       ON CONFLICT(trace_id) DO UPDATE SET
+         path = excluded.path, agent = excluded.agent, size = excluded.size, mtime = excluded.mtime,
          session_id = excluded.session_id, title = excluded.title, cwd = excluded.cwd,
          first_prompt = excluded.first_prompt, started_at = excluded.started_at, last_active_at = excluded.last_active_at`,
     ).run(
@@ -364,19 +364,16 @@ class SqliteIndex implements SessionIndex {
       ...HEAD_NUMBERS.map(([, key]) => next[key] ?? null),
     )
     if (sameKey) {
-      this.rewriteSearch(row.path, next.title, this.promptsOf(row.traceId))
+      this.rewriteSearch(row.traceId, next.title, this.promptsOf(row.traceId))
       return
     }
     this.sql(
       `UPDATE sessions SET summary_version = NULL, ${SUMMARY_COLUMNS.map(([column]) => `${column} = NULL`).join(', ')},
-       context_shape = NULL WHERE path = ?`,
-    ).run(row.path)
-    if (existing && existing.traceId !== row.traceId) {
-      this.sql('DELETE FROM prompts WHERE trace_id = ?').run(existing.traceId)
-    }
+       context_shape = NULL WHERE trace_id = ?`,
+    ).run(row.traceId)
     const prompts = next.firstPrompt ? [next.firstPrompt] : []
     this.replacePrompts(row.traceId, prompts)
-    this.rewriteSearch(row.path, next.title, prompts)
+    this.rewriteSearch(row.traceId, next.title, prompts)
   }
 
   private writeSummary(row: IndexSummary): void {
@@ -388,15 +385,15 @@ class SqliteIndex implements SessionIndex {
     const shape = row.summary.contextShape
     this.sql(
       `UPDATE sessions SET summary_version = ?, ${SUMMARY_COLUMNS.map(([column]) => `${column} = ?`).join(', ')},
-       context_shape = ? WHERE path = ?`,
+       context_shape = ? WHERE trace_id = ?`,
     ).run(
       this.version,
       ...SUMMARY_COLUMNS.map(([, key]) => row.summary[key] ?? null),
       shape ? JSON.stringify(shape) : null,
-      row.path,
+      row.traceId,
     )
     this.replacePrompts(row.traceId, prompts)
-    this.rewriteSearch(row.path, row.title, prompts)
+    this.rewriteSearch(row.traceId, row.title, prompts)
   }
 
   /**
@@ -438,8 +435,8 @@ class SqliteIndex implements SessionIndex {
   }
 
   /** One FTS row per session, keyed by `sessions.id`, so a rewrite is two lookups by rowid. */
-  private rewriteSearch(path: string, title: string | undefined, prompts: readonly string[]): void {
-    const session = z.safeParse(idRow, this.sql('SELECT id FROM sessions WHERE path = ?').get(path)).data
+  private rewriteSearch(traceId: string, title: string | undefined, prompts: readonly string[]): void {
+    const session = z.safeParse(idRow, this.sql('SELECT id FROM sessions WHERE trace_id = ?').get(traceId)).data
     if (!session) {
       return
     }

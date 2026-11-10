@@ -28,7 +28,11 @@ function fnv(hash: number, text: string): number {
  * uuid, timestamp, …), hashed. Enough to tell that the bytes at a source
  * pointer are no longer the record that was loaded, without keeping originals.
  */
-export function fingerprint(original: unknown): number {
+export function fingerprint(original: unknown, complete = false): number {
+  // SQLite updates can stay entirely in WAL; compare the whole stored JSON, including nested messages.
+  if (complete) {
+    return original === undefined ? 0 : fnv(FNV_OFFSET, JSON.stringify(original))
+  }
   // A predicate, not a schema: this runs for every event at load. Originals come from `JSON.parse`: plain objects.
   if (!isPlainObject(original)) {
     return 0
@@ -55,7 +59,7 @@ export function fingerprint(original: unknown): number {
 export function fingerprints(trace: Trace): Uint32Array {
   const out = new Uint32Array(trace.events.length)
   trace.events.forEach((event, index) => {
-    out[index] = fingerprint(event.original)
+    out[index] = fingerprint(event.original, event.source.sqlite !== undefined)
   })
   return out
 }
@@ -108,7 +112,7 @@ export async function checkedOriginal(
   if (!now) {
     return { unavailable: `${source.file} no longer exists` }
   }
-  const changed = !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
+  const changed = source.sqlite !== undefined || !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
   if (!changed) {
     try {
       return { original: await recordAt(fs, source, readOriginal) }
@@ -126,7 +130,7 @@ export async function checkedOriginal(
   } catch {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record` }
   }
-  if (fingerprint(original) !== expected) {
+  if (fingerprint(original, source.sqlite !== undefined) !== expected) {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} holds a different record` }
   }
   return { original }
