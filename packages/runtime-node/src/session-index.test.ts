@@ -33,6 +33,33 @@ function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'traceId' |
   }
 }
 
+/** Persist each child's marker despite brief write contention, so later rebuilds cannot erase an earlier writer unnoticed. */
+function concurrentIndexWriter(file: string): string {
+  const source = (name: string) => pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), name)).href
+  return `
+    const { openSessionIndex } = await import(${JSON.stringify(source('session-index.ts'))})
+    const { isBusy } = await import(${JSON.stringify(source('session-index-schema.ts'))})
+    const { setTimeout } = await import('node:timers/promises')
+    const n = process.argv[2]
+    const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
+    if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
+    const deadline = Date.now() + 5000
+    try {
+      for (;;) {
+        try {
+          index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+          break
+        } catch (error) {
+          if (!isBusy(error) || Date.now() >= deadline) { throw error }
+        }
+        await setTimeout(20)
+      }
+    } finally {
+      index.close()
+    }
+  `
+}
+
 describe('session index', () => {
   it('honors XDG_CACHE_HOME and otherwise uses ~/.cache', () => {
     expect(sessionIndexFile({ XDG_CACHE_HOME: '/xdg' }, '/h/u')).toBe('/xdg/rivus-agent-trace/index.sqlite')
@@ -281,19 +308,8 @@ describe('session index', () => {
   it('lets several processes open a fresh cache at once', async () => {
     const dir = await tempDir()
     const file = join(dir, 'index.sqlite')
-    const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
     const child = join(dir, 'child.mjs')
-    writeFileSync(
-      child,
-      `
-      const { openSessionIndex } = await import(${JSON.stringify(module)})
-      const n = process.argv[2]
-      const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
-      if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
-      index.close()
-    `,
-    )
+    writeFileSync(child, concurrentIndexWriter(file))
     const runs = Array.from(
       { length: 6 },
       (_, n) =>
@@ -318,7 +334,7 @@ describe('session index', () => {
         .toSorted(),
     ).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
     index.close()
-  })
+  }, 15_000)
 
   it('folds non-ASCII case the same way on both sides', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
@@ -389,19 +405,8 @@ describe('session index', () => {
     const dir = await tempDir()
     const file = join(dir, 'index.sqlite')
     writeFileSync(file, 'not a database, not at all')
-    const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
     const child = join(dir, 'child.mjs')
-    writeFileSync(
-      child,
-      `
-      const { openSessionIndex } = await import(${JSON.stringify(module)})
-      const n = process.argv[2]
-      const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
-      if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
-      index.close()
-    `,
-    )
+    writeFileSync(child, concurrentIndexWriter(file))
     const results = await Promise.all(
       Array.from(
         { length: 4 },
@@ -429,5 +434,5 @@ describe('session index', () => {
         .toSorted(),
     ).toEqual(['r0', 'r1', 'r2', 'r3'])
     index.close()
-  })
+  }, 15_000)
 })
