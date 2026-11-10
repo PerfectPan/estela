@@ -33,7 +33,7 @@ export function createWorkspaceState(session: LoadedSession) {
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
   const [range, setRange] = createSignal<TimeRange>()
   const [dim, setDim] = createSignal(false)
-  const [layout, setLayout] = createSignal<LedgerLayout>('turns')
+  const [layout, writeLayout] = createSignal<LedgerLayout>('turns')
   /** Key of the selected ledger row (an entry id, a turn id, or a lane id). */
   const [selectedKey, setSelectedKey] = createSignal<string>()
 
@@ -58,6 +58,57 @@ export function createWorkspaceState(session: LoadedSession) {
     return entry ? entryEventIds(entry)[0] : undefined
   })
 
+  /** A spawn is a subagent header in Turns and an ordinary tool-call row in Agents. */
+  function selectionFor(eventId: string): string | undefined {
+    const place = model.locate.get(eventId)
+    const entry = place ? model.entries.get(place.entryId) : undefined
+    return layout() === 'lanes' && entry?.type === 'subagent' && entry.eventId ? `e:${entry.eventId}` : place?.entryId
+  }
+
+  /** Open ancestors only: a selected hook group keeps its own folded state. */
+  function openContainers(eventId: string, key: string | undefined): void {
+    const place = model.locate.get(eventId)
+    if (!place) {
+      return
+    }
+    const laneId = model.byId.get(eventId)?.agentId ?? mainAgentId(model.trace)
+    const closed = new Set(collapsed())
+    closed.delete(place.turnId)
+    closed.delete(`l:${laneId}`)
+    setCollapsed(closed)
+    const open = new Set(expanded())
+    for (const parent of place.parents) {
+      if (parent !== key) {
+        open.add(parent)
+      }
+    }
+    setExpanded(open)
+  }
+
+  /** Preserve the selected event when its containing row changes between layouts. */
+  function setLayout(next: LedgerLayout): void {
+    if (next === layout()) {
+      return
+    }
+    const entry = selectedEntry()
+    const eventId = selectedEventId()
+    batch(() => {
+      writeLayout(next)
+      let key = entry?.type === 'hooks' ? entry.id : eventId ? selectionFor(eventId) : undefined
+      if (eventId) {
+        openContainers(eventId, key)
+      }
+      // A Requests chip can keep the child lane while excluding its spawn tool call.
+      if (next === 'lanes' && entry?.type === 'subagent' && !rows().some(row => row.key === key)) {
+        const laneKey = `l:${entry.laneId}`
+        if (rows().some(row => row.key === laneKey)) {
+          key = laneKey
+        }
+      }
+      setSelectedKey(key)
+    })
+  }
+
   /** Select an event from outside the ledger (a timeline bar): open what hides it, and drop filters that exclude it. */
   function reveal(eventId: string): void {
     const place = model.locate.get(eventId)
@@ -65,20 +116,9 @@ export function createWorkspaceState(session: LoadedSession) {
       return
     }
     batch(() => {
-      if (collapsed().has(place.turnId)) {
-        setCollapsed(toggled(collapsed(), place.turnId))
-      }
-      // The lane layout collapses by `l:<agent>`: open the event's lane the same way.
-      const laneId = model.byId.get(eventId)?.agentId ?? mainAgentId(model.trace)
-      if (collapsed().has(`l:${laneId}`)) {
-        setCollapsed(toggled(collapsed(), `l:${laneId}`))
-      }
-      const open = new Set(expanded())
-      for (const parent of place.parents) {
-        open.add(parent)
-      }
-      setExpanded(open)
-      const entry = model.entries.get(place.entryId)
+      const key = selectionFor(eventId)
+      openContainers(eventId, key)
+      const entry = key ? model.entries.get(key) : undefined
       if (
         entry
         && !entryMatches(entry, model, {
@@ -91,7 +131,7 @@ export function createWorkspaceState(session: LoadedSession) {
         setFilter('all')
         setRange(undefined)
       }
-      setSelectedKey(place.entryId)
+      setSelectedKey(key)
     })
   }
 
@@ -112,7 +152,7 @@ export function createWorkspaceState(session: LoadedSession) {
     setLayout,
     collapsed,
     toggleTurn: (id: string) => setCollapsed(toggled(collapsed(), id)),
-    toggleLane: (id: string) => setCollapsed(toggled(collapsed(), id)),
+    toggleLane: (id: string) => setCollapsed(toggled(collapsed(), `l:${id}`)),
     expanded,
     toggleEntry: (id: string) => setExpanded(toggled(expanded(), id)),
     selectedKey,

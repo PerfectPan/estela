@@ -190,6 +190,55 @@ describe('keyboard and counts', () => {
     expect(countEvents(trace, { from: 0, to: 2000 })).toBe(3)
   })
   describe('flattenLanes', () => {
+    it('keeps a failed spawn visible under Tools and Failures in both layouts', () => {
+      const trace = sample()
+      trace.events = trace.events.filter(event => event.id !== 's1')
+      const result = trace.events.find(event => event.id === 'spawn-out')!
+      if (result.kind === 'tool_result') {
+        result.payload.isError = true
+      }
+      const model = buildLedgerModel(trace)
+      for (const filter of ['tools', 'failures'] as const) {
+        expect(flattenLanes(model, view({ filter })).some(row => row.key === 'e:spawn')).toBe(true)
+        expect(flattenLedger(model, view({ filter })).some(row => row.key === 's:t0:sub')).toBe(true)
+      }
+    })
+
+    it('draws a long lane without passing its rows as function arguments', () => {
+      const trace = sample()
+      trace.agents = [{ id: 'main' }]
+      trace.events = Array.from({ length: 150_000 }, (_, seq) =>
+        event({
+          id: `long-${seq}`,
+          kind: seq % 10 === 0 ? 'user' : 'assistant',
+          payload: { text: 'message' },
+        }),
+      )
+      const rows = flattenLanes(buildLedgerModel(trace), view())
+      expect(rows).toHaveLength(150_001)
+      expect(rows.at(-1)?.key).toBe('e:long-149999')
+    })
+
+    it('keeps a subagent hook group from each turn instead of merging away later hooks', () => {
+      const trace = sample()
+      trace.events = [
+        event({ id: 'p1', kind: 'user', payload: {} }),
+        event({ id: 'h1', kind: 'hook', agentId: 'sub', payload: { type: 'hook_success' } }),
+        event({ id: 'p2', kind: 'user', payload: {} }),
+        event({ id: 'h2', kind: 'hook', agentId: 'sub', payload: { type: 'hook_success' } }),
+      ]
+      const model = buildLedgerModel(trace)
+      const rows = flattenLanes(model, view({ expanded: new Set(['h:h1', 'h:h2']) }))
+      expect(rows.filter(row => row.type === 'entry').map(row => row.key)).toEqual([
+        'e:p1',
+        'e:p2',
+        'h:h1',
+        'e:h1',
+        'h:h2',
+        'e:h2',
+      ])
+    })
+
     it("draws one header per agent lane with its own events flat, sharing the turn layout's entries", () => {
       const model = buildLedgerModel(sample())
       const rows = flattenLanes(model, view())

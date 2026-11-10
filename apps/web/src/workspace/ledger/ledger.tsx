@@ -147,39 +147,39 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
               {item => {
                 const row = () => rows()[item.index]
                 return (
-                  <Show when={row()}>
+                  <Show when={row()} keyed>
                     {current => {
                       // Bind the union once per accessor so its variant is narrowed, not asserted.
                       const expanded = () => {
-                        const drawn = current()
+                        const drawn = current
                         return drawn.type === 'entry' ? undefined : !drawn.collapsed
                       }
                       const rowType = () => {
-                        const drawn = current()
+                        const drawn = current
                         return drawn.type === 'entry' ? drawn.entry.type : drawn.type
                       }
                       return (
                         <div
-                          id={rowId(current().key)}
+                          id={rowId(current.key)}
                           role="option"
-                          aria-selected={state.selectedKey() === current().key}
+                          aria-selected={state.selectedKey() === current.key}
                           aria-expanded={expanded()}
                           data-row-type={rowType()}
                           class={cx(
                             'absolute top-0 left-0 w-full cursor-default',
-                            state.selectedKey() === current().key
+                            state.selectedKey() === current.key
                               ? 'bg-selection shadow-[inset_0_0_0_1px_var(--selection-ring)]'
                               : 'hover:bg-accent/60',
                           )}
                           style={{ height: `${item.size}px`, transform: `translateY(${item.start}px)` }}
                           onClick={() => {
-                            state.setSelectedKey(current().key)
-                            if (current().type !== 'entry') {
-                              activate(current())
+                            state.setSelectedKey(current.key)
+                            if (current.type !== 'entry') {
+                              activate(current)
                             }
                           }}
                         >
-                          <LedgerRowBody row={current()} ctx={ctx()} number={turnNumber} state={state} />
+                          <LedgerRowBody row={current} ctx={ctx()} number={turnNumber} state={state} />
                         </div>
                       )
                     }}

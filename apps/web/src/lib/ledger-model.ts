@@ -340,7 +340,8 @@ export function isFailedResult(event: TraceEvent | undefined): boolean {
 export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView): boolean {
   const inside = (ts: number) => inRange(ts, view.range)
   if (entry.type === 'subagent') {
-    if (view.filter === 'all' && entry.eventId && inside(model.byId.get(entry.eventId)!.ts)) {
+    const spawn = entry.eventId ? model.entries.get(`e:${entry.eventId}`) : undefined
+    if (spawn && entryMatches(spawn, model, view)) {
       return true
     }
     return entry.children.some(child => entryMatches(child, model, view))
@@ -369,6 +370,7 @@ export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView)
   )
 }
 
+/** Append a passing entry and its expanded children, preserving shared row keys across both layouts. */
 export function pushEntry(
   out: VirtualRow[],
   entry: Entry,
