@@ -76,7 +76,7 @@ html[data-theme="dark"] {
   /* Agent marks. The Claude Code orange is the agent's brand color from the design; it has no token. */
   --agent-claude-code: #d97757;
   --agent-codex: var(--foreground);
-  --agent-dsh: #4d6bfe;
+  --agent-dsh: #6b85ff;
   --agent-grok: var(--muted-foreground);
   --agent-gemini-cli: #4796e3;
   --agent-opencode: #9aa4ae;
@@ -117,7 +117,7 @@ html[data-theme="light"] {
   --agent-grok: #5a6169;
   --agent-gemini-cli: #286599;
   --agent-opencode: #5f6b76;
-  --agent-pi: #6d5bd0;
+  --agent-pi: #6653c7;
   --hatch: #c9c6bf;
   --hatch-edge: #b4b1aa;
   --reasoning-text: #4a5057;

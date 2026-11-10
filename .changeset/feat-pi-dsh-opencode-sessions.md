@@ -11,3 +11,5 @@ Keep Gemini CLI session homes out of synthetic test environments and improve its
 Patch the kit's Claude detector to recognize Gemini's distinct chat header, so direct CLI loads and exports use the correct reader while Claude logs under a chats directory still load as Claude. The patch stays in the reader dependency; custom provider registration and explicit agent selection keep their kit behavior.
 
 When a compressed or database original has no platform resolver, report that missing reader directly instead of attempting a raw byte read.
+
+Keep DSH and Pi agent marks readable at the UI's small text size across dark and light list backgrounds.
