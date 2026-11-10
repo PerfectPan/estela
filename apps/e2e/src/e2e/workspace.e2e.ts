@@ -52,6 +52,7 @@ test('lane layout preserves selection, folds with mouse and keyboard, and retain
   await page.getByTestId('layout-lanes').click()
   await expect(page.locator('#ledger-row-h_h1')).toHaveAttribute('aria-selected', 'true')
   const main = ledger.locator('[data-row-type=lane]').first()
+  await expect(main).toContainText('Main agent')
   await main.click()
   await page.getByTestId('layout-lanes').click()
   await expect(main).toHaveAttribute('aria-selected', 'true')
