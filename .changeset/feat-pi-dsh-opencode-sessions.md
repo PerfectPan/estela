@@ -8,4 +8,4 @@ Keep each OpenCode session's cached summary and search entries independent even 
 
 Keep Gemini CLI session homes out of synthetic test environments and improve its light-theme mark contrast. Exercise all adapter fixtures in structural and Harbor export validation, and reject unexpected export errors.
 
-Detect Gemini chat files before the kit's broad Claude JSONL head match, so direct CLI loads and exports use the correct reader.
+Patch the kit's Claude detector to recognize Gemini's distinct chat header, so direct CLI loads and exports use the correct reader while Claude logs under a chats directory still load as Claude. The patch stays in the reader dependency; custom provider registration and explicit agent selection keep their kit behavior.

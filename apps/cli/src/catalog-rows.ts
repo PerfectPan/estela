@@ -9,7 +9,7 @@ import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import { loadFailure } from './read-failure.ts'
 import { projectName, traceIdOf, sessionTargetLabel } from './session-target.ts'
-import { builtinAdapters, sessionProviders } from './session-adapters.ts'
+import { sessionProviders } from './session-adapters.ts'
 
 /** What the catalog's kit calls take: reads plus the environment the homes resolve from. */
 export type CatalogPlatform = SessionPlatform & Pick<Platform, 'env' | 'home'>
@@ -92,7 +92,7 @@ export async function summarizeRow(
   target: SessionRef,
 ): Promise<SummarizeResult> {
   const result = await summarizeSession(platform, target, {
-    providers: sessionProviders(adapters ?? builtinAdapters),
+    ...(adapters ? { providers: sessionProviders(adapters) } : {}),
     prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
   })
   if (!result.ok) {

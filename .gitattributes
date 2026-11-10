@@ -1,3 +1,6 @@
 # The lockfile is generated from the manifests; resolve merge conflicts by running
 # `pnpm install`, not by hand.
 pnpm-lock.yaml               merge=text
+
+# Unified patches prefix upstream tab-indented context with one space.
+patches/*.patch              whitespace=-space-before-tab

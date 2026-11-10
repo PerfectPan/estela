@@ -58,3 +58,7 @@ versioning:
     # Commit CHANGELOG.md and drop consumed changesets at `pnpm version -r`. The default
     # `registry` keeps them until a publish is confirmed; version PRs need them consumed first.
     storage: repository
+
+# Claude and Gemini JSONL share loose head hints; validate Gemini's distinct header in the reader.
+patchedDependencies:
+  '@rivus/agent-kit@0.24.0': patches/agent-kit-0.24.0.patch

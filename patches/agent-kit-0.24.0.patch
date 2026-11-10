@@ -1,0 +1,24 @@
+diff --git a/dist/sessions-DjcWW47R.js b/dist/sessions-DjcWW47R.js
+index 2d0fe3bf3a08578ddba96c4297d2111cbfd9ab0d..babe6fa20ddb497a23f40bacbfeda15c44d3d4ae 100644
+--- a/dist/sessions-DjcWW47R.js
++++ b/dist/sessions-DjcWW47R.js
+@@ -3789,9 +3789,19 @@ function claudeCodeAgentMeta(value) {
+ 	};
+ }
+ /** A path under the default projects directory, or a head that reads like a Claude Code session. */
++const geminiDetectionHeader = z.looseObject({ sessionId: z.string(), projectHash: z.string(), type: z.optional(z.never()) });
+ function looksLikeClaudeCodeSession(path, head) {
+ 	if (path.includes(`/.claude/projects/`)) return true;
++	if (isGeminiCliChat(path) && isGeminiCliLegacyChat(path)) return false;
+ 	if (head === void 0) return false;
++	// A Gemini header and user messages share Claude's loose string hints; validate the distinct header.
++	if (isGeminiCliChat(path)) {
++		for (const line of head.split("\n")) {
++			try {
++				if (z.safeParse(geminiDetectionHeader, JSON.parse(line)).success) return false;
++			} catch {}
++		}
++	}
+ 	const start = head.slice(0, 4e3);
+ 	const user = start.includes("\"type\":\"user\"") || start.includes("\"type\": \"user\"");
+ 	const assistant = start.includes("\"type\":\"assistant\"") || start.includes("\"type\": \"assistant\"");
