@@ -79,13 +79,14 @@ describe('cli smoke', () => {
     const outDir = await mkdtemp(join(tmpdir(), 'at-m4a-build-'))
     // Counts full reads of the demo file in the child process: the platform reads through
     // `createReadStream`, and only the whole-file read has no `end` bound (the canonical
-    // head check reads 4 KB).
+    // head check reads 4 KB). A bound of `undefined` counts as none, so the hook survives
+    // a platform that passes the key with `end: undefined` for the whole-file read.
     const counter = [
       `import fs from 'node:fs'`,
       `import { syncBuiltinESMExports } from 'node:module'`,
       `let reads = 0`,
       `const createReadStream = fs.createReadStream`,
-      `fs.createReadStream = function (path, opts) { if (String(path).endsWith('demo.trace.json') && !(opts && 'end' in opts)) reads += 1; return createReadStream.call(this, path, opts) }`,
+      `fs.createReadStream = function (path, opts) { if (String(path).endsWith('demo.trace.json') && !(opts && opts.end != null)) reads += 1; return createReadStream.call(this, path, opts) }`,
       `syncBuiltinESMExports()`,
       `process.on('exit', () => process.stderr.write('full-reads=' + reads + '\\n'))`,
     ].join('\n')
