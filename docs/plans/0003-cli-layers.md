@@ -161,15 +161,12 @@ bin.mjs → main() → runCli(argv)
   `--no-index`.
 - A session or option written before a command name (`agent-trace --port 1 build x`) is a usage
   failure: it belongs to the dev server, which that command never starts.
-- Command names are reserved words. The router reads a bare word that names a command as that
-  command wherever it stands, by design ("Command literals are routing tokens, not positional
-  arguments"), so a host or session with that name is written `--host=build` or `./build`. The
-  `--host` help says so.
-
-### 3.2 Dev server
-
-`commands/dev.ts` calls `createDevServer(devframe, { host, port, mcp, auth, openBrowser, onReady })`:
-
+- Command names are reserved on the dev server's command line. By design ("Command literals are
+  routing tokens, not positional arguments"), the router reads the first bare word that names a
+  command as that command, so a host or session with that name is written `--host=build` or
+  `./build`; after a command name (`mcp build`, `build --out-dir mcp`) the word is a plain value. The
+  `--host` help says so, and every dev server parameter stays `undefined` when not given so that
+  `app.ts` can spot one written before a command name.
 - `port` is `--port`, else `resolveDevServerPort(devframe, { host })`: the definition's 7392 or
   the next free port.
 - With a launch session (a path, `AGENT_TRACE_PATH`, or `--pick`), the CLI opens
@@ -234,10 +231,13 @@ Changed:
   reported a missing value.
 - An empty `AGENT_TRACE_PATH` names no session, so `build`, `mcp`, and the exports use the demo
   trace; it used to resolve to the working directory and fail.
-- An option given twice (`--port 1 --port 2`, `--open --no-open`) is rejected; the old parser kept
-  the last one. A toggle takes no `=` value: `--open=false` is rejected, and `--no-open` says it.
+- An option given twice is rejected. The old parser kept the last toggle (`--open --no-open`); for a
+  repeated `--port` it loaded the session, indexed every agent, and then failed to listen
+  (`Failed to listen on localhost:1,2`). A toggle takes no `=` value: `--open=false` is rejected, and
+  `--no-open` says it.
 - `--no-index` after `build`, `mcp`, or an export, and `--pick` after `build` or an export, are
-  rejected; the old parser accepted and ignored them, and already refused `mcp --pick`.
+  rejected; the old parser accepted and ignored them (`--pick` only in a terminal; outside one it
+  failed with `--pick needs an interactive terminal`), and already refused `mcp --pick`.
 - A host that is also a command name is written `--host=build`: `--host build` fails with
   `--host requires a value`, where the old parser read `build` as the host.
 
@@ -319,6 +319,6 @@ untouched, and reports and exports are byte-for-byte the same.
 | Item | Type | Impact | Owner | Next step or deadline |
 | --- | --- | --- | --- | --- |
 | `@bomb.sh/router` is 0.x; its first release was 2026-09-30 | risk | an upgrade may change its API or messages | unconfirmed | the version is pinned and only `entry/` imports it; `entry/routes.test.ts` pins the messages |
-| Command names are reserved words on the command line | risk | a host or session named like a command needs `--host=<name>` or `./<name>` | unconfirmed | the `--host` help and 3.1 say so |
+| Command names are reserved on the dev server's command line | risk | a host or session named like a command needs `--host=<name>` or `./<name>` there | unconfirmed | the `--host` help and 3.1 say so |
 | `help.ts` rewrites the router printer's usage lines and session label | risk | a printer change in an upgrade could leave the help wrong | unconfirmed | `entry/routes.test.ts` pins both help texts |
 | Scripts that parse `--help` or the old `--version` output | risk | low; neither format was documented | unconfirmed | none |

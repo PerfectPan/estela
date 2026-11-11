@@ -76,14 +76,9 @@ describe('cli routes', () => {
     expect(Array.from(intent.literals, literal => literal.text)).toEqual(['--weird.json'])
   })
 
-  it('leaves the dev server toggles absent unless given', () => {
-    expect(execute().model).toMatchObject({
-      open: undefined,
-      auth: undefined,
-      mcp: undefined,
-      index: undefined,
-      pick: undefined,
-    })
+  it('leaves every dev server parameter undefined unless given', () => {
+    // `app.ts` spots dev server input before a command name by comparing against this empty model.
+    expect(Object.entries(execute().model).filter(([, value]) => value !== undefined)).toEqual([])
     expect(execute('--pick', '--no-index', '--no-open', '--no-auth', '--mcp').model).toMatchObject({
       pick: true,
       index: false,
@@ -124,6 +119,9 @@ describe('cli routes', () => {
   it('reads a bare word that names a command as that command, so such a host is written with =', () => {
     expect(rejection('--host', 'build')).toBe('--host requires a value')
     expect(execute('--host=build').model).toMatchObject({ host: 'build' })
+    // Only the first such word selects a command; after it, the word is a value.
+    expect(execute('mcp', 'build')).toMatchObject({ route: '/mcp', model: { session: 'build' } })
+    expect(execute('build', '--out-dir', 'mcp')).toMatchObject({ route: '/build', model: { outDir: 'mcp' } })
     expect(execute('--host=mcp', '/tmp/s.json')).toMatchObject({
       route: '/',
       model: { host: 'mcp', session: '/tmp/s.json' },

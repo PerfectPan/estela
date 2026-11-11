@@ -29,8 +29,13 @@ const ONE_SESSION = 'AGENT_TRACE_PATH, else the bundled demo trace'
 /**
  * Every way into the CLI. `@bomb.sh/router` rejects any token a route does not take, so an unknown
  * option fails before a session is read. Each route carries the version so `--version` works after
- * any command. Command names are reserved words: the router reads a bare word that names a command as
- * that command wherever it stands, so a value or path with that name is written `--host=build` or `./build`.
+ * any command.
+ *
+ * Every dev server parameter is `undefined` when the command line leaves it out (no defaults, toggles
+ * `tristate`): `app.ts` finds a session or option written before a command name by comparing against
+ * that empty model. Command names are reserved on the dev server's command line: the router reads the
+ * first bare word that names a command as that command, so a dev server value or session with that
+ * name is written `--host=build` or `./build`; after a command name it is a plain value.
  */
 export function cliRoutes(packageVersion: string) {
   return command(
