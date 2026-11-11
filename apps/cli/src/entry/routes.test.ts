@@ -1,7 +1,7 @@
 import { parse, printErrors } from '@bomb.sh/router'
 import { describe, expect, it } from 'vite-plus/test'
 import { helpText } from './help.ts'
-import { cliRoutes, routerArgv } from './routes.ts'
+import { cliRoutes } from './routes.ts'
 
 const routes = cliRoutes('1.2.3')
 
@@ -121,6 +121,15 @@ describe('cli routes', () => {
     expect(rejection('--open=false')).toBe('unexpected: `--open=false`')
   })
 
+  it('reads a bare word that names a command as that command, so such a host is written with =', () => {
+    expect(rejection('--host', 'build')).toBe('--host requires a value')
+    expect(execute('--host=build').model).toMatchObject({ host: 'build' })
+    expect(execute('--host=mcp', '/tmp/s.json')).toMatchObject({
+      route: '/',
+      model: { host: 'mcp', session: '/tmp/s.json' },
+    })
+  })
+
   it('rejects a port outside 0-65535', () => {
     expect(rejection('--port', '70000')).toBe('port: expected a port number from 0 to 65535')
     expect(rejection('--port', 'abc')).toBe('port: expected a port number from 0 to 65535')
@@ -133,22 +142,6 @@ describe('cli routes', () => {
       expect(route(...command, '-h', '--port')).toMatchObject({ ok: true, method: 'help', route: path })
       expect(route(...command, '-v')).toMatchObject({ ok: true, method: 'version', route: path })
     }
-  })
-})
-
-describe('routerArgv', () => {
-  it('keeps a dev server value that names a command as that value', () => {
-    expect(execute(...routerArgv(routes, ['--host', 'build'])).model).toMatchObject({ host: 'build' })
-    expect(execute(...routerArgv(routes, ['--host', 'mcp', '/tmp/s.json']))).toMatchObject({
-      route: '/',
-      model: { host: 'mcp', session: '/tmp/s.json' },
-    })
-  })
-
-  it('passes every other token as written', () => {
-    const argv = ['--host', 'localhost', 'build', '--out-dir', 'mcp']
-    expect(routerArgv(routes, argv)).toEqual(argv)
-    expect(routerArgv(routes, ['--', '--host', 'build'])).toEqual(['--', '--host', 'build'])
   })
 })
 

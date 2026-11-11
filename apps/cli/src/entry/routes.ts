@@ -26,39 +26,11 @@ function session(fallback: string) {
 
 const ONE_SESSION = 'AGENT_TRACE_PATH, else the bundled demo trace'
 
-/** The dev server's options that take a value as the next token. */
-const DEV_VALUE_OPTIONS = new Set(['--host', '--port'])
-
-/**
- * The argv the router reads. `@bomb.sh/router` 0.8.0 picks a command name out of any bare word before
- * it binds options, so in `--host build` the value would select `build`. Such a value is joined to its
- * option (`--host=build`), which the router reads as that option; every other token passes as written.
- * Delete this once the router leaves option values alone.
- */
-export function routerArgv(routes: CliRoutes, argv: readonly string[]): string[] {
-  const commands: ReadonlySet<string> = new Set(routes.phases.flatMap(phase => phase.routes.map(route => route.name)))
-  const out: string[] = []
-  for (let index = 0; index < argv.length; index++) {
-    const token = argv[index]!
-    if (token === '--') {
-      out.push(...argv.slice(index))
-      break
-    }
-    const value = argv[index + 1]
-    if (DEV_VALUE_OPTIONS.has(token) && value !== undefined && commands.has(value)) {
-      out.push(`${token}=${value}`)
-      index += 1
-      continue
-    }
-    out.push(token)
-  }
-  return out
-}
-
 /**
  * Every way into the CLI. `@bomb.sh/router` rejects any token a route does not take, so an unknown
  * option fails before a session is read. Each route carries the version so `--version` works after
- * any command.
+ * any command. Command names are reserved words: the router reads a bare word that names a command as
+ * that command wherever it stands, so a value or path with that name is written `--host=build` or `./build`.
  */
 export function cliRoutes(packageVersion: string) {
   return command(
@@ -71,7 +43,11 @@ export function cliRoutes(packageVersion: string) {
       description('Port to listen on; 0 picks a free one (default: 7392 or the next free port)'),
       schema(z.optional(port)),
     ),
-    option(name('host'), description('Host to bind to (default: localhost)'), schema(z.optional(nonEmpty))),
+    option(
+      name('host'),
+      description('Host to bind to (default: localhost; write --host=<name> when the name is also a command)'),
+      schema(z.optional(nonEmpty)),
+    ),
     toggle(name('open'), description('Open the browser once the server is ready (default: on)'), schema(tristate)),
     toggle(name('auth'), description('Gate the browser with a one-time code (default: on)'), schema(tristate)),
     toggle(

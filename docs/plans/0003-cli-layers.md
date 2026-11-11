@@ -161,9 +161,10 @@ bin.mjs → main() → runCli(argv)
   `--no-index`.
 - A session or option written before a command name (`agent-trace --port 1 build x`) is a usage
   failure: it belongs to the dev server, which that command never starts.
-- `routerArgv` in `entry/routes.ts` joins `--host` or `--port` with a following value that names a
-  command (`--host build` becomes `--host=build`) before parsing, because router 0.8.0 would read
-  that value as the command. Every other token reaches the router as written.
+- Command names are reserved words. The router reads a bare word that names a command as that
+  command wherever it stands, by design ("Command literals are routing tokens, not positional
+  arguments"), so a host or session with that name is written `--host=build` or `./build`. The
+  `--host` help says so.
 
 ### 3.2 Dev server
 
@@ -237,11 +238,13 @@ Changed:
   the last one. A toggle takes no `=` value: `--open=false` is rejected, and `--no-open` says it.
 - `--no-index` after `build`, `mcp`, or an export, and `--pick` after `build` or an export, are
   rejected; the old parser accepted and ignored them, and already refused `mcp --pick`.
+- A host that is also a command name is written `--host=build`: `--host build` fails with
+  `--host requires a value`, where the old parser read `build` as the host.
 
 ## 4. Verification
 
 - Unit: `entry/routes.test.ts` covers each row of 3.1, `--`, digit-leading paths, unknown options,
-  missing values, `-` as an output path, repeated options, `routerArgv`, the port range, help and
+  missing values, `-` as an output path, repeated options, command names as reserved words, the port range, help and
   version on every route, and both help texts; `entry/app.test.ts` covers the version line, the usage failures of 3.4, the token after
   `--`, and an `mcp` failure that leaves stdout empty; `entry/commands/dev.test.ts` covers
   `browserPlan`. The moved tests pass unchanged apart from paths.
@@ -316,6 +319,6 @@ untouched, and reports and exports are byte-for-byte the same.
 | Item | Type | Impact | Owner | Next step or deadline |
 | --- | --- | --- | --- | --- |
 | `@bomb.sh/router` is 0.x; its first release was 2026-09-30 | risk | an upgrade may change its API or messages | unconfirmed | the version is pinned and only `entry/` imports it; `entry/routes.test.ts` pins the messages |
-| Router 0.8.0 reads any bare word that names a command as that command, an option's value included | risk | `routerArgv` covers `--host` and `--port` only | unconfirmed | report it upstream; delete `routerArgv` once the router leaves option values alone |
+| Command names are reserved words on the command line | risk | a host or session named like a command needs `--host=<name>` or `./<name>` | unconfirmed | the `--host` help and 3.1 say so |
 | `help.ts` rewrites the router printer's usage lines and session label | risk | a printer change in an upgrade could leave the help wrong | unconfirmed | `entry/routes.test.ts` pins both help texts |
 | Scripts that parse `--help` or the old `--version` output | risk | low; neither format was documented | unconfirmed | none |
