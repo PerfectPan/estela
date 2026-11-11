@@ -140,6 +140,9 @@ bin.mjs → main() → runCli(argv)
   `auth` 和 `index` 默认开启，只有 `--no-auth` 或 `--no-index` 才关闭。
 - 写在命令名之前的会话或选项（`agent-trace --port 1 build x`）是用法错误：它属于 dev 服务器，而该命令
   不会启动 dev 服务器。
+- `entry/routes.ts` 里的 `routerArgv` 在解析之前，把 `--host` 或 `--port` 和紧跟着的、与命令同名的值
+  合成一个 token（`--host build` 变成 `--host=build`），因为 router 0.8.0 会把这个值当成命令。其余 token
+  原样交给 router。
 
 ### 3.2 Dev server
 
@@ -202,13 +205,15 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 - `--out -` 和 `--out-dir -` 会被拒绝，因为 CLI 不支持写到 stdout；旧解析器报的是缺少值。
 - 空的 `AGENT_TRACE_PATH` 视为没有指定会话，所以 `build`、`mcp` 和导出命令使用演示 trace；原来会解析成
   工作目录然后失败。
-- 同一个开关写两次（`--open --no-open`）会被拒绝；旧解析器取最后一个。
-- `build`、`mcp` 或导出命令后面的 `--no-index`、`--pick` 会被拒绝；旧解析器接受后直接忽略。
+- 同一个选项写两次（`--port 1 --port 2`、`--open --no-open`）会被拒绝；旧解析器取最后一个。开关不接受
+  `=` 值：`--open=false` 会被拒绝，关闭请写 `--no-open`。
+- `build`、`mcp` 或导出命令后面的 `--no-index`，以及 `build` 或导出命令后面的 `--pick`，会被拒绝；
+  旧解析器接受后直接忽略，而 `mcp --pick` 原来就会被拒绝。
 
 ## 4. Verification
 
 - 单元测试：`entry/routes.test.ts` 覆盖 3.1 的每一行、`--`、以数字开头的路径、未知选项、缺少的值、作为
-  输出路径的 `-`、端口范围、每个路由上的帮助和版本，以及两种帮助文本；`entry/app.test.ts` 覆盖版本行、
+  输出路径的 `-`、重复的选项、`routerArgv`、端口范围、每个路由上的帮助和版本，以及两种帮助文本；`entry/app.test.ts` 覆盖版本行、
   3.4 的用法错误、`--` 之后的 token，以及 stdout 保持为空的 `mcp` 失败；`entry/commands/dev.test.ts` 覆盖
   `browserPlan`。移动过的测试除路径外不变，并全部通过。
 - 集成测试：`apps/cli/test/cli-smoke.test.ts`（每次 `build` 只读一次文件、MCP 的 stdout），以及
@@ -278,5 +283,6 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 | Item | Type | Impact | Owner | Next step or deadline |
 | --- | --- | --- | --- | --- |
 | `@bomb.sh/router` 还是 0.x，首个版本发布于 2026-09-30 | risk | 升级可能改变它的 API 或消息 | unconfirmed | 版本已固定，只有 `entry/` 引用它；`entry/routes.test.ts` 固定了消息 |
+| router 0.8.0 把任何与命令同名的单独词都当成命令，包括选项的值 | risk | `routerArgv` 只处理 `--host` 和 `--port` | unconfirmed | 向上游反馈；router 不再动选项的值后删除 `routerArgv` |
 | `help.ts` 改写了 router 打印器的 usage 行和会话标签 | risk | 升级后打印器格式一变，帮助文本可能出错 | unconfirmed | `entry/routes.test.ts` 固定了两种帮助文本 |
 | 解析 `--help` 或旧版 `--version` 输出的脚本 | risk | 低；两种格式都没有文档 | unconfirmed | 无 |

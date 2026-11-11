@@ -161,6 +161,9 @@ bin.mjs → main() → runCli(argv)
   `--no-index`.
 - A session or option written before a command name (`agent-trace --port 1 build x`) is a usage
   failure: it belongs to the dev server, which that command never starts.
+- `routerArgv` in `entry/routes.ts` joins `--host` or `--port` with a following value that names a
+  command (`--host build` becomes `--host=build`) before parsing, because router 0.8.0 would read
+  that value as the command. Every other token reaches the router as written.
 
 ### 3.2 Dev server
 
@@ -230,15 +233,16 @@ Changed:
   reported a missing value.
 - An empty `AGENT_TRACE_PATH` names no session, so `build`, `mcp`, and the exports use the demo
   trace; it used to resolve to the working directory and fail.
-- A toggle given twice (`--open --no-open`) is rejected; the old parser kept the last one.
-- `--no-index` or `--pick` after `build`, `mcp`, or an export is rejected; the old parser accepted
-  and ignored them.
+- An option given twice (`--port 1 --port 2`, `--open --no-open`) is rejected; the old parser kept
+  the last one. A toggle takes no `=` value: `--open=false` is rejected, and `--no-open` says it.
+- `--no-index` after `build`, `mcp`, or an export, and `--pick` after `build` or an export, are
+  rejected; the old parser accepted and ignored them, and already refused `mcp --pick`.
 
 ## 4. Verification
 
 - Unit: `entry/routes.test.ts` covers each row of 3.1, `--`, digit-leading paths, unknown options,
-  missing values, `-` as an output path, the port range, help and version on every route, and both
-  help texts; `entry/app.test.ts` covers the version line, the usage failures of 3.4, the token after
+  missing values, `-` as an output path, repeated options, `routerArgv`, the port range, help and
+  version on every route, and both help texts; `entry/app.test.ts` covers the version line, the usage failures of 3.4, the token after
   `--`, and an `mcp` failure that leaves stdout empty; `entry/commands/dev.test.ts` covers
   `browserPlan`. The moved tests pass unchanged apart from paths.
 - Integration: `apps/cli/test/cli-smoke.test.ts` (one read per `build`, MCP stdout) and
@@ -312,5 +316,6 @@ untouched, and reports and exports are byte-for-byte the same.
 | Item | Type | Impact | Owner | Next step or deadline |
 | --- | --- | --- | --- | --- |
 | `@bomb.sh/router` is 0.x; its first release was 2026-09-30 | risk | an upgrade may change its API or messages | unconfirmed | the version is pinned and only `entry/` imports it; `entry/routes.test.ts` pins the messages |
+| Router 0.8.0 reads any bare word that names a command as that command, an option's value included | risk | `routerArgv` covers `--host` and `--port` only | unconfirmed | report it upstream; delete `routerArgv` once the router leaves option values alone |
 | `help.ts` rewrites the router printer's usage lines and session label | risk | a printer change in an upgrade could leave the help wrong | unconfirmed | `entry/routes.test.ts` pins both help texts |
 | Scripts that parse `--help` or the old `--version` output | risk | low; neither format was documented | unconfirmed | none |

@@ -14,7 +14,7 @@ import { runExport, type ExportInput } from './commands/export.ts'
 import { runMcp, type McpInput } from './commands/mcp.ts'
 import { CliError, failureReport, type CliFailure } from './failure.ts'
 import { helpText, versionText } from './help.ts'
-import { cliRoutes, type CliRoutes } from './routes.ts'
+import { cliRoutes, routerArgv, type CliRoutes } from './routes.ts'
 import { installPlainFilter, sayError } from './ui/terminal.ts'
 
 type Execute = Extract<IntentsOf<CliRoutes>, { method: 'execute' }>
@@ -85,16 +85,17 @@ function commandOf(intent: Execute): () => Promise<void> {
   switch (intent.route) {
     case '/': {
       const { model } = intent
-      if (model.pick && session !== undefined) {
+      const pick = model.pick === true
+      if (pick && session !== undefined) {
         throw usage('--pick cannot be used with a session path')
       }
-      if (model.pick && !process.stdin.isTTY) {
+      if (pick && !process.stdin.isTTY) {
         throw usage('--pick needs an interactive terminal')
       }
-      const launch = model.pick ? undefined : (session ?? sessionFromEnv())
+      const launch = pick ? undefined : (session ?? sessionFromEnv())
       const input: DevInput = {
         launch: launch === undefined ? undefined : { target: commandLineTarget(launch), label: launch },
-        pick: model.pick,
+        pick,
         port: model.port,
         host: model.host ?? 'localhost',
         open: model.open,
@@ -140,7 +141,7 @@ function report(failure: CliFailure, plain: boolean): number {
 
 /** Parses `argv` once, runs the selected command, and returns the exit code. A dev server keeps running after it returns. */
 export async function runCli(argv: readonly string[]): Promise<number> {
-  const result = parse(routes, { argv: [...argv] })
+  const result = parse(routes, { argv: routerArgv(routes, argv) })
   if (!result.ok) {
     return report({ kind: 'usage', detail: printErrors(result) }, true)
   }

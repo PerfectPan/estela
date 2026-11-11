@@ -11,7 +11,7 @@ import { createTraceStore } from '../src/server/trace-store.ts'
 import { writeLargeCodexSession } from '../src/testsupport/large-session.ts'
 
 // S12 size budget. Opt-in: it writes about 350 MB to a temp directory.
-//   AGENT_TRACE_SIZE_TEST=1 vp test src/size-budget.test.ts
+//   AGENT_TRACE_SIZE_TEST=1 vp test test/size-budget.test.ts
 // AGENT_TRACE_SIZE_REAL=<session file> measures a local session instead; only numbers are printed.
 const enabled = process.env.AGENT_TRACE_SIZE_TEST === '1'
 const realPath = process.env.AGENT_TRACE_SIZE_REAL

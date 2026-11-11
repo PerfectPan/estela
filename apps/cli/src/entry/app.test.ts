@@ -45,8 +45,10 @@ describe('runCli', () => {
     expect(await runCli(['--port', '1', 'build', '/nonexistent/session.jsonl'])).toBe(1)
     expect(await runCli(['--no-open', 'mcp'])).toBe(1)
     expect(await runCli(['/nonexistent/session.jsonl', 'export-atif'])).toBe(1)
+    // `--no-pick` names the default, and is still a dev server option.
+    expect(await runCli(['--no-pick', 'mcp', '/nonexistent/session.jsonl'])).toBe(1)
     expect(io.stderr()).toBe(
-      ['build', 'mcp', 'export-atif']
+      ['build', 'mcp', 'export-atif', 'mcp']
         .map(command => `put the session and options after \`${command}\`\n${FIX}`)
         .join(''),
     )
