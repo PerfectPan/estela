@@ -2,12 +2,12 @@ import type { LedgerFilter, LedgerLayout, LedgerModel } from '@/lib/ledger-model
 import type { TimeRange } from '@/lib/timeline-scale.ts'
 import type { LoadedSession } from './load-session.ts'
 import { batch, createMemo, createSignal } from 'solid-js'
+import { flattenLanes } from '@/lib/ledger-lanes.ts'
 import {
   buildLedgerModel,
   countEvents,
   entryEventIds,
   entryMatches,
-  flattenLanes,
   flattenLedger,
   isFailedResult,
 } from '@/lib/ledger-model.ts'
@@ -91,7 +91,9 @@ export function createWorkspaceState(session: LoadedSession) {
       return
     }
     const entry = selectedEntry()
-    const eventId = selectedEventId()
+    // A subagent lane's header stands for its spawn call, which Turns draws as the subagent row. The
+    // main lane's header and the turn headers have no row in the other layout and select nothing.
+    const eventId = selectedEventId() ?? model.lanes.find(lane => `l:${lane.id}` === selectedKey())?.spawnEventId
     batch(() => {
       writeLayout(next)
       let key = entry?.type === 'hooks' ? entry.id : eventId ? selectionFor(eventId) : undefined

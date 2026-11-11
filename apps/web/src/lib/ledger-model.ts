@@ -312,9 +312,9 @@ export type VirtualRow =
       /** Inside an expanded subagent lane. */
       lane: boolean
     }
-  | { key: string; type: 'lane'; laneId: string; title?: string; collapsed: boolean; count: number; size: number }
+  | { key: string; type: 'lane'; laneId: string; title?: string; collapsed: boolean; requests: number; size: number }
 
-/** Fixed heights: 36 px rows, 40 px turn headers; the design's hook fold row is 30 px and the compaction row 44 px. */
+/** Fixed heights: 36 px rows, 40 px turn and lane headers; the design's hook fold row is 30 px and the compaction row 44 px. */
 export const ROW_SIZE = { turn: 40, event: 36, hooks: 30, compaction: 44 } as const
 
 function rowSize(row: { type: 'turn' } | { type: 'entry'; entry: Entry }): number {
@@ -329,8 +329,6 @@ function rowSize(row: { type: 'turn' } | { type: 'entry'; entry: Entry }): numbe
   }
   return ROW_SIZE.event
 }
-
-export { flattenLanes } from './ledger-lanes.ts'
 
 export function isFailedResult(event: TraceEvent | undefined): boolean {
   return event?.kind === 'tool_result' && event.payload.isError === true
@@ -422,7 +420,10 @@ export function flattenLedger(model: LedgerModel, view: LedgerView): VirtualRow[
     const collapsed = view.collapsed.has(group.id)
     out.push({ key: group.id, type: 'turn', group, collapsed, size: ROW_SIZE.turn })
     if (!collapsed) {
-      out.push(...rows)
+      // One push per row: spreading a long turn passes every row as an argument and overflows the stack.
+      for (const row of rows) {
+        out.push(row)
+      }
     }
   }
   return out

@@ -19,7 +19,7 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 
 1. Session header: agent, working directory, start time, title, and seven numbers (duration, turns, requests, tokens in / out, compactions, subagents, failed tool calls).
 2. Timeline: one lane for the main agent and one per subagent. The time range under the brush filters the ledger.
-3. Ledger: events grouped by turn. Turns collapse. Hook events fold into one row. Events hidden from the model after a compaction can be dimmed.
+3. Ledger: events grouped by turn, or by agent with one header per agent. Turns and agents collapse. Hook events fold into one row. Events hidden from the model after a compaction can be dimmed.
 4. Inspector: Input, Output, Model saw, Raw. "Model saw" shows the context composition for the selected request and the events dropped by compaction.
 
 ## Encoding rules
@@ -84,4 +84,4 @@ The mark is [`../assets/logo.svg`](../assets/logo.svg): a request trace inside a
 
 ## Not chosen
 
-Two low-fidelity alternates were reviewed and not chosen: a light single-column reading layout, and a timeline-first layout with one lane per agent. The lane idea may return as a view toggle inside the workspace.
+Two low-fidelity alternates were reviewed and not chosen: a light single-column reading layout, and a timeline-first layout with one lane per agent. The lane idea returned as the ledger's Agents layout, a toggle beside the default Turns layout.

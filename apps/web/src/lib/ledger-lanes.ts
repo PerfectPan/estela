@@ -64,7 +64,7 @@ export function flattenLanes(model: LedgerModel, view: LedgerView): VirtualRow[]
       laneId: lane.id,
       title: lane.title,
       collapsed,
-      count: rows.length,
+      requests: lane.requests.length,
       size: ROW_SIZE.turn,
     })
     if (!collapsed) {
