@@ -91,8 +91,9 @@ export function createWorkspaceState(session: LoadedSession) {
       return
     }
     const entry = selectedEntry()
-    // A subagent lane's header stands for its spawn call, which Turns draws as the subagent row. The
-    // main lane's header and the turn headers have no row in the other layout and select nothing.
+    // A subagent lane's header stands for its spawn call, which Turns draws as the subagent row. A lane
+    // that only its events name has no spawn call to stand for, so it keeps no selection, as do the main
+    // lane's header and the turn headers, which have no row in the other layout.
     const eventId = selectedEventId() ?? model.lanes.find(lane => `l:${lane.id}` === selectedKey())?.spawnEventId
     batch(() => {
       writeLayout(next)
