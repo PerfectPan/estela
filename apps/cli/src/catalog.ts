@@ -22,7 +22,7 @@ import {
 import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { oneLine, traceIdOf } from './session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
-import { builtinAdapters } from './session-adapters.ts'
+import { adapterDisplayName, builtinAdapters } from './session-adapters.ts'
 
 export type { AgentProgress } from './catalog-discover.ts'
 
@@ -103,7 +103,9 @@ export class SessionCatalog {
         concurrency: CONCURRENCY,
         key: row => row.traceId,
         rank: row => row.lastActiveAt,
-        heavy: row => row.size >= HEAVY_BYTES,
+        // An OpenCode row's size is the shared database file; its summary reads rows through the
+        // adapter instead of holding the file in memory, so it does not have to run alone.
+        heavy: row => row.target.agent !== 'opencode' && row.size >= HEAVY_BYTES,
         run: row => this.summarize(row),
       },
       options.deferSummaries === true,
@@ -166,7 +168,7 @@ export class SessionCatalog {
   }
 
   pickChoices(): { value: string; label: string }[] {
-    const names = new Map(this.adapterList.map(adapter => [adapter.agent, adapter.displayName]))
+    const names = new Map(this.adapterList.map(adapter => [adapter.agent, adapterDisplayName(adapter)]))
     return this.sortedRows()
       .filter(row => !row.error)
       .map(row => ({
@@ -369,7 +371,7 @@ export class SessionCatalog {
       const checked = roots.map(path => redactText(path, { home: this.platform.home })).join(', ')
       return {
         id: state.adapter.agent,
-        displayName: state.adapter.displayName,
+        displayName: adapterDisplayName(state.adapter),
         count,
         ...(count === 0 && checked ? { checked } : {}),
       }

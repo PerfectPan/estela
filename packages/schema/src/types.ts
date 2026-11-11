@@ -26,16 +26,17 @@ const capabilitySchema = z.enum([
   'hooks',
 ]) satisfies z.ZodMiniType<Capability, Capability>
 
-/**
- * An event's `source`: the kit's `SourcePointer`, which the `satisfies` ties it to. In a view trace `file` is an
- * index into `Trace.sourceFiles`.
- */
+/** A record inside a SQLite database: the table, the column holding its JSON, and its `rowid`. */
 const sqliteSourceSchema = z.object({
   table: z.string(),
   column: z.string(),
   rowid: z.number(),
 })
 
+/**
+ * An event's `source`: the kit's `SourcePointer`, which the `satisfies` ties it to. In a view trace `file` is an
+ * index into `Trace.sourceFiles`. `codec` and `sqlite` name the reader a compressed log or a database row needs.
+ */
 const sourcePointerSchema = z.object({
   file: z.string(),
   offset: z.number(),

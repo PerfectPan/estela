@@ -86,7 +86,7 @@ describe('checkedOriginal', () => {
       undefined,
       fingerprint(original, true),
     )
-    expect('unavailable' in result).toBe(true)
+    expect(result).toEqual({ unavailable: expect.stringContaining('row is gone') })
   })
 
   it('rejects nested and long SQLite row changes even when the main file stamp is unchanged', async () => {

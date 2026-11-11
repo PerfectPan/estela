@@ -2,14 +2,8 @@
 "@rivus/agent-trace": minor
 ---
 
-Read Pi, DeepSeek Harness and OpenCode sessions. The session list, workspace, report and exports pick up the kit's new `pi`, `dsh` and `opencode` adapters without paging: Pi's JSONL sessions, DeepSeek Harness's Zstandard JSONL logs, and OpenCode's SQLite database. `get-event` reads originals through the kit's source-pointer resolver, so an event from a compressed file or a SQLite row returns its record instead of an unavailable one. The agent rail names and marks gain Pi, DeepSeek Harness and OpenCode (and Gemini CLI, which the upgraded kit also reads), and the support matrix documents their homes and overrides. The catalog upgrades `@rivus/agent-kit` to `0.24.1`; the smoke test's whole-read counter and the catalog cache's mtime assertion follow the 0.24.0 platform's read and stat shapes.
+Read Pi, DeepSeek Harness and OpenCode sessions. The session list, workspace, reports, and exports find Pi's JSONL sessions, DeepSeek Harness's Zstandard logs, and OpenCode's SQLite database; a session in a shared database is opened as `opencode.db#<sessionId>`. `get-event` returns the original record of a compressed line or a database row, and a record changed since the session was loaded comes back as unavailable with the reason. A report decompresses a compressed log once for all of its events instead of once per event. The agent rail, picker, and marks use the product names Pi, DeepSeek Harness, OpenCode, and Gemini CLI, Claude sessions under a chats directory still load as Claude, and the README lists the new agents' homes and overrides.
 
-Keep each OpenCode session's cached summary and search entries independent even when sessions share one database. Cache stamps include WAL changes, and original-record reads reject SQLite rows changed after the trace was loaded.
+Sessions that share one OpenCode database keep independent cached summaries and search entries: each cache entry follows that session's own last write, and reading an original rejects a row changed after the session was loaded. A large OpenCode database does not make its sessions' summaries run one at a time.
 
-Keep Gemini CLI session homes out of synthetic test environments and improve its light-theme mark contrast. Exercise all adapter fixtures in structural and Harbor export validation, and reject unexpected export errors.
-
-Use the kit's upstream Claude detection fix, so direct CLI loads and exports use the correct reader while Claude logs under a chats directory still load as Claude. Custom provider registration and explicit agent selection keep their kit behavior; no dependency patch is needed.
-
-When a compressed or database original has no platform resolver, report that missing reader directly instead of attempting a raw byte read.
-
-Keep DSH and Pi agent marks readable at the UI's small text size across dark and light list backgrounds.
+Keep the DSH and Pi marks readable at the list's small text size in both themes, and improve Gemini CLI's contrast on light backgrounds.

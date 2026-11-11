@@ -16,7 +16,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 ## Rules
 
-- Canonical storage is ordered `events[]`; every event can return its original. The server reads it back from the event's source pointer (file, byte offset, length) for `get-event`; the view trace and the server's trace cache hold no originals. Turn, step, lane, and tree are kernel projections (`projectRequests`, `projectLanes`, `projectTurns`).
+- Canonical storage is ordered `events[]`; every event can return its original. The server reads it back for `get-event` through the event's source pointer and the platform: a byte range in a plain file, the kit's reader for a compressed log (a decompressed offset) or a SQLite row; the view trace and the server's trace cache hold no originals. Turn, step, lane, and tree are kernel projections (`projectRequests`, `projectLanes`, `projectTurns`).
 - Missing data is `unavailable`. Never invent.
 - Compaction is `kind: 'compaction'` plus `shadowedBy` on hidden events.
 - `reconstruct(trace, eventId)` is the product. A ledger without it is a transcript browser.

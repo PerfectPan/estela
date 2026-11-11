@@ -4,6 +4,7 @@ import type { FittedView, SessionFs } from '@rivus/agent-trace-kernel'
 import type { FileStamp, ReadOriginal } from './source-check.ts'
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
+import { canonicalRecord, compressedRecord, reloadShared, type Reloadable } from './original-reload.ts'
 
 /** Loaded traces kept in memory, without originals. */
 const CAPACITY = 3
@@ -63,19 +64,17 @@ export interface TraceViewResult {
 /** `get-event` result: the full event, or the reason its original cannot be read back. */
 export type EventDetail = TraceEvent & { originalUnavailable?: string }
 
-interface Entry {
+interface Entry extends Reloadable {
   session: ResolvedSession
   trace: Trace
   canonical: boolean
+  /** A compressed log's events read through the platform reader, one whole-file decompression per load. */
+  compressed: boolean
   byId: Map<string, number>
   stamps: Map<string, FileStamp>
   prints: Uint32Array
   view?: FittedView
-  /** Canonical files only: the reload in flight, shared by concurrent `event` calls and dropped when it settles (or when the last `withEvents` ends). */
-  reload?: Promise<Trace>
-  /** Running `withEvents` calls: while above 0, a settled reload is kept. */
-  pinned: number
-  /** Aborts the canonical reload when the entry is evicted. */
+  /** Aborts the reload when the entry is evicted. */
   evicted: AbortController
 }
 
@@ -231,7 +230,8 @@ export class TraceStore {
   /**
    * `run` reads several events in full, in the order asked (the report's first events). Source
    * pointers are read a few at a time, so a long read never runs out of file handles. A canonical
-   * file is reloaded once for all of `run`'s reads and dropped when `run` ends.
+   * file is reloaded once for all of `run`'s reads, and a compressed log is decompressed once for
+   * them; both are dropped when `run` ends.
    */
   async withEvents<T>(
     traceId: string,
@@ -240,17 +240,29 @@ export class TraceStore {
   ): Promise<T> {
     const entry = await this.guard(() => this.entryFor(traceId, owner))
     entry.pinned += 1
-    const read = async (ids: readonly string[]): Promise<EventDetail[]> => {
-      if (entry.canonical) {
-        return Promise.all(ids.map(id => this.event(traceId, id, owner)))
-      }
-      const out: EventDetail[] = []
-      for (let start = 0; start < ids.length; start += READ_BATCH) {
-        out.push(...(await Promise.all(ids.slice(start, start + READ_BATCH).map(id => this.event(traceId, id, owner)))))
-      }
-      return out
-    }
     try {
+      // Outside the loop: one decompression serves every batch, and `pinned` keeps it until `run` ends.
+      const reload = entry.compressed ? await this.guard(() => this.reloadedTrace(entry)) : undefined
+      const read = async (ids: readonly string[]): Promise<EventDetail[]> => {
+        if (entry.canonical) {
+          return Promise.all(ids.map(id => this.event(traceId, id, owner)))
+        }
+        const out: EventDetail[] = []
+        for (let start = 0; start < ids.length; start += READ_BATCH) {
+          out.push(
+            ...(await Promise.all(
+              ids
+                .slice(start, start + READ_BATCH)
+                .map(id =>
+                  reload === undefined
+                    ? this.event(traceId, id, owner)
+                    : this.guard(async () => this.compressedEvent(entry, reload, id, traceId)),
+                ),
+            )),
+          )
+        }
+        return out
+      }
       return await run(read)
     } finally {
       entry.pinned -= 1
@@ -330,10 +342,14 @@ export class TraceStore {
     const byId = new Map<string, number>()
     trace.events.forEach((event, index) => byId.set(event.id, index))
     const stamps = loaded.canonical ? new Map<string, FileStamp>() : await stampFiles(trace, this.deps.fs)
+    // A compressed file's source pointer carries `codec`; the reader decompresses the whole file for one
+    // record, so a batch of reads shares one reload instead of one decompression per event.
+    const compressed = !loaded.canonical && trace.events.some(event => event.source.codec !== undefined)
     return {
       session,
       trace,
       canonical: loaded.canonical,
+      compressed,
       byId,
       stamps,
       prints,
@@ -461,27 +477,24 @@ export class TraceStore {
     return pending
   }
 
-  /**
-   * A canonical file keeps originals inside it: reload it, keep only the one
-   * requested. Concurrent calls share the reload in flight; nothing is kept
-   * after it settles. Aborted if the entry is evicted first.
-   */
-  private async canonicalOriginal(entry: Entry, index: number): Promise<unknown> {
-    if (!entry.reload) {
-      const reload = this.deps
+  /** Load a canonical or compressed file again for its originals; the entry's pin keeps it while a batch runs. */
+  private reloadedTrace(entry: Entry): Promise<Trace> {
+    return reloadShared(entry, () =>
+      this.deps
         .load(entry.session, { signal: entry.evicted.signal, onProgress: () => {} })
-        .then(loaded => loaded.trace)
-      entry.reload = reload
-      const clear = (): void => {
-        if (entry.reload === reload && entry.pinned === 0) {
-          entry.reload = undefined
-        }
-      }
-      reload.then(clear, clear)
-    }
-    const trace = await entry.reload
-    const id = entry.trace.events[index]!.id
-    return (trace.events[index]?.id === id ? trace.events[index] : trace.events.find(event => event.id === id))
-      ?.original
+        .then(loaded => loaded.trace),
+    )
+  }
+
+  private compressedEvent(entry: Entry, trace: Trace, id: string, traceId: string): EventDetail {
+    const found = compressedRecord(entry.trace, trace, entry.byId, entry.prints, id, traceId)
+    return 'unavailable' in found
+      ? this.present({ ...found.event, originalUnavailable: found.unavailable })
+      : this.present({ ...found.event, original: found.original })
+  }
+
+  /** A canonical file keeps originals inside it: the requested record from the shared reload. */
+  private async canonicalOriginal(entry: Entry, index: number): Promise<unknown> {
+    return canonicalRecord(await this.reloadedTrace(entry), entry.trace, index)
   }
 }

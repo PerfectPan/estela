@@ -97,6 +97,14 @@ const DSH: ConformanceSession[] = [
     capabilities: ['requests', 'usage', 'reasoning', 'systemPrompt', 'toolSchemas'],
   },
   {
+    // The same session compressed, as DeepSeek Harness writes it. A compressed log has no lines to
+    // count on disk, so the decompressed records are named by the line each one occupies.
+    path: 'plain/session.v4.jsonl.zstd',
+    records: 9,
+    recordKeys: Array.from({ length: 9 }, (_, index) => `plain/session.v4.jsonl.zstd\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'reasoning', 'systemPrompt', 'toolSchemas'],
+  },
+  {
     path: 'compaction/session.v4.jsonl',
     records: 10,
     capabilities: ['requests', 'usage', 'compaction', 'compactionTokens', 'systemPrompt'],

@@ -80,7 +80,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | Pick the session in the terminal. |
 | `--no-index` | Do not read or write the session index; summaries are computed again on each launch and not stored. |
 
-`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
+`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. A session in a shared database is named with its id: `agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
 
 ## Taking a session elsewhere
 
@@ -111,7 +111,7 @@ Exports are redacted like the server (`~` for the home directory, known credenti
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` |
 | DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
-| Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl` |
+| Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl`, and a legacy `*.json` chat without its `.jsonl` sibling |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
 | OpenCode | `~/.local/share/opencode/opencode.db` |
 | Pi | `~/.pi/agent/sessions/<cwd>/<time>_<id>.jsonl` |

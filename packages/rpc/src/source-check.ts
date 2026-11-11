@@ -94,6 +94,14 @@ async function recordAt(
 }
 
 /**
+ * The reader's own reason, appended to an unavailable message. Only the platform reader's errors
+ * get here: a raw `JSON.parse` message quotes file bytes, so that path keeps a fixed wording.
+ */
+function reasonOf(error: unknown): string {
+  return error instanceof Error && error.message.length > 0 ? `: ${error.message}` : ''
+}
+
+/**
  * Read the original back from its source pointer. When the file is unchanged
  * since the load, the bytes are trusted. When it changed (a live session keeps
  * appending, which moves mtime), the record must still be there: the file must
@@ -119,8 +127,9 @@ export async function checkedOriginal(
   if (!changed) {
     try {
       return { original: await recordAt(fs, source, readOriginal) }
-    } catch {
-      return { unavailable: `${source.file} changed since it was loaded; line ${source.line} could not be read` }
+    } catch (error) {
+      const reason = readOriginal === undefined ? '' : reasonOf(error)
+      return { unavailable: `${source.file} could not be read; line ${source.line} is unavailable${reason}` }
     }
   }
   const direct = source.codec === undefined && source.sqlite === undefined
@@ -130,8 +139,14 @@ export async function checkedOriginal(
   let original: unknown
   try {
     original = await recordAt(fs, source, readOriginal)
-  } catch {
-    return { unavailable: `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record` }
+  } catch (error) {
+    // The resolver names what it could not find (a missing SQLite row, an undecodable frame).
+    return {
+      unavailable:
+        readOriginal === undefined
+          ? `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record`
+          : `${source.file} changed since it was loaded; line ${source.line} could not be read${reasonOf(error)}`,
+    }
   }
   if (fingerprint(original, source.sqlite !== undefined) !== expected) {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} holds a different record` }

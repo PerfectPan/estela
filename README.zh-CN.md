@@ -82,7 +82,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | 在终端中选择会话。 |
 | `--no-index` | 不读写会话索引；每次启动重新计算摘要，不存储。 |
 
-`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
+`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。数据库里共用同一个库的会话要带 id 打开：`agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
 
 ## 会话导出
 
@@ -113,7 +113,7 @@ curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb ht
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`、`~/.codex/archived_sessions/**/rollout-*.jsonl` |
 | DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
-| Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl` |
+| Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl`，以及没有同名 `.jsonl` 的旧版 `*.json` 聊天 |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
 | OpenCode | `~/.local/share/opencode/opencode.db` |
 | Pi | `~/.pi/agent/sessions/<cwd>/<time>_<id>.jsonl` |

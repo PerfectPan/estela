@@ -8,6 +8,7 @@ import {
 } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 import { errorRow, rowFromHead, type CatalogPlatform, type LiveRow } from './catalog-rows.ts'
+import { adapterDisplayName } from './session-adapters.ts'
 import { errorMessage, listError } from './read-failure.ts'
 
 /** Parallel `stat` calls while building rows. */
@@ -45,7 +46,7 @@ export function progressOf(states: readonly AgentState[], homeDir: string): Agen
         ? state.missing.map(path => redactText(path, { home: homeDir })).join(', ')
         : undefined
     return {
-      name: state.adapter.displayName,
+      name: adapterDisplayName(state.adapter),
       read: state.read,
       ...(state.total !== undefined ? { total: state.total } : {}),
       done: state.done,
@@ -150,15 +151,13 @@ export async function discoverRows(
           const info = infos[index]
           const target = head.ref
           if (info !== undefined && info.kind === 'file') {
-            add(
-              rowFromHead(
-                target,
-                head,
-                { size: info.size, mtimeMs: info.mtimeMs },
-                platform.home,
-                (perFile.get(head.ref.path) ?? 0) > 1,
-              ),
-            )
+            // Every session in one OpenCode database shares the file stamp. Its own last write is what
+            // changes its summary, so that time keys this row's cache entry apart from the others.
+            const stamp =
+              state.adapter.agent === 'opencode'
+                ? { size: info.size, mtimeMs: head.lastActiveAt }
+                : { size: info.size, mtimeMs: info.mtimeMs }
+            add(rowFromHead(target, head, stamp, platform.home, (perFile.get(head.ref.path) ?? 0) > 1))
           } else {
             add(
               errorRow(

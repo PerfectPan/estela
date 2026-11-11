@@ -74,3 +74,78 @@ it('keeps database session ids stable and invalidates cached summaries when only
     await rm(home, { recursive: true, force: true })
   }
 })
+
+it('recomputes only the OpenCode session whose own last write changed', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
+  const root = join(home, 'sessions')
+  await mkdir(root)
+  const path = join(root, 'opencode.db')
+  await writeFile(path, 'unchanged database')
+  // Two sessions in one database. The database file never changes; only the second session is written.
+  const counts = [1, 2]
+  const stamps = [100, 200]
+  const loads: string[] = []
+  const source = { file: path, offset: 0, length: 0, line: 1 }
+  const adapter: SessionAdapter = {
+    specificationVersion: 'sessions-v1',
+    agent: 'opencode',
+    displayName: 'opencode',
+    home: { defaultPath: [] },
+    capabilities: ['requests'],
+    roots: () => [root],
+    async *discover() {
+      for (let i = 0; i < counts.length; i++) {
+        yield {
+          ref: { agent: 'opencode', path, sessionId: String(i) },
+          lastActiveAt: stamps[i]!,
+          sizeBytes: 0,
+        }
+      }
+    },
+    async detect() {
+      return false
+    },
+    async load(_platform, ref) {
+      const count = counts[Number(ref.sessionId)]!
+      loads.push(ref.sessionId!)
+      return ok({
+        agent: 'opencode',
+        session: { id: ref.sessionId! },
+        capabilities: ['requests'],
+        agents: [{ id: 'main' }],
+        skipped: [],
+        events: Array.from({ length: count }, (_, i) => ({
+          id: String(i),
+          seq: i,
+          ts: i,
+          kind: 'request' as const,
+          payload: {},
+          source,
+        })),
+      })
+    },
+  }
+  const open = () =>
+    new SessionCatalog({
+      platform: createNodePlatform({ home, env: {} }),
+      adapters: { opencode: adapter },
+      index: openSessionIndex({ file: join(home, 'index.sqlite'), summaryVersion: 1 }),
+    })
+  let catalog = open()
+  try {
+    await catalog.whenIdle()
+    loads.length = 0
+    catalog.close()
+    counts[1] = 3
+    stamps[1] = 300
+    catalog = open()
+    await catalog.whenIdle()
+    // The unchanged session comes from its own cache entry; only the written one is summarized again.
+    expect(loads).toEqual(['1'])
+    const after = (await catalog.listSessions()).rows
+    expect(after.map(row => row.requests).toSorted((a, b) => a! - b!)).toEqual([1, 3])
+  } finally {
+    catalog.close()
+    await rm(home, { recursive: true, force: true })
+  }
+})
