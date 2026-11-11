@@ -47,7 +47,7 @@
 
 ### 1.3 Goals and success criteria
 
-- `apps/cli/src` 按职责分组（2.2）。只有 `cli/` 解析命令行、写终端输出、设置退出码。
+- `apps/cli/src` 按职责分组（2.2）。只有 `entry/` 解析命令行、写终端输出、设置退出码。
 - 只解析一遍。路由表在加载会话或建立索引之前拒绝未知选项和多余的位置参数。
 - `agent-trace --help` 列出所有命令，每个命令都有自己的 `--help`，`--version` 输出包的版本。
 - 一张表把每种预期失败映射到它的消息、修复提示行和退出码，并由类型检查保证没有遗漏。
@@ -74,13 +74,13 @@
 
 | Directory | Owns | Depends on |
 | --- | --- | --- |
-| `src/cli/` | 路由表（`routes.ts`）、分发（`app.ts`）、帮助与版本文本（`help.ts`）、失败表（`failure.ts`）、每个命令一个模块（`commands/`）、终端输出（`ui/`） | 下面所有目录 |
+| `src/entry/` | 路由表（`routes.ts`）、分发（`app.ts`）、帮助与版本文本（`help.ts`）、失败表（`failure.ts`）、每个命令一个模块（`commands/`）、终端输出（`ui/`） | 下面所有目录 |
 | `src/sessions/` | 通过 kit 加载一个会话目标、trace id 和目标标签、读取失败的措辞、`ShellPlatform` | 无 |
 | `src/catalog/` | 会话目录：发现、行、摘要、摘要队列、索引缓存 | `sessions/` |
 | `src/server/` | DevFrame 定义、TraceStore 组装、打开浏览器 | `sessions/`、`paths.ts` |
 | `src/report/` | 生成报告并打包成可从 `file://` 打开的文件 | `server/` |
 | `src/export/` | 写 ATIF 和 OTLP 文件 | 无 |
-| `src/` | `main.ts`（进程入口）、`paths.ts`、`node-version.mjs`、`testsupport/` | `cli/` |
+| `src/` | `main.ts`（进程入口）、`paths.ts`、`node-version.mjs`、`testsupport/` | `entry/` |
 
 这一列只列 `apps/cli/src` 内的目录；包之间的依赖遵循 `AGENTS.md` 中 Layers 表的 `apps/cli` 一行。
 
@@ -116,8 +116,8 @@ bin.mjs → main() → runCli(argv)
 - **D3. 帮助文本来自 router 的 `printHelp`，但用完整命令名。** 打印器只用路径给嵌套路由起标题
   （`build`），所以 `help.ts` 把路由改名为 `agent-trace build` 后再交给它。每个路由都带版本号，
   `--version` 输出 `agent-trace <version>`。
-- **D4. 所有失败在一张表里。** `cli/failure.ts` 定义 `CliFailure` 联合类型和 `failureReport`，后者是一个
-  每种 kind 都必须返回的 `switch`。命令抛出 `CliError`；`cli/` 以下没有代码退出进程。所有失败的退出码
+- **D4. 所有失败在一张表里。** `entry/failure.ts` 定义 `CliFailure` 联合类型和 `failureReport`，后者是一个
+  每种 kind 都必须返回的 `switch`。命令抛出 `CliError`；`entry/` 以下没有代码退出进程。所有失败的退出码
   仍是 1。
 - **D5. 先校验再输出。** `commandOf` 检查意图（命令名之前写了会话或选项、`--pick` 冲突、`--` 之后的
   token），然后返回要执行的命令，所以用法错误发生在输出过滤器和任何命令启动之前。
@@ -207,9 +207,9 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 ## 4. Verification
 
-- 单元测试：`cli/routes.test.ts` 覆盖 3.1 的每一行、`--`、以数字开头的路径、未知选项、缺少的值、作为
-  输出路径的 `-`、端口范围、每个路由上的帮助和版本，以及两种帮助文本；`cli/app.test.ts` 覆盖版本行、
-  3.4 的用法错误、`--` 之后的 token，以及 stdout 保持为空的 `mcp` 失败；`cli/commands/dev.test.ts` 覆盖
+- 单元测试：`entry/routes.test.ts` 覆盖 3.1 的每一行、`--`、以数字开头的路径、未知选项、缺少的值、作为
+  输出路径的 `-`、端口范围、每个路由上的帮助和版本，以及两种帮助文本；`entry/app.test.ts` 覆盖版本行、
+  3.4 的用法错误、`--` 之后的 token，以及 stdout 保持为空的 `mcp` 失败；`entry/commands/dev.test.ts` 覆盖
   `browserPlan`。移动过的测试除路径外不变，并全部通过。
 - 集成测试：`apps/cli/test/cli-smoke.test.ts`（每次 `build` 只读一次文件、MCP 的 stdout），以及
   `apps/cli/test/report-build.test.ts`（一个脱敏的 `index.html`；它会启动 CLI，所以从
@@ -232,7 +232,7 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 ### 5.3 Execution order
 
-一个 PR，分三个提交，每个提交都能构建。
+一个 PR。每个提交都能构建；Task 1 单独成为一个提交，审查文件移动时不夹杂逻辑改动。
 
 #### Task 1: Group the modules
 
@@ -244,14 +244,14 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 #### Task 2: Route the commands
 
-- Files：`src/cli/{routes,app,help,failure}.ts`、`src/cli/commands/*.ts`、`src/main.ts`、
-  `src/server/{devframe,trace-store}.ts`、`src/export/write-export.ts`、`src/cli/ui/terminal.ts`、
+- Files：`src/entry/{routes,app,help,failure}.ts`、`src/entry/commands/*.ts`、`src/main.ts`、
+  `src/server/{devframe,trace-store}.ts`、`src/export/write-export.ts`、`src/entry/ui/terminal.ts`、
   `apps/cli/package.json`、`pnpm-lock.yaml`、`apps/cli/vite.config.ts` 和
   `apps/cli/scripts/third-party-notices.ts` 里关于打包的注释、`apps/e2e/src/cli.smoke.ts`，以及一个
   changeset；从 `src/report/report-site.test.ts` 拆出 `test/report-build.test.ts`；删除 `src/argv.ts`
   及其测试。
 - Change：3.1 到 3.5。
-- Tests：`cli/routes.test.ts`、`cli/app.test.ts`、`cli/commands/dev.test.ts`，以及 4 里的 `test:smoke` 用例。
+- Tests：`entry/routes.test.ts`、`entry/app.test.ts`、`entry/commands/dev.test.ts`，以及 4 里的 `test:smoke` 用例。
 - Exit condition：4 的所有检查通过，包括 `test:smoke` 和 `test:e2e`。
 
 #### Task 3: Documents and release intent
@@ -277,6 +277,6 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 | Item | Type | Impact | Owner | Next step or deadline |
 | --- | --- | --- | --- | --- |
-| `@bomb.sh/router` 还是 0.x，首个版本发布于 2026-09-30 | risk | 升级可能改变它的 API 或消息 | unconfirmed | 版本已固定，只有 `cli/` 引用它；`cli/routes.test.ts` 固定了消息 |
-| `help.ts` 改写了 router 打印器的 usage 行和会话标签 | risk | 升级后打印器格式一变，帮助文本可能出错 | unconfirmed | `cli/routes.test.ts` 固定了两种帮助文本 |
+| `@bomb.sh/router` 还是 0.x，首个版本发布于 2026-09-30 | risk | 升级可能改变它的 API 或消息 | unconfirmed | 版本已固定，只有 `entry/` 引用它；`entry/routes.test.ts` 固定了消息 |
+| `help.ts` 改写了 router 打印器的 usage 行和会话标签 | risk | 升级后打印器格式一变，帮助文本可能出错 | unconfirmed | `entry/routes.test.ts` 固定了两种帮助文本 |
 | 解析 `--help` 或旧版 `--version` 输出的脚本 | risk | 低；两种格式都没有文档 | unconfirmed | 无 |

@@ -1,5 +1,5 @@
 import process from 'node:process'
-import { runCli } from './cli/app.ts'
+import { runCli } from './entry/app.ts'
 
 export async function main(): Promise<void> {
   const code = await runCli(process.argv.slice(2))

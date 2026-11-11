@@ -24,7 +24,7 @@ export default defineDevframe({
   icon: 'ph:path-duotone',
   basePath: BASE_PATH,
   clientAssets: webDistDir(),
-  // The dev server's default port; the CLI's own route table (`cli/routes.ts`) owns every option.
+  // The dev server's default port; the CLI's own route table (`entry/routes.ts`) owns every option.
   cli: { port: 7392 },
   setup(ctx) {
     const scoped = ctx.scope(NAMESPACE)

@@ -53,7 +53,7 @@ to touch both parsers.
 
 ### 1.3 Goals and success criteria
 
-- `apps/cli/src` is grouped by responsibility (2.2). Only `cli/` parses the command line, writes to
+- `apps/cli/src` is grouped by responsibility (2.2). Only `entry/` parses the command line, writes to
   the terminal, and sets the exit code.
 - One parse. The route table rejects unknown options and extra positionals before a session is
   loaded or indexed.
@@ -87,13 +87,13 @@ to touch both parsers.
 
 | Directory | Owns | Depends on |
 | --- | --- | --- |
-| `src/cli/` | the route table (`routes.ts`), dispatch (`app.ts`), help and version text (`help.ts`), the failure table (`failure.ts`), one module per command (`commands/`), terminal output (`ui/`) | every directory below |
+| `src/entry/` | the route table (`routes.ts`), dispatch (`app.ts`), help and version text (`help.ts`), the failure table (`failure.ts`), one module per command (`commands/`), terminal output (`ui/`) | every directory below |
 | `src/sessions/` | loading one session target through the kit, trace ids and target labels, read-failure wording, `ShellPlatform` | none |
 | `src/catalog/` | the session catalog: discovery, rows, summaries, the summary queue, the index cache | `sessions/` |
 | `src/server/` | the DevFrame definition, the TraceStore wiring, opening the browser | `sessions/`, `paths.ts` |
 | `src/report/` | building a report and packing it for `file://` | `server/` |
 | `src/export/` | writing ATIF and OTLP files | none |
-| `src/` | `main.ts` (process entry), `paths.ts`, `node-version.mjs`, `testsupport/` | `cli/` |
+| `src/` | `main.ts` (process entry), `paths.ts`, `node-version.mjs`, `testsupport/` | `entry/` |
 
 The column lists directories inside `apps/cli/src`; package dependencies follow the `apps/cli` row
 of the Layers table in `AGENTS.md`.
@@ -134,9 +134,9 @@ bin.mjs → main() → runCli(argv)
   a nested route by its path alone (`build`), so `help.ts` passes the route renamed to
   `agent-trace build`. Every route carries the version, and `--version` prints
   `agent-trace <version>`.
-- **D4. Failures are one table.** `cli/failure.ts` holds the `CliFailure` union and
+- **D4. Failures are one table.** `entry/failure.ts` holds the `CliFailure` union and
   `failureReport`, a `switch` that must return for every kind. Commands throw `CliError`; nothing
-  below `cli/` exits. Every failure keeps exit code 1.
+  below `entry/` exits. Every failure keeps exit code 1.
 - **D5. Validation runs before output.** `commandOf` checks the intent (a session or option before a
   command name, `--pick` conflicts, the token after `--`) and returns the command to run, so a usage
   failure happens before the output filter or any command starts.
@@ -236,10 +236,10 @@ Changed:
 
 ## 4. Verification
 
-- Unit: `cli/routes.test.ts` covers each row of 3.1, `--`, digit-leading paths, unknown options,
+- Unit: `entry/routes.test.ts` covers each row of 3.1, `--`, digit-leading paths, unknown options,
   missing values, `-` as an output path, the port range, help and version on every route, and both
-  help texts; `cli/app.test.ts` covers the version line, the usage failures of 3.4, the token after
-  `--`, and an `mcp` failure that leaves stdout empty; `cli/commands/dev.test.ts` covers
+  help texts; `entry/app.test.ts` covers the version line, the usage failures of 3.4, the token after
+  `--`, and an `mcp` failure that leaves stdout empty; `entry/commands/dev.test.ts` covers
   `browserPlan`. The moved tests pass unchanged apart from paths.
 - Integration: `apps/cli/test/cli-smoke.test.ts` (one read per `build`, MCP stdout) and
   `apps/cli/test/report-build.test.ts` (one redacted `index.html`, split out of
@@ -264,7 +264,8 @@ The branch starts from #80 (`feat/ledger-lane-view`), which carries #70's CLI. #
 
 ### 5.3 Execution order
 
-One PR in three commits, each leaving the repository buildable.
+One PR. Every commit leaves the repository buildable, and Task 1 is a commit of its own so the move
+reads without logic changes.
 
 #### Task 1: Group the modules
 
@@ -276,14 +277,14 @@ One PR in three commits, each leaving the repository buildable.
 
 #### Task 2: Route the commands
 
-- Files: `src/cli/{routes,app,help,failure}.ts`, `src/cli/commands/*.ts`, `src/main.ts`,
-  `src/server/{devframe,trace-store}.ts`, `src/export/write-export.ts`, `src/cli/ui/terminal.ts`,
+- Files: `src/entry/{routes,app,help,failure}.ts`, `src/entry/commands/*.ts`, `src/main.ts`,
+  `src/server/{devframe,trace-store}.ts`, `src/export/write-export.ts`, `src/entry/ui/terminal.ts`,
   `apps/cli/package.json`, `pnpm-lock.yaml`, the bundling comments in `apps/cli/vite.config.ts` and
   `apps/cli/scripts/third-party-notices.ts`, `apps/e2e/src/cli.smoke.ts`, and a changeset; split
   `test/report-build.test.ts` out of `src/report/report-site.test.ts`; delete `src/argv.ts` and its
   test.
 - Change: 3.1 to 3.5.
-- Tests: `cli/routes.test.ts`, `cli/app.test.ts`, `cli/commands/dev.test.ts`, and the `test:smoke`
+- Tests: `entry/routes.test.ts`, `entry/app.test.ts`, `entry/commands/dev.test.ts`, and the `test:smoke`
   cases of 4.
 - Exit condition: every check of 4 passes, `test:smoke` and `test:e2e` included.
 
@@ -310,6 +311,6 @@ untouched, and reports and exports are byte-for-byte the same.
 
 | Item | Type | Impact | Owner | Next step or deadline |
 | --- | --- | --- | --- | --- |
-| `@bomb.sh/router` is 0.x; its first release was 2026-09-30 | risk | an upgrade may change its API or messages | unconfirmed | the version is pinned and only `cli/` imports it; `cli/routes.test.ts` pins the messages |
-| `help.ts` rewrites the router printer's usage lines and session label | risk | a printer change in an upgrade could leave the help wrong | unconfirmed | `cli/routes.test.ts` pins both help texts |
+| `@bomb.sh/router` is 0.x; its first release was 2026-09-30 | risk | an upgrade may change its API or messages | unconfirmed | the version is pinned and only `entry/` imports it; `entry/routes.test.ts` pins the messages |
+| `help.ts` rewrites the router printer's usage lines and session label | risk | a printer change in an upgrade could leave the help wrong | unconfirmed | `entry/routes.test.ts` pins both help texts |
 | Scripts that parse `--help` or the old `--version` output | risk | low; neither format was documented | unconfirmed | none |
