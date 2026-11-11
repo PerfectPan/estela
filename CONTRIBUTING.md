@@ -102,13 +102,14 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 
 ## Release Intent
 
-`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/agent-trace`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus `pnpm-lock.yaml`. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package.
+`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/agent-trace`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect bundled dependencies. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package. Changes limited to root release-tool dependencies need no release changeset.
 
-- Create the file with `pnpm change @rivus/agent-trace --bump <major|minor|patch|none> --summary "<text>"`, which also runs without a terminal and invents a random file name — rename it to a kebab-case slug — or copy an existing `.changeset/*.md` entry and edit it.
-- The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` records an internal change: it neither bumps the version nor writes a changelog line, and its message may be empty.
+- Create the file with `pnpm exec changeset --patch @rivus/agent-trace --message "<text>"` (use `--minor` or `--major` for another bump), or run `pnpm exec changeset` interactively. Rename the generated random file name to a kebab-case slug.
+- The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `pnpm exec changeset --empty` records an internal change without a release or changelog line; Changesets CLI does not accept pnpm's `none` bump type.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
-- CI does not verify that a changeset is present; the PR template carries the reminder.
-- On a push to `main`, the [Publish workflow](#publishing-to-npm) uses `changesets/action@v2` and `pnpm version -r` to open or update the `chore(release): version packages` PR when changesets are pending. It consumes the changesets, writes `apps/cli/CHANGELOG.md`, appends the intents to `.changeset/ledger.yaml`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
+- CI runs `pnpm exec changeset status --since=HEAD` to validate the configuration and pending changesets without depending on a local base branch in a shallow checkout. It does not verify that each shipped change has a changeset; the PR template carries the reminder.
+- On a push to `main`, the [Publish workflow](#publishing-to-npm) uses `changesets/action/select-mode@v2.1.2` and `changesets/action/version@v2.1.2` to open or update the `chore(release): version packages` PR. The native `changeset version` consumes pending changesets, writes `apps/cli/CHANGELOG.md` through `@changesets/changelog-github`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
+- `.changeset/config.json` disables versioning and tagging private packages. The existing `.changeset/ledger.yaml` is a read-only pnpm history record; Changesets CLI neither reads nor extends it. Existing changelog entries and the historical `v0.1.0` tag and Release remain intact.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
 ### Bot Pull Requests
@@ -175,25 +176,25 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   confirm the intended owner settings separately; do not describe the config-only change as security coverage.
 
 - **Changesets**: bot PRs carry none. Because the lockfile counts as what the CLI ships, an npm update that passes
-  CI still needs a patch changeset for `@rivus/agent-trace` added by the reviewer before merging (`pnpm change
-  @rivus/agent-trace --bump patch --summary "..."`), per the Release Intent rules above. Lock-file-only updates
+  CI still needs a patch changeset for `@rivus/agent-trace` added by the reviewer before merging (`pnpm exec changeset
+  --patch @rivus/agent-trace --message "..."`), per the Release Intent rules above. Lock-file-only updates
   follow the same rule when a bundled dependency changed the shipped output.
 
 ### Publishing to npm
 
-`.github/workflows/publish.yml` runs on every push to `main`. Its version job prepares the draft version PR when changesets are pending; publishing waits until none remain. With no pending changesets, the publish job runs CLI smoke tests against a production-built, installed tarball, then uses pnpm's recursive publishing to upload only workspace versions absent from npm. A `main` push whose package versions are already on npm uploads nothing.
+`.github/workflows/publish.yml` keeps the npm trusted-publisher workflow filename. On every push to `main`, the native `select-mode` action chooses `version` for pending release changesets, `none` for only empty changesets or no unpublished versions, and `publish` for packages ready to publish or tag. Version mode updates the draft version PR. Publish mode runs CLI smoke tests against a production-built, installed tarball, then `changesets/action/publish@v2.1.2` calls native `changeset publish` and creates the corresponding tags and GitHub Releases. A repeated `main` push with no new release skips the publish job and its smoke build.
 
-Manual dispatch is also restricted to `main`. It bypasses the version job and defaults to `dry-run`, which passes `--dry-run` to `pnpm publish`. It builds and tests the package and runs pnpm's Git checks without uploading or creating a Release; it needs no npm publishing credential. Uncheck it only for an intentional manual publish.
+Manual dispatch is also restricted to `main`. It bypasses the version job and defaults to `dry-run`. The separate read-only job runs the tarball smoke, saves the native `changeset publish-plan` JSON, and packs the CLI with `pnpm pack`. It never calls a publish command, creates a tag or Release, or requests an OIDC publishing token. The plan and archive are saved as the `release-dry-run` artifact. Uncheck `dry-run` only for an intentional manual publish.
 
-The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): `id-token: write` supplies the OIDC token, which pnpm exchanges for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
+The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): only the publish job has `id-token: write`, which the publishing tool uses for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
 
 A new package must exist before npm accepts a trusted publisher: publish an empty bootstrap prerelease from a temporary directory using local npm login and 2FA, configure its trusted publisher, then enable the automatic version flow. Workflow publishing uses only OIDC and no repository npm token secret.
 
 A new trusted publisher expires unless it completes a successful publish within two days. If the release is delayed, recreate the expired configuration before publishing; a dry run does not validate it.
 
-A real publish runs `pnpm publish -r --access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000 --report-summary`, with pnpm's Git checks enabled. Recursive publishing packs the same production build output again rather than uploading the smoke archive; pnpm rewrites `workspace:` and `catalog:` specifiers. The tag and Release step runs only when `pnpm-publish-summary.json` lists `@rivus/agent-trace` as published; an empty summary skips it. The workflow saves the summary as the `publish-summary` artifact.
+A real publish uses Changesets CLI v3's registry checks and publish plan. Only `@rivus/agent-trace` is public; the internal packages remain private, unversioned, and untagged. The native publisher packs the same production build output again rather than uploading the smoke archive; pnpm rewrites `workspace:` and `catalog:` specifiers. The Action reads the CLI's structured output to create tags and Releases and reports its `published` and `published-packages` outputs. No custom summary parser or tag/Release script is used.
 
-For each published version, Release notes come from its generated `apps/cli/CHANGELOG.md` section. The workflow pushes `"$GITHUB_SHA:refs/tags/$tag"` without force, then creates the Release with `--verify-tag` and those notes. If tagging or Release creation fails, rerunning skips the existing npm version and does not repair its missing tag or Release; recover those manually.
+New workspace release tags use the native `@rivus/agent-trace@<version>` format. Release notes come from the corresponding generated `apps/cli/CHANGELOG.md` section. A publish failure still fails the job even if an upload was accepted; do not infer success from an output containing a package name. This repository publishes one package, so there is no partial multi-package batch to coordinate. Native publishing skips public versions already on npm and does not repair their missing tags or Releases; use the recovery steps below.
 
 If the workflow fails before uploading, rerun it. If an upload may have succeeded, including an availability timeout, query the exact version first:
 
@@ -202,11 +203,11 @@ version=0.1.0 # Use the failed run's version.
 npm view "@rivus/agent-trace@$version" name version dist gitHead --json --registry https://registry.npmjs.org/
 ```
 
-Authentication, network, and other query failures do not establish that a version is absent. An `E404` after an accepted upload or an availability timeout can mean the package is not visible yet: wait and query again without re-uploading. Rerun publishing only after confirming that the upload was not accepted. If the version exists, do not republish it or rerun the whole workflow. Complete only the missing tag and Release:
+Authentication, network, and other query failures do not establish that a version is absent. An `E404` after an accepted upload or an availability timeout can mean the package is not visible yet: wait and query again without re-uploading. Rerun publishing only after confirming that the upload was not accepted. If the version exists, do not republish it or rerun the whole workflow. Never overwrite or unpublish an existing version to recover. Complete only the missing tag and Release:
 
 1. Use a clean checkout of the original run's `GITHUB_SHA`. Confirm the published package came from that run using its publish output and registry metadata; check `gitHead` against the commit when the field is present. Stop if the package's source cannot be confirmed.
-2. Inspect the remote tag with `git ls-remote --tags origin "refs/tags/v$version" "refs/tags/v$version^{}"`. An existing tag must resolve to the original commit. If absent, set `release_sha` to the original run's SHA and run `git push origin "$release_sha:refs/tags/v$version"`. Stop on any conflict; do not move or force-push a tag.
-3. If the GitHub Release is missing, save the body of that version's `apps/cli/CHANGELOG.md` section to a temporary notes file, then run `gh release create "v$version" --verify-tag --title "v$version" --notes-file "$notes_file"`, setting `notes_file` to that file. Verify an existing Release against the same tag instead of creating another one.
+2. Set `tag="@rivus/agent-trace@$version"` for a native release (`tag="v0.1.0"` for the historical release). Inspect it with `git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}"`. An existing tag must resolve to the original commit. If absent, set `release_sha` to the original run's SHA and run `git push origin "$release_sha:refs/tags/$tag"`. Stop on any conflict; do not move or force-push a tag.
+3. If the GitHub Release is missing, save the body of that version's `apps/cli/CHANGELOG.md` section to a temporary notes file, then run `gh release create "$tag" --verify-tag --title "$tag" --notes-file "$notes_file"`, setting `notes_file` to that file. Verify an existing Release against the same tag instead of creating another one.
 
 Documentation-only and workflow-only PRs need no changeset.
 
@@ -305,7 +306,7 @@ The review checks come from [`PerfectPan/gh-repo-checks`](https://github.com/Per
 
 Run `gh repo-checks repository` locally before opening review. This generic check does not replace stack-specific tests, but it catches missing template files, tracked local artifacts, obvious secrets, private paths, and drift in review templates.
 
-Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Renovate proposes action-version updates for review; keep workflow structure synchronized with `PerfectPan/project-template` when adopting template changes.
+Workflows reference actions by their latest major version tag, such as `actions/checkout@v7`, not by commit SHA. Changesets sub-actions are pinned to the shared `v2.1.2` baseline because their CLI v3 inputs and publish-plan behavior are part of the release migration. Renovate proposes action-version updates for review; keep workflow structure synchronized with `PerfectPan/project-template` when adopting template changes.
 
 ## Local Git Hooks
 

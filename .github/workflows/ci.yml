@@ -36,6 +36,7 @@ jobs:
           node scripts/check-doc-translations.mjs
           node scripts/check-conventions.mjs
           node scripts/check-layers.mjs
+          pnpm exec changeset status --since=HEAD
       - name: Conventional PR title
         if: github.event_name == 'pull_request'
         uses: PerfectPan/gh-repo-checks@v1

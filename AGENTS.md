@@ -37,7 +37,7 @@ Generic inspect DevTool for coding-agent session logs. Not a harness. Not dsh Tr
 
 ## Tooling
 
-- pnpm workspace. Workspace settings, the shared external versions (`catalog:`), and the versioning config live in the root `pnpm-workspace.yaml`.
+- pnpm workspace. Workspace settings and the shared external versions (`catalog:`) live in the root `pnpm-workspace.yaml`; Changesets versioning lives in `.changeset/config.json`.
 - UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
 - The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each workspace package has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web`); `tsc` stays the type check. Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
 - Put unit tests next to the code they test (for TypeScript, `foo.test.ts` beside `foo.ts`; other languages follow their own convention). Integration tests, which cross modules, run a built artifact, or go through an external boundary such as HTTP or a database, live in the package's `test/` directory, with shared fixtures under `test/fixtures/`.
@@ -82,4 +82,4 @@ cd apps/e2e && pnpm run test:smoke
 cd apps/e2e && pnpm run test:e2e
 ```
 
-`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Never run `pnpm publish` or `npm publish` from a checkout; the Publish workflow releases merged versions to npm (see `CONTRIBUTING.md#publishing-to-npm`).
+`test:smoke` and `test:e2e` build `@rivus/agent-trace`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `AGENT_TRACE_E2E_CHANNEL=chrome`). Release to npm only through the Publish workflow; local checks use `changeset status`, `changeset publish-plan`, and `pnpm pack` (see `CONTRIBUTING.md#publishing-to-npm`).
