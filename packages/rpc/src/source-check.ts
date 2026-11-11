@@ -55,11 +55,16 @@ export function fingerprint(original: unknown, complete = false): number {
   return hash
 }
 
-/** One fingerprint per event, in event order, taken while originals are still in memory. */
+/**
+ * One fingerprint per event, in event order, taken while originals are still in memory. A SQLite row
+ * and a compressed line are compared whole: their content lives in nested fields (a dsh `data`, an
+ * OpenCode part), where a top-level scalar would miss a rewrite. A plain file line stays cheap.
+ */
 export function fingerprints(trace: Trace): Uint32Array {
   const out = new Uint32Array(trace.events.length)
   trace.events.forEach((event, index) => {
-    out[index] = fingerprint(event.original, event.source.sqlite !== undefined)
+    const complete = event.source.sqlite !== undefined || event.source.codec !== undefined
+    out[index] = fingerprint(event.original, complete)
   })
   return out
 }

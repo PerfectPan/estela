@@ -135,14 +135,16 @@ export function rowFromHead(
   info: { size: number; mtimeMs: number },
   homeDir: string,
   sharedFile = false,
+  /** The cache key, when the file's own stamp says nothing about this one session (a shared database). */
+  key: { size: number; mtimeMs: number } = info,
 ): LiveRow {
   return {
     ...headFields(head, homeDir),
     // A database session keeps its id even while it is the only row in that database.
     traceId: traceIdOf(sharedFile || target.agent === 'opencode' ? target : { agent: target.agent, path: target.path }),
     target,
-    size: info.size,
-    mtimeMs: info.mtimeMs,
+    size: key.size,
+    mtimeMs: key.mtimeMs,
     lastActiveAt: head.lastActiveAt,
     // The stat size, like a row from the index, so an unchanged file compares equal.
     sizeBytes: info.size,

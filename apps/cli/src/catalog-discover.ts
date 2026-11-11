@@ -151,13 +151,11 @@ export async function discoverRows(
           const info = infos[index]
           const target = head.ref
           if (info !== undefined && info.kind === 'file') {
-            // Every session in one OpenCode database shares the file stamp. Its own last write is what
-            // changes its summary, so that time keys this row's cache entry apart from the others.
-            const stamp =
-              state.adapter.agent === 'opencode'
-                ? { size: info.size, mtimeMs: head.lastActiveAt }
-                : { size: info.size, mtimeMs: info.mtimeMs }
-            add(rowFromHead(target, head, stamp, platform.home, (perFile.get(head.ref.path) ?? 0) > 1))
+            // Every session in one OpenCode database shares the file stamp, and another session's write
+            // changes it. This session's own last write is what changes its summary, so that alone is its
+            // cache key; the shared size says nothing about this row and would invalidate all of them.
+            const key = state.adapter.agent === 'opencode' ? { size: 0, mtimeMs: head.lastActiveAt } : undefined
+            add(rowFromHead(target, head, info, platform.home, (perFile.get(head.ref.path) ?? 0) > 1, key))
           } else {
             add(
               errorRow(

@@ -12,9 +12,9 @@ export interface Reloadable {
  * Start or join the reload of a canonical or compressed file, which keeps its originals in the file.
  * One load serves every reader; it is dropped once it settles unless a `withEvents` call pins it.
  */
-export function reloadShared(entry: Reloadable, start: () => Promise<Trace>): Promise<Trace> {
+export function reloadShared(entry: Reloadable, load: () => Promise<{ trace: Trace }>): Promise<Trace> {
   if (!entry.reload) {
-    const reload = start()
+    const reload = load().then(loaded => loaded.trace)
     entry.reload = reload
     const clear = (): void => {
       if (entry.reload === reload && entry.pinned === 0) {
@@ -24,6 +24,18 @@ export function reloadShared(entry: Reloadable, start: () => Promise<Trace>): Pr
     reload.then(clear, clear)
   }
   return entry.reload
+}
+
+/**
+ * A reload started by the first read, not by the caller. A failed reload resolves to `undefined`, so
+ * the batch falls back to per-event reads, which mark what they could not read unavailable.
+ */
+export function reloadOnce(start: () => Promise<Trace>): () => Promise<Trace | undefined> {
+  let attempt: Promise<Trace | undefined> | undefined
+  return () => {
+    attempt ??= start().catch(() => undefined)
+    return attempt
+  }
 }
 
 export type ReloadedRecord = { event: TraceEvent; original: unknown } | { event: TraceEvent; unavailable: string }
@@ -49,7 +61,8 @@ export function compressedRecord(
   if (again === undefined) {
     return { event, unavailable: `${event.source.file} changed since it was loaded; line ${event.source.line} is gone` }
   }
-  if (fingerprint(again.original, event.source.sqlite !== undefined) !== prints[index]!) {
+  // Compressed lines are fingerprinted whole (nested `data` included), as `fingerprints` does.
+  if (fingerprint(again.original, true) !== prints[index]!) {
     return {
       event,
       unavailable: `${event.source.file} changed since it was loaded; line ${event.source.line} holds a different record`,

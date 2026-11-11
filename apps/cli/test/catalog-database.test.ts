@@ -8,13 +8,15 @@ import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog.ts'
 
-it('keeps database session ids stable and invalidates cached summaries when only WAL changes', async () => {
+it('keeps database session ids stable and invalidates a cached summary when the session is written', async () => {
   const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
   const root = join(home, 'sessions')
   await mkdir(root)
   const path = join(root, 'opencode.db')
   await writeFile(path, 'unchanged database')
   let counts = [1, 2]
+  // Each session's own last write. The WAL write below changes the shared database stamp, not this.
+  const activity = [1, 1]
   const source = { file: path, offset: 0, length: 0, line: 1 }
   const adapter: SessionAdapter = {
     specificationVersion: 'sessions-v1',
@@ -25,7 +27,7 @@ it('keeps database session ids stable and invalidates cached summaries when only
     roots: () => [root],
     async *discover() {
       for (let i = 0; i < counts.length; i++) {
-        yield { ref: { agent: 'opencode', path, sessionId: String(i) }, lastActiveAt: 1, sizeBytes: 0 }
+        yield { ref: { agent: 'opencode', path, sessionId: String(i) }, lastActiveAt: activity[i]!, sizeBytes: 0 }
       }
     },
     async detect() {
@@ -62,6 +64,7 @@ it('keeps database session ids stable and invalidates cached summaries when only
     expect(before.map(row => row.requests).toSorted((a, b) => a! - b!)).toEqual([1, 2])
     catalog.close()
     counts = [3]
+    activity[0] = 500
     await writeFile(`${path}-wal`, 'new committed rows')
     catalog = open()
     await catalog.whenIdle()
@@ -138,6 +141,8 @@ it('recomputes only the OpenCode session whose own last write changed', async ()
     catalog.close()
     counts[1] = 3
     stamps[1] = 300
+    // Another write to the shared database, as a commit that stays in the WAL: the size stamp changes.
+    await writeFile(`${path}-wal`, 'new committed rows')
     catalog = open()
     await catalog.whenIdle()
     // The unchanged session comes from its own cache entry; only the written one is summarized again.
