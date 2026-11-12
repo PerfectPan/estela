@@ -1,0 +1,238 @@
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { createNodePlatform } from '@rivus/agent-kit/node'
+import type { SessionAdapter } from '@rivus/agent-kit/sessions'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { loadSession } from './load-session.ts'
+import { builtinAdapters } from './adapters.ts'
+import { createTraceStore } from '../server/trace-store.ts'
+
+const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
+const dirs: string[] = []
+
+afterEach(async () => {
+  await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
+})
+
+async function tempDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'load-session-'))
+  dirs.push(dir)
+  return dir
+}
+
+/** A Claude Code session whose first record names a format generation no adapter reads. */
+async function unknownGeneration(): Promise<string> {
+  const dir = await tempDir()
+  const path = join(dir, 'session.jsonl')
+  await writeFile(path, `${JSON.stringify({ type: 'user', formatVersion: 2, uuid: 'u1', sessionId: 's-ug' })}\n`)
+  return path
+}
+
+/** A canonical trace file's text with one `hook` event carrying `payload`. */
+function canonicalHook(payload: Record<string, unknown>): string {
+  return JSON.stringify({
+    schema: 'agent-trace',
+    agent: 'demo',
+    session: { id: 's' },
+    capabilities: [],
+    agents: [],
+    events: [{ id: 'e1', seq: 0, ts: 1, kind: 'hook', payload, source: { file: 'f', offset: 0, length: 1, line: 1 } }],
+    skipped: [],
+  })
+}
+
+/** A Grok session directory whose summary names a chat format the adapter does not read. */
+async function grokUnknownGeneration(): Promise<string> {
+  const dir = await tempDir()
+  await writeFile(join(dir, 'summary.json'), `${JSON.stringify({ chat_format_version: 2 })}\n`)
+  await writeFile(join(dir, 'updates.jsonl'), '')
+  return dir
+}
+
+describe('loadSession', () => {
+  it('detects Gemini chats before Claude head matching and preserves explicit reader selection', async () => {
+    const path = join(repo, 'fixtures/sessions/gemini-cli/conformance/plain/chats/session-1.jsonl')
+    const platform = createNodePlatform({ home: '/u/me', env: {} })
+    const target = { path }
+    const trace = await loadSession(target, { platform })
+    expect(trace.agent).toBe('gemini-cli')
+    expect(trace.events.some(event => event.kind === 'request')).toBe(true)
+    const custom: SessionAdapter = { ...builtinAdapters.pi!, agent: 'custom', detect: async () => false }
+    expect((await loadSession(target, { platform, adapters: { custom } })).agent).toBe('gemini-cli')
+    const dir = await tempDir()
+    await mkdir(join(dir, 'chats'))
+    const claude = join(dir, 'chats', 'claude.jsonl')
+    await cp(join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'), claude)
+    const original = await loadSession({ path: claude }, { platform })
+    expect(original.agent).toBe('claude-code')
+    expect(original.events).toHaveLength(9)
+    const legacy = join(dir, 'chats', 'session-legacy.json')
+    const records = (await readFile(path, 'utf8'))
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line) as unknown)
+    await writeFile(
+      legacy,
+      JSON.stringify({ sessionId: 'legacy', projectHash: 'test', messages: records.slice(1) }, null, 2),
+    )
+    const expected = await loadSession({ path: legacy, agent: 'gemini-cli' }, { platform })
+    const detected = await loadSession({ path: legacy }, { platform })
+    expect(expected.events.length).toBeGreaterThan(0)
+    expect(detected).toEqual(expected)
+
+    await expect(loadSession({ ...target, agent: 'claude-code' }, { platform })).rejects.toThrow(
+      'unknown format generation',
+    )
+  })
+
+  it('routes a named custom adapter through direct and store loads, keeping progress', async () => {
+    const path = join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')
+    const platform = createNodePlatform({ home: '/u/me', env: {} })
+    const builtin = builtinAdapters['claude-code']!
+    const reads: string[] = []
+    const adapter: SessionAdapter = {
+      ...builtin,
+      agent: 'custom-code',
+      detect: async () => false,
+      load: async (files, ref, options) => {
+        reads.push(ref.agent)
+        return builtin.load(files, { ...ref, agent: builtin.agent }, options)
+      },
+    }
+    const adapters = { 'custom-code': adapter }
+    const target = { agent: 'custom-code', path }
+    const progress: number[] = []
+    const trace = await loadSession(target, { platform, adapters, onProgress: bytes => progress.push(bytes) })
+    expect(trace.events.length).toBeGreaterThan(0)
+    expect(progress.at(-1)).toBeGreaterThan(0)
+    const { store } = createTraceStore({
+      platform,
+      adapters,
+      redacts: false,
+      resolve: () => ({ key: 'custom', target }),
+    })
+    const handle = await store.open('custom', {})
+    const storeProgress: number[] = []
+    handle.onProgress(({ bytesRead }) => storeProgress.push(bytesRead))
+    expect((await store.view('custom')).trace.events).toHaveLength(trace.events.length)
+    await handle.done
+    // The store emits completion itself; the preceding notifications must come from the adapter.
+    expect(storeProgress.slice(0, -1)).toEqual(progress)
+    handle.release()
+    expect(reads).toEqual(['custom-code', 'custom-code'])
+  })
+
+  it('throws the unknown-generation wording, which the web parses into agent, file, and line', async () => {
+    const path = await unknownGeneration()
+    await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+      `claude-code: ${path}:1: unknown format generation`,
+    )
+  })
+
+  it('the SessionRef’s agent routes the read even when detection would pick another adapter', async () => {
+    const dir = await grokUnknownGeneration()
+    // Named Claude Code, the Grok directory is read as a Claude file: the failure is Claude
+    // Code's directory read failure (EISDIR), not Grok's summary handling — routing beat
+    // detection, which would have picked Grok for this directory.
+    await expect(
+      loadSession({ agent: 'claude-code', path: dir }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow(/EISDIR/)
+  })
+
+  it('a SessionRef naming an agent without an adapter fails with capability-unsupported wording', async () => {
+    const path = await unknownGeneration()
+    await expect(
+      loadSession({ agent: 'nosuch', path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow('no session adapter for nosuch')
+  })
+
+  it('a file no adapter recognizes fails detection with the target label', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'notes.txt')
+    await writeFile(path, 'not a session at all\n')
+    await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+      `No adapter accepted ${path}`,
+    )
+  })
+
+  it('falls through a canonical head whose body is not JSON to the kit adapters', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'session.jsonl')
+    // The head says "canonical agent-trace", the body is a Claude record. The schema parse
+    // fails with SyntaxError, the file falls through to the kit adapters, and the canonical
+    // first record is one no adapter reads — not a raw JSON parse error.
+    await writeFile(
+      path,
+      `${JSON.stringify({ schema: 'agent-trace', truncated: true })}\n${JSON.stringify({
+        type: 'user',
+        uuid: 'u1',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        sessionId: 's-fall',
+        cwd: '/work/app',
+        message: { role: 'user', content: 'Run the fall-through checks' },
+      })}\n`,
+    )
+    await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
+      `claude-code: ${path}:1: unknown format generation`,
+    )
+  })
+
+  it('an aborted load rejects with the signal’s reason', async () => {
+    const path = await unknownGeneration()
+    const controller = new AbortController()
+    const reason = new Error('stop reading')
+    controller.abort(reason)
+    await expect(
+      loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }), signal: controller.signal }),
+    ).rejects.toThrow(reason)
+  })
+
+  it('a missing file is named with its path#id label', async () => {
+    const dir = await tempDir()
+    const path = join(dir, 'missing.jsonl')
+    await expect(
+      loadSession({ path, sessionId: 's1' }, { platform: createNodePlatform({ home: '/u/me', env: {} }) }),
+    ).rejects.toThrow(`${path}#s1 does not exist`)
+  })
+
+  it('a canonical agent-trace file loads as the parsed file, originals included', async () => {
+    const path = join(repo, 'fixtures/demo.trace.json')
+    // No kit adapter accepts this file, so only the canonical fast path can return it.
+    const expected: unknown = JSON.parse(await readFile(path, 'utf8'))
+    const trace = await loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })
+    expect(trace).toEqual(expected)
+  })
+
+  it('a canonical file with a payload that does not match its kind falls through to the kit', async () => {
+    const dir = await tempDir()
+    const platform = createNodePlatform({ home: '/u/me', env: {} })
+    const valid = join(dir, 'valid.trace.json')
+    await writeFile(valid, canonicalHook({ type: 'hook_success', name: 'PreToolUse' }))
+    expect((await loadSession({ path: valid }, { platform })).events).toHaveLength(1)
+    // A hook without `type`, as older generated traces wrote it, is not a canonical trace.
+    const broken = join(dir, 'broken.trace.json')
+    await writeFile(broken, canonicalHook({ name: 'PreToolUse' }))
+    await expect(loadSession({ path: broken }, { platform })).rejects.toThrow(`No adapter accepted ${broken}`)
+  })
+
+  it('a real Claude Code fixture loads with its events and originals', async () => {
+    const dir = await tempDir()
+    const projects = join(dir, 'projects/app')
+    await mkdir(projects, { recursive: true })
+    await cp(
+      join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'),
+      join(projects, 'session.jsonl'),
+    )
+    const platform = createNodePlatform({ home: dir, env: {} })
+    const trace = await loadSession(
+      { agent: 'claude-code', path: join(projects, 'session.jsonl'), sessionId: 's' },
+      { platform },
+    )
+    expect(trace.schema).toBe('agent-trace')
+    expect(trace.agent).toBe('claude-code')
+    expect(trace.events.length).toBeGreaterThan(0)
+    expect(trace.events[0]!.original).toBeDefined()
+  })
+})

@@ -31,7 +31,7 @@ pnpm build
 
 ```bash
 cd apps/cli
-pnpm run dev -- --no-auth
+pnpm run dev --no-auth
 ```
 
 Open `http://localhost:7392/__agent-trace/`.
@@ -51,7 +51,7 @@ HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
 `pnpm --filter '@rivus/agent-trace...' run build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`):
 
 - `dist/bin.mjs` is the package `bin`, built from `apps/cli/bin.mjs`. It checks the Node.js version and drops the `node:sqlite` ExperimentalWarning, then imports `dist/cli.mjs` (from source, the same file imports `src/main.ts`).
-- `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, and `@clack/prompts`. `devframe`, `@devframes/agentic`, and `cac` stay external as the package's only runtime dependencies. `@devframes/agentic` declares an exact `devframe` peer dependency, so the two stay pinned to the same version.
+- `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, `@clack/prompts`, and `@bomb.sh/router`. `devframe` and `@devframes/agentic` stay external as the package's only runtime dependencies. `@devframes/agentic` declares an exact `devframe` peer dependency, so the two stay pinned to the same version.
 - `dist/web/` is a copy of `apps/web/dist`, and `dist/fixtures/demo.trace.json` is the default session for `build` and `mcp`. `src/paths.ts` picks these locations when the pack config defines `AGENT_TRACE_BUNDLE`; run from source (`node bin.mjs`), it uses `apps/web/dist` and `fixtures/` in the workspace.
 - `dist/THIRD-PARTY-NOTICES.txt` holds the license texts of the npm packages bundled into `cli.mjs` and of those the web build is made from, Vite and Rolldown included through vite-plus-core; the CLI section lists Rolldown too, for the runtime helpers in `cli.mjs` and `bin.mjs` (`apps/cli/scripts/third-party-notices.ts`, a Rolldown plugin).
 
@@ -81,9 +81,9 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 | S7 | Model saw at the first request after a compaction: slots with the recorded token counts, system prompt and tools only when a prompt snapshot records them at or before that request, and the removed events | e2e |
 | S8 | A 10,000-event trace scrolls with fewer than 100 rendered rows and no long task over 200 ms | e2e |
 | S9 | An exported report opens from `file://` without a server, in the export language, and contains no home path | e2e |
-| S10 | `mcp` lists its tools, `reconstruct` returns the visible ids, unavailable slots, and completeness, and stdout carries only protocol | smoke, `apps/cli/src/smoke.test.ts` |
+| S10 | `mcp` lists its tools, `reconstruct` returns the visible ids, unavailable slots, and completeness, and stdout carries only protocol | smoke, `apps/cli/test/cli-smoke.test.ts` |
 | S11 | The theme follows the system color scheme; a manual switch survives a reload | e2e |
-| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `apps/cli/src/size-budget.test.ts` (opt-in) |
+| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `apps/cli/test/size-budget.test.ts` (opt-in) |
 | S13 | On Node.js 22 the CLI prints one line naming Node.js 24 and exits 1 | smoke |
 | S14 | A `zh-CN` browser gets Chinese labels and date formats with session content unchanged; a switch to English survives a reload | e2e |
 | S15 | `build` piped to a file writes plain lines with no escape sequences and no home path | smoke |

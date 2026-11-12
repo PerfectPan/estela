@@ -6,7 +6,7 @@ import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { SessionAdapter } from '@rivus/agent-kit/sessions'
 import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
 import { expect, it } from 'vite-plus/test'
-import { SessionCatalog } from '../src/catalog.ts'
+import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 
 it('keeps database session ids stable and invalidates a cached summary when the session is written', async () => {
   const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))

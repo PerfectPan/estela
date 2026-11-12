@@ -7,8 +7,8 @@ const define = { AGENT_TRACE_BUNDLE: 'true' }
 const failOnWarn = true
 
 export default defineConfig({
-  // One bundled package. Every @rivus/* workspace package and @clack/prompts are devDependencies and get
-  // bundled; `dependencies` (devframe, @devframes/agentic, cac) stay external.
+  // One bundled package. Every @rivus/* workspace package, @clack/prompts, and @bomb.sh/router are devDependencies
+  // and get bundled; `dependencies` (devframe, @devframes/agentic) stay external.
   pack: [
     {
       entry: { cli: './src/main.ts' },

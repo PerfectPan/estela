@@ -4,7 +4,7 @@ import { firstIssue, traceEventSchema, traceSchema } from '@rivus/agent-trace-sc
 import * as z from 'zod/mini'
 import { LOCALES } from '@/i18n/locale.ts'
 
-/** Must match `REPORT_ELEMENT_ID` in `apps/cli/src/report-site.ts`: the baked `report-trace` output. Read once, in `main.tsx`. */
+/** Must match `REPORT_ELEMENT_ID` in `apps/cli/src/report/report-site.ts`: the baked `report-trace` output. Read once, in `main.tsx`. */
 const REPORT_ELEMENT_ID = 'report-trace'
 
 const sessionSummarySchema = z.object({

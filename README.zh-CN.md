@@ -82,7 +82,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | 在终端中选择会话。 |
 | `--no-index` | 不读写会话索引；每次启动重新计算摘要，不存储。 |
 
-`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。数据库里共用同一个库的会话要带 id 打开：`agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
+`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。数据库里共用同一个库的会话要带 id 打开：`agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。`agent-trace --help` 和 `agent-trace <command> --help` 列出每个命令的参数和 flag；不认识的 flag 会在读取任何会话之前以退出码 1 结束。
 
 ## 会话导出
 

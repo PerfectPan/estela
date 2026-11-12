@@ -37,10 +37,10 @@
   },
   "dependencies": {
     "@devframes/agentic": "1.1.0",
-    "cac": "7.0.0",
     "devframe": "catalog:"
   },
   "devDependencies": {
+    "@bomb.sh/router": "0.8.0",
     "@clack/prompts": "1.8.1",
     "@perfectpan/lint-config": "catalog:",
     "@rivus/agent-kit": "catalog:",
