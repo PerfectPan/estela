@@ -48,6 +48,7 @@ jobs:
         with:
           name: pnpm-generated-lockfile
           retention-days: 1
+          include-hidden-files: true
           path: |
             pnpm-lock.yaml
             .changeset/*.md
