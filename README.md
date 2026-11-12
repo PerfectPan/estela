@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/logo.svg" width="96" height="96" alt="agent-trace">
+  <img src="docs/assets/logo.svg" width="96" height="96" alt="Estela">
 </p>
 
-<h1 align="center">agent-trace</h1>
+<h1 align="center">Estela</h1>
 
 <p align="center">
   <strong>Local DevTools for Agent session logs</strong><br>
@@ -14,14 +14,16 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@rivus/agent-trace"><img src="https://img.shields.io/npm/v/@rivus/agent-trace?style=flat-square" alt="npm version"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@rivus/agent-trace?style=flat-square" alt="Node.js 24 or later"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/agent-trace?style=flat-square" alt="GPL-3.0-only"></a>
+  <a href="https://www.npmjs.com/package/@rivus/estela"><img src="https://img.shields.io/npm/v/@rivus/estela?style=flat-square" alt="npm version"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@rivus/estela?style=flat-square" alt="Node.js 24 or later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/@rivus/estela?style=flat-square" alt="GPL-3.0-only"></a>
 </p>
 
-agent-trace brings the Agent sessions on this machine into one local interface. Each session has a timeline, an event ledger, and token counts; each request has the context the model received.
+_Estela_ is Spanish for the wake a ship leaves behind.
 
-The core capability is request-level context reconstruction. For any request, agent-trace rebuilds the context the model received — system prompt, tools, messages, and the events a compaction removed. Slots the log never recorded are marked `unavailable`; nothing is estimated.
+Estela brings the Agent sessions on this machine into one local interface. Each session has a timeline, an event ledger, and token counts; each request has the context the model received.
+
+The core capability is request-level context reconstruction. For any request, Estela rebuilds the context the model received — system prompt, tools, messages, and the events a compaction removed. Slots the log never recorded are marked `unavailable`; nothing is estimated.
 
 ## Features
 
@@ -29,7 +31,7 @@ The core capability is request-level context reconstruction. For any request, ag
 - **Session workspace.** Session metrics, a request timeline, an event ledger, and an event inspector. The timeline shows one bar per request (height is input tokens), one lane per subagent, and markers for prompts, failed tool calls, and compactions; the ledger groups events by turn or by agent, and the inspector shows the selected event.
 - **Model saw.** The context reconstruction for the selected request: system prompt, tools, messages, and the events a compaction removed; slots the log never recorded are marked `unavailable`.
 - **Report.** A redacted static export of one session's workspace: one `index.html` that opens from disk with no server.
-- **MCP.** `agent-trace mcp <path>`: a `reconstruct` tool over stdio.
+- **MCP.** `estela mcp <path>`: a `reconstruct` tool over stdio.
 
 Static mockups of both screens are in [`docs/design/`](docs/design/README.md).
 
@@ -38,7 +40,7 @@ Static mockups of both screens are in [`docs/design/`](docs/design/README.md).
 Node.js 24 or later:
 
 ```sh
-npx @rivus/agent-trace
+npx @rivus/estela
 ```
 
 It starts a server on `localhost:7392`, opens the browser, and indexes the sessions of the supported agents. `--no-open` prints the URL instead; `--port 0` picks a free port.
@@ -54,22 +56,22 @@ node apps/cli/dist/bin.mjs
 ## Commands
 
 ```sh
-npx @rivus/agent-trace [path] [--port <n>] [--host <host>] [--no-open] [--no-auth] [--pick] [--no-index]
-npx @rivus/agent-trace build [path] [--out-dir <dir>]
-npx @rivus/agent-trace mcp [path]
-npx @rivus/agent-trace export-atif [path] [--out <file>]
-npx @rivus/agent-trace export-otlp [path] [--out <file>]
+npx @rivus/estela [path] [--port <n>] [--host <host>] [--no-open] [--no-auth] [--pick] [--no-index]
+npx @rivus/estela build [path] [--out-dir <dir>]
+npx @rivus/estela mcp [path]
+npx @rivus/estela export-atif [path] [--out <file>]
+npx @rivus/estela export-otlp [path] [--out <file>]
 ```
 
 | Command | What it does |
 |---|---|
-| `agent-trace` | Session browser for this machine. |
-| `agent-trace <path>` | Loads that session before the server listens (exit 1 with the reason if no agent adapter accepts it), then opens its workspace. |
-| `agent-trace --pick` | Searchable session list in the terminal; Enter opens the chosen session. Needs an interactive terminal. |
-| `agent-trace build <path> --out-dir <dir>` | Writes the report of one session to `<dir>/index.html` (default `dist-static`). |
-| `agent-trace mcp <path>` | MCP server over stdio with a `reconstruct` tool for that session. Only protocol messages go to stdout. |
-| `agent-trace export-atif <path> --out <file>` | Writes the session as one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory (default `agent-trace-<session>.atif.json`) for Harbor datasets and evaluation. |
-| `agent-trace export-otlp <path> --out <file>` | Writes the session as one OTLP/JSON `ExportTraceServiceRequest` (default `agent-trace-<session>.otlp.json`) whose spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`, for Langfuse, LangSmith, and Phoenix. |
+| `estela` | Session browser for this machine. |
+| `estela <path>` | Loads that session before the server listens (exit 1 with the reason if no agent adapter accepts it), then opens its workspace. |
+| `estela --pick` | Searchable session list in the terminal; Enter opens the chosen session. Needs an interactive terminal. |
+| `estela build <path> --out-dir <dir>` | Writes the report of one session to `<dir>/index.html` (default `dist-static`). |
+| `estela mcp <path>` | MCP server over stdio with a `reconstruct` tool for that session. Only protocol messages go to stdout. |
+| `estela export-atif <path> --out <file>` | Writes the session as one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory (default `estela-<session>.atif.json`) for Harbor datasets and evaluation. |
+| `estela export-otlp <path> --out <file>` | Writes the session as one OTLP/JSON `ExportTraceServiceRequest` (default `estela-<session>.otlp.json`) whose spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`, for Langfuse, LangSmith, and Phoenix. |
 
 | Flag | Meaning |
 |---|---|
@@ -80,29 +82,29 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | Pick the session in the terminal. |
 | `--no-index` | Do not read or write the session index; summaries are computed again on each launch and not stored. |
 
-`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. A session in a shared database is named with its id: `agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences. `agent-trace --help` and `agent-trace <command> --help` list each command's arguments and flags; an unknown flag exits 1 before any session is read.
+`ESTELA_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. A session in a shared database is named with its id: `estela ~/.local/share/opencode/opencode.db#<sessionId>`. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences. `estela --help` and `estela <command> --help` list each command's arguments and flags; an unknown flag exits 1 before any session is read.
 
 ## Taking a session elsewhere
 
-`export-atif` and `export-otlp` project the canonical trace onto two interchange formats. Each step or span names the canonical events it came from (`extra.agent_trace.eventIds` in ATIF), so an export can be traced back to the workspace.
+`export-atif` and `export-otlp` project the canonical trace onto two interchange formats. Each step or span names the canonical events it came from (`extra.estela.eventIds` in ATIF), so an export can be traced back to the workspace.
 
 ```sh
 # Harbor datasets and evaluation (ATIF v1.8)
-npx @rivus/agent-trace export-atif <path> --out trajectory.json
+npx @rivus/estela export-atif <path> --out trajectory.json
 python -m harbor.utils.trajectory_validator trajectory.json   # Harbor's validator
 
 # Langfuse (OTLP/JSON goes up as is)
 curl -H "Content-Type: application/json" -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
-  --data-binary @agent-trace-<session>.otlp.json https://cloud.langfuse.com/api/public/otel/v1/traces
+  --data-binary @estela-<session>.otlp.json https://cloud.langfuse.com/api/public/otel/v1/traces
 
 # LangSmith or Phoenix (OTLP/protobuf receivers: convert once, then post)
 uv run --with opentelemetry-proto python -c \
   "from google.protobuf.json_format import Parse; from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest as R; import sys; sys.stdout.buffer.write(Parse(open(sys.argv[1],'rb').read(), R()).SerializeToString())" \
-  agent-trace-<session>.otlp.json > session.otlp.pb
+  estela-<session>.otlp.json > session.otlp.pb
 curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
 ```
 
-Exports are redacted like the server (`~` for the home directory, known credential patterns replaced); `AGENT_TRACE_REDACT=0` writes the unredacted bytes. Events a compaction removed produce no ATIF step; steps kept across a compaction are marked `is_copied_context`, and the compaction is a system step with `extra.context_management`.
+Exports are redacted like the server (`~` for the home directory, known credential patterns replaced); `ESTELA_REDACT=0` writes the unredacted bytes. Events a compaction removed produce no ATIF step; steps kept across a compaction are marked `is_copied_context`, and the compaction is a system step with `extra.context_management`.
 
 ## Supported agents
 
@@ -124,10 +126,10 @@ Exports are redacted like the server (`~` for the home directory, known credenti
 
 - Everything runs on this machine. The server binds `localhost`, and nothing is sent anywhere.
 - Session files are read, never written.
-- The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite` (default `~/.cache/rivus-agent-trace/`), with mode 0600. It holds titles, paths, numbers, and the first 200 prompts the user typed (500 characters each) for search — not the text the agent injected or recorded itself. Deleting it is safe; it is rebuilt from the logs. `--no-index` runs without it.
+- The session index lives at `$XDG_CACHE_HOME/rivus-estela/index.sqlite` (default `~/.cache/rivus-estela/`), with mode 0600. It holds titles, paths, numbers, and the first 200 prompts the user typed (500 characters each) for search — not the text the agent injected or recorded itself. Deleting it is safe; it is rebuilt from the logs. `--no-index` runs without it.
 - URLs carry opaque trace ids, never paths.
-- The local server replaces the home directory with `~` and known credential patterns with placeholders; `AGENT_TRACE_REDACT=0` turns that off for the local server only.
-- A report (`build`, or "Export report" in the workspace) is always redacted the same way, whatever `AGENT_TRACE_REDACT` says. **Session text and file contents remain in it, so read a report before you share it.** It holds the view of every event and the original records of the first 2,000 events or 20 MB, whichever is smaller; its header says when it holds fewer.
+- The local server replaces the home directory with `~` and known credential patterns with placeholders; `ESTELA_REDACT=0` turns that off for the local server only.
+- A report (`build`, or "Export report" in the workspace) is always redacted the same way, whatever `ESTELA_REDACT` says. **Session text and file contents remain in it, so read a report before you share it.** It holds the view of every event and the original records of the first 2,000 events or 20 MB, whichever is smaller; its header says when it holds fewer.
 
 ## Development
 
@@ -150,7 +152,3 @@ pnpm build
 ## License
 
 GPL-3.0-only. See [LICENSE](LICENSE).
-
----
-
-_Not affiliated with [Cursor's Agent Trace](https://agent-trace.dev), a code-attribution format._
