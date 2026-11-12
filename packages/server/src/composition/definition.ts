@@ -23,11 +23,15 @@ export interface EstelaApp {
 
 /**
  * The DevFrame definition. In `dev` mode (the dev server, `mcp`, a hub) `setup` registers the
- * functions, runs `services` to build and bind what they call, and publishes the session signal.
+ * functions, runs `services` to build and bind what they call and to register the agent tools, and publishes the
+ * session signal.
  * In `build` mode (a report) it registers the functions only: "Export report" runs a build inside
  * the dev server, whose services must stay bound.
  */
-export function defineEstela(app: EstelaApp, services: () => Promise<void>): DevframeDefinition {
+export function defineEstela(
+  app: EstelaApp,
+  services: (ctx: DevframeNodeContext) => Promise<void>,
+): DevframeDefinition {
   return defineDevframe({
     id: 'estela',
     name: 'Estela',
@@ -57,7 +61,7 @@ export function defineEstela(app: EstelaApp, services: () => Promise<void>): Dev
         }
         return
       }
-      await services()
+      await services(ctx)
       // Push: a small shared state tells every browser that rows changed. The browser then
       // asks `list-sessions({ since })` for only those rows.
       void scoped.rpc

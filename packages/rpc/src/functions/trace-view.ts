@@ -104,7 +104,7 @@ const eventInput = z.object(
   { traceId: z.string({ error: EVENT_TRACE_ID }), id: z.string({ error: EVENT_ID }) },
   { error: `${EVENT_TRACE_ID} and an event id` },
 )
-/** MCP calls name only `eventId`: without a `traceId` (left out or null), reconstruct reads the launch session. */
+/** Without a `traceId` (left out or null), reconstruct reads the launch session. */
 const reconstructInput = z.object(
   { traceId: z.nullish(z.string({ error: RECONSTRUCT_TRACE_ID })), eventId: z.string({ error: RECONSTRUCT_ID }) },
   { error: RECONSTRUCT_ID },
@@ -215,11 +215,8 @@ export const reconstructAt = defineTraceFunction({
   name: 'reconstruct',
   type: 'query',
   jsonSerializable: true,
-  agent: {
-    description:
-      'Reconstruct the model-visible surface at one event id: context slots, recorded token counts, and events removed by compaction. Missing slots are unavailable, never invented. `traceId` defaults to the session the server was started with.',
-  },
-  // No owner: MCP calls run outside an RPC session, and a reconstruct takes its own hold.
+  // Not an agent tool: `estela_reconstruct` is registered by the server's agent tools, which give it a named input
+  // schema and bound its result. No owner: a reconstruct takes its own hold.
   setup: () => ({
     handler: async (input: { traceId?: string; eventId: string }): Promise<ReconstructResult> => {
       const { traceId, eventId } = parseInput(reconstructInput, input)

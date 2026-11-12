@@ -4,7 +4,14 @@ import type { FittedView, SessionFs } from '@rivus/estela-kernel'
 import type { FileStamp, ReadOriginal } from './source-check.ts'
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
-import { canonicalRecord, compressedRecord, reloadOnce, reloadShared, type Reloadable } from './original-reload.ts'
+import {
+  canonicalRecord,
+  compressedRecord,
+  reloadOnce,
+  reloadShared,
+  withoutOriginals,
+  type Reloadable,
+} from './original-reload.ts'
 
 /** Loaded traces kept in memory, without originals. */
 const CAPACITY = 3
@@ -105,19 +112,6 @@ export class LoadCancelledError extends Error {
   constructor(traceId: string) {
     super(`load of ${traceId} was cancelled`)
     this.name = 'LoadCancelledError'
-  }
-}
-
-function withoutOriginals(trace: Trace): Trace {
-  return {
-    ...trace,
-    events: trace.events.map(event => {
-      if (!('original' in event)) {
-        return event
-      }
-      const { original: _original, ...rest } = event
-      return rest
-    }),
   }
 }
 
@@ -277,8 +271,17 @@ export class TraceStore {
     }
   }
 
+  /** Presented like `get-event`: event ids come from the log and may carry the paths and tokens it holds. */
   async reconstruct(traceId: string, eventId: string, owner?: object): Promise<ReconstructResult> {
-    return this.guard(async () => reconstruct((await this.entryFor(traceId, owner)).trace, eventId))
+    return this.guard(async () => this.present(reconstruct((await this.entryFor(traceId, owner)).trace, eventId)))
+  }
+
+  /**
+   * Runs `read` over the loaded trace of `traceId` (originals dropped), through its own hold like an MCP read.
+   * What `read` returns is not presented: the caller presents it. Errors leave redacted like every other read.
+   */
+  async withTrace<T>(traceId: string, read: (trace: Trace) => T): Promise<T> {
+    return this.guard(async () => read((await this.entryFor(traceId)).trace))
   }
 
   private present<T>(value: T): T {

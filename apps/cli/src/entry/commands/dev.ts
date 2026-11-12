@@ -17,7 +17,7 @@ export interface DevInput {
   /** `undefined` opens the browser, as `true` does; only `--no-open` keeps it closed. */
   open: boolean | undefined
   auth: boolean
-  /** `undefined`: DevFrame mounts the MCP route once agent tools exist. */
+  /** Only `true` mounts DevFrame's MCP route: it serves every session's content and the one-time code does not gate it. */
   mcp: boolean | undefined
   index: boolean
   /** `false` only with ESTELA_REDACT=0. */
@@ -126,7 +126,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     host: input.host,
     // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
     port: input.port,
-    mcp: input.mcp,
+    mcp: input.mcp === true,
     auth: plan.auth,
     openBrowser: plan.devframeOpens,
     async onReady({ origin }) {

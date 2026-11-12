@@ -5,20 +5,45 @@ import { CliError } from '../failure.ts'
 import { sayMcpReady, sayStoreWarning } from '../ui/terminal.ts'
 
 export interface McpInput {
-  target: SessionTarget
+  /** The session given on the command line or in ESTELA_PATH; `undefined` serves every discovered session. */
+  target: SessionTarget | undefined
 }
 
-/** MCP tools over one session on stdio. stdout carries the protocol only; everything else goes to stderr. Always redacted. */
+/**
+ * MCP tools on stdio: over the session catalog (every discovered session, through the session index), or over the
+ * one session given, which is `current`. stdout carries the protocol only; everything else goes to stderr. Tool
+ * results are always redacted.
+ */
 export async function runMcp(input: McpInput): Promise<void> {
-  const server = createEstelaServer({ catalog: undefined, launch: input.target, redacts: true, log: sayStoreWarning })
-  try {
-    await server.openLaunch()
-  } catch (cause) {
-    throw new CliError({ kind: 'session', action: 'load', label: sessionTargetLabel(input.target), cause })
+  const server = createEstelaServer({
+    catalog: input.target ? undefined : { index: true },
+    launch: input.target,
+    redacts: true,
+    log: sayStoreWarning,
+  })
+  if (input.target) {
+    try {
+      await server.openLaunch()
+    } catch (cause) {
+      throw new CliError({ kind: 'session', action: 'load', label: sessionTargetLabel(input.target), cause })
+    }
+  }
+  const catalog = server.catalog
+  if (catalog) {
+    if (catalog.indexUnavailable) {
+      sayStoreWarning(`session index unavailable: ${catalog.indexUnavailable}; running without it`)
+    }
+    try {
+      await catalog.start()
+    } catch (cause) {
+      throw new CliError({ kind: 'index', cause })
+    }
   }
   const { createMcpServer } = await import('devframe/adapters/mcp')
   await createMcpServer(server.definition, {
     transport: 'stdio',
+    // DevFrame's shared-state tool would expose the browser's session signal, which tells an agent nothing.
+    exposeSharedState: false,
     onReady: ({ transport }) => sayMcpReady(server.definition.id, transport),
   })
 }

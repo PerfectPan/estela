@@ -76,3 +76,17 @@ export function canonicalRecord(trace: Trace, cached: Trace, index: number): unk
   const id = cached.events[index]!.id
   return (trace.events[index]?.id === id ? trace.events[index] : trace.events.find(event => event.id === id))?.original
 }
+
+/** The trace a cache entry holds: every event without `original`, which `get-event` reads back on demand. */
+export function withoutOriginals(trace: Trace): Trace {
+  return {
+    ...trace,
+    events: trace.events.map(event => {
+      if (!('original' in event)) {
+        return event
+      }
+      const { original: _original, ...rest } = event
+      return rest
+    }),
+  }
+}

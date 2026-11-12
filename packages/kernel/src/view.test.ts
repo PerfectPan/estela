@@ -1,6 +1,6 @@
 import type { Trace, TraceEventPayloads } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
-import { fitView, toView } from './view.ts'
+import { capStrings, fitView, toView } from './view.ts'
 
 /** One `user` event: its payload declares no required field, so any keys can stand in for a recorded payload. */
 function traceOf(payload: TraceEventPayloads['user'], session: Trace['session'] = { id: 's' }): Trace {
@@ -214,5 +214,13 @@ describe('toView check', () => {
     trace.events = [{ ...trace.events[0]!, ts: Number.NaN }]
     expect(() => toView(trace)).toThrow(new TypeError('toView: events.0.ts: Invalid input'))
     expect(() => fitView(trace)).toThrow(new TypeError('fitView: events.0.ts: Invalid input'))
+  })
+})
+
+describe('capStrings', () => {
+  it('cuts strings and keys below the view floor and lists their paths', () => {
+    const capped = capStrings({ text: 'abcdef', list: ['xy', 'longer'], abcdefgh: 1, n: 5 }, 4)
+    expect(capped.value).toEqual({ text: 'abcd', list: ['xy', 'long'], abcd: 1, n: 5 })
+    expect(capped.truncated).toEqual([['text'], ['list', 1], ['abcd']])
   })
 })

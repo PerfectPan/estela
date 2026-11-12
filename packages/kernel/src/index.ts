@@ -39,4 +39,4 @@ export {
   type TurnTotals,
 } from './project-turns.ts'
 export { reconstruct } from './reconstruct.ts'
-export { fitView, toView, VIEW_BUDGET_BYTES, type FittedView } from './view.ts'
+export { capStrings, fitView, toView, VIEW_BUDGET_BYTES, type FittedView } from './view.ts'

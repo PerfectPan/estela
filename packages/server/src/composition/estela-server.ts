@@ -5,6 +5,7 @@ import type { DevframeDefinition } from 'devframe'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { bindReportExporter, bindSessionService, bindTraceStore } from '@rivus/estela-rpc'
 import { SessionCatalog } from '../catalog/session-catalog.ts'
+import { registerAgentTools } from '../agent-tools/register.ts'
 import { exportReport } from '../report/report.ts'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
 import { sessionTargetLabel } from '../sessions/session-target.ts'
@@ -100,7 +101,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
     return make(session, await loadSession(session.target, { platform }))
   }
 
-  const definition: DevframeDefinition = defineEstela(options.app, async () => {
+  const definition: DevframeDefinition = defineEstela(options.app, async ctx => {
     await openLaunch()
     bindTraceStore(traces.store)
     if (catalog) {
@@ -109,6 +110,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
       bindReportExporter(query => exportReport(definition, traces.store, query))
       catalog.resumeSummaries()
     }
+    registerAgentTools(ctx.agent, { store: traces.store, catalog, home: platform.home })
   })
 
   return {
