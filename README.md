@@ -43,7 +43,7 @@ npx @rivus/agent-trace
 
 It starts a server on `localhost:7392`, opens the browser, and indexes the sessions of the supported agents. `--no-open` prints the URL instead; `--port 0` picks a free port.
 
-To build from source, use Node.js 24.x; the built CLI runs on Node.js 24 or later:
+To build from source, use Node.js 26.13.1; the built CLI runs on Node.js 24 or later:
 
 ```sh
 pnpm install
