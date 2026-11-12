@@ -32,7 +32,7 @@ node scripts/check-budgets.mjs
 
 `node scripts/check-budgets.mjs` runs after `pnpm build` and uses `apps/cli/dist`. It generates its data into a temp directory and deletes it (`ESTELA_BUDGETS_KEEP=1` keeps it); nothing generated is committed. It measures:
 
-- First rows: a synthetic home with 2,500 Claude Code and 2,500 Codex sessions (about 190 MB, `scripts/budgets/synthetic-home.mjs`). The clock runs from spawning `dist/bin.mjs` to the first `list-sessions({})` response that holds every session, called through DevFrame's own client as the session browser does. The server listens only after the catalog has rows, so this is the moment the browser can show them. Cold has no index; warm reuses the index the cold run wrote after every summary finished.
+- First rows: a synthetic home with 2,500 Claude Code and 2,500 Codex sessions (about 190 MB, `scripts/budgets/synthetic-home.mjs`). The clock runs from spawning `dist/bin.mjs` to the first `list-sessions({})` response that holds every session, called through DevFrame's own client as the session browser does. The server listens only after the catalog has rows, so this is the moment the browser can show them. Cold has no index; warm reuses the index the cold run wrote after every summary finished, and fails unless the CLI reports that its rows came from the index.
 - Large session: a 100 MB Codex rollout from `apps/cli/src/testsupport/large-session.ts` (the S12 generator), given on the command line; the clock runs to the `get-trace-view` response, and peak RSS is the CLI process's `maxRSS`.
 - Sizes: the web bundle's JS and CSS raw and gzip, `dist/cli.mjs`, and the `pnpm pack` tarball.
 

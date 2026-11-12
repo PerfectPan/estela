@@ -65,6 +65,7 @@ jobs:
       # Reuses the production build from the smoke step; generates its sessions into a temp directory and writes
       # the measured-vs-budget table to the job summary. Budgets and their reasons: scripts/budgets/budgets.mjs.
       - name: Performance and size budgets
+        timeout-minutes: 5
         run: node scripts/check-budgets.mjs
       - name: Install Chromium for Playwright
         working-directory: apps/e2e

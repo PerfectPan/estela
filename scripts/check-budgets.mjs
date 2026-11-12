@@ -51,15 +51,18 @@ const IDLE_TIMEOUT_MS = 120_000
 /** Longer than the catalog's 150 ms flush, so the last batch of summaries is in the index. */
 const FLUSH_WAIT_MS = 500
 
+/** Printed per agent by a start that served its rows from the index (`sayIndexFromCache`). */
+const FROM_INDEX = /^Claude Code: \d+ sessions from the index$/m
+
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
  * One launch on the synthetic home. "First rows" is what the session browser waits for: the dev
  * server listens only after the catalog has rows (from the index, or from the first `discover`
  * pass), and the SPA's first call is `list-sessions({})`. The clock stops when that call returns
- * every generated session.
+ * every generated session. The cold run then waits for every summary, so the warm run's index holds them.
  */
-async function firstRows(env, expected, waitForIdle) {
+async function firstRows(env, expected, warm) {
   const server = await startServer(root, [], env, READY_TIMEOUT_MS)
   try {
     const listed = await server.call('list-sessions', {})
@@ -67,13 +70,18 @@ async function firstRows(env, expected, waitForIdle) {
     if (listed.rows.length !== expected) {
       throw new Error(`list-sessions returned ${listed.rows.length} rows, expected ${expected}`)
     }
+    // A warm start that waits for discover again is only about as slow as a cold one, which no
+    // time budget can tell apart on a slow runner; the CLI's own line says where the rows came from.
+    if (warm && !FROM_INDEX.test(server.output().stdout)) {
+      throw new Error(`the warm start did not serve rows from the index\n${server.output().stdout}`)
+    }
     let idleMs
-    if (waitForIdle) {
+    if (!warm) {
       const deadline = performance.now() + IDLE_TIMEOUT_MS
-      let pending = listed.pending
+      let { pending, revision } = listed
       while (pending > 0 && performance.now() < deadline) {
         await delay(100)
-        pending = (await server.call('list-sessions', { since: listed.revision })).pending
+        ;({ pending, revision } = await server.call('list-sessions', { since: revision }))
       }
       idleMs = pending === 0 ? performance.now() - server.startedAt : undefined
       await delay(FLUSH_WAIT_MS)
@@ -142,8 +150,8 @@ try {
   const synthetic = writeSyntheticHome(home, SESSIONS_PER_AGENT)
   const expected = Object.values(synthetic.sessions).reduce((sum, count) => sum + count, 0)
   const env = { HOME: home, XDG_CACHE_HOME: join(dir, 'cache') }
-  const cold = await firstRows(env, expected, true)
-  const warm = await firstRows(env, expected, false)
+  const cold = await firstRows(env, expected, false)
+  const warm = await firstRows(env, expected, true)
   const large = await largeSession(dir, { HOME: join(dir, 'empty-home'), XDG_CACHE_HOME: join(dir, 'cache-large') })
   const sizes = measureSizes(root, dir)
   const measured = {

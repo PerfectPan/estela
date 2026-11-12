@@ -26,7 +26,7 @@ export const BUDGETS = [
     limit: 10_000,
     enforced: true,
     reason:
-      'Laptop 0.99 to 1.42 s, inside the 2 s design goal. 10 s leaves 7x for a slow runner and still fails when discovery starts reading whole files instead of heads and tails.',
+      'Laptop 1.0 to 1.8 s (busy machine at the top end), inside the 2 s design goal. 10 s leaves about 5x for a slow runner; it fails on a slowdown of that order across the start path (process start, discover, the first list-sessions).',
   },
   {
     id: 'first-rows-warm',
@@ -35,7 +35,7 @@ export const BUDGETS = [
     limit: 5_000,
     enforced: true,
     reason:
-      'Laptop 0.22 to 0.28 s, most of it Node start-up. 5 s fails when a warm start waits for discover again instead of serving the index.',
+      'Laptop 0.22 to 0.40 s, most of it Node start-up. 5 s fails on a 20x slowdown of reading the index. A warm start that waits for discover again is caught by the from-the-index check in check-budgets.mjs, not by this time.',
   },
   {
     id: 'all-summaries-cold',
@@ -44,7 +44,7 @@ export const BUDGETS = [
     limit: 30_000,
     enforced: false,
     reason:
-      "Laptop 3.2 to 4.5 s. Reported only: it scales with the runner's cores (4 summaries at a time) and runs after the rows are on screen.",
+      "Laptop 3.2 to 4.9 s. Reported only: it scales with the runner's cores (4 summaries at a time) and runs after the rows are on screen.",
   },
   {
     id: 'large-session-view',
@@ -53,7 +53,7 @@ export const BUDGETS = [
     limit: 15_000,
     enforced: true,
     reason:
-      'Laptop 0.52 to 0.56 s for a 103 MB Codex rollout. 15 s catches an order-of-magnitude regression in loading or toView.',
+      'Laptop 0.52 to 0.89 s for a 103 MB Codex rollout. 15 s catches an order-of-magnitude regression in loading or toView.',
   },
   {
     id: 'large-session-rss',
@@ -62,7 +62,7 @@ export const BUDGETS = [
     limit: 1000 * MB,
     enforced: true,
     reason:
-      'Laptop 492 to 500 MB, the whole CLI process. Memory does not depend on CPU speed; 1 GB (about 2x) fails when a load starts holding originals or a second copy of the trace.',
+      'Laptop 400 to 500 MB, the whole CLI process (it moves with GC timing). Memory does not depend on CPU speed; 1 GB fails when the peak of a load roughly doubles.',
   },
   {
     id: 'web-raw',
