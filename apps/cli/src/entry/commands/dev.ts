@@ -1,6 +1,6 @@
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { BASE_PATH, type OpenedSession, type SessionCatalog } from '@rivus/estela-server'
-import { createDevServer, resolveDevServerPort } from 'devframe/adapters/dev'
+import { createDevServer } from 'devframe/adapters/dev'
 import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
 import { openBrowser } from '../open-browser.ts'
@@ -124,7 +124,8 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
   const plan = browserPlan(input, readyTraceId !== undefined)
   await createDevServer(devframe, {
     host: input.host,
-    port: input.port ?? (await resolveDevServerPort(devframe, { host: input.host })),
+    // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
+    port: input.port,
     mcp: input.mcp,
     auth: plan.auth,
     openBrowser: plan.devframeOpens,
