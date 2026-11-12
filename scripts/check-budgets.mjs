@@ -62,9 +62,24 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  * pass), and the SPA's first call is `list-sessions({})`. The clock stops when that call returns
  * every generated session. The cold run then waits for every summary, so the warm run's index holds them.
  */
+/**
+ * Runs `use` on a started server, then stops it and returns its peak RSS. When `use` throws, that
+ * error is the one reported; a failed stop after it would only hide the cause.
+ */
+async function withServer(server, use) {
+  let result
+  try {
+    result = await use()
+  } catch (error) {
+    await server.stop().catch(() => {})
+    throw error
+  }
+  return { ...result, peakRss: await server.stop() }
+}
+
 async function firstRows(env, expected, warm) {
   const server = await startServer(root, [], env, READY_TIMEOUT_MS)
-  try {
+  return withServer(server, async () => {
     const listed = await server.call('list-sessions', {})
     const firstMs = performance.now() - server.startedAt
     if (listed.rows.length !== expected) {
@@ -87,9 +102,7 @@ async function firstRows(env, expected, warm) {
       await delay(FLUSH_WAIT_MS)
     }
     return { firstMs, idleMs }
-  } finally {
-    await server.stop()
-  }
+  })
 }
 
 /** `apps/cli/src/testsupport/large-session.ts` run by path, as the S12 browser test does. */
@@ -109,18 +122,15 @@ function writeLargeSession(dir) {
 async function largeSession(dir, env) {
   const session = writeLargeSession(join(dir, 'large'))
   const server = await startServer(root, [session.path], env, READY_TIMEOUT_MS)
-  let viewMs
-  let peakRss
-  try {
+  const measured = await withServer(server, async () => {
     const view = await server.call('get-trace-view', { traceId: server.traceId })
-    viewMs = performance.now() - server.startedAt
+    const viewMs = performance.now() - server.startedAt
     if (view.trace.events.length === 0) {
       throw new Error('get-trace-view returned no events for the large session')
     }
-  } finally {
-    peakRss = await server.stop()
-  }
-  return { bytes: session.bytes, viewMs, peakRss }
+    return { viewMs }
+  })
+  return { bytes: session.bytes, ...measured }
 }
 
 /** Decimal units, as the budgets and Vite's build output use. */

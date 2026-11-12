@@ -26,7 +26,7 @@ export const BUDGETS = [
     limit: 10_000,
     enforced: true,
     reason:
-      'Laptop 1.0 to 1.8 s (busy machine at the top end), inside the 2 s design goal. 10 s leaves about 5x for a slow runner; it fails on a slowdown of that order across the start path (process start, discover, the first list-sessions).',
+      'Laptop 1.0 to 1.8 s, up to 3.6 s while other jobs load the machine, inside the 2 s design goal. 10 s leaves about 5x for a slow runner; it fails on a slowdown of that order across the start path (process start, discover, the first list-sessions).',
   },
   {
     id: 'first-rows-warm',
@@ -35,7 +35,7 @@ export const BUDGETS = [
     limit: 5_000,
     enforced: true,
     reason:
-      'Laptop 0.22 to 0.40 s, most of it Node start-up. 5 s fails on a 20x slowdown of reading the index. A warm start that waits for discover again is caught by the from-the-index check in check-budgets.mjs, not by this time.',
+      'Laptop 0.22 to 0.40 s, most of it Node start-up. 5 s fails on a 12 to 20x slowdown of the whole warm start. A warm start that waits for discover again is caught by the from-the-index check in check-budgets.mjs, not by this time.',
   },
   {
     id: 'all-summaries-cold',

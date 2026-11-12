@@ -39,7 +39,7 @@ const RSS_PRELOAD = `data:text/javascript,${encodeURIComponent(
 
 let clientModule
 /** Loaded before the first spawn, so module loading is not inside the first measurement. */
-export async function devframeClient(root) {
+async function devframeClient(root) {
   if (!clientModule) {
     // The SPA's client expects a page: `location` for the WebSocket URL, and Node 26's `localStorage`
     // getter warns when no storage file is set, so it is shadowed with nothing.
@@ -130,9 +130,16 @@ export async function startServer(root, args, env, timeoutMs) {
       await new Promise(resolve => setTimeout(resolve, SETTLE_MS))
       client.close()
       child.kill('SIGTERM')
-      const timer = setTimeout(() => child.kill('SIGKILL'), STOP_TIMEOUT_MS)
+      const timeout = { killed: false }
+      const timer = setTimeout(() => {
+        timeout.killed = true
+        child.kill('SIGKILL')
+      }, STOP_TIMEOUT_MS)
       await closed
       clearTimeout(timer)
+      if (timeout.killed) {
+        throw new Error(`the CLI did not exit within ${STOP_TIMEOUT_MS} ms of SIGTERM and was killed`)
+      }
       const kib = RSS_LINE.exec(stderr)?.[1]
       if (!kib) {
         throw new Error(`the CLI did not report its peak RSS\n--- stderr\n${stderr}`)
