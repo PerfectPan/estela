@@ -33,7 +33,11 @@ export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, 
     'AGENT_TRACE_REDACT',
     'CLAUDE_CONFIG_DIR',
     'CODEX_HOME',
+    'DSH_HOME',
     'GROK_HOME',
+    'GEMINI_CLI_HOME',
+    'PI_CODING_AGENT_DIR',
+    'XDG_DATA_HOME',
   ]) {
     delete env[name]
   }

@@ -202,4 +202,124 @@ describe('TraceStore', () => {
     await store.event('a', 'e0')
     expect(loads).toBe(3)
   })
+
+  it('withEvents decompresses a compressed log once for all of its reads', async () => {
+    const f = fixture()
+    f.write(
+      '/logs/a.jsonl',
+      Array.from({ length: 6 }, (_, index) => ({ id: `e${index}`, kind: 'user' })),
+    )
+    let loads = 0
+    let reads = 0
+    const { store } = storeOf({
+      fs: f.fs,
+      parse: f.parse,
+      load: async () => {
+        loads += 1
+        const trace = f.parse('/logs/a.jsonl')
+        for (const event of trace.events) {
+          event.source = { ...event.source, codec: 'zstd' }
+        }
+        return { trace, canonical: false }
+      },
+      readOriginal: async () => {
+        reads += 1
+        return { from: 'reader' }
+      },
+    })
+    await store.view('a')
+    const got = await store.withEvents('a', async read => {
+      const first = await read(['e0', 'e1', 'e2'])
+      const second = await read(['e3', 'e4', 'e5'])
+      return [...first, ...second].map(event => recordOf(event.original).id)
+    })
+    expect(got).toEqual(['e0', 'e1', 'e2', 'e3', 'e4', 'e5'])
+    // One load for the view and one decompression (a reload) for both batches, not one per event.
+    expect(loads).toBe(2)
+    expect(reads).toBe(0)
+    // A single get-event still reads through the platform reader.
+    await store.event('a', 'e0')
+    expect(reads).toBe(1)
+  })
+
+  it('withEvents reports a compressed record that changed since the load', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [
+      { id: 'e0', kind: 'user', text: 'AAAA', data: { content: 'first' } },
+      { id: 'e1', kind: 'user', text: 'BBBB', data: { content: 'second' } },
+    ])
+    const { store } = storeOf({
+      fs: f.fs,
+      parse: f.parse,
+      load: async () => {
+        const trace = f.parse('/logs/a.jsonl')
+        for (const event of trace.events) {
+          event.source = { ...event.source, codec: 'zstd' }
+        }
+        return { trace, canonical: false }
+      },
+    })
+    await store.view('a')
+    // Same length, different nested record: the compressed line is fingerprinted whole, so this counts.
+    const bytes = f.files.get('/logs/a.jsonl')!
+    const text = new TextDecoder().decode(bytes).replace('"content":"second"', '"content":"changed"')
+    f.files.set('/logs/a.jsonl', new TextEncoder().encode(text))
+    const got = await store.withEvents('a', read => read(['e0', 'e1']))
+    expect(got[0]!.original).toBeDefined()
+    expect(got[1]!.originalUnavailable).toContain('holds a different record')
+  })
+
+  it('does not decompress for a withEvents call that reads nothing', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [{ id: 'e0', kind: 'user' }])
+    let loads = 0
+    const { store } = storeOf({
+      fs: f.fs,
+      parse: f.parse,
+      load: async () => {
+        loads += 1
+        const trace = f.parse('/logs/a.jsonl')
+        for (const event of trace.events) {
+          event.source = { ...event.source, codec: 'zstd' }
+        }
+        return { trace, canonical: false }
+      },
+    })
+    await store.view('a')
+    await expect(store.withEvents('a', async () => 42)).resolves.toBe(42)
+    expect(loads).toBe(1)
+  })
+
+  it('falls back to source-pointer reads when the compressed reload fails', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [{ id: 'e0', kind: 'user', text: 'AAAA' }])
+    let loads = 0
+    let reads = 0
+    const record = { id: 'e0', kind: 'user', text: 'AAAA' }
+    const { store } = storeOf({
+      fs: f.fs,
+      parse: f.parse,
+      load: async () => {
+        loads += 1
+        if (loads > 1) {
+          throw new Error('reload failed')
+        }
+        const trace = f.parse('/logs/a.jsonl')
+        for (const event of trace.events) {
+          event.source = { ...event.source, codec: 'zstd' }
+        }
+        return { trace, canonical: false }
+      },
+      readOriginal: async () => {
+        reads += 1
+        return record
+      },
+    })
+    await store.view('a')
+    // The reload fails, so the batch reads the pointer instead of failing the whole report.
+    const got = await store.withEvents('a', read => read(['e0']))
+    expect(got[0]!.original).toEqual(record)
+    expect(reads).toBe(1)
+    expect(loads).toBe(2)
+  })
 })

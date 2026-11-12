@@ -25,6 +25,14 @@ function sessionsOf(root: string, sessions: ConformanceSession[]): ConformanceSe
     ...session,
     path: join(root, session.path),
     ...(session.files ? { files: session.files.map(file => join(root, file)) } : {}),
+    ...(session.recordKeys
+      ? {
+          recordKeys: session.recordKeys.map(key => {
+            const at = key.indexOf('\0')
+            return `${join(root, key.slice(0, at))}${key.slice(at)}`
+          }),
+        }
+      : {}),
   }))
 }
 
@@ -65,6 +73,55 @@ const CODEX: ConformanceSession[] = [
   { path: 'rollout-unknown.jsonl', records: 6, capabilities: [] },
 ]
 
+const GEMINI: ConformanceSession[] = [
+  { path: 'plain/chats/session-1.jsonl', records: 9, capabilities: ['requests', 'usage', 'reasoning'] },
+  { path: 'compaction/chats/session-1.jsonl', records: 6, capabilities: ['compaction', 'compactionTokens'] },
+  { path: 'message-update/chats/session-1.jsonl', records: 5, capabilities: ['requests', 'usage'] },
+  { path: 'unknown-type/chats/session-1.jsonl', records: 2, capabilities: [] },
+]
+
+const PI: ConformanceSession[] = [
+  { path: 'plain/session.jsonl', records: 8, capabilities: ['requests', 'usage', 'reasoning'] },
+  {
+    path: 'compaction/session.jsonl',
+    records: 8,
+    capabilities: ['requests', 'usage', 'compaction', 'compactionTokens'],
+  },
+  { path: 'unknown-type/session.jsonl', records: 3, capabilities: [] },
+]
+
+const DSH: ConformanceSession[] = [
+  {
+    path: 'plain/session.v4.jsonl',
+    records: 9,
+    capabilities: ['requests', 'usage', 'reasoning', 'systemPrompt', 'toolSchemas'],
+  },
+  {
+    // The same session compressed, as DeepSeek Harness writes it. A compressed log has no lines to
+    // count on disk, so the decompressed records are named by the line each one occupies.
+    path: 'plain/session.v4.jsonl.zstd',
+    records: 9,
+    recordKeys: Array.from({ length: 9 }, (_, index) => `plain/session.v4.jsonl.zstd\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'reasoning', 'systemPrompt', 'toolSchemas'],
+  },
+  {
+    path: 'compaction/session.v4.jsonl',
+    records: 10,
+    capabilities: ['requests', 'usage', 'compaction', 'compactionTokens', 'systemPrompt'],
+  },
+  { path: 'unknown-type/session.v4.jsonl', records: 3, capabilities: [] },
+]
+
+const OPENCODE: ConformanceSession[] = [
+  {
+    path: 'opencode.db',
+    sessionId: 'ses_smoke',
+    records: 8,
+    recordKeys: Array.from({ length: 8 }, (_, index) => `opencode.db\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'reasoning'],
+  },
+]
+
 const GROK: ConformanceSession[] = [
   {
     path: 'plain/updates.jsonl',
@@ -77,21 +134,37 @@ const GROK: ConformanceSession[] = [
 ]
 
 /** The oversized line each old conformance suite used, one temp root per adapter so a discover run lists only its own file. */
-const OVERSIZED_LINES: Record<string, string> = {
+const OVERSIZED_LINES: Record<string, string | undefined> = {
   'claude-code': '{"type":"user","timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"x"}}',
   codex:
     '{"timestamp":"2026-01-01T00:00:00.000Z","type":"session_meta","payload":{"session_id":"big","cwd":"/work/app"}}',
   grok: '{"timestamp":"2026-01-01T00:00:00.000Z","params":{"update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"x"}}}}',
+  pi: '{"type":"message","id":"big","parentId":null,"timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"x"}}',
+  dsh: '{"type":"user/message","seq":1,"time":1767225600000,"data":{"role":"user","content":[{"type":"text","text":"x"}],"source":{"kind":"user"}}}',
+  opencode: undefined,
+  'gemini-cli': '{"id":"u-oversized","type":"user","content":"x","timestamp":"2026-01-01T00:00:00.000Z"}',
 }
 const overRoots: string[] = []
 function oversizedOf(agent: string): SessionAdapterFixtures['oversized'] {
+  const line = OVERSIZED_LINES[agent]
+  if (line === undefined) {
+    return undefined
+  }
   const root = mkdtempSync(join(tmpdir(), `at-conformance-${agent}-`))
   overRoots.push(root)
-  // The name each adapter's discover lists: Claude Code takes any *.jsonl, Codex its rollout
-  // names, Grok its updates.jsonl.
-  const name = agent === 'codex' ? 'rollout-over.jsonl' : agent === 'grok' ? 'updates.jsonl' : 'session.jsonl'
+  // The name each adapter's discover lists.
+  const name =
+    agent === 'codex'
+      ? 'rollout-over.jsonl'
+      : agent === 'grok'
+        ? 'updates.jsonl'
+        : agent === 'dsh'
+          ? 'session.v4.jsonl'
+          : agent === 'gemini-cli'
+            ? 'session-over.jsonl'
+            : 'session.jsonl'
   const file = join(root, name)
-  writeFileSync(file, oversizedSession(OVERSIZED_LINES[agent]!))
+  writeFileSync(file, oversizedSession(line))
   return { root, file }
 }
 afterAll(() => {
@@ -105,12 +178,17 @@ describe('session adapter conformance', () => {
     ['claude-code', builtinAdapters['claude-code']!, CLAUDE],
     ['codex', builtinAdapters.codex!, CODEX],
     ['grok', builtinAdapters.grok!, GROK],
+    ['pi', builtinAdapters.pi!, PI],
+    ['gemini-cli', builtinAdapters['gemini-cli']!, GEMINI],
+    ['dsh', builtinAdapters.dsh!, DSH],
+    ['opencode', builtinAdapters.opencode!, OPENCODE],
   ] as const) {
+    const oversized = oversizedOf(agent)
     const fixtures: SessionAdapterFixtures = {
       platform,
       root: fixturesOf(agent),
       sessions: sessionsOf(fixturesOf(agent), sessions),
-      oversized: oversizedOf(agent),
+      ...(oversized === undefined ? {} : { oversized }),
     }
     describe(`${agent} conformance`, () => {
       // The kit's runner contract, as its own tests wire it: the check brings its title and
@@ -129,6 +207,8 @@ describe('unknown generations fail loud on the repo fixtures', () => {
     ['claude-code', 'fixtures/sessions/claude-code/unknown-generation/session.jsonl'],
     ['codex', 'fixtures/sessions/codex/unknown-generation/rollout-bad.jsonl'],
     ['grok', 'fixtures/sessions/grok/unknown-generation'],
+    ['pi', 'fixtures/sessions/pi/unknown-generation/session.jsonl'],
+    ['dsh', 'fixtures/sessions/dsh/unknown-generation/session.v4.jsonl'],
   ]
   for (const [agent, relative] of cases) {
     it(`${agent} unknown generation`, async () => {

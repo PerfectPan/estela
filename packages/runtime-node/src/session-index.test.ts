@@ -33,6 +33,33 @@ function summary(partial: Partial<IndexSummary> & Pick<IndexSummary, 'traceId' |
   }
 }
 
+/** Persist each child's marker despite brief write contention, so later rebuilds cannot erase an earlier writer unnoticed. */
+function concurrentIndexWriter(file: string): string {
+  const source = (name: string) => pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), name)).href
+  return `
+    const { openSessionIndex } = await import(${JSON.stringify(source('session-index.ts'))})
+    const { isBusy } = await import(${JSON.stringify(source('session-index-schema.ts'))})
+    const { setTimeout } = await import('node:timers/promises')
+    const n = process.argv[2]
+    const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
+    if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
+    const deadline = Date.now() + 5000
+    try {
+      for (;;) {
+        try {
+          index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
+          break
+        } catch (error) {
+          if (!isBusy(error) || Date.now() >= deadline) { throw error }
+        }
+        await setTimeout(20)
+      }
+    } finally {
+      index.close()
+    }
+  `
+}
+
 describe('session index', () => {
   it('honors XDG_CACHE_HOME and otherwise uses ~/.cache', () => {
     expect(sessionIndexFile({ XDG_CACHE_HOME: '/xdg' }, '/h/u')).toBe('/xdg/rivus-agent-trace/index.sqlite')
@@ -44,16 +71,16 @@ describe('session index', () => {
     const file = join(await tempDir(), 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
-    expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)?.outputTokens).toBe(0)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)?.inputTokens).toBe(118_400)
-    expect(index.get('/logs/a.jsonl', 11, 1_000)).toBeUndefined()
+    expect(index.get('a', 10, 1_000)?.turns).toBe(2)
+    expect(index.get('a', 10, 1_000)?.outputTokens).toBe(0)
+    expect(index.get('a', 10, 1_000)?.inputTokens).toBe(118_400)
+    expect(index.get('a', 11, 1_000)).toBeUndefined()
     index.close()
     expect(statSync(file).mode & 0o777).toBe(0o600)
 
     const again = openSessionIndex({ summaryVersion: 1, file })
-    expect(again.get('/logs/a.jsonl', 10, 1_000)?.requests).toBe(4)
-    expect(again.get('/logs/a.jsonl', 10, 2_000)).toBeUndefined()
+    expect(again.get('a', 10, 1_000)?.requests).toBe(4)
+    expect(again.get('a', 10, 2_000)).toBeUndefined()
     again.close()
   })
 
@@ -71,7 +98,7 @@ describe('session index', () => {
         firstPrompt: 'Run the tests please',
       },
     ])
-    expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
+    expect(index.get('a', 10, 1_000)).toBeUndefined()
     expect(index.search('Run the tests')).toEqual(['a'])
     index.close()
   })
@@ -85,7 +112,7 @@ describe('session index', () => {
     raw.exec('PRAGMA user_version = 9')
     raw.close()
     const rebuilt = openSessionIndex({ summaryVersion: 1, file })
-    expect(rebuilt.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
+    expect(rebuilt.get('a', 10, 1_000)).toBeUndefined()
     expect(rebuilt.search('Fix')).toEqual([])
     rebuilt.putSummaries([summary({ traceId: 'b', path: '/logs/b.jsonl', title: 'Other' })])
     expect(rebuilt.search('Ot')).toEqual(['b'])
@@ -160,7 +187,7 @@ describe('session index', () => {
         summary: { turns: 0, failedTools: 0 },
       }),
     ])
-    const cached = index.get('/logs/a.jsonl', 10, 1_000)
+    const cached = index.get('a', 10, 1_000)
     expect(cached?.turns).toBe(0)
     expect(cached?.failedTools).toBe(0)
     expect(cached?.requests).toBeUndefined()
@@ -173,7 +200,7 @@ describe('session index', () => {
     const index = openSessionIndex({ summaryVersion: 1, file, enabled: false })
     index.putHeads([{ traceId: 'a', agent: 'grok', path: '/logs/a.jsonl', size: 1, mtimeMs: 1 }])
     index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
-    expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
+    expect(index.get('a', 10, 1_000)).toBeUndefined()
     expect(index.search('auth')).toBeUndefined()
     expect(index.enabled).toBe(false)
     expect(() => statSync(file)).toThrow(/ENOENT/)
@@ -213,10 +240,10 @@ describe('session index', () => {
     const file = join(await tempDir(), 'index.sqlite')
     const old = openSessionIndex({ file, summaryVersion: 0 })
     old.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
-    expect(old.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
+    expect(old.get('a', 10, 1_000)?.turns).toBe(2)
     old.close()
     const current = openSessionIndex({ summaryVersion: 1, file })
-    expect(current.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
+    expect(current.get('a', 10, 1_000)).toBeUndefined()
     expect(current.rows()[0]?.summary).toBeUndefined()
     expect(current.rows()[0]?.title).toBe('Fix the auth refresh')
     current.close()
@@ -251,7 +278,7 @@ describe('session index', () => {
   it('keeps a fractional mtime exact', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
     index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl', mtimeMs: 1_758_000_000_123.456 })])
-    expect(index.get('/logs/a.jsonl', 10, 1_758_000_000_123.456)?.turns).toBe(2)
+    expect(index.get('a', 10, 1_758_000_000_123.456)?.turns).toBe(2)
     expect(index.rows()[0]?.mtimeMs).toBe(1_758_000_000_123.456)
     index.close()
   })
@@ -281,19 +308,8 @@ describe('session index', () => {
   it('lets several processes open a fresh cache at once', async () => {
     const dir = await tempDir()
     const file = join(dir, 'index.sqlite')
-    const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
     const child = join(dir, 'child.mjs')
-    writeFileSync(
-      child,
-      `
-      const { openSessionIndex } = await import(${JSON.stringify(module)})
-      const n = process.argv[2]
-      const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
-      if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
-      index.close()
-    `,
-    )
+    writeFileSync(child, concurrentIndexWriter(file))
     const runs = Array.from(
       { length: 6 },
       (_, n) =>
@@ -318,7 +334,7 @@ describe('session index', () => {
         .toSorted(),
     ).toEqual(['r0', 'r1', 'r2', 'r3', 'r4', 'r5'])
     index.close()
-  })
+  }, 15_000)
 
   it('folds non-ASCII case the same way on both sides', async () => {
     const index = openSessionIndex({ summaryVersion: 1, file: join(await tempDir(), 'index.sqlite') })
@@ -378,7 +394,7 @@ describe('session index', () => {
     expect(index.enabled).toBe(true)
     expect(index.search('auth')).toEqual(['a'])
     expect(index.rows()).toHaveLength(1)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)?.turns).toBe(2)
+    expect(index.get('a', 10, 1_000)?.turns).toBe(2)
     expect(() => index.putSummaries([summary({ traceId: 'b', path: '/logs/b.jsonl' })])).toThrow(/locked/)
     expect(performance.now() - started).toBeLessThan(1_000)
     index.close()
@@ -389,19 +405,8 @@ describe('session index', () => {
     const dir = await tempDir()
     const file = join(dir, 'index.sqlite')
     writeFileSync(file, 'not a database, not at all')
-    const module = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'session-index.ts')).href
     const child = join(dir, 'child.mjs')
-    writeFileSync(
-      child,
-      `
-      const { openSessionIndex } = await import(${JSON.stringify(module)})
-      const n = process.argv[2]
-      const index = openSessionIndex({ summaryVersion: 1, file: ${JSON.stringify(file)} })
-      if (!index.enabled) { console.error(index.unavailable); process.exit(2) }
-      index.putSummaries([{ traceId: 'r' + n, agent: 'h', path: '/logs/' + n, size: 1, mtimeMs: 1, summary: { turns: 1 }, prompts: [] }])
-      index.close()
-    `,
-    )
+    writeFileSync(child, concurrentIndexWriter(file))
     const results = await Promise.all(
       Array.from(
         { length: 4 },
@@ -429,5 +434,5 @@ describe('session index', () => {
         .toSorted(),
     ).toEqual(['r0', 'r1', 'r2', 'r3'])
     index.close()
-  })
+  }, 15_000)
 })

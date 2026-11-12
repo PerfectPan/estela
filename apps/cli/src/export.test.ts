@@ -17,7 +17,7 @@ const fixture = (agent: string, relative: string): string =>
 const platform = createNodePlatform()
 
 /** Every fixture session of a registered agent, the conformance suite's list, with whether it exports. */
-const FIXTURES: readonly (readonly [agent: string, relative: string, exports: boolean])[] = [
+const FIXTURES: readonly (readonly [agent: string, relative: string, exports: boolean, sessionId?: string])[] = [
   ['claude-code', 'plain/session.jsonl', true],
   ['claude-code', 'compaction/session.jsonl', true],
   ['claude-code', 'subagent/session.jsonl', true],
@@ -32,6 +32,17 @@ const FIXTURES: readonly (readonly [agent: string, relative: string, exports: bo
   ['grok', 'plain/updates.jsonl', true],
   ['grok', 'compaction/updates.jsonl', true],
   ['grok', 'subagent/updates.jsonl', true],
+  ['pi', 'plain/session.jsonl', true],
+  ['pi', 'compaction/session.jsonl', true],
+  ['pi', 'unknown-type/session.jsonl', false],
+  ['dsh', 'plain/session.v4.jsonl', true],
+  ['dsh', 'compaction/session.v4.jsonl', true],
+  ['dsh', 'unknown-type/session.v4.jsonl', false],
+  ['opencode', 'opencode.db', true, 'ses_smoke'],
+  ['gemini-cli', 'plain/chats/session-1.jsonl', true],
+  ['gemini-cli', 'compaction/chats/session-1.jsonl', true],
+  ['gemini-cli', 'message-update/chats/session-1.jsonl', true],
+  ['gemini-cli', 'unknown-type/chats/session-1.jsonl', false],
   // Only an unrecognized record: no step ATIF could hold, and no session prompt to fall back on.
   ['grok', 'unknown-type/updates.jsonl', false],
 ]
@@ -115,8 +126,11 @@ describe('export', () => {
   })
 
   it('exports every registered agent fixture to a structurally valid ATIF document', async () => {
-    for (const [agent, relative, exports] of FIXTURES) {
-      const trace = await loadSession({ agent, path: fixture(agent, relative) }, { platform })
+    for (const [agent, relative, exports, sessionId] of FIXTURES) {
+      const trace = await loadSession(
+        { agent, path: fixture(agent, relative), ...(sessionId ? { sessionId } : {}) },
+        { platform },
+      )
       if (!exports) {
         expect(() => exportOf(trace, 'atif')).toThrow('No events an ATIF step can come from')
         continue

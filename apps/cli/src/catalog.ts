@@ -22,7 +22,7 @@ import {
 import { errorMessage, parseReadFailure } from './read-failure.ts'
 import { oneLine, traceIdOf } from './session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
-import { builtinAdapters } from './session-adapters.ts'
+import { adapterDisplayName, builtinAdapters } from './session-adapters.ts'
 
 export type { AgentProgress } from './catalog-discover.ts'
 
@@ -41,7 +41,7 @@ const HOST_ERA_OFFSET = 1
  * Bump this whenever what the index stores for a session (such as its prompt rule) changes
  * without a change to the kit's SESSION_SUMMARY_VERSION, so cached rows are recomputed.
  */
-const INDEX_CONTENT_REVISION = 1
+const INDEX_CONTENT_REVISION = 2
 const INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION
 
 export interface CatalogOptions {
@@ -103,7 +103,9 @@ export class SessionCatalog {
         concurrency: CONCURRENCY,
         key: row => row.traceId,
         rank: row => row.lastActiveAt,
-        heavy: row => row.size >= HEAVY_BYTES,
+        // An OpenCode row's size is the shared database file; its summary reads rows through the
+        // adapter instead of holding the file in memory, so it does not have to run alone.
+        heavy: row => row.target.agent !== 'opencode' && row.size >= HEAVY_BYTES,
         run: row => this.summarize(row),
       },
       options.deferSummaries === true,
@@ -166,7 +168,7 @@ export class SessionCatalog {
   }
 
   pickChoices(): { value: string; label: string }[] {
-    const names = new Map(this.adapterList.map(adapter => [adapter.agent, adapter.displayName]))
+    const names = new Map(this.adapterList.map(adapter => [adapter.agent, adapterDisplayName(adapter)]))
     return this.sortedRows()
       .filter(row => !row.error)
       .map(row => ({
@@ -239,11 +241,11 @@ export class SessionCatalog {
       onProgress?.(progressOf(this.agentStates, this.platform.home)),
     )
     const gone: string[] = []
-    for (const [traceId, old] of this.rows) {
+    for (const traceId of this.rows.keys()) {
       if (!fresh.has(traceId)) {
         this.removed.set(traceId, this.bump())
         this.targets.delete(traceId)
-        gone.push(old.target.path)
+        gone.push(traceId)
       }
     }
     const pending: LiveRow[] = []
@@ -254,7 +256,7 @@ export class SessionCatalog {
         const summary =
           old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs
             ? old.summary
-            : this.readIndex(() => this.index.get(row.target.path, row.size, row.mtimeMs), undefined)
+            : this.readIndex(() => this.index.get(row.traceId, row.size, row.mtimeMs), undefined)
         if (summary) {
           row.summary = summary
           row.pending = false
@@ -369,7 +371,7 @@ export class SessionCatalog {
       const checked = roots.map(path => redactText(path, { home: this.platform.home })).join(', ')
       return {
         id: state.adapter.agent,
-        displayName: state.adapter.displayName,
+        displayName: adapterDisplayName(state.adapter),
         count,
         ...(count === 0 && checked ? { checked } : {}),
       }

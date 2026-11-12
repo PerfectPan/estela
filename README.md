@@ -80,7 +80,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | Pick the session in the terminal. |
 | `--no-index` | Do not read or write the session index; summaries are computed again on each launch and not stored. |
 
-`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
+`AGENT_TRACE_PATH` is the default session path. `build`, `mcp`, and the export commands fall back to a bundled demo trace when no path is given. A session in a shared database is named with its id: `agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`. When output is not a terminal, or `NO_COLOR` is set, the CLI prints plain lines with no escape sequences.
 
 ## Taking a session elsewhere
 
@@ -110,11 +110,13 @@ Exports are redacted like the server (`~` for the home directory, known credenti
 |---|---|
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`, `~/.codex/archived_sessions/**/rollout-*.jsonl` |
+| DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
+| Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl`, and a legacy `*.json` chat without its `.jsonl` sibling |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
+| OpenCode | `~/.local/share/opencode/opencode.db` |
+| Pi | `~/.pi/agent/sessions/<cwd>/<time>_<id>.jsonl` |
 
-OpenCode and dsh are not supported.
-
-- The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `GROK_HOME` for Grok. With `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
+- The agents' home overrides apply and replace the default home: `CLAUDE_CONFIG_DIR` for Claude Code, `CODEX_HOME` for Codex, `DSH_HOME` for DeepSeek Harness, `GEMINI_CLI_HOME` for Gemini CLI, `GROK_HOME` for Grok, `XDG_DATA_HOME` for OpenCode, and `PI_CODING_AGENT_DIR` for Pi. With `CLAUDE_CONFIG_DIR` set, sessions only under `~/.claude` are not listed.
 - An agent whose folder does not exist shows 0 sessions and the path it checked. A file the adapter cannot parse is listed as "could not read" with the file, line, and reason. A line inside a session that is not JSON is skipped and does not fail the session.
 - Grok records token usage only per turn, so a Grok session has one request per turn, not one per model call.
 

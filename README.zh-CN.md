@@ -82,7 +82,7 @@ npx @rivus/agent-trace export-otlp [path] [--out <file>]
 | `--pick` | 在终端中选择会话。 |
 | `--no-index` | 不读写会话索引；每次启动重新计算摘要，不存储。 |
 
-`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
+`AGENT_TRACE_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。数据库里共用同一个库的会话要带 id 打开：`agent-trace ~/.local/share/opencode/opencode.db#<sessionId>`。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。
 
 ## 会话导出
 
@@ -112,11 +112,13 @@ curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb ht
 |---|---|
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/**/rollout-*.jsonl`、`~/.codex/archived_sessions/**/rollout-*.jsonl` |
+| DeepSeek Harness | `~/.dsh/sessions/<cwd>/<session-id>/session.v4.jsonl.zstd` |
+| Gemini CLI | `~/.gemini/tmp/**/chats/*.jsonl`，以及没有同名 `.jsonl` 的旧版 `*.json` 聊天 |
 | Grok | `~/.grok/sessions/<cwd>/<session-id>/` |
+| OpenCode | `~/.local/share/opencode/opencode.db` |
+| Pi | `~/.pi/agent/sessions/<cwd>/<time>_<id>.jsonl` |
 
-不支持 OpenCode 和 dsh。
-
-- 各 Agent 的 home 环境变量会替换默认 home：Claude Code 用 `CLAUDE_CONFIG_DIR`，Codex 用 `CODEX_HOME`，Grok 用 `GROK_HOME`。设置 `CLAUDE_CONFIG_DIR` 后，只位于 `~/.claude` 下的会话不会被列出。
+- 各 Agent 的 home 环境变量会替换默认 home：Claude Code 用 `CLAUDE_CONFIG_DIR`，Codex 用 `CODEX_HOME`，DeepSeek Harness 用 `DSH_HOME`，Gemini CLI 用 `GEMINI_CLI_HOME`，Grok 用 `GROK_HOME`，OpenCode 用 `XDG_DATA_HOME`，Pi 用 `PI_CODING_AGENT_DIR`。设置 `CLAUDE_CONFIG_DIR` 后，只位于 `~/.claude` 下的会话不会被列出。
 - Agent 目录不存在时会显示 0 个会话，并给出它检查过的路径。适配器无法解析的文件会列为“无法读取”，并给出文件、行号和原因。会话中不是 JSON 的行会被跳过，不会让整个会话失败。
 - Grok 只按轮次记录 Token 用量，所以 Grok 会话每轮只有一个请求，而不是每次模型调用一个请求。
 

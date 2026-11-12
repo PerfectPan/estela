@@ -52,6 +52,41 @@ async function grokUnknownGeneration(): Promise<string> {
 }
 
 describe('loadSession', () => {
+  it('detects Gemini chats before Claude head matching and preserves explicit reader selection', async () => {
+    const path = join(repo, 'fixtures/sessions/gemini-cli/conformance/plain/chats/session-1.jsonl')
+    const platform = createNodePlatform({ home: '/u/me', env: {} })
+    const target = { path }
+    const trace = await loadSession(target, { platform })
+    expect(trace.agent).toBe('gemini-cli')
+    expect(trace.events.some(event => event.kind === 'request')).toBe(true)
+    const custom: SessionAdapter = { ...builtinAdapters.pi!, agent: 'custom', detect: async () => false }
+    expect((await loadSession(target, { platform, adapters: { custom } })).agent).toBe('gemini-cli')
+    const dir = await tempDir()
+    await mkdir(join(dir, 'chats'))
+    const claude = join(dir, 'chats', 'claude.jsonl')
+    await cp(join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'), claude)
+    const original = await loadSession({ path: claude }, { platform })
+    expect(original.agent).toBe('claude-code')
+    expect(original.events).toHaveLength(9)
+    const legacy = join(dir, 'chats', 'session-legacy.json')
+    const records = (await readFile(path, 'utf8'))
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line) as unknown)
+    await writeFile(
+      legacy,
+      JSON.stringify({ sessionId: 'legacy', projectHash: 'test', messages: records.slice(1) }, null, 2),
+    )
+    const expected = await loadSession({ path: legacy, agent: 'gemini-cli' }, { platform })
+    const detected = await loadSession({ path: legacy }, { platform })
+    expect(expected.events.length).toBeGreaterThan(0)
+    expect(detected).toEqual(expected)
+
+    await expect(loadSession({ ...target, agent: 'claude-code' }, { platform })).rejects.toThrow(
+      'unknown format generation',
+    )
+  })
+
   it('routes a named custom adapter through direct and store loads, keeping progress', async () => {
     const path = join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')
     const platform = createNodePlatform({ home: '/u/me', env: {} })

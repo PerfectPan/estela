@@ -8,6 +8,7 @@ import {
 } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 import { errorRow, rowFromHead, type CatalogPlatform, type LiveRow } from './catalog-rows.ts'
+import { adapterDisplayName } from './session-adapters.ts'
 import { errorMessage, listError } from './read-failure.ts'
 
 /** Parallel `stat` calls while building rows. */
@@ -45,7 +46,7 @@ export function progressOf(states: readonly AgentState[], homeDir: string): Agen
         ? state.missing.map(path => redactText(path, { home: homeDir })).join(', ')
         : undefined
     return {
-      name: state.adapter.displayName,
+      name: adapterDisplayName(state.adapter),
       read: state.read,
       ...(state.total !== undefined ? { total: state.total } : {}),
       done: state.done,
@@ -124,23 +125,37 @@ export async function discoverRows(
       for (const head of heads) {
         perFile.set(head.ref.path, (perFile.get(head.ref.path) ?? 0) + 1)
       }
+      // All sessions in a database share one snapshot of its main file and WAL in this pass.
+      const stats = new Map<string, ReturnType<CatalogPlatform['fs']['stat']>>()
+      const statFile = (path: string) => {
+        let pending = stats.get(path)
+        if (!pending) {
+          pending = (async () => {
+            const info = await platform.fs.stat(path, { followSymlinks: true })
+            if (info?.kind !== 'file' || state.adapter.agent !== 'opencode') {
+              return info
+            }
+            // Committed SQLite changes may still live in WAL without touching the main database.
+            const wal = await platform.fs.stat(`${path}-wal`, { followSymlinks: true })
+            return { ...info, size: info.size + (wal?.size ?? 0), mtimeMs: Math.max(info.mtimeMs, wal?.mtimeMs ?? 0) }
+          })()
+          stats.set(path, pending)
+        }
+        return pending
+      }
       // `discover` reports no mtime, and the cache key needs one.
       for (let start = 0; start < heads.length; start += STAT_BATCH) {
         const batch = heads.slice(start, start + STAT_BATCH)
-        const infos = await Promise.all(batch.map(head => platform.fs.stat(head.ref.path, { followSymlinks: true })))
+        const infos = await Promise.all(batch.map(head => statFile(head.ref.path)))
         batch.forEach((head, index) => {
           const info = infos[index]
           const target = head.ref
           if (info !== undefined && info.kind === 'file') {
-            add(
-              rowFromHead(
-                target,
-                head,
-                { size: info.size, mtimeMs: info.mtimeMs },
-                platform.home,
-                (perFile.get(head.ref.path) ?? 0) > 1,
-              ),
-            )
+            // Every session in one OpenCode database shares the file stamp, and another session's write
+            // changes it. This session's own last write is what changes its summary, so that alone is its
+            // cache key; the shared size says nothing about this row and would invalidate all of them.
+            const key = state.adapter.agent === 'opencode' ? { size: 0, mtimeMs: head.lastActiveAt } : undefined
+            add(rowFromHead(target, head, info, platform.home, (perFile.get(head.ref.path) ?? 0) > 1, key))
           } else {
             add(
               errorRow(

@@ -87,7 +87,7 @@ canonical trace 增加两个导出投影，各对应一个写入单个文件的 
 
 ### A2: 每个已注册 agent 的 fixture 都导出为合法 ATIF
 
-- Given 每个已注册 agent（claude-code、codex、grok）的 conformance fixture
+- Given 每个已注册 agent（claude-code、codex、dsh、gemini-cli、grok、opencode、pi）的 conformance fixture
   会话，
 - When 逐个用 `export-atif` 导出，
 - Then 每个文档都通过 Harbor 的 ATIF 校验器。

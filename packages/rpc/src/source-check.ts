@@ -28,7 +28,11 @@ function fnv(hash: number, text: string): number {
  * uuid, timestamp, …), hashed. Enough to tell that the bytes at a source
  * pointer are no longer the record that was loaded, without keeping originals.
  */
-export function fingerprint(original: unknown): number {
+export function fingerprint(original: unknown, complete = false): number {
+  // SQLite updates can stay entirely in WAL; compare the whole stored JSON, including nested messages.
+  if (complete) {
+    return original === undefined ? 0 : fnv(FNV_OFFSET, JSON.stringify(original))
+  }
   // A predicate, not a schema: this runs for every event at load. Originals come from `JSON.parse`: plain objects.
   if (!isPlainObject(original)) {
     return 0
@@ -51,11 +55,16 @@ export function fingerprint(original: unknown): number {
   return hash
 }
 
-/** One fingerprint per event, in event order, taken while originals are still in memory. */
+/**
+ * One fingerprint per event, in event order, taken while originals are still in memory. A SQLite row
+ * and a compressed line are compared whole: their content lives in nested fields (a dsh `data`, an
+ * OpenCode part), where a top-level scalar would miss a rewrite. A plain file line stays cheap.
+ */
 export function fingerprints(trace: Trace): Uint32Array {
   const out = new Uint32Array(trace.events.length)
   trace.events.forEach((event, index) => {
-    out[index] = fingerprint(event.original)
+    const complete = event.source.sqlite !== undefined || event.source.codec !== undefined
+    out[index] = fingerprint(event.original, complete)
   })
   return out
 }
@@ -73,10 +82,28 @@ export async function stampFiles(trace: Trace, fs: SessionFs): Promise<Map<strin
 
 export type OriginalResult = { original: unknown } | { unavailable: string }
 
+/** Reads one source pointer through the platform, for compressed files and SQLite rows. Throws when it cannot. */
+export type ReadOriginal = (source: SourcePointer) => Promise<unknown>
+
 /** The record bytes at a source pointer, parsed. Throws when they are no longer one JSON value. */
-async function recordAt(fs: SessionFs, source: SourcePointer): Promise<unknown> {
+async function recordAt(
+  fs: SessionFs,
+  source: SourcePointer,
+  readOriginal: ReadOriginal | undefined,
+): Promise<unknown> {
+  if (readOriginal !== undefined) {
+    return readOriginal(source)
+  }
   const bytes = await readRange(fs, source.file, { start: source.offset, end: source.offset + source.length })
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown
+}
+
+/**
+ * The reader's own reason, appended to an unavailable message. Only the platform reader's errors
+ * get here: a raw `JSON.parse` message quotes file bytes, so that path keeps a fixed wording.
+ */
+function reasonOf(error: unknown): string {
+  return error instanceof Error && error.message.length > 0 ? `: ${error.message}` : ''
 }
 
 /**
@@ -88,29 +115,45 @@ async function recordAt(fs: SessionFs, source: SourcePointer): Promise<unknown> 
  */
 export async function checkedOriginal(
   fs: SessionFs,
+  readOriginal: ReadOriginal | undefined,
   event: TraceEvent,
   stamp: FileStamp | undefined,
   expected: number,
 ): Promise<OriginalResult> {
   const source: SourcePointer = event.source
+  if (readOriginal === undefined && (source.codec !== undefined || source.sqlite !== undefined)) {
+    return { unavailable: `${source.file} needs a platform reader to resolve line ${source.line}` }
+  }
   const now = await fs.stat(source.file, { followSymlinks: true })
   if (!now) {
     return { unavailable: `${source.file} no longer exists` }
   }
-  const changed = !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
+  const changed = source.sqlite !== undefined || !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
   if (!changed) {
-    return { original: await recordAt(fs, source) }
+    try {
+      return { original: await recordAt(fs, source, readOriginal) }
+    } catch (error) {
+      const reason = readOriginal === undefined ? '' : reasonOf(error)
+      return { unavailable: `${source.file} could not be read; line ${source.line} is unavailable${reason}` }
+    }
   }
-  if (now.size < source.offset + source.length) {
+  const direct = source.codec === undefined && source.sqlite === undefined
+  if (direct && now.size < source.offset + source.length) {
     return { unavailable: `${source.file} shrank since it was loaded; line ${source.line} is gone` }
   }
   let original: unknown
   try {
-    original = await recordAt(fs, source)
-  } catch {
-    return { unavailable: `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record` }
+    original = await recordAt(fs, source, readOriginal)
+  } catch (error) {
+    // The resolver names what it could not find (a missing SQLite row, an undecodable frame).
+    return {
+      unavailable:
+        readOriginal === undefined
+          ? `${source.file} changed since it was loaded; line ${source.line} is no longer a JSON record`
+          : `${source.file} changed since it was loaded; line ${source.line} could not be read${reasonOf(error)}`,
+    }
   }
-  if (fingerprint(original) !== expected) {
+  if (fingerprint(original, source.sqlite !== undefined) !== expected) {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} holds a different record` }
   }
   return { original }

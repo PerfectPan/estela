@@ -41,10 +41,10 @@ describe('session index rows that do not parse', () => {
     // A damaged shape loses only the shape; a non-number count loses the cached summary.
     raw.exec(`UPDATE sessions SET context_shape = '[1, "x"]' WHERE trace_id = 'a'`)
     raw.exec(`UPDATE sessions SET turns = 'many' WHERE trace_id = 'b'`)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)).toEqual({ turns: 2 })
-    expect(index.get('/logs/b.jsonl', 10, 1_000)).toBeUndefined()
+    expect(index.get('a', 10, 1_000)).toEqual({ turns: 2 })
+    expect(index.get('b', 10, 1_000)).toBeUndefined()
     raw.exec(`UPDATE sessions SET context_shape = 'not json' WHERE trace_id = 'a'`)
-    expect(index.get('/logs/a.jsonl', 10, 1_000)).toEqual({ turns: 2 })
+    expect(index.get('a', 10, 1_000)).toEqual({ turns: 2 })
     raw.close()
     index.close()
   })
@@ -73,11 +73,11 @@ describe('session index rows that do not parse', () => {
       { traceId: 'a', agent: 'claude-code', path: '/logs/a.jsonl', size: 10, mtimeMs: 1_000, title: 'Alpha' },
     ])
     expect(index.search('Alpha')).toEqual(['a'])
-    expect(index.get('/logs/a.jsonl', 10, 1_000)).toBeUndefined()
+    expect(index.get('a', 10, 1_000)).toBeUndefined()
     // A write that finds an unparsable row, before any `rows` call, drops the old trace id's prompts too.
     raw.exec(`UPDATE sessions SET size = 'big' WHERE trace_id = 'c'`)
     expect(left('c')).toBe(1)
-    index.putHeads([{ traceId: 'c2', agent: 'claude-code', path: '/logs/c.jsonl', size: 10, mtimeMs: 1_000 }])
+    index.putHeads([{ traceId: 'c', agent: 'claude-code', path: '/logs/c.jsonl', size: 10, mtimeMs: 1_000 }])
     expect(left('c')).toBe(0)
     expect(index.search('haystack')).toEqual([])
     expect(
@@ -85,7 +85,7 @@ describe('session index rows that do not parse', () => {
         .rows()
         .map(row => row.traceId)
         .toSorted(),
-    ).toEqual(['a', 'b', 'c2'])
+    ).toEqual(['a', 'b', 'c'])
     raw.close()
     index.close()
   })

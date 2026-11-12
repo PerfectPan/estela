@@ -36,7 +36,14 @@ function sessionFiles(agentRoot, agent, base = '', out = []) {
     const path = join(base, name)
     if (statSync(join(agentRoot, path)).isDirectory()) {
       sessionFiles(agentRoot, agent, path, out)
-    } else if (name === 'session.jsonl' || name === 'updates.jsonl' || name.startsWith('rollout-')) {
+    } else if (
+      name === 'session.jsonl'
+      || name === 'session.v4.jsonl'
+      || name.startsWith('session-')
+      || name === 'updates.jsonl'
+      || name.startsWith('rollout-')
+      || name === 'opencode.db'
+    ) {
       out.push(join(agent, path))
     }
   }
@@ -50,14 +57,22 @@ const work = mkdtempSync(join(tmpdir(), 'at-validate-'))
 let failed = 0
 try {
   for (const session of sessions) {
-    const source = join(fixtures, session)
+    const source = join(fixtures, session) + (session.endsWith('opencode.db') ? '#ses_smoke' : '')
     const out = join(work, `${session.replaceAll('/', '-')}.atif.json`)
     try {
       execFileSync(process.execPath, [cli, 'export-atif', source, '--out', out], { stdio: 'pipe' })
     } catch (error) {
-      // A fixture with nothing an ATIF step can come from fails loud by design.
+      const expected = session.includes('/unknown-generation/')
+        ? 'unknown format generation'
+        : ['grok', 'pi', 'dsh', 'gemini-cli'].some(agent => session.startsWith(agent + '/conformance/unknown-type/'))
+          ? 'No events an ATIF step can come from'
+          : undefined
       const message = String(error.stderr ?? error.message).split('\n')[0]
-      process.stdout.write(`SKIP  ${session}: ${message}\n`)
+      const expectedFailure = expected !== undefined && message.includes(expected)
+      if (!expectedFailure) {
+        failed += 1
+      }
+      process.stdout.write(`${expectedFailure ? 'SKIP' : 'FAIL'}  ${session}: ${message}\n`)
       continue
     }
     try {

@@ -76,7 +76,11 @@ html[data-theme="dark"] {
   /* Agent marks. The Claude Code orange is the agent's brand color from the design; it has no token. */
   --agent-claude-code: #d97757;
   --agent-codex: var(--foreground);
+  --agent-dsh: #6b85ff;
   --agent-grok: var(--muted-foreground);
+  --agent-gemini-cli: #4796e3;
+  --agent-opencode: #9aa4ae;
+  --agent-pi: #8b7cf6;
   /* "Unavailable" hatching and its edge, the muted reasoning text, and the subagent "open lane" link (design mockup values). */
   --hatch: #3a434c;
   --hatch-edge: #4a545e;
@@ -109,6 +113,11 @@ html[data-theme="light"] {
   --selection-ring: color-mix(in srgb, var(--kind-request) 50%, transparent);
   /* Brand color, as in the light design. */
   --agent-claude-code: #c15f3c;
+  --agent-dsh: #3355e6;
+  --agent-grok: #5a6169;
+  --agent-gemini-cli: #286599;
+  --agent-opencode: #5f6b76;
+  --agent-pi: #6653c7;
   --hatch: #c9c6bf;
   --hatch-edge: #b4b1aa;
   --reasoning-text: #4a5057;
