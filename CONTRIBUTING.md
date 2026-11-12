@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 24.x: the root `package.json` requires `>=24.0.0 <25`, and `devEngines.runtime` fails `pnpm install` on any other version. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm switches itself to the version pinned by `packageManager` in the root `package.json`.
+Use Node.js `^26.13.1` (26.13.1 or later within 26.x): the root `package.json` and `devEngines.runtime` reject development runtimes outside this range during `pnpm install`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm switches itself to the version pinned by `packageManager` in the root `package.json`.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks

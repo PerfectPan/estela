@@ -10,7 +10,7 @@ gh extension install PerfectPan/gh-repo-checks
 pnpm install
 ```
 
-Use Node.js 24.x: the root `package.json` requires `>=24.0.0 <25`. The built CLI runs on Node.js 24 or later and exits before loading when Node is older.
+Use Node.js `^26.13.1` (26.13.1 or later within 26.x): the root `package.json` checks this development runtime range. The built CLI runs on Node.js 24 or later and exits before loading when Node is older.
 
 ## Checks
 
@@ -98,7 +98,7 @@ cd apps/e2e
 pnpm run test:smoke
 ```
 
-`TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js 24.
+`TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js `^26.13.1`.
 
 ## Browser end-to-end on the installed tarball
 
@@ -113,7 +113,7 @@ pnpm run test:e2e
 AGENT_TRACE_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome instead
 ```
 
-S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `tarball` job on Node.js 24 only.
+S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `test` job on Node.js `^26.13.1` only.
 
 ## Check in a real browser
 
