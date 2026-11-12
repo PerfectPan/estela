@@ -1,60 +1,6 @@
-import type { TranscriptEventKind } from '@rivus/agent-kit/transcript'
-import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
 import { describe, expect, it } from 'vite-plus/test'
-import {
-  anchorIndex,
-  buildLedgerModel,
-  countEvents,
-  flattenLedger,
-  moveSelection,
-  ROW_SIZE,
-  type LedgerView,
-} from './ledger-model.ts'
-
-/** An event's id, a kind with that kind's payload, and any other fields. */
-type EventInput = Partial<Omit<TraceEvent, 'kind' | 'payload'>> & { id: string } & {
-    [K in TranscriptEventKind]: { kind: K; payload: TraceEventPayloads[K] }
-  }[TranscriptEventKind]
-
-let seq = 0
-function event(input: EventInput): TraceEvent {
-  const at = seq++
-  return { seq: at, ts: 1000 * at, source: { file: '0', offset: 0, length: 1, line: at + 1 }, ...input }
-}
-
-function sample(): Trace {
-  seq = 0
-  return {
-    schema: 'agent-trace',
-    agent: 'claude-code',
-    session: { id: 's' },
-    capabilities: ['requests', 'usage', 'subagents', 'hooks', 'compaction'],
-    agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Explore' }],
-    skipped: [],
-    events: [
-      event({ id: 'p1', kind: 'user', payload: { text: 'first' } }),
-      event({ id: 'r1', kind: 'request', payload: { usage: { inputTokens: 100 } } }),
-      event({ id: 'c1', kind: 'tool_call', payload: { callId: 'x1', name: 'Bash', args: { command: 'ls' } } }),
-      event({ id: 'o1', kind: 'tool_result', payload: { callId: 'x1', isError: true, exitCode: 1 } }),
-      event({ id: 'h1', kind: 'hook', payload: { type: 'hook_success' } }),
-      event({ id: 'h2', kind: 'hook', payload: { type: 'hook_success' } }),
-      event({ id: 'spawn', kind: 'tool_call', payload: { callId: 'x2', name: 'Task' } }),
-      event({ id: 's1', kind: 'request', agentId: 'sub', payload: {} }),
-      event({ id: 's2', kind: 'assistant', agentId: 'sub', payload: { text: 'found' } }),
-      event({ id: 'spawn-out', kind: 'tool_result', payload: { callId: 'x2' } }),
-      event({ id: 'k1', kind: 'compaction', payload: { preTokens: 100, postTokens: 10 } }),
-      event({ id: 'p2', kind: 'user', payload: { text: 'second' } }),
-      event({ id: 'r2', kind: 'request', payload: {} }),
-    ],
-  }
-}
-
-const view = (partial: Partial<LedgerView> = {}): LedgerView => ({
-  collapsed: new Set(),
-  expanded: new Set(),
-  filter: 'all',
-  ...partial,
-})
+import { event, sample, view } from '@/testsupport/ledger-trace.ts'
+import { anchorIndex, buildLedgerModel, countEvents, flattenLedger, moveSelection, ROW_SIZE } from './ledger-model.ts'
 
 describe('buildLedgerModel', () => {
   it('pairs results with calls, folds hooks, and turns the spawn call into a subagent row', () => {
@@ -187,5 +133,16 @@ describe('keyboard and counts', () => {
     const trace = sample()
     expect(countEvents(trace)).toBe(13)
     expect(countEvents(trace, { from: 0, to: 2000 })).toBe(3)
+  })
+
+  it('draws a long turn without passing its rows as function arguments', () => {
+    const trace = sample()
+    trace.agents = [{ id: 'main' }]
+    trace.events = Array.from({ length: 150_000 }, (_, seq) =>
+      event({ id: `long-${seq}`, kind: seq === 0 ? 'user' : 'assistant', payload: { text: 'message' } }),
+    )
+    const rows = flattenLedger(buildLedgerModel(trace), view())
+    expect(rows).toHaveLength(150_001)
+    expect(rows.at(-1)?.key).toBe('e:long-149999')
   })
 })

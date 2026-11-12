@@ -1,9 +1,84 @@
 import type { Page } from '@playwright/test'
-import { rm } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { activePanel, ctx, expect, generateTrace, openWorkspace, test } from './harness.ts'
 
 const sessions = ctx.homes.main
+
+test('lane layout preserves selection, folds with mouse and keyboard, and retains cross-turn hooks', async ({
+  page,
+  launch,
+}) => {
+  const file = join(ctx.root, 'lane-layout.trace.json')
+  const source = { file: 'synthetic', offset: 0, length: 1, line: 1 }
+  const events = [
+    { id: 'p1', kind: 'user', payload: { text: 'first' } },
+    { id: 'spawn', kind: 'tool_call', payload: { callId: 'spawn', name: 'Task' } },
+    { id: 'r1', kind: 'request', agentId: 'sub', payload: {} },
+    { id: 'a1', kind: 'assistant', agentId: 'sub', payload: { text: 'subagent reply' } },
+    { id: 'h1', kind: 'hook', agentId: 'sub', payload: { type: 'hook_success' } },
+    { id: 'p2', kind: 'user', payload: { text: 'second' } },
+    { id: 'h2', kind: 'hook', agentId: 'sub', payload: { type: 'hook_success' } },
+  ].map((event, seq) => ({ ...event, seq, ts: 1000 * (seq + 1), source: { ...source, line: seq + 1 } }))
+  await writeFile(
+    file,
+    JSON.stringify({
+      schema: 'agent-trace',
+      agent: 'claude-code',
+      session: { id: 'lane-ui' },
+      capabilities: ['subagents', 'hooks'],
+      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Worker' }],
+      events,
+      skipped: [],
+    }),
+  )
+  await openWorkspace(page, launch, file)
+  const ledger = page.getByTestId('ledger')
+  const spawn = ledger.locator('[data-row-type=subagent]').first()
+  await spawn.click()
+  await page.getByTestId('layout-lanes').click()
+  await expect(page.locator('#ledger-row-e_spawn')).toHaveAttribute('aria-selected', 'true')
+  await page.getByTestId('layout-turns').click()
+  await expect(spawn).toHaveAttribute('aria-selected', 'true')
+  await page.getByTestId('layout-lanes').click()
+  await page.locator('#ledger-row-e_a1').click()
+  await page.getByTestId('layout-turns').click()
+  await expect(page.locator('#ledger-row-e_a1')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('#ledger-row-e_a1')).toBeVisible()
+  await page.getByTestId('layout-lanes').click()
+  await page.locator('#ledger-row-h_h1').click()
+  await page.getByTestId('layout-turns').click()
+  await expect(page.locator('#ledger-row-h_h1')).toHaveAttribute('aria-selected', 'true')
+  await page.getByTestId('layout-lanes').click()
+  await expect(page.locator('#ledger-row-h_h1')).toHaveAttribute('aria-selected', 'true')
+  const main = ledger.locator('[data-row-type=lane]').first()
+  await expect(main).toContainText('Main agent')
+  await main.click()
+  await page.getByTestId('layout-lanes').click()
+  await expect(main).toHaveAttribute('aria-selected', 'true')
+  await expect(main).toHaveAttribute('aria-expanded', 'false')
+  await ledger.focus()
+  await page.keyboard.press('Enter')
+  await expect(main).toHaveAttribute('aria-expanded', 'true')
+  await page.keyboard.press('Space')
+  await expect(main).toHaveAttribute('aria-expanded', 'false')
+  await main.click()
+  const hooks = ledger.locator('[data-row-type=hooks]')
+  await expect(hooks).toHaveCount(2)
+  await hooks.nth(0).click()
+  await ledger.focus()
+  await page.keyboard.press('Enter')
+  await hooks.nth(1).click()
+  await ledger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('#ledger-row-e_h1')).toBeVisible()
+  await expect(page.locator('#ledger-row-e_h2')).toBeVisible()
+  await page.getByTestId('layout-turns').click()
+  await page.getByRole('radio', { name: 'Requests', exact: true }).click()
+  await spawn.click()
+  await page.getByTestId('layout-lanes').click()
+  await expect(page.locator('#ledger-row-l_sub')).toHaveAttribute('aria-selected', 'true')
+})
 
 /** `m:ss` or `h:mm:ss` from the ledger's time column, in ms. */
 function elapsedMs(text: string): number {

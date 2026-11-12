@@ -289,6 +289,9 @@ export function buildLedgerModel(trace: Trace): LedgerModel {
 
 export type LedgerFilter = 'all' | 'requests' | 'tools' | 'failures'
 
+/** How the ledger groups its rows: by turn (the default) or one lane per agent. */
+export type LedgerLayout = 'turns' | 'lanes'
+
 export interface LedgerView {
   collapsed: ReadonlySet<string>
   expanded: ReadonlySet<string>
@@ -309,8 +312,9 @@ export type VirtualRow =
       /** Inside an expanded subagent lane. */
       lane: boolean
     }
+  | { key: string; type: 'lane'; laneId: string; title?: string; collapsed: boolean; requests: number; size: number }
 
-/** Fixed heights: 36 px rows, 40 px turn headers; the design's hook fold row is 30 px and the compaction row 44 px. */
+/** Fixed heights: 36 px rows, 40 px turn and lane headers; the design's hook fold row is 30 px and the compaction row 44 px. */
 export const ROW_SIZE = { turn: 40, event: 36, hooks: 30, compaction: 44 } as const
 
 function rowSize(row: { type: 'turn' } | { type: 'entry'; entry: Entry }): number {
@@ -334,7 +338,8 @@ export function isFailedResult(event: TraceEvent | undefined): boolean {
 export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView): boolean {
   const inside = (ts: number) => inRange(ts, view.range)
   if (entry.type === 'subagent') {
-    if (view.filter === 'all' && entry.eventId && inside(model.byId.get(entry.eventId)!.ts)) {
+    const spawn = entry.eventId ? model.entries.get(`e:${entry.eventId}`) : undefined
+    if (spawn && entryMatches(spawn, model, view)) {
       return true
     }
     return entry.children.some(child => entryMatches(child, model, view))
@@ -363,7 +368,8 @@ export function entryMatches(entry: Entry, model: LedgerModel, view: LedgerView)
   )
 }
 
-function pushEntry(
+/** Append a passing entry and its expanded children, preserving shared row keys across both layouts. */
+export function pushEntry(
   out: VirtualRow[],
   entry: Entry,
   depth: 0 | 1,
@@ -414,7 +420,10 @@ export function flattenLedger(model: LedgerModel, view: LedgerView): VirtualRow[
     const collapsed = view.collapsed.has(group.id)
     out.push({ key: group.id, type: 'turn', group, collapsed, size: ROW_SIZE.turn })
     if (!collapsed) {
-      out.push(...rows)
+      // One push per row: spreading a long turn passes every row as an argument and overflows the stack.
+      for (const row of rows) {
+        out.push(row)
+      }
     }
   }
   return out
@@ -447,7 +456,7 @@ export function countEvents(trace: Trace, range?: { from: number; to: number }):
 
 /**
  * The row the keyboard continues from: the selected row when it is drawn, else the header
- * of its turn (collapse, a chip, or the range hid it), else nothing.
+ * of its turn (collapse, a chip, or the range hid it), else the header of its lane, else nothing.
  */
 export function anchorIndex(rows: readonly VirtualRow[], model: LedgerModel, key: string | undefined): number {
   if (!key) {
@@ -459,6 +468,17 @@ export function anchorIndex(rows: readonly VirtualRow[], model: LedgerModel, key
   }
   const entry = model.entries.get(key)
   const eventId = entry ? entryEventIds(entry)[0] : undefined
-  const turnId = eventId ? model.locate.get(eventId)?.turnId : undefined
-  return turnId ? rows.findIndex(row => row.key === turnId) : -1
+  if (!eventId) {
+    return -1
+  }
+  const turnId = model.locate.get(eventId)?.turnId
+  if (turnId !== undefined) {
+    const at = rows.findIndex(row => row.key === turnId)
+    if (at >= 0) {
+      return at
+    }
+  }
+  // The lane layout: the event's own agent header.
+  const laneId = model.byId.get(eventId)?.agentId ?? mainAgentId(model.trace)
+  return rows.findIndex(row => row.key === `l:${laneId}`)
 }

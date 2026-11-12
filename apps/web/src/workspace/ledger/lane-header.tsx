@@ -1,0 +1,53 @@
+import { mainAgentId } from '@rivus/agent-trace-kernel'
+import { ChevronDownIcon, ChevronRightIcon } from '@/components/icons.tsx'
+import { locale, plural, translate as t } from '@/i18n/locale.ts'
+import { formatNumber } from '@/lib/format.ts'
+import type { VirtualRow } from '@/lib/ledger-model.ts'
+import { escapeBidi } from '@/lib/preview.ts'
+import type { RowContext } from './row-frame.tsx'
+
+/** 40 px lane header: chevron, the agent's title, and the lane's requests, counted like a turn header's. */
+export function LaneHeader(props: {
+  row: Extract<VirtualRow, { type: 'lane' }>
+  collapsed: boolean
+  ctx: RowContext
+  onToggle: () => void
+}) {
+  const title = () => {
+    const { title, laneId } = props.row
+    if (title === undefined && laneId === mainAgentId(props.ctx.model.trace)) {
+      return t('timeline.mainAgent')
+    }
+    return escapeBidi(title ?? laneId)
+  }
+  return (
+    <div class="flex h-full items-center gap-2.5 border-b border-border bg-secondary pr-4 pl-[18px]">
+      <button
+        type="button"
+        tabindex="-1"
+        class="grid size-[15px] shrink-0 place-items-center text-muted-foreground"
+        aria-hidden="true"
+        onClick={event => {
+          event.stopPropagation()
+          props.onToggle()
+        }}
+      >
+        {props.collapsed ? <ChevronRightIcon size={15} /> : <ChevronDownIcon size={15} />}
+      </button>
+      <span
+        class="min-w-0 flex-1 truncate text-[13px] font-semibold whitespace-nowrap text-foreground [unicode-bidi:isolate]"
+        dir="auto"
+      >
+        {title()}
+      </span>
+      <span class="shrink-0 font-mono text-[11.5px] text-subtle">
+        {plural(
+          props.row.requests,
+          'ledger.requestCountOne',
+          'ledger.requestCount',
+          formatNumber(props.row.requests, locale()),
+        )}
+      </span>
+    </div>
+  )
+}

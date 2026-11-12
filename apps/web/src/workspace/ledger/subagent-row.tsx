@@ -2,6 +2,7 @@ import type { Entry } from '@/lib/ledger-model.ts'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { toolTarget } from '@/lib/event-text.ts'
 import { formatDuration, formatNumber } from '@/lib/format.ts'
+import { escapeBidi } from '@/lib/preview.ts'
 import type { RowContext } from './row-frame.tsx'
 import { RowFrame, elapsed } from './row-frame.tsx'
 
@@ -29,7 +30,7 @@ export function SubagentRow(props: {
     const target = call ? toolTarget(call.payload.args) : ''
     return target ? `“${target}”` : ''
   }
-  const title = () => props.entry.title ?? props.entry.laneId
+  const title = () => escapeBidi(props.entry.title ?? props.entry.laneId)
   return (
     <RowFrame
       ordinal={props.entry.ordinal}

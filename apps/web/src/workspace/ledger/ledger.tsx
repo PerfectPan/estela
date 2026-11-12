@@ -17,9 +17,9 @@ function rowId(key: string): string {
 }
 
 /**
- * The ledger: turns from `projectTurns` with hook runs folded, virtualized with
- * `@tanstack/solid-virtual` at fixed row heights. A listbox: up / down move the selection,
- * Enter / Space toggle a turn, a subagent lane, or a hook run.
+ * The ledger: turns from `projectTurns`, or one lane per agent, with hook runs folded, virtualized
+ * with `@tanstack/solid-virtual` at fixed row heights. A listbox: up / down move the selection,
+ * Enter / Space toggle a turn or lane header, a subagent row, or a hook run.
  */
 export function Ledger(props: { state: WorkspaceState; start: number }) {
   let scroller: HTMLDivElement | undefined
@@ -46,7 +46,7 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
     const key = state.selectedKey()
     return key ? rows().findIndex(row => row.key === key) : -1
   })
-  /** Where the keyboard continues from: the selected row, or its turn header when a filter hides it. */
+  /** Where the keyboard continues from: the selected row, or its turn or lane header when it is hidden. */
   const anchor = createMemo(() => anchorIndex(rows(), state.model, state.selectedKey()))
   /** `aria-activedescendant` names only a row the virtualizer has drawn. */
   const activeId = () => {
@@ -71,6 +71,8 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
   function activate(row: VirtualRow): void {
     if (row.type === 'turn') {
       state.toggleTurn(row.group.id)
+    } else if (row.type === 'lane') {
+      state.toggleLane(row.laneId)
     } else if (row.entry.type === 'subagent' || row.entry.type === 'hooks') {
       state.toggleEntry(row.entry.id)
     }
@@ -80,7 +82,7 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
     const list = rows()
     let next: number | undefined
     const from = anchor()
-    // A hidden selection continues from its turn header: ArrowDown moves past it, ArrowUp lands on it.
+    // A hidden selection continues from its header: ArrowDown moves past it, ArrowUp lands on it.
     const hidden = from >= 0 && from !== selectedIndex()
     const step = (delta: number) => (hidden && delta < 0 ? from : moveSelection(list.length, from, delta))
     if (event.key === 'ArrowDown') {
@@ -119,6 +121,8 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
         filter={state.filter()}
         onFilter={state.setFilter}
         failures={state.failures}
+        layout={state.layout()}
+        onLayout={state.setLayout}
         dim={state.dim()}
         onDim={state.setDim}
       />
@@ -143,39 +147,32 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
               {item => {
                 const row = () => rows()[item.index]
                 return (
-                  <Show when={row()}>
+                  <Show when={row()} keyed>
                     {current => {
-                      // Bind the union once per accessor so its variant is narrowed, not asserted.
-                      const expanded = () => {
-                        const drawn = current()
-                        return drawn.type === 'turn' ? !drawn.collapsed : undefined
-                      }
-                      const rowType = () => {
-                        const drawn = current()
-                        return drawn.type === 'turn' ? 'turn' : drawn.entry.type
-                      }
+                      const expanded = current.type === 'entry' ? undefined : !current.collapsed
+                      const rowType = current.type === 'entry' ? current.entry.type : current.type
                       return (
                         <div
-                          id={rowId(current().key)}
+                          id={rowId(current.key)}
                           role="option"
-                          aria-selected={state.selectedKey() === current().key}
-                          aria-expanded={expanded()}
-                          data-row-type={rowType()}
+                          aria-selected={state.selectedKey() === current.key}
+                          aria-expanded={expanded}
+                          data-row-type={rowType}
                           class={cx(
                             'absolute top-0 left-0 w-full cursor-default',
-                            state.selectedKey() === current().key
+                            state.selectedKey() === current.key
                               ? 'bg-selection shadow-[inset_0_0_0_1px_var(--selection-ring)]'
                               : 'hover:bg-accent/60',
                           )}
                           style={{ height: `${item.size}px`, transform: `translateY(${item.start}px)` }}
                           onClick={() => {
-                            state.setSelectedKey(current().key)
-                            if (current().type === 'turn') {
-                              activate(current())
+                            state.setSelectedKey(current.key)
+                            if (current.type !== 'entry') {
+                              activate(current)
                             }
                           }}
                         >
-                          <LedgerRowBody row={current()} ctx={ctx()} number={turnNumber} state={state} />
+                          <LedgerRowBody row={current} ctx={ctx()} number={turnNumber} state={state} />
                         </div>
                       )
                     }}

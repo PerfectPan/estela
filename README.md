@@ -26,7 +26,7 @@ The core capability is request-level context reconstruction. For any request, ag
 ## Features
 
 - **Session browser.** One place for every session found on this machine, grouped by day and newest first. Each row carries the agent, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by agent, project, and flag; search across titles and your own prompts; a preview of the selected session's context-over-time shape.
-- **Session workspace.** Session metrics, a request timeline, an event ledger, and an event inspector. The timeline shows one bar per request (height is input tokens), one lane per subagent, and markers for prompts, failed tool calls, and compactions; the ledger groups events by turn, and the inspector shows the selected event.
+- **Session workspace.** Session metrics, a request timeline, an event ledger, and an event inspector. The timeline shows one bar per request (height is input tokens), one lane per subagent, and markers for prompts, failed tool calls, and compactions; the ledger groups events by turn or by agent, and the inspector shows the selected event.
 - **Model saw.** The context reconstruction for the selected request: system prompt, tools, messages, and the events a compaction removed; slots the log never recorded are marked `unavailable`.
 - **Report.** A redacted static export of one session's workspace: one `index.html` that opens from disk with no server.
 - **MCP.** `agent-trace mcp <path>`: a `reconstruct` tool over stdio.
