@@ -1,4 +1,6 @@
+import { lookup } from 'node:dns/promises'
 import { readdir, readFile } from 'node:fs/promises'
+import { createServer, type Server as NetServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, inject, it } from 'vite-plus/test'
@@ -89,6 +91,38 @@ describe('installed tarball', () => {
       expect(server.output().stderr).not.toContain('ExperimentalWarning')
     } finally {
       await server.stop()
+    }
+  })
+
+  it('without --port, a taken default port moves the server to a following port', async () => {
+    // DevFrame binds every loopback address of `localhost` and probes only the first, so the case
+    // that used to fail is the default port held on a later address. Hold it on all of them; an
+    // address another process already holds is as good as one held here.
+    const holders: NetServer[] = []
+    for (const { address } of await lookup('localhost', { all: true })) {
+      const holder = createServer()
+      const held = await new Promise<boolean>(resolve => {
+        holder.once('error', () => resolve(false))
+        holder.listen(7392, address, () => resolve(true))
+      })
+      if (held) {
+        holders.push(holder)
+      }
+    }
+    const server = start(process.execPath, [ctx.bin, ctx.claudePlain], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, openLogPath(ctx, 'port-fallback')),
+    })
+    try {
+      await waitFor('the Ready line', () => readyUrl(server.output().stdout) !== undefined)
+      const port = Number(new URL(readyUrl(server.output().stdout)!.base).port)
+      expect(port).toBeGreaterThan(7392)
+      expect(port).toBeLessThanOrEqual(7491)
+    } finally {
+      await server.stop()
+      for (const holder of holders) {
+        holder.close()
+      }
     }
   })
 
