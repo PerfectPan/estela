@@ -5,7 +5,7 @@
  */
 export const en = {
   common: {
-    appName: 'agent-trace',
+    appName: 'Estela',
     sessions: 'Sessions',
     jumpTo: 'Jump to event, tool, file…',
     themeSystem: 'follow system',
@@ -15,7 +15,7 @@ export const en = {
     languageSwitch: 'Switch language',
     languageShort: 'EN',
     dash: '—',
-    connectionLost: 'Lost the connection to the agent-trace server.',
+    connectionLost: 'Lost the connection to the Estela server.',
     reload: 'Reload',
     finishReason: 'finish {{ reason }}',
     openSession: 'Open session',
@@ -68,7 +68,7 @@ export const en = {
     tokensInOut: 'tokens in / out',
     compactionsSubagents: 'compactions · subagents',
     failedTools: '{{ count }} failed tool calls',
-    connectionError: 'Could not reach the agent-trace server: {{ reason }}',
+    connectionError: 'Could not reach the Estela server: {{ reason }}',
   },
   workspace: {
     couldNotOpen: 'Could not open this session',

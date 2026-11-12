@@ -102,9 +102,9 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 
 ## Release Intent
 
-`@rivus/agent-trace` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/agent-trace`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect bundled dependencies. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package. Changes limited to root release-tool dependencies need no release changeset.
+`@rivus/estela` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/estela`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect bundled dependencies. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package. Changes limited to root release-tool dependencies need no release changeset.
 
-- Create the file with `pnpm exec changeset --patch @rivus/agent-trace --message "<text>"` (use `--minor` or `--major` for another bump), or run `pnpm exec changeset` interactively. Rename the generated random file name to a kebab-case slug.
+- Create the file with `pnpm exec changeset --patch @rivus/estela --message "<text>"` (use `--minor` or `--major` for another bump), or run `pnpm exec changeset` interactively. Rename the generated random file name to a kebab-case slug.
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` on the public CLI records an internal change without a release or changelog line; native versioning consumes it even when no version changes. `pnpm exec changeset --empty` is also valid, but an empty marker alone leaves the workflow in `none` mode until a release changeset is added.
 - The message is one or two sentences written for users of the CLI. It becomes a line in the generated `CHANGELOG.md`.
 - CI runs `node scripts/check-release-plan.mjs`, using the native `getReleasePlan` API to validate the configuration and every pending changeset without filtering committed records or depending on a local base branch. Records for private or ignored packages that Changesets skips are rejected because native versioning leaves them pending. Public `none` records, empty changesets, and a version PR with no remaining changesets are valid. CI does not verify that each shipped change has a changeset; the PR template carries the reminder.
@@ -154,13 +154,13 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   permissions include reading Dependabot alerts and writing workflows. The [hosted onboarding run](https://developer.mend.io/github/PerfectPan/agent-trace/-/job/6df4e1d0-a6af-4e67-a065-da20b0dc27df)
   completed at 05:28:06 UTC with exit code 0 against `main` at
   `4d9610c3d1d9b8e5a048f9f6269bec2568c1e785`: it extracted 2 GitHub Actions files / 21 dependencies and
-  9 npm files / 89 dependencies, and created [onboarding PR #73](https://github.com/PerfectPan/agent-trace/pull/73).
+  9 npm files / 89 dependencies, and created [onboarding PR #73](https://github.com/PerfectPan/estela/pull/73).
   Its result was `onboarding` with `onboarded: false`; it used generated onboarding configuration, not this
   hand-authored policy. A Dependency Dashboard and an actual dependency-update PR with passing CI remain
-  unverified. Keep [issue #59](https://github.com/PerfectPan/agent-trace/issues/59) open until its remaining
+  unverified. Keep [issue #59](https://github.com/PerfectPan/estela/issues/59) open until its remaining
   acceptance criteria, including a real kit-update PR and CI, are met.
 
-  At the same audit, the repository's [security settings](https://github.com/PerfectPan/agent-trace/settings/security_analysis)
+  At the same audit, the repository's [security settings](https://github.com/PerfectPan/estela/settings/security_analysis)
   showed the dependency graph, Dependabot alerts, and Dependabot security updates disabled. The hosted run
   reported that vulnerability alerts were not enabled. App permission alone does not prove alert-to-fix
   coverage, and no security setting was changed as part of this rollout.
@@ -176,8 +176,8 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   confirm the intended owner settings separately; do not describe the config-only change as security coverage.
 
 - **Changesets**: bot PRs carry none. Because the lockfile counts as what the CLI ships, an npm update that passes
-  CI still needs a patch changeset for `@rivus/agent-trace` added by the reviewer before merging (`pnpm exec changeset
-  --patch @rivus/agent-trace --message "..."`), per the Release Intent rules above. Lock-file-only updates
+  CI still needs a patch changeset for `@rivus/estela` added by the reviewer before merging (`pnpm exec changeset
+  --patch @rivus/estela --message "..."`), per the Release Intent rules above. Lock-file-only updates
   follow the same rule when a bundled dependency changed the shipped output.
 
 ### Publishing to npm
@@ -186,27 +186,27 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
 
 Manual dispatch is also restricted to `main`. It bypasses the version job and defaults to `dry-run`. The separate read-only job runs the tarball smoke, saves the native `changeset publish-plan` JSON, and packs the CLI with `pnpm pack`. It never calls a publish command, creates a tag or Release, or requests an OIDC publishing token. The plan and archive are saved as the `release-dry-run` artifact. Uncheck `dry-run` only for an intentional manual publish.
 
-The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): only the publish job has `id-token: write`, which the publishing tool uses for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `agent-trace`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
+The workflow supports [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/): only the publish job has `id-token: write`, which the publishing tool uses for a short-lived credential. Configure the package's trusted publisher on npmjs.com with GitHub owner `PerfectPan`, repository `estela`, workflow filename `publish.yml`, and no environment. Enable **Allow npm publish**: new trusted publishers permit staged publishing by default. Private GitHub repositories can use trusted publishing; provenance attestations additionally require a public repository and a public npm package.
 
 A new package must exist before npm accepts a trusted publisher: publish an empty bootstrap prerelease from a temporary directory using local npm login and 2FA, configure its trusted publisher, then enable the automatic version flow. Workflow publishing uses only OIDC and no repository npm token secret.
 
 A new trusted publisher expires unless it completes a successful publish within two days. If the release is delayed, recreate the expired configuration before publishing; a dry run does not validate it.
 
-A real publish uses Changesets CLI v3's registry checks and publish plan. Only `@rivus/agent-trace` is public; the internal packages remain private, unversioned, and untagged. The native publisher packs the same production build output again rather than uploading the smoke archive; pnpm rewrites `workspace:` and `catalog:` specifiers. The Action reads the CLI's structured output to create tags and Releases and reports its `published` and `published-packages` outputs. No custom summary parser or tag/Release script is used.
+A real publish uses Changesets CLI v3's registry checks and publish plan. Only `@rivus/estela` is public; the internal packages remain private, unversioned, and untagged. The native publisher packs the same production build output again rather than uploading the smoke archive; pnpm rewrites `workspace:` and `catalog:` specifiers. The Action reads the CLI's structured output to create tags and Releases and reports its `published` and `published-packages` outputs. No custom summary parser or tag/Release script is used.
 
-New workspace release tags use the native `@rivus/agent-trace@<version>` format. Release notes come from the corresponding generated `apps/cli/CHANGELOG.md` section. A publish failure still fails the job even if an upload was accepted; do not infer success from an output containing a package name. This repository publishes one package, so there is no partial multi-package batch to coordinate. Native publishing skips public versions already on npm and does not repair their missing tags or Releases; use the recovery steps below.
+New workspace release tags use the native `@rivus/estela@<version>` format. Release notes come from the corresponding generated `apps/cli/CHANGELOG.md` section. A publish failure still fails the job even if an upload was accepted; do not infer success from an output containing a package name. This repository publishes one package, so there is no partial multi-package batch to coordinate. Native publishing skips public versions already on npm and does not repair their missing tags or Releases; use the recovery steps below.
 
 If the workflow fails before uploading, rerun it. If an upload may have succeeded, including an availability timeout, query the exact version first:
 
 ```bash
 version=0.1.0 # Use the failed run's version.
-npm view "@rivus/agent-trace@$version" name version dist gitHead --json --registry https://registry.npmjs.org/
+npm view "@rivus/estela@$version" name version dist gitHead --json --registry https://registry.npmjs.org/
 ```
 
 Authentication, network, and other query failures do not establish that a version is absent. An `E404` after an accepted upload or an availability timeout can mean the package is not visible yet: wait and query again without re-uploading. Rerun publishing only after confirming that the upload was not accepted. If the version exists, do not republish it or rerun the whole workflow. Never overwrite or unpublish an existing version to recover. Complete only the missing tag and Release:
 
 1. Use a clean checkout of the original run's `GITHUB_SHA`. Confirm the published package came from that run using its publish output and registry metadata; check `gitHead` against the commit when the field is present. Stop if the package's source cannot be confirmed.
-2. Set `tag="@rivus/agent-trace@$version"` for a native release (`tag="v0.1.0"` for the historical release). Inspect it with `git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}"`. An existing tag must resolve to the original commit. If absent, set `release_sha` to the original run's SHA and run `git push origin "$release_sha:refs/tags/$tag"`. Stop on any conflict; do not move or force-push a tag.
+2. Set `tag="@rivus/estela@$version"` for a native release (`tag="v0.1.0"` for the historical release). Inspect it with `git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}"`. An existing tag must resolve to the original commit. If absent, set `release_sha` to the original run's SHA and run `git push origin "$release_sha:refs/tags/$tag"`. Stop on any conflict; do not move or force-push a tag.
 3. If the GitHub Release is missing, save the body of that version's `apps/cli/CHANGELOG.md` section to a temporary notes file, then run `gh release create "$tag" --verify-tag --title "$tag" --notes-file "$notes_file"`, setting `notes_file` to that file. Verify an existing Release against the same tag instead of creating another one.
 
 Documentation-only and workflow-only PRs need no changeset.
@@ -230,7 +230,7 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 
 - `packages/schema` and `packages/kernel` are domain rules. They must not import DevFrame or UI.
 - Session reading is the external `@rivus/agent-kit`; `apps/cli` is the only package that imports it at runtime. Other packages may use its types with `import type`.
-- `@rivus/agent-trace` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/agent-trace-web` (`apps/web`).
+- `@rivus/estela` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/estela-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<agent>/` for the session logs the conformance suites read).
 - Shared lint, format, and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. The `lint` and `fmt` blocks of the root `vite.config.ts` spread its `vite-plus` export and `tsconfig.base.json` extends its tsconfig; both keep only this repository's rules. Change a shared default upstream, not here.
 - `node scripts/check-layers.mjs` checks each workspace package's `@rivus/*` dependencies against the "May depend on" column of the [Layers table in `AGENTS.md`](AGENTS.md#layers). CI and the pre-commit hook run it.
@@ -264,7 +264,7 @@ for diagnosis, without the PR title or description checks, and does not satisfy 
 runs until the blocker is resolved.
 
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
-The tarball smoke step then builds `@rivus/agent-trace` with `vp pack` (`pnpm --filter '@rivus/agent-trace...' run build`, which also
+The tarball smoke step then builds `@rivus/estela` with `vp pack` (`pnpm --filter '@rivus/estela...' run build`, which also
 runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
 a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses
 `pnpm install --frozen-lockfile` with the committed lockfile; refresh the lockfile with `pnpm install` when dependency
@@ -323,7 +323,7 @@ If `core.hooksPath` is already set to another path, `scripts/install-git-hooks.s
 After the GitHub repository exists, preview branch protection with:
 
 ```bash
-gh repo-checks protect --repo PerfectPan/agent-trace --no-review-checks --check test
+gh repo-checks protect --repo PerfectPan/estela --no-review-checks --check test
 ```
 
 The command requires pull requests, one approving review (fresh after new pushes), linear history, resolved conversations, and the CI `test` check. This repository has no Review workflow; its review checks run inside `test`. `--no-review-checks` therefore drops the default `repository checks`, `conventional PR title`, and `PR description` contexts. A single maintainer cannot approve their own pull requests; pass `--approvals 0` to keep the other protections without a review requirement. If the repository already uses a ruleset, add these checks to the ruleset instead of layering classic branch protection on top.

@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { mainAgentId, promptStarts } from './lanes.ts'
 
 export interface TraceFold extends SessionSummary {

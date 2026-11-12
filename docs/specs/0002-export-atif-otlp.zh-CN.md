@@ -26,11 +26,11 @@ canonical trace 增加两个导出投影，各对应一个写入单个文件的 
 
 ## Behavioral Requirements
 
-- `agent-trace export-atif <path> [--out <file>]` 与
-  `agent-trace export-otlp <path> [--out <file>]` 只加载一次 `path` 处的
-  会话（canonical agent-trace JSON 文件，或已注册 agent 适配器接受的会话
+- `estela export-atif <path> [--out <file>]` 与
+  `estela export-otlp <path> [--out <file>]` 只加载一次 `path` 处的
+  会话（canonical Estela JSON 文件，或已注册 agent 适配器接受的会话
   路径），并把导出写入 `--out`；省略 `--out` 时写入工作目录下的
-  `agent-trace-<session id 前 8 个字符>.atif.json` / `.otlp.json`。成功时
+  `estela-<session id 前 8 个字符>.atif.json` / `.otlp.json`。成功时
   命令打印写入的路径（home 目录用 `~` 表示）并以 0 退出。加载失败时以 1
   退出并给出加载错误的 message。
 - ATIF 导出是符合 ATIF v1.8 的文档：`schema_version`、`agent`（`name`、
@@ -60,7 +60,7 @@ canonical trace 增加两个导出投影，各对应一个写入单个文件的 
 - agent 未记录的字段在导出中省略，不置零、不发明；唯一例外是 `agent.version`：
   日志未记录 agent 版本时取 `"unknown"`，因为 ATIF 必填该字段。
 - 两个导出默认都做脱敏，无论来源：使用与 report 相同的脱敏
-  （`AGENT_TRACE_REDACT=0` 可关闭）。到达终端的错误保持 shell 已有的脱敏。
+  （`ESTELA_REDACT=0` 可关闭）。到达终端的错误保持 shell 已有的脱敏。
 - 单元测试在合成 trace 上覆盖映射规则，且每个已注册 agent 的 fixture 会话
   导出的文档通过该格式的结构检查。
 
@@ -71,7 +71,7 @@ canonical trace 增加两个导出投影，各对应一个写入单个文件的 
 - 缺失即 `unavailable`：agent 未记录的内容在导出中省略。导出器从不估算或
   默认任何一个计数、时间或文本。
 - 每条导出的事实都可追溯到其来源事件：ATIF step 在
-  `extra.agent_trace.eventIds` 中写明自己的 canonical event id。
+  `extra.estela.eventIds` 中写明自己的 canonical event id。
 - 未知数据在加载时大声失败，与其他地方一致；导出器只看到检查过的 `Trace`。
 
 ## Acceptance Examples
@@ -120,7 +120,7 @@ canonical trace 增加两个导出投影，各对应一个写入单个文件的 
 - Public API：两个新 CLI 命令；kernel 导出两个新的纯函数（`toAtif`、
   `toOtlp`）。现有内容不改变形态。
 - Persisted data：用户要求的导出文件；不写其他任何东西。
-- Configuration：`--out`；`AGENT_TRACE_REDACT=0` 关闭脱敏。
+- Configuration：`--out`；`ESTELA_REDACT=0` 关闭脱敏。
 - Operational bounds：导出在加载后的 trace 上运行，内存画像即加载的画像
   （355 MB 会话约 1.7 s 加载）；写入的文件即投影数据的大小。
 

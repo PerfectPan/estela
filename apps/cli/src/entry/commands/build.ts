@@ -1,7 +1,7 @@
-import type { ReportTrace, ResolvedSession } from '@rivus/agent-trace-rpc'
+import type { ReportTrace, ResolvedSession } from '@rivus/estela-rpc'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { bindTraceStore, CURRENT_TRACE_ID } from '@rivus/agent-trace-rpc'
+import { bindTraceStore, CURRENT_TRACE_ID } from '@rivus/estela-rpc'
 import { reportOf, writeReport } from '../../report/report.ts'
 import { createTraceStore } from '../../server/trace-store.ts'
 import { sessionLoader } from '../../sessions/load-session.ts'
@@ -14,7 +14,7 @@ export interface BuildInput {
   outDir: string
 }
 
-/** One session as a report directory. A report is always redacted, whatever AGENT_TRACE_REDACT says. */
+/** One session as a report directory. A report is always redacted, whatever ESTELA_REDACT says. */
 export async function runBuild(input: BuildInput, packageVersion: string): Promise<void> {
   const label = sessionTargetLabel(input.target)
   const current: ResolvedSession = { key: label, target: input.target }

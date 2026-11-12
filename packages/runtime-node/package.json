@@ -1,5 +1,5 @@
 {
-  "name": "@rivus/agent-trace-runtime-node",
+  "name": "@rivus/estela-runtime-node",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rivus/agent-trace-kernel": "workspace:*",
+    "@rivus/estela-kernel": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { bindReportExporter, bindSessionService, bindTraceStore } from '@rivus/agent-trace-rpc'
+import { bindReportExporter, bindSessionService, bindTraceStore } from '@rivus/estela-rpc'
 import { createDevServer, resolveDevServerPort } from 'devframe/adapters/dev'
 import { SessionCatalog } from '../../catalog/session-catalog.ts'
 import { exportReport } from '../../report/report.ts'
@@ -14,7 +14,7 @@ import { sayIndexFromCache, startSessionIndex } from '../ui/index-progress.ts'
 import { pickSession, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
 
 export interface DevInput {
-  /** The session given on the command line or in AGENT_TRACE_PATH; `label` is how the user wrote it. */
+  /** The session given on the command line or in ESTELA_PATH; `label` is how the user wrote it. */
   launch: { target: SessionTarget; label: string } | undefined
   pick: boolean
   /** `undefined`: the definition's port, or the next free one. */
@@ -26,13 +26,13 @@ export interface DevInput {
   /** `undefined`: DevFrame mounts the MCP route once agent tools exist. */
   mcp: boolean | undefined
   index: boolean
-  /** `false` only with AGENT_TRACE_REDACT=0. */
+  /** `false` only with ESTELA_REDACT=0. */
   redacts: boolean
 }
 
 /** Who opens the browser once the server is ready, and whether DevFrame's one-time-code gate stays on. */
 export interface BrowserPlan {
-  /** DevFrame opens the session browser, `/__agent-trace/`. */
+  /** DevFrame opens the session browser, `/__estela/`. */
   devframeOpens: boolean
   /** The CLI opens the launch session's workspace, `?s=<traceId>`. */
   cliOpens: boolean
@@ -41,7 +41,7 @@ export interface BrowserPlan {
 }
 
 /**
- * DevFrame opens `/__agent-trace/` and puts its one-time code in the fragment, so it cannot open
+ * DevFrame opens `/__estela/` and puts its one-time code in the fragment, so it cannot open
  * `#/s/<traceId>` itself: with a launch session the CLI opens the browser instead.
  */
 export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, hasLaunchSession: boolean): BrowserPlan {

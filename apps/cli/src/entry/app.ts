@@ -3,7 +3,7 @@ import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parse, printErrors } from '@bomb.sh/router'
-import { homeDir } from '@rivus/agent-trace-runtime-node'
+import { homeDir } from '@rivus/estela-runtime-node'
 import pkg from '../../package.json' with { type: 'json' }
 import { demoFixturePath } from '../paths.ts'
 import { parseSessionTarget } from '../sessions/session-target.ts'
@@ -31,14 +31,14 @@ function commandLineTarget(input: string): SessionTarget {
   return { ...target, path: resolve(target.path) }
 }
 
-/** An empty AGENT_TRACE_PATH names no session. */
+/** An empty ESTELA_PATH names no session. */
 function sessionFromEnv(): string | undefined {
-  return process.env.AGENT_TRACE_PATH || undefined
+  return process.env.ESTELA_PATH || undefined
 }
 
-/** Session text leaves the process redacted unless AGENT_TRACE_REDACT=0; reports always redact. */
+/** Session text leaves the process redacted unless ESTELA_REDACT=0; reports always redact. */
 function redactsFromEnv(): boolean {
-  return process.env.AGENT_TRACE_REDACT !== '0'
+  return process.env.ESTELA_REDACT !== '0'
 }
 
 /** `build`, `mcp`, and the exports always read one session: the bundled demo trace when nothing names one. */
@@ -59,7 +59,7 @@ function sessionOf(argument: string | undefined, literals: Iterable<Literal>): s
 const devDefaults: Readonly<Record<string, unknown>> = (() => {
   const bare = parse(routes, { argv: [] })
   if (!bare.ok || bare.method !== 'execute' || bare.route !== '/') {
-    throw new Error('agent-trace: the dev server route must run with no arguments')
+    throw new Error('estela: the dev server route must run with no arguments')
   }
   return bare.model
 })()

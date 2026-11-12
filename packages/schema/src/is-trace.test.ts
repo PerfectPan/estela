@@ -10,7 +10,7 @@ function event(partial: Record<string, unknown> = {}) {
 
 function trace(partial: Record<string, unknown> = {}) {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'demo',
     session: { id: 's' },
     capabilities: [],
@@ -56,7 +56,7 @@ describe('isTrace', () => {
   it('rejects non-objects and a wrong schema marker', () => {
     expect(isTrace(null)).toBe(false)
     expect(isTrace([])).toBe(false)
-    expect(isTrace('agent-trace')).toBe(false)
+    expect(isTrace('estela')).toBe(false)
     expect(isTrace(trace({ schema: 'other' }))).toBe(false)
     expect(isTrace(trace({ agent: { id: 'demo' } }))).toBe(false)
     expect(isTrace(trace({ session: { id: 1 } }))).toBe(false)

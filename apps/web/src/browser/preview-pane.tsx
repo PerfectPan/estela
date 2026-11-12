@@ -1,4 +1,4 @@
-import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/estela-rpc'
 import { Show } from 'solid-js'
 import { SessionPreview } from '@/browser/session-preview.tsx'
 

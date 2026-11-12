@@ -4,11 +4,11 @@ import type {
   ListSessionsResult,
   SessionListRow,
   SessionsSignal,
-} from '@rivus/agent-trace-rpc'
+} from '@rivus/estela-rpc'
 import { batch, createSignal, onCleanup } from 'solid-js'
 import { scopedClient } from '@/shell/client.ts'
 
-/** Must match `SESSIONS_STATE` in `@rivus/agent-trace-rpc` (the web app imports only its types). */
+/** Must match `SESSIONS_STATE` in `@rivus/estela-rpc` (the web app imports only its types). */
 const SESSIONS_STATE = 'sessions'
 
 async function listSessions(query: ListSessionsQuery): Promise<ListSessionsResult> {

@@ -1,6 +1,6 @@
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { NAMESPACE } from '@rivus/agent-trace-rpc'
+import { NAMESPACE } from '@rivus/estela-rpc'
 import * as z from 'zod/mini'
 
 /** The `<script type="application/json">` id the SPA looks for (`apps/web/src/shell/report.ts`). */

@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite-plus'
 import { thirdPartyNotices } from './scripts/third-party-notices.ts'
 
-const define = { AGENT_TRACE_BUNDLE: 'true' }
+const define = { ESTELA_BUNDLE: 'true' }
 // Rolldown only warns about an import it cannot resolve and leaves it external, which would ship a broken bundle.
 const failOnWarn = true
 

@@ -37,7 +37,7 @@ test('S9: Export report writes a redacted report that opens from file:// without
   const home = ctx.homes.main.home
   // Redaction off on the local server: the workspace shows the home path, the report never does.
   // The session names the home in a git diff header, relative to /, JSON-escaped, %2F-encoded, and in capitals.
-  const server = await openWorkspace(page, launch, ctx.homes.main.claudeHomeCwd, { env: { AGENT_TRACE_REDACT: '0' } })
+  const server = await openWorkspace(page, launch, ctx.homes.main.claudeHomeCwd, { env: { ESTELA_REDACT: '0' } })
   await expect(page.locator('section').first()).toContainText(home)
 
   // Export in Chinese: the report opens in the language it was exported in.
@@ -56,7 +56,7 @@ test('S9: Export report writes a redacted report that opens from file:// without
   await page.getByTestId('export-report').click()
   await page.getByTestId('export-confirm').click()
   const shown = (await dialog.getByTestId('export-path').innerText()).trim()
-  expect(shown).toMatch(/agent-trace-report-[0-9a-f]{8}-\d{8}-\d{6}\/index\.html$/)
+  expect(shown).toMatch(/estela-report-[0-9a-f]{8}-\d{8}-\d{6}\/index\.html$/)
   // The server's working directory is outside the synthetic home, so the path is absolute.
   expect(shown.startsWith(realpathSync(server.cwd))).toBe(true)
   await dialog.getByRole('button', { name: '关闭' }).click()

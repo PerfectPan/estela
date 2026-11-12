@@ -1,4 +1,4 @@
-import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/estela-rpc'
 import { For, Show } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
 import { RailGroup } from '@/browser/rail-group.tsx'

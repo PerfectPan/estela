@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { fingerprint } from './source-check.ts'
 
 /** The part of a cached entry a reload needs: its promise, and the pin held by a running `withEvents`. */

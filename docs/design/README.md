@@ -1,6 +1,6 @@
 # DevTools visual design
 
-Audience: someone implementing or reviewing the agent-trace UI.
+Audience: someone implementing or reviewing the Estela UI.
 
 This directory holds the chosen high-fidelity design (direction A, "Instrument") for the two screens of the viewer, the session browser and the session workspace ([README](../../README.md)). The HTML files are static mockups. Open them in a browser at 1440 × 900. All session content, paths, and numbers in them are sample data.
 
@@ -13,7 +13,7 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 
 ## Screens
 
-**Session browser.** `npx @rivus/agent-trace` opens here. Left rail: agent and project filters, plus "has compaction", "has subagents", "has failed tools". Center: sessions grouped by day, with turns, requests, tokens, duration, and flag icons. Right: a preview of the selected session with its context-over-time shape, headline numbers, the first prompt, and "Open session".
+**Session browser.** `npx @rivus/estela` opens here. Left rail: agent and project filters, plus "has compaction", "has subagents", "has failed tools". Center: sessions grouped by day, with turns, requests, tokens, duration, and flag icons. Right: a preview of the selected session with its context-over-time shape, headline numbers, the first prompt, and "Open session".
 
 **Session workspace.** Top to bottom:
 
@@ -74,7 +74,7 @@ Assistant replies use a neutral outlined square.
 
 ## Logo
 
-<img src="../assets/logo.svg" width="128" height="128" alt="agent-trace logo">
+<img src="../assets/logo.svg" width="128" height="128" alt="Estela logo">
 
 The mark is [`../assets/logo.svg`](../assets/logo.svg): a request trace inside a rounded tile, ending at the selected request in the request blue. The hollow nodes are cut with a mask, so the tile gradient shows through; the baseline and its ticks are the workspace's time axis.
 

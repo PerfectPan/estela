@@ -1,4 +1,4 @@
-import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { isPlainObject } from 'es-toolkit'
 import { laneIds, laneOf, mainAgentId, shadowedIn } from './lanes.ts'
 import { promptSnapshot } from './prompt-snapshot.ts'
@@ -32,7 +32,7 @@ export interface AtifToolCall {
   tool_call_id: string
   function_name: string
   arguments: Record<string, unknown>
-  extra?: { agent_trace?: { title?: string } }
+  extra?: { estela?: { title?: string } }
 }
 
 export interface AtifSubagentRef {
@@ -45,20 +45,20 @@ export interface AtifObservationResult {
   source_call_id?: string
   content?: string
   subagent_trajectory_ref?: AtifSubagentRef[]
-  extra?: { agent_trace?: { isError?: boolean; exitCode?: number; orphan?: boolean } }
+  extra?: { estela?: { isError?: boolean; exitCode?: number; orphan?: boolean } }
 }
 
 export interface AtifObservation {
   results: AtifObservationResult[]
 }
 
-/** The counts ATIF has a field for, and the rest under `extra.agent_trace`. */
+/** The counts ATIF has a field for, and the rest under `extra.estela`. */
 export interface AtifMetrics {
   prompt_tokens?: number
   completion_tokens?: number
   cached_tokens?: number
   extra?: {
-    agent_trace?: {
+    estela?: {
       responseId?: string
       modelCalls?: number
       granularity?: string
@@ -82,7 +82,7 @@ export interface AtifStep {
   metrics?: AtifMetrics
   is_copied_context?: boolean
   llm_call_count?: number
-  extra?: { context_management?: { type: string; boundary: string }; agent_trace?: TraceExtras }
+  extra?: { context_management?: { type: string; boundary: string }; estela?: TraceExtras }
 }
 
 export interface AtifFinalMetrics {
@@ -101,7 +101,7 @@ export interface AtifTrajectory {
   notes?: string
   final_metrics?: AtifFinalMetrics
   extra?: {
-    agent_trace?: {
+    estela?: {
       capabilities?: string[]
       skipped?: { reason: string; count: number }[]
       hooks?: Record<string, unknown>[]
@@ -322,7 +322,7 @@ function buildLane(
         tool_call_id: event.payload.callId,
         function_name: event.payload.name,
         arguments: toolArguments(event.payload.args),
-        ...(event.payload.title !== undefined ? { extra: { agent_trace: { title: event.payload.title } } } : {}),
+        ...(event.payload.title !== undefined ? { extra: { estela: { title: event.payload.title } } } : {}),
       })
       open.callIds.add(event.payload.callId)
     }
@@ -358,14 +358,14 @@ function finishTrajectory(trace: Trace, build: TrajectoryBuild, laneId: string, 
     agent,
     steps,
     notes:
-      'Exported from an agent-trace canonical trace (https://github.com/PerfectPan/agent-trace). '
-      + 'Each step lists its canonical event ids in extra.agent_trace.eventIds. Events a compaction '
+      'Exported from an Estela canonical trace (https://github.com/PerfectPan/estela). '
+      + 'Each step lists its canonical event ids in extra.estela.eventIds. Events a compaction '
       + 'removed are not steps; steps kept across a compaction boundary are marked is_copied_context.',
     final_metrics: finalMetrics(steps),
     ...(laneId === mainId
       ? {
           extra: {
-            agent_trace: {
+            estela: {
               capabilities: [...trace.capabilities],
               skipped: skippedOf(trace),
               ...build.rootExtras,

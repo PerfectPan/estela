@@ -1,5 +1,5 @@
 {
-  "name": "@rivus/agent-trace-kernel",
+  "name": "@rivus/estela-kernel",
   "type": "module",
   "version": "0.0.0",
   "license": "GPL-3.0-only",
@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rivus/agent-trace-schema": "workspace:*",
+    "@rivus/estela-schema": "workspace:*",
     "es-toolkit": "catalog:"
   },
   "devDependencies": {

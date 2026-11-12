@@ -10,7 +10,7 @@ import type {
 } from '@rivus/agent-kit/transcript'
 import * as z from 'zod/mini'
 
-export const TRACE_SCHEMA = 'agent-trace' as const
+export const TRACE_SCHEMA = 'estela' as const
 
 /** One entry of `Trace.capabilities`: the kit's `Capability`, which the `satisfies` ties it to. */
 const capabilitySchema = z.enum([

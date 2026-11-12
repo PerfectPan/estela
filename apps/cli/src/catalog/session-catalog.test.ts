@@ -7,7 +7,7 @@ import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { SessionCatalog } from './session-catalog.ts'
 
@@ -143,7 +143,7 @@ describe('session catalog', () => {
     await catalog.listSessions()
     await catalog.whenIdle()
     // --no-index: nothing is written to the cache directory.
-    expect(existsSync(join(home, '.cache/rivus-agent-trace/index.sqlite'))).toBe(false)
+    expect(existsSync(join(home, '.cache/rivus-estela/index.sqlite'))).toBe(false)
     expect(max).toBeLessThanOrEqual(4)
     expect(started.slice(0, 4).toSorted((a, b) => b - a)).toEqual([6, 5, 4, 3])
     const all = await catalog.listSessions()

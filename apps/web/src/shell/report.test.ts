@@ -1,4 +1,4 @@
-import type { ReportTrace } from '@rivus/agent-trace-rpc'
+import type { ReportTrace } from '@rivus/estela-rpc'
 import type * as z from 'zod/mini'
 import { describe, expect, expectTypeOf, it } from 'vite-plus/test'
 import { parseReportTrace, type reportTraceSchema } from './report.ts'
@@ -7,7 +7,7 @@ const source = { file: '0', offset: 0, length: 1, line: 1 }
 
 const report: ReportTrace = {
   trace: {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'claude-code',
     session: { id: 's' },
     capabilities: ['requests'],

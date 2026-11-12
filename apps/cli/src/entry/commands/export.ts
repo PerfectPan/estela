@@ -9,9 +9,9 @@ import { sayWrote } from '../ui/terminal.ts'
 export interface ExportInput {
   target: SessionTarget
   format: ExportFormat
-  /** `--out`; `undefined` writes `agent-trace-<session>.<format>.json` in the working directory. */
+  /** `--out`; `undefined` writes `estela-<session>.<format>.json` in the working directory. */
   out: string | undefined
-  /** `false` only with AGENT_TRACE_REDACT=0. */
+  /** `false` only with ESTELA_REDACT=0. */
   redacts: boolean
 }
 

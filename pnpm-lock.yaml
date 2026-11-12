@@ -236,19 +236,19 @@ importers:
       '@rivus/agent-kit':
         specifier: 'catalog:'
         version: 0.24.1
-      '@rivus/agent-trace-kernel':
+      '@rivus/estela-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@rivus/agent-trace-rpc':
+      '@rivus/estela-rpc':
         specifier: workspace:*
         version: link:../../packages/rpc
-      '@rivus/agent-trace-runtime-node':
+      '@rivus/estela-runtime-node':
         specifier: workspace:*
         version: link:../../packages/runtime-node
-      '@rivus/agent-trace-schema':
+      '@rivus/estela-schema':
         specifier: workspace:*
         version: link:../../packages/schema
-      '@rivus/agent-trace-web':
+      '@rivus/estela-web':
         specifier: workspace:*
         version: link:../web
       '@types/node':
@@ -299,13 +299,13 @@ importers:
       '@kobalte/core':
         specifier: ^0.13.14
         version: 0.13.14(solid-js@1.9.15)
-      '@rivus/agent-trace-kernel':
+      '@rivus/estela-kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
-      '@rivus/agent-trace-rpc':
+      '@rivus/estela-rpc':
         specifier: workspace:*
         version: link:../../packages/rpc
-      '@rivus/agent-trace-schema':
+      '@rivus/estela-schema':
         specifier: workspace:*
         version: link:../../packages/schema
       '@solid-primitives/i18n':
@@ -363,7 +363,7 @@ importers:
 
   packages/kernel:
     dependencies:
-      '@rivus/agent-trace-schema':
+      '@rivus/estela-schema':
         specifier: workspace:*
         version: link:../schema
       es-toolkit:
@@ -388,10 +388,10 @@ importers:
 
   packages/rpc:
     dependencies:
-      '@rivus/agent-trace-kernel':
+      '@rivus/estela-kernel':
         specifier: workspace:*
         version: link:../kernel
-      '@rivus/agent-trace-schema':
+      '@rivus/estela-schema':
         specifier: workspace:*
         version: link:../schema
       devframe:
@@ -422,7 +422,7 @@ importers:
 
   packages/runtime-node:
     dependencies:
-      '@rivus/agent-trace-kernel':
+      '@rivus/estela-kernel':
         specifier: workspace:*
         version: link:../kernel
       zod:

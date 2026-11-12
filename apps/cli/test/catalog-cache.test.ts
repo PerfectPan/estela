@@ -7,8 +7,8 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile }
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CURRENT_TRACE_ID } from '@rivus/agent-trace-rpc'
-import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
+import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
@@ -142,7 +142,7 @@ describe('session catalog cache', () => {
     await session(home, 'a.jsonl', 'Alpha')
     // A cache from the former `host-*` readers: the production cache path, written at summary version 1.
     const cache = join(home, 'cache')
-    const eraFile = join(cache, 'rivus-agent-trace/index.sqlite')
+    const eraFile = join(cache, 'rivus-estela/index.sqlite')
     await mkdir(dirname(eraFile), { recursive: true })
     const platform = createNodePlatform({ home, env: {} })
     const era = new SessionCatalog({
@@ -229,7 +229,7 @@ describe('session catalog cache', () => {
     current.close()
   })
 
-  it('redacts titles and prompts in the list and the picker unless AGENT_TRACE_REDACT=0', async () => {
+  it('redacts titles and prompts in the list and the picker unless ESTELA_REDACT=0', async () => {
     const home = await tempHome()
     await session(
       home,
@@ -249,7 +249,7 @@ describe('session catalog cache', () => {
     expect(JSON.stringify(await redacted.listSessions())).not.toContain(home)
     expect(redacted.pickChoices()[0]?.label).toMatch(/^Read ~\/notes with \[redacted\] then stop · Fake · /)
     const raw = new SessionCatalog({
-      platform: createNodePlatform({ home, env: { AGENT_TRACE_REDACT: '0' } }),
+      platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }),
       adapters: { fake: adapter },
       noIndex: true,
       deferSummaries: true,

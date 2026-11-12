@@ -1,11 +1,11 @@
-import type { Trace } from '@rivus/agent-trace-schema'
-import type { ResolvedSession } from '@rivus/agent-trace-rpc'
-import { isCanonicalTraceFile } from '@rivus/agent-trace-kernel'
+import type { Trace } from '@rivus/estela-schema'
+import type { ResolvedSession } from '@rivus/estela-rpc'
+import { isCanonicalTraceFile } from '@rivus/estela-kernel'
 import { redact } from '@rivus/agent-kit/redact'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { readOriginal, type ReadOriginalError, type SessionAdapters } from '@rivus/agent-kit/sessions'
-import { CURRENT_TRACE_ID, TraceStore } from '@rivus/agent-trace-rpc'
-import { homeDir } from '@rivus/agent-trace-runtime-node'
+import { CURRENT_TRACE_ID, TraceStore } from '@rivus/estela-rpc'
+import { homeDir } from '@rivus/estela-runtime-node'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
 
 export interface TraceStoreOptions {

@@ -1,4 +1,4 @@
-import type { TraceEvent } from '@rivus/agent-trace-schema'
+import type { TraceEvent } from '@rivus/estela-schema'
 import type { Entry, LedgerModel } from '@/lib/ledger-model.ts'
 import { pretty, rowLine } from '@/lib/event-text.ts'
 

@@ -1,5 +1,5 @@
 {
-  "schema": "agent-trace",
+  "schema": "estela",
   "agent": "demo",
   "session": {
     "id": "demo-compaction",

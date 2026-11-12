@@ -54,10 +54,10 @@ jobs:
       - run: node scripts/lint-scripts.mjs
       - run: node scripts/check-browser-bundle.mjs
       - name: Build Web once before CLI smoke tests
-        run: pnpm --filter @rivus/agent-trace-web run build
+        run: pnpm --filter @rivus/estela-web run build
       - run: pnpm test
       - run: pnpm typecheck
-      # Builds @rivus/agent-trace with vp pack (and the packages it bundles), packs apps/cli, installs the tarball
+      # Builds @rivus/estela with vp pack (and the packages it bundles), packs apps/cli, installs the tarball
       # into an empty temp dir, and runs the CLI smoke scenarios against the installed bin.
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e

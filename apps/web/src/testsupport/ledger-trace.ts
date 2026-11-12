@@ -1,5 +1,5 @@
 import type { TranscriptEventKind } from '@rivus/agent-kit/transcript'
-import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/estela-schema'
 import type { LedgerView } from '@/lib/ledger-model.ts'
 
 /** Test support shared by the ledger's unit tests in both layouts and the workspace state's. */
@@ -23,7 +23,7 @@ export function event(input: EventInput): TraceEvent {
 export function sample(): Trace {
   seq = 0
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'claude-code',
     session: { id: 's' },
     capabilities: ['requests', 'usage', 'subagents', 'hooks', 'compaction'],

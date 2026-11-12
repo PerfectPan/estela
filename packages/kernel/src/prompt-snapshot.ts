@@ -1,4 +1,4 @@
-import type { TraceEvent, TraceEventPayloads, TracePromptSnapshotPayload } from '@rivus/agent-trace-schema'
+import type { TraceEvent, TraceEventPayloads, TracePromptSnapshotPayload } from '@rivus/estela-schema'
 
 /**
  * A literal comparison on a payload already typed as a `system` payload, not a check on unknown data: a

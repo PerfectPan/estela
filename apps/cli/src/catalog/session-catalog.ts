@@ -1,12 +1,12 @@
-import type { IndexSummary, SessionIndex } from '@rivus/agent-trace-runtime-node'
-import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/agent-trace-rpc'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { IndexSummary, SessionIndex } from '@rivus/estela-runtime-node'
+import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/estela-rpc'
+import type { Trace } from '@rivus/estela-schema'
 import { redactText } from '@rivus/agent-kit/redact'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { emitSessions } from '@rivus/agent-trace-rpc'
-import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { emitSessions } from '@rivus/estela-rpc'
+import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './discover.ts'
 import {
   activityLabel,
@@ -87,8 +87,8 @@ export class SessionCatalog {
     this.adapterList = Object.values(this.adapters ?? builtinAdapters).filter(adapter => adapter !== undefined)
     this.platform = options.platform ?? createNodePlatform()
     const home = this.platform.home
-    // Titles and prompts are session text: redacted like the workspace unless AGENT_TRACE_REDACT=0.
-    this.redact = this.platform.env.AGENT_TRACE_REDACT === '0' ? text => text : text => redactText(text, { home })
+    // Titles and prompts are session text: redacted like the workspace unless ESTELA_REDACT=0.
+    this.redact = this.platform.env.ESTELA_REDACT === '0' ? text => text : text => redactText(text, { home })
     this.index =
       options.index
       ?? openSessionIndex({
@@ -128,7 +128,7 @@ export class SessionCatalog {
 
   /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
   get indexUnavailable(): string | undefined {
-    // The reason names the cache path: always `~`, whatever AGENT_TRACE_REDACT says.
+    // The reason names the cache path: always `~`, whatever ESTELA_REDACT says.
     return this.index.unavailable ? redactText(this.index.unavailable, { home: this.platform.home }) : undefined
   }
 
@@ -156,7 +156,7 @@ export class SessionCatalog {
    */
   openPath(target: SessionTarget, trace: Trace): string {
     // Same trace id as the file's list row: the session id counts only in the `path#id` form.
-    const traceId = traceIdOf({ ...target, agent: trace.agent || 'agent-trace' })
+    const traceId = traceIdOf({ ...target, agent: trace.agent || 'estela' })
     this.targets.set(traceId, target)
     return traceId
   }

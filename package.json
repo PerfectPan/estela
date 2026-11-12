@@ -1,7 +1,7 @@
 {
-  "name": "agent-trace",
+  "name": "estela",
   "private": true,
-  "description": "pnpm workspace for the agent-trace viewer.",
+  "description": "pnpm workspace for the Estela viewer.",
   "license": "GPL-3.0-only",
   "packageManager": "pnpm@12.17.0",
   "engines": {

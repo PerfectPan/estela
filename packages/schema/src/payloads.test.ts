@@ -12,7 +12,7 @@ function event(kind: string, payload: unknown) {
 
 function trace(events: unknown[]) {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'demo',
     session: { id: 's' },
     capabilities: [],

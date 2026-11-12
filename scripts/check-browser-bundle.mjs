@@ -12,7 +12,7 @@ import process from 'node:process'
 const HELP = `Usage:
   node scripts/check-browser-bundle.mjs [--help]
 
-Bundles @rivus/agent-trace-kernel and @rivus/agent-trace-rpc with "vp pack"
+Bundles @rivus/estela-kernel and @rivus/estela-rpc with "vp pack"
 (tsdown) for platform "browser". Fails when the bundle imports anything but
 devframe, such as an unresolved node:* import, or when the bundler warns.
 `
@@ -30,7 +30,7 @@ const vitePlusExports = JSON.parse(readFileSync(join(vitePlusDir, 'package.json'
 const { build } = await import(pathToFileURL(join(vitePlusDir, vitePlusExports['./pack'].import)).href)
 
 const DEVFRAME = /^devframe($|\/)/
-const outDir = await mkdtemp(join(tmpdir(), 'agent-trace-browser-'))
+const outDir = await mkdtemp(join(tmpdir(), 'estela-browser-'))
 try {
   await build({
     config: false,

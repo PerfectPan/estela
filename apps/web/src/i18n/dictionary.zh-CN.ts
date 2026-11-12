@@ -35,7 +35,7 @@ import type { Dictionary } from './dictionary.en.ts'
  */
 export const zhCN = {
   common: {
-    appName: 'agent-trace',
+    appName: 'Estela',
     sessions: '会话',
     jumpTo: '跳转到事件、工具、文件…',
     themeSystem: '跟随系统',
@@ -45,7 +45,7 @@ export const zhCN = {
     languageSwitch: '切换语言',
     languageShort: '中',
     dash: '—',
-    connectionLost: '与 agent-trace 服务的连接已断开。',
+    connectionLost: '与 Estela 服务的连接已断开。',
     reload: '重新加载',
     finishReason: '结束原因 {{ reason }}',
     openSession: '打开会话',
@@ -98,7 +98,7 @@ export const zhCN = {
     tokensInOut: '输入 / 输出 Token',
     compactionsSubagents: '压缩 · 子代理',
     failedTools: '{{ count }} 个失败的工具调用',
-    connectionError: '无法连接 agent-trace 服务：{{ reason }}',
+    connectionError: '无法连接 Estela 服务：{{ reason }}',
   },
   workspace: {
     couldNotOpen: '无法打开这个会话',

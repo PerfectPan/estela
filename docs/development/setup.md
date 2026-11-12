@@ -34,29 +34,29 @@ cd apps/cli
 pnpm run dev --no-auth
 ```
 
-Open `http://localhost:7392/__agent-trace/`.
+Open `http://localhost:7392/__estela/`.
 
-With no path the app opens the session browser over every registered agent. A positional path (or `AGENT_TRACE_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
+With no path the app opens the session browser over every registered agent. A positional path (or `ESTELA_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
 
-`build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `agent-trace-report-<traceId>-<time>/` directory under the server's working directory and shows the path.
+`build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `estela-report-<traceId>-<time>/` directory under the server's working directory and shows the path.
 
-The session index lives at `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`, or `~/.cache/rivus-agent-trace/index.sqlite` when `XDG_CACHE_HOME` is unset. It is a cache: delete it at any time. `--no-index` runs without reading or writing it (search then covers titles and first prompts only). Point `HOME` at a directory with fixture sessions to run against synthetic data:
+The session index lives at `$XDG_CACHE_HOME/rivus-estela/index.sqlite`, or `~/.cache/rivus-estela/index.sqlite` when `XDG_CACHE_HOME` is unset. It is a cache: delete it at any time. `--no-index` runs without reading or writing it (search then covers titles and first prompts only). Point `HOME` at a directory with fixture sessions to run against synthetic data:
 
 ```bash
-HOME=/tmp/agent-trace-home node apps/cli/bin.mjs --no-auth --no-open
+HOME=/tmp/estela-home node apps/cli/bin.mjs --no-auth --no-open
 ```
 
 ## Bundle and tarball
 
-`pnpm --filter '@rivus/agent-trace...' run build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`):
+`pnpm --filter '@rivus/estela...' run build` builds `apps/cli` with `vp pack` (the `pack` blocks of `apps/cli/vite.config.ts`):
 
 - `dist/bin.mjs` is the package `bin`, built from `apps/cli/bin.mjs`. It checks the Node.js version and drops the `node:sqlite` ExperimentalWarning, then imports `dist/cli.mjs` (from source, the same file imports `src/main.ts`).
 - `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, `@clack/prompts`, and `@bomb.sh/router`. `devframe` and `@devframes/agentic` stay external as the package's only runtime dependencies. `@devframes/agentic` declares an exact `devframe` peer dependency, so the two stay pinned to the same version.
-- `dist/web/` is a copy of `apps/web/dist`, and `dist/fixtures/demo.trace.json` is the default session for `build` and `mcp`. `src/paths.ts` picks these locations when the pack config defines `AGENT_TRACE_BUNDLE`; run from source (`node bin.mjs`), it uses `apps/web/dist` and `fixtures/` in the workspace.
+- `dist/web/` is a copy of `apps/web/dist`, and `dist/fixtures/demo.trace.json` is the default session for `build` and `mcp`. `src/paths.ts` picks these locations when the pack config defines `ESTELA_BUNDLE`; run from source (`node bin.mjs`), it uses `apps/web/dist` and `fixtures/` in the workspace.
 - `dist/THIRD-PARTY-NOTICES.txt` holds the license texts of the npm packages bundled into `cli.mjs` and of those the web build is made from, Vite and Rolldown included through vite-plus-core; the CLI section lists Rolldown too, for the runtime helpers in `cli.mjs` and `bin.mjs` (`apps/cli/scripts/third-party-notices.ts`, a Rolldown plugin).
 
 ```bash
-pnpm --filter '@rivus/agent-trace...' run build
+pnpm --filter '@rivus/estela...' run build
 cd apps/cli
 node dist/bin.mjs --help          # the bundle, from the workspace
 pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md once versioned
@@ -73,7 +73,7 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 | ID | Behavior | Suite |
 |---|---|---|
 | S1 | With Claude Code, Codex, and Grok sessions in their default locations, the opened URL lists sessions from all three, with a count per agent | e2e |
-| S2 | `agent-trace <path>` opens that session's workspace | smoke, e2e |
+| S2 | `estela <path>` opens that session's workspace | smoke, e2e |
 | S3 | An agent whose home is missing (no `~/.codex`) shows 0 sessions and the checked path; the other agents load | e2e |
 | S4 | A file in an unknown format generation is listed as "could not read"; its workspace shows agent, file, and line | e2e |
 | S5 | Request bars rise to a dashed compaction rule labeled with the tokens before and after, and are lower after it | e2e |
@@ -91,18 +91,18 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/agent-trace-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/agent-trace...' run build`, so the tarball never holds a stale bundle.
+`apps/e2e` (`@rivus/estela-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/estela...' run build`, so the tarball never holds a stale bundle.
 
 ```bash
 cd apps/e2e
 pnpm run test:smoke
 ```
 
-`TMPDIR` chooses where the temp directory goes. `AGENT_TRACE_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js `^26.13.1`.
+`TMPDIR` chooses where the temp directory goes. `ESTELA_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js `^26.13.1`.
 
 ## Browser end-to-end on the installed tarball
 
-`test:e2e` in `apps/e2e` is the Playwright suite for the browser scenarios, Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/agent-trace`, packs and installs it, builds synthetic homes from the agent fixtures (one with all three agents and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
+`test:e2e` in `apps/e2e` is the Playwright suite for the browser scenarios, Chromium only, against the same installed tarball. Its global setup (`src/e2e/global-setup.ts`) builds `@rivus/estela`, packs and installs it, builds synthetic homes from the agent fixtures (one with all three agents and an unreadable Claude Code file, one without `~/.codex`), and adds the fake opener. Each test starts its own server with `--port 0`, a fresh cache, and its own working directory, and stops it afterwards. Every test fails on a console error or a page error.
 
 The test titles name the [scenarios](#acceptance-scenarios) they check, and each test file groups one area: the session browser, the workspace, appearance, the report, and scale.
 
@@ -110,17 +110,17 @@ The test titles name the [scenarios](#acceptance-scenarios) they check, and each
 cd apps/e2e
 npx playwright install chromium                                   # once; CI adds --with-deps
 pnpm run test:e2e
-AGENT_TRACE_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome instead
+ESTELA_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome instead
 ```
 
-S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `AGENT_TRACE_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `AGENT_TRACE_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `test` job on Node.js `^26.13.1` only.
+S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `ESTELA_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `ESTELA_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `test` job on Node.js `^26.13.1` only.
 
 ## Check in a real browser
 
 Before a UI change is done, check it in a real browser with the dev server on a synthetic `HOME`. The web app is served from `apps/web/dist`, so rebuild it after a UI change:
 
 ```bash
-pnpm --filter @rivus/agent-trace-web run build
+pnpm --filter @rivus/estela-web run build
 ```
 
 ### Synthetic home and generated traces
@@ -128,7 +128,7 @@ pnpm --filter @rivus/agent-trace-web run build
 Build a home from the agent fixtures (no real session content):
 
 ```bash
-H="$TMPDIR/agent-trace-home"; rm -rf "$H"
+H="$TMPDIR/estela-home"; rm -rf "$H"
 mkdir -p "$H/.claude/projects" "$H/.codex/sessions/2026/09/25" "$H/.grok/sessions"
 for f in plain compaction subagent; do
   mkdir -p "$H/.claude/projects/app-$f"
@@ -149,17 +149,17 @@ done
 ```bash
 node scripts/generate-trace.mjs --events 640 --name design.trace.json   # about the size of the design mockup
 node scripts/generate-trace.mjs --events 10000 --name s8.trace.json      # S8
-HOME="$H" XDG_CACHE_HOME="$TMPDIR/agent-trace-cache" \
-  node apps/cli/bin.mjs "$TMPDIR/agent-trace-generated/design.trace.json" --no-auth --no-open --port 7461
+HOME="$H" XDG_CACHE_HOME="$TMPDIR/estela-cache" \
+  node apps/cli/bin.mjs "$TMPDIR/estela-generated/design.trace.json" --no-auth --no-open --port 7461
 ```
 
 For S12, write the 350 MB Codex-format file into a second home and open it from the session list, so the browser sees the load progress:
 
 ```bash
-mkdir -p "$TMPDIR/agent-trace-big/.codex/sessions/2026/09/25"
+mkdir -p "$TMPDIR/estela-big/.codex/sessions/2026/09/25"
 node -e "import('./apps/cli/src/testsupport/large-session.ts').then(m => m.writeLargeCodexSession(process.argv[1], { targetBytes: 350e6 }))" \
-  "$TMPDIR/agent-trace-big/.codex/sessions/2026/09/25"
-HOME="$TMPDIR/agent-trace-big" XDG_CACHE_HOME="$TMPDIR/agent-trace-cache-big" node apps/cli/bin.mjs --no-auth --no-open --port 7464
+  "$TMPDIR/estela-big/.codex/sessions/2026/09/25"
+HOME="$TMPDIR/estela-big" XDG_CACHE_HOME="$TMPDIR/estela-cache-big" node apps/cli/bin.mjs --no-auth --no-open --port 7464
 ```
 
 Delete the generated files when done.
@@ -184,4 +184,4 @@ What to check for a workspace change:
 - S12: the loading panel shows bytes read of the file size; after the load a `[data-testid=shortened]` marker is visible, and selecting its row loads the full text.
 - The console has no errors or warnings. Keep screenshots and traces out of the repository.
 
-Set `AGENT_TRACE_REDACT=0` only when debugging redaction on the local server; `build` always redacts.
+Set `ESTELA_REDACT=0` only when debugging redaction on the local server; `build` always redacts.

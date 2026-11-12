@@ -1,4 +1,4 @@
-import type { ReconstructResult } from '@rivus/agent-trace-schema'
+import type { ReconstructResult } from '@rivus/estela-schema'
 import type { RpcStreamingChannel, RpcStreamingChannelOptions } from 'devframe'
 import type { EventDetail, LoadProgress, TraceStore, TraceViewResult } from '../trace-store.ts'
 import { createDefineWrapperWithContext } from 'devframe/rpc'
@@ -134,8 +134,8 @@ export const loadTrace = defineTraceFunction({
   setup: (ctx: TraceRpcContext) => {
     let channel: LoadProgressChannel | undefined
     const progressChannel = (): LoadProgressChannel => {
-      // Qualified with the rpc NAMESPACE (`agent-trace`); the scoped client subscribes by the bare name.
-      channel ??= ctx.rpc.streaming.create(`agent-trace:${LOAD_PROGRESS_CHANNEL}`, { replayWindow: 1 })
+      // Qualified with the rpc NAMESPACE (`estela`); the scoped client subscribes by the bare name.
+      channel ??= ctx.rpc.streaming.create(`estela:${LOAD_PROGRESS_CHANNEL}`, { replayWindow: 1 })
       return channel
     }
     return {

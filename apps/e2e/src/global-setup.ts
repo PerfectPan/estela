@@ -19,7 +19,7 @@ declare module 'vite-plus/test' {
 }
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const { context, cleanup } = await prepareRun('smoke', 'AGENT_TRACE_SMOKE_KEEP', async root => {
+  const { context, cleanup } = await prepareRun('smoke', 'ESTELA_SMOKE_KEEP', async root => {
     const cache = join(root, 'cache')
     await mkdir(cache, { recursive: true })
     return { cache, ...(await buildFixtureHome(join(root, 'home'), repo)) }

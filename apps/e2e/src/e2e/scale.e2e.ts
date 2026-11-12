@@ -15,7 +15,7 @@ declare global {
 /** The view budget: at most 12 MB reaches the browser before an event is selected. */
 const BUDGET = 12 * 1000 * 1000
 /** S12 file size. S12 asks for at least 350 MB; a smaller value is only for trying the suite quickly. */
-const S12_BYTES = Number(process.env.AGENT_TRACE_E2E_S12_BYTES ?? 350 * 1024 * 1024)
+const S12_BYTES = Number(process.env.ESTELA_E2E_S12_BYTES ?? 350 * 1024 * 1024)
 
 /** Measured numbers go to the test's output (and CI log) and to its annotations. */
 function note(type: string, description: string): void {

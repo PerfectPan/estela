@@ -1,6 +1,6 @@
 /** The lane layout's rows, split from the turn layout's (`ledger-model.ts`) to keep both under budget. */
 
-import { mainAgentId } from '@rivus/agent-trace-kernel'
+import { mainAgentId } from '@rivus/estela-kernel'
 import {
   ROW_SIZE,
   pushEntry,

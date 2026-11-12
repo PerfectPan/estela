@@ -20,17 +20,17 @@ export interface CliHome {
 
 /**
  * The environment a user has: synthetic `HOME`, a cache dir inside the run, the fake opener first
- * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `AGENT_TRACE_*` from the caller, no agent home
+ * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `ESTELA_*` from the caller, no agent home
  * overrides (they would point the tests at real sessions), and no npm notices.
- * `extra` goes on top (for example `AGENT_TRACE_REDACT=0`).
+ * `extra` goes on top (for example `ESTELA_REDACT=0`).
  */
 export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
   for (const name of [
     'NO_COLOR',
     'FORCE_COLOR',
-    'AGENT_TRACE_PATH',
-    'AGENT_TRACE_REDACT',
+    'ESTELA_PATH',
+    'ESTELA_REDACT',
     'CLAUDE_CONFIG_DIR',
     'CODEX_HOME',
     'DSH_HOME',
@@ -46,7 +46,7 @@ export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, 
     HOME: where.home,
     XDG_CACHE_HOME: where.cache,
     PATH: `${where.fakeBin}:${process.env.PATH ?? ''}`,
-    AGENT_TRACE_SMOKE_OPEN_LOG: openLog,
+    ESTELA_SMOKE_OPEN_LOG: openLog,
     // A fresh HOME means a fresh npm update check; its notice would land in the output under test.
     npm_config_update_notifier: 'false',
     npm_config_fund: 'false',
@@ -143,6 +143,6 @@ export async function waitFor(what: string, check: () => boolean, timeoutMs = 30
 
 /** `Ready: <base>#/s/<traceId>` in plain output, or the URL inside the Ready box in a terminal. */
 export function readyUrl(text: string): { base: string; traceId: string } | undefined {
-  const match = /(http:\/\/localhost:\d+\/__agent-trace\/)#\/s\/([0-9a-f]+)/.exec(text)
+  const match = /(http:\/\/localhost:\d+\/__estela\/)#\/s\/([0-9a-f]+)/.exec(text)
   return match ? { base: match[1]!, traceId: match[2]! } : undefined
 }

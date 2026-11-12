@@ -1,5 +1,5 @@
-import type { ReportTrace } from '@rivus/agent-trace-rpc'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { ReportTrace } from '@rivus/estela-rpc'
+import type { Trace } from '@rivus/estela-schema'
 import type { LoadClient } from './load-session.ts'
 import { createRoot } from 'solid-js'
 import { describe, expect, it } from 'vite-plus/test'
@@ -8,7 +8,7 @@ import { createSessionLoad, reportSession } from './load-session.ts'
 type Status = LoadClient['status']
 
 const trace: Trace = {
-  schema: 'agent-trace',
+  schema: 'estela',
   agent: 'claude-code',
   session: { id: 's' },
   capabilities: [],

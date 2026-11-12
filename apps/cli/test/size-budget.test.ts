@@ -3,18 +3,18 @@ import { open } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import type { LoadProgress } from '@rivus/agent-trace-rpc'
-import { VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
+import type { LoadProgress } from '@rivus/estela-rpc'
+import { VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { createTraceStore } from '../src/server/trace-store.ts'
 import { writeLargeCodexSession } from '../src/testsupport/large-session.ts'
 
 // S12 size budget. Opt-in: it writes about 350 MB to a temp directory.
-//   AGENT_TRACE_SIZE_TEST=1 vp test test/size-budget.test.ts
-// AGENT_TRACE_SIZE_REAL=<session file> measures a local session instead; only numbers are printed.
-const enabled = process.env.AGENT_TRACE_SIZE_TEST === '1'
-const realPath = process.env.AGENT_TRACE_SIZE_REAL
+//   ESTELA_SIZE_TEST=1 vp test test/size-budget.test.ts
+// ESTELA_SIZE_REAL=<session file> measures a local session instead; only numbers are printed.
+const enabled = process.env.ESTELA_SIZE_TEST === '1'
+const realPath = process.env.ESTELA_SIZE_REAL
 const MB = 1024 * 1024
 const SIZE_TRACE_ID = 'size-test'
 

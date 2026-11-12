@@ -1,6 +1,6 @@
 import { translate as t } from '@/i18n/locale.ts'
 
-/** "Lost the connection to the agent-trace server" and a Reload button: a new page load opens a new connection. */
+/** "Lost the connection to the Estela server" and a Reload button: a new page load opens a new connection. */
 export function ConnectionLost(props: { compact?: boolean }) {
   return (
     <div

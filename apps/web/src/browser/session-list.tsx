@@ -1,4 +1,4 @@
-import type { AgentListEntry, SessionListRow } from '@rivus/agent-trace-rpc'
+import type { AgentListEntry, SessionListRow } from '@rivus/estela-rpc'
 import type { JSX } from 'solid-js'
 import { createMemo, For, Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'

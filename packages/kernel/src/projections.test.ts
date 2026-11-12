@@ -1,5 +1,5 @@
 import type { TranscriptEventKind } from '@rivus/agent-kit/transcript'
-import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { projectLanes, projectRequests } from './project-timeline.ts'
 import { foldHookRuns, hiddenAfterCompaction, projectTurns } from './project-turns.ts'
@@ -33,7 +33,7 @@ function synthetic(specs: Spec[]): Trace {
     }
   })
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'test',
     session: { id: 's' },
     capabilities: ['requests', 'usage', 'compaction', 'compactionTokens', 'subagents'],

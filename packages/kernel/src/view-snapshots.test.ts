@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { reconstruct } from './reconstruct.ts'
 import { toView } from './view.ts'
@@ -27,7 +27,7 @@ const toolsB = [...toolsA, { name: 'Grep' }]
 
 function trace(): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'test',
     session: { id: 's', systemPrompt: 'two', tools: toolsB },
     capabilities: ['systemPrompt', 'toolSchemas'],

@@ -1,5 +1,5 @@
 import { isPlainObject } from 'es-toolkit'
-import type { EventOf, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, TraceEvent } from '@rivus/estela-schema'
 import { promptSnapshot } from './prompt-snapshot.ts'
 import type { AtifMetrics, AtifObservationResult, AtifStep, AtifToolCall } from './export-atif.ts'
 
@@ -189,7 +189,7 @@ export function toolResult(
     ...(flagged
       ? {
           extra: {
-            agent_trace: {
+            estela: {
               ...(payload.isError !== undefined ? { isError: payload.isError } : {}),
               ...(payload.exitCode !== undefined ? { exitCode: payload.exitCode } : {}),
               ...(payload.orphan !== undefined ? { orphan: payload.orphan } : {}),
@@ -238,7 +238,7 @@ function metricsOf(request: EventOf<'request'> | undefined): AtifMetrics | undef
   }
   const usage = request.payload.usage
   const payload = request.payload
-  const trace: NonNullable<AtifMetrics['extra']>['agent_trace'] = {
+  const trace: NonNullable<AtifMetrics['extra']>['estela'] = {
     ...(payload.responseId !== undefined ? { responseId: payload.responseId } : {}),
     ...(payload.modelCalls !== undefined ? { modelCalls: payload.modelCalls } : {}),
     ...(payload.granularity !== undefined ? { granularity: payload.granularity } : {}),
@@ -256,7 +256,7 @@ function metricsOf(request: EventOf<'request'> | undefined): AtifMetrics | undef
     ...(usage?.inputTokens !== undefined ? { prompt_tokens: usage.inputTokens } : {}),
     ...(usage?.outputTokens !== undefined ? { completion_tokens: usage.outputTokens } : {}),
     ...(usage?.cacheReadTokens !== undefined ? { cached_tokens: usage.cacheReadTokens } : {}),
-    ...(Object.keys(trace).length > 0 ? { extra: { agent_trace: trace } } : {}),
+    ...(Object.keys(trace).length > 0 ? { extra: { estela: trace } } : {}),
   }
 }
 
@@ -270,7 +270,7 @@ function extraOf(draft: StepDraft): { extra: AtifStep['extra'] } | {} {
   return {
     extra: {
       ...(contextManagement !== undefined ? { context_management: contextManagement } : {}),
-      agent_trace: { ...extras },
+      estela: { ...extras },
     },
   }
 }

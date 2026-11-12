@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { ok } from '@rivus/agent-kit/catalog'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { SessionAdapter } from '@rivus/agent-kit/sessions'
-import { openSessionIndex } from '@rivus/agent-trace-runtime-node'
+import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 

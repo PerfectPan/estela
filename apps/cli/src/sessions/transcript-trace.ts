@@ -1,4 +1,4 @@
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import type { Transcript } from '@rivus/agent-kit/transcript'
 
 /**
@@ -10,7 +10,7 @@ import type { Transcript } from '@rivus/agent-kit/transcript'
  */
 export function transcriptToTrace(transcript: Transcript): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: transcript.agent,
     ...(transcript.agentVersion !== undefined ? { agentVersion: transcript.agentVersion } : {}),
     session: transcript.session,

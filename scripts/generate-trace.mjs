@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Dev-only: writes a synthetic canonical agent-trace JSON file for local UI checks
+// Dev-only: writes a synthetic canonical Estela JSON file for local UI checks
 // (S8: a 10,000-event trace). All text is generated; nothing comes from a real session.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -10,8 +10,8 @@ import { parseArgs } from 'node:util'
 const HELP = `Usage:
   node scripts/generate-trace.mjs [--events <n>] [--out <dir>] [--name <file>] [--seed <n>]
 
-Writes <dir>/<file> (default: $TMPDIR/agent-trace-generated/generated.trace.json), a
-canonical agent-trace JSON trace shaped like a Claude Code session: turns with
+Writes <dir>/<file> (default: $TMPDIR/estela-generated/generated.trace.json), a
+canonical Estela JSON trace shaped like a Claude Code session: turns with
 requests whose input tokens grow, tool calls with results (a few failed, a few
 with outputs longer than the 4,096-character view cap), reasoning, replies, hook
 runs, two subagent lanes, and an automatic compaction after about 55 % of the
@@ -29,7 +29,7 @@ Options:
 const { values } = parseArgs({
   options: {
     events: { type: 'string', default: '10000' },
-    out: { type: 'string', default: join(tmpdir(), 'agent-trace-generated') },
+    out: { type: 'string', default: join(tmpdir(), 'estela-generated') },
     name: { type: 'string', default: 'generated.trace.json' },
     seed: { type: 'string', default: '7' },
     help: { type: 'boolean', short: 'h', default: false },
@@ -279,7 +279,7 @@ while (events.length < target) {
 }
 
 const trace = {
-  schema: 'agent-trace',
+  schema: 'estela',
   agent: 'claude-code',
   session: {
     id: `generated-${values.seed}`,

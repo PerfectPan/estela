@@ -25,7 +25,7 @@ one file. It follows issues #50 (ATIF) and #51 (OTLP).
 
 ### 1.1 Current behavior and constraints
 
-- The canonical trace (`@rivus/agent-trace-schema`) is an event list with
+- The canonical trace (`@rivus/estela-schema`) is an event list with
   per-kind payloads; the kit's payload comments name the OTel GenAI attribute
   each field means (`gen_ai.request.model`, `gen_ai.usage.input_tokens`, …).
   `reconstruct(trace, eventId)` is the model-visible surface at an event:
@@ -102,13 +102,13 @@ neither exists.
 ### 3.1 Entry points
 
 ```
-npx @rivus/agent-trace export-atif <path> [--out <file>]
-npx @rivus/agent-trace export-otlp <path> [--out <file>]
+npx @rivus/estela export-atif <path> [--out <file>]
+npx @rivus/estela export-otlp <path> [--out <file>]
 ```
 
-`<path>` is what `build` takes: a canonical agent-trace JSON file or a
+`<path>` is what `build` takes: a canonical Estela JSON file or a
 session path. `--out` writes to that file (created or truncated); without it,
-`agent-trace-<8 chars of session id>.atif.json` / `.otlp.json` in the working
+`estela-<8 chars of session id>.atif.json` / `.otlp.json` in the working
 directory. Output is one line (`Wrote <path>`, `~` for home) in plain mode;
 clack intro/outro otherwise.
 
@@ -139,7 +139,7 @@ Root document:
 | `agent`, `agentVersion` | `agent.name`, `agent.version` (`"unknown"` when unrecorded) |
 | `session.systemPrompt`, `session.tools` | first `system` step's `message`; `agent.tool_definitions` (array of records only) |
 | distinct request `model`s = 1 | `agent.model_name` |
-| `skipped`, `capabilities`, `agents`, `source`, `original` | `extra.agent_trace` (skipped count per reason; capabilities; nothing per event — `source`/`original` stay out) |
+| `skipped`, `capabilities`, `agents`, `source`, `original` | `extra.estela` (skipped count per reason; capabilities; nothing per event — `source`/`original` stay out) |
 | — | `notes`: producer note naming this mapping |
 
 Steps (main lane walks `events` in `seq` order; each other lane becomes one
@@ -147,21 +147,21 @@ embedded `subagent_trajectories` entry built the same way):
 
 | Canonical | ATIF |
 |---|---|
-| `user` event | step with `source: "user"`, `message` = `payload.text` (empty string when absent); `meta`/`injected`/`command`/`continued`/`compactSummary` flags → `extra.agent_trace.flags` |
+| `user` event | step with `source: "user"`, `message` = `payload.text` (empty string when absent); `meta`/`injected`/`command`/`continued`/`compactSummary` flags → `extra.estela.flags` |
 | one `requestId` group on the lane (`assistant`, `reasoning`, `tool_call`, `tool_result`, `request` with that id) | one step with `source: "agent"` |
 | `assistant` payload `text` | `message` |
 | `reasoning` payload `text` (joined with blank lines) | `reasoning_content` |
-| `tool_call` (`callId`, `name`, `args`) | `tool_calls[]`: `tool_call_id`, `function_name`, `arguments` (`args` when a record, else `{}`); `title` → `extra.agent_trace.title` |
+| `tool_call` (`callId`, `name`, `args`) | `tool_calls[]`: `tool_call_id`, `function_name`, `arguments` (`args` when a record, else `{}`); `title` → `extra.estela.title` |
 | `tool_result` (`callId`, `output`) | `observation.results[]` of the step that holds the matching `tool_call` (`source_call_id`, `content` = `output` when a string, else JSON text); orphan result → `source_call_id` omitted on the current agent step |
-| `request` payload | `metrics`: `prompt_tokens` = `usage.inputTokens`, `completion_tokens` = `usage.outputTokens`, `cached_tokens` = `usage.cacheReadTokens`; `metrics.extra.agent_trace`: `cacheWriteTokens`, `reasoningTokens`, `totalTokens`, `cacheWrite1hTokens`, `granularity`, `modelCalls`, `responseId`; `model_name` = `payload.model` when it differs from `agent.model_name`; `llm_call_count` = `modelCalls` when the granularity is `turn`/`session` |
-| `compaction` event | `system` step, `message` = the summary text (the `compactSummary` user event `payload.summaryEventId` names, else `"Context compaction performed"`), `observation.results[0].content` = that summary, `extra.context_management = { type: "compaction", boundary: "replace" }`, `extra.agent_trace` carries `trigger`/`preTokens`/`postTokens` |
+| `request` payload | `metrics`: `prompt_tokens` = `usage.inputTokens`, `completion_tokens` = `usage.outputTokens`, `cached_tokens` = `usage.cacheReadTokens`; `metrics.extra.estela`: `cacheWriteTokens`, `reasoningTokens`, `totalTokens`, `cacheWrite1hTokens`, `granularity`, `modelCalls`, `responseId`; `model_name` = `payload.model` when it differs from `agent.model_name`; `llm_call_count` = `modelCalls` when the granularity is `turn`/`session` |
+| `compaction` event | `system` step, `message` = the summary text (the `compactSummary` user event `payload.summaryEventId` names, else `"Context compaction performed"`), `observation.results[0].content` = that summary, `extra.context_management = { type: "compaction", boundary: "replace" }`, `extra.estela` carries `trigger`/`preTokens`/`postTokens` |
 | events kept across a compaction (before it, not `shadowedBy`) | their steps carry `is_copied_context: true` |
 | events `shadowedBy` a compaction | no step |
 | `system` event `type: 'prompt_snapshot'` with `systemPrompt` | a `system` step whose `message` is that snapshot text (the first one reuses `session.systemPrompt` when equal) |
-| `system` event `type: 'turn_duration'` | no step; `durationMs` → `extra.agent_trace.turnDurationMs` of the step in progress |
-| `hook` / `unknown` events | no step; collected into `extra.agent_trace.hooks` / `.unknown` of the step in progress |
+| `system` event `type: 'turn_duration'` | no step; `durationMs` → `extra.estela.turnDurationMs` of the step in progress |
+| `hook` / `unknown` events | no step; collected into `extra.estela.hooks` / `.unknown` of the step in progress |
 | `ts` | `timestamp` (ISO 8601) |
-| `durationMs`, `skipped`, `source`, `original`, `requestId`, `agentId` | `extra` (`extra.agent_trace.eventIds` names the step's events; `requestId` on the step's `extra.agent_trace`) |
+| `durationMs`, `skipped`, `source`, `original`, `requestId`, `agentId` | `extra` (`extra.estela.eventIds` names the step's events; `requestId` on the step's `extra.estela`) |
 
 Step grouping rules: a lane's walk opens an agent step at the first event
 that carries a `requestId` (or an ungrouped `assistant`/`tool_call`/
@@ -180,8 +180,8 @@ Subagents: a lane with a `parentId` becomes an embedded trajectory
 
 ### 3.4 OTLP mapping (pinned: semconv `gen-ai-dev/1.42.0-dev`)
 
-One `resourceSpans` with resource attributes `service.name = "agent-trace"`;
-one `scopeSpans` with scope `agent-trace`. The JSON follows the OTLP JSON
+One `resourceSpans` with resource attributes `service.name = "estela"`;
+one `scopeSpans` with scope `estela`. The JSON follows the OTLP JSON
 encoding rules: enums as integers (`span_kind`), hex `traceId`/`spanId`,
 nanosecond times as decimal strings.
 
@@ -209,7 +209,7 @@ strings where the registry allows any.
 
 The CLI applies the kit's `redact` to the exported object tree (strings
 only, home directory → `~`, known token patterns) before writing, unless
-`AGENT_TRACE_REDACT=0`. The report rule (always redacted) stays
+`ESTELA_REDACT=0`. The report rule (always redacted) stays
 report-specific: a data export is opt-out because a dataset or backend
 ingest may legitimately need the unredacted bytes.
 
@@ -224,7 +224,7 @@ ingest may legitimately need the unredacted bytes.
 ### 3.7 Compatibility and migration
 
 New commands and kernel exports only; nothing changes shape. A changeset on
-`@rivus/agent-trace` (minor) records the new capability.
+`@rivus/estela` (minor) records the new capability.
 
 ## 4. Rollout and stability
 
@@ -239,7 +239,7 @@ the PR. Signals are the repository checks and the validator script.
   `trajectory_id` unique) and `export-otlp.test.ts` (span tree, attribute
   names and values, OTLP JSON encoding rules, messages from `reconstruct`).
 - CLI test: `export.test.ts` — command wiring on the demo fixture (file
-  written, redaction applied, `AGENT_TRACE_REDACT=0` keeps content) and one
+  written, redaction applied, `ESTELA_REDACT=0` keeps content) and one
   export per registered agent's conformance fixtures through a structural
   ATIF checker, so CI covers A2's shape without Python.
 - `scripts/validate-exports.mjs`: exports every registered agent's fixture
@@ -256,8 +256,8 @@ the PR. Signals are the repository checks and the validator script.
 
 | Batch | Command or evidence | Expected result |
 |---|---|---|
-| kernel | `pnpm --filter @rivus/agent-trace-kernel test` | exporter unit tests green |
-| cli | `pnpm --filter @rivus/agent-trace test` | export wiring + fixture exports green |
+| kernel | `pnpm --filter @rivus/estela-kernel test` | exporter unit tests green |
+| cli | `pnpm --filter @rivus/estela test` | export wiring + fixture exports green |
 | validator | `node scripts/validate-exports.mjs` | every fixture export passes Harbor's validator |
 | backends | PR evidence: Phoenix + Langfuse ingest output | sessions visible with model, messages, usage |
 | gates | `node scripts/format.mjs --check`, `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`, `node scripts/check-layers.mjs`, `node scripts/check-browser-bundle.mjs` | all green |

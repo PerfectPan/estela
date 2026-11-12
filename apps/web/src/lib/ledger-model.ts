@@ -1,6 +1,6 @@
-import type { RequestEntry, TimelineLane, Turn } from '@rivus/agent-trace-kernel'
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import { foldHookRuns, hiddenAfterCompaction, mainAgentId, projectLanes, projectTurns } from '@rivus/agent-trace-kernel'
+import type { RequestEntry, TimelineLane, Turn } from '@rivus/estela-kernel'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
+import { foldHookRuns, hiddenAfterCompaction, mainAgentId, projectLanes, projectTurns } from '@rivus/estela-kernel'
 import { inRange } from './timeline-scale.ts'
 
 /** The kind mark of a ledger row (docs/design/README.md palette). */

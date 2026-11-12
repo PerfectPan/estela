@@ -95,12 +95,12 @@ jobs:
       - name: Inspect the publish plan and package archive
         run: |
           pnpm exec changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
-          pnpm --filter @rivus/agent-trace pack --out "$RUNNER_TEMP/agent-trace.tgz"
+          pnpm --filter @rivus/estela pack --out "$RUNNER_TEMP/estela.tgz"
       - name: Save the dry-run evidence
         uses: actions/upload-artifact@v7
         with:
           name: release-dry-run
           path: |
             ${{ runner.temp }}/publish-plan.json
-            ${{ runner.temp }}/agent-trace.tgz
+            ${{ runner.temp }}/estela.tgz
           if-no-files-found: error

@@ -1,4 +1,4 @@
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import type { StreamSink } from 'devframe/utils/streaming-channel'
 import type { LoadProgress } from '../trace-store.ts'
 import type { TraceRpcContext } from './trace-view.ts'
@@ -18,7 +18,7 @@ const SIZE = 1000
 
 function emptyTrace(id: string): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'test',
     session: { id },
     capabilities: [],
@@ -187,7 +187,7 @@ describe('load-trace and get-trace-view', () => {
       expect(h.sinks[0]!.id).toBe(left.loadId)
 
       const stays = await rpc.load({ traceId: 'b' })
-      h.owner.subscribedStreams = new Set([`agent-trace:load-progress\x1F${stays.loadId}`])
+      h.owner.subscribedStreams = new Set([`estela:load-progress\x1F${stays.loadId}`])
       vi.advanceTimersByTime(SUBSCRIBE_GRACE_MS + 1)
       expect(h.signals.get('b')!.aborted).toBe(false)
     })

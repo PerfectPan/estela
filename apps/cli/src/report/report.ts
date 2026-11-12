@@ -5,13 +5,13 @@ import type {
   ReportLocale,
   ReportTrace,
   TraceStore,
-} from '@rivus/agent-trace-rpc'
+} from '@rivus/estela-rpc'
 import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { redact, redactText } from '@rivus/agent-kit/redact'
-import { bindReportSource, buildReport } from '@rivus/agent-trace-rpc'
-import { homeDir } from '@rivus/agent-trace-runtime-node'
+import { bindReportSource, buildReport } from '@rivus/estela-rpc'
+import { homeDir } from '@rivus/estela-runtime-node'
 import { createBuild } from 'devframe/adapters/build'
 import * as z from 'zod/mini'
 import devframe from '../server/devframe.ts'
@@ -20,7 +20,7 @@ import { packForFile } from './report-site.ts'
 /**
  * The report payload for `traceId`: the view from the store and the first events in full from `full`
  * (`build` passes the trace it loaded, so the file is read once; the export reads through the
- * store). Always redacted, whatever `AGENT_TRACE_REDACT` says.
+ * store). Always redacted, whatever `ESTELA_REDACT` says.
  */
 export async function reportOf(
   store: TraceStore,
@@ -78,7 +78,7 @@ async function reserveDir(base: string): Promise<string> {
 }
 
 /**
- * The dev server's "Export report": a new `agent-trace-report-<traceId>-<time>` directory in the
+ * The dev server's "Export report": a new `estela-report-<traceId>-<time>` directory in the
  * working directory. The error message reaches the browser, so it is redacted too.
  */
 export async function exportReport(
@@ -91,10 +91,7 @@ export async function exportReport(
     const report = await store.withEvents(input.traceId, read => reportOf(store, input.traceId, read, input.locale))
     const outDir = await serialized(async () => {
       const dir = await reserveDir(
-        resolve(
-          process.cwd(),
-          `agent-trace-report-${input.traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`,
-        ),
+        resolve(process.cwd(), `estela-report-${input.traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`),
       )
       await buildSite(dir, report)
       return dir

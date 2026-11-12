@@ -1,7 +1,7 @@
 import type { SourcePointer } from '@rivus/agent-kit/transcript'
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { SessionFs } from '@rivus/agent-trace-kernel'
-import { readRange } from '@rivus/agent-trace-kernel'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
+import type { SessionFs } from '@rivus/estela-kernel'
+import { readRange } from '@rivus/estela-kernel'
 import { isPlainObject, isPrimitive } from 'es-toolkit/predicate'
 
 /** Size and mtime of one source file when its trace was loaded. */

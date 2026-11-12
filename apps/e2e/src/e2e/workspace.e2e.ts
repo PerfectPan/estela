@@ -23,7 +23,7 @@ test('lane layout preserves selection, folds with mouse and keyboard, and retain
   await writeFile(
     file,
     JSON.stringify({
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'claude-code',
       session: { id: 'lane-ui' },
       capabilities: ['subagents', 'hooks'],
