@@ -36,7 +36,7 @@ pnpm run dev --no-auth
 
 Open `http://localhost:7392/__estela/`.
 
-With no path the app opens the session browser over every registered agent. A positional path (or `ESTELA_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` and `mcp` still default to `fixtures/demo.trace.json`.
+With no path the app opens the session browser over every registered agent. A positional path (or `ESTELA_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` still defaults to `fixtures/demo.trace.json`; `mcp` without a path serves every session.
 
 `build <path> --out-dir <dir>` writes the report as one `<dir>/index.html`; open it straight from disk. "Export report" in the workspace writes the same into a new `estela-report-<traceId>-<time>/` directory under the server's working directory and shows the path.
 
@@ -52,7 +52,7 @@ HOME=/tmp/estela-home node apps/cli/bin.mjs --no-auth --no-open
 
 - `dist/bin.mjs` is the package `bin`, built from `apps/cli/bin.mjs`. It checks the Node.js version and drops the `node:sqlite` ExperimentalWarning, then imports `dist/cli.mjs` (from source, the same file imports `src/main.ts`).
 - `dist/cli.mjs` bundles the shell, every `@rivus/*` workspace package, `@clack/prompts`, and `@bomb.sh/router`. `devframe` and `@devframes/agentic` stay external as the package's only runtime dependencies. `@devframes/agentic` declares an exact `devframe` peer dependency, so the two stay pinned to the same version.
-- `dist/web/` is a copy of `apps/web/dist`, and `dist/fixtures/demo.trace.json` is the default session for `build` and `mcp`. `src/paths.ts` picks these locations when the pack config defines `ESTELA_BUNDLE`; run from source (`node bin.mjs`), it uses `apps/web/dist` and `fixtures/` in the workspace.
+- `dist/web/` is a copy of `apps/web/dist`, and `dist/fixtures/demo.trace.json` is the default session for `build` and the exports. `src/paths.ts` picks these locations when the pack config defines `ESTELA_BUNDLE`; run from source (`node bin.mjs`), it uses `apps/web/dist` and `fixtures/` in the workspace.
 - `dist/THIRD-PARTY-NOTICES.txt` holds the license texts of the npm packages bundled into `cli.mjs` and of those the web build is made from, Vite and Rolldown included through vite-plus-core; the CLI section lists Rolldown too, for the runtime helpers in `cli.mjs` and `bin.mjs` (`apps/cli/scripts/third-party-notices.ts`, a Rolldown plugin).
 
 ```bash
@@ -88,10 +88,12 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 | S14 | A `zh-CN` browser gets Chinese labels and date formats with session content unchanged; a switch to English survives a reload | e2e |
 | S15 | `build` piped to a file writes plain lines with no escape sequences and no home path | smoke |
 | S16 | `--pick` in a terminal: typing part of a title and pressing Enter opens that session | smoke |
+| S17 | `mcp` without a path lists seven tools with named input properties and walks list, summary, turns, requests, reconstruct, and get-event to a failed tool result ([Spec 0009](../specs/0009-mcp-tools.md)) | smoke, `packages/server/test/agent-tools.test.ts` |
+| S18 | MCP tool results on a hostile session hold no home path and no unsafe id as written (`@e0` instead), with `ESTELA_REDACT=0` | smoke, `packages/server/test/agent-tools.test.ts` |
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/estela-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/estela...' run build`, so the tarball never holds a stale bundle.
+`apps/e2e` (`@rivus/estela-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S17 and S18 (`mcp.smoke.ts`), S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/estela...' run build`, so the tarball never holds a stale bundle.
 
 ```bash
 cd apps/e2e
