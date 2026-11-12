@@ -151,7 +151,7 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   add a second routine updater while Renovate owns these ecosystems.
 
   Rollout snapshot (2026-11-03): the owner authorized this repository for the existing Renovate App; its existing
-  permissions include reading Dependabot alerts and writing workflows. The [hosted onboarding run](https://developer.mend.io/github/PerfectPan/estela/-/job/6df4e1d0-a6af-4e67-a065-da20b0dc27df)
+  permissions include reading Dependabot alerts and writing workflows. The [hosted onboarding run](https://developer.mend.io/github/PerfectPan/agent-trace/-/job/6df4e1d0-a6af-4e67-a065-da20b0dc27df)
   completed at 05:28:06 UTC with exit code 0 against `main` at
   `4d9610c3d1d9b8e5a048f9f6269bec2568c1e785`: it extracted 2 GitHub Actions files / 21 dependencies and
   9 npm files / 89 dependencies, and created [onboarding PR #73](https://github.com/PerfectPan/estela/pull/73).

@@ -60,7 +60,7 @@ disclaimer and searches for the name find the other project.
 
 ### 2.2 Boundaries and responsibilities
 
-The rename touches every workspace package, the root scripts, CI workflows, PR and MR templates,
+The rename touches every workspace package, the root scripts, CI workflows,
 `renovate.json`, `.changeset/`, and the docs. The GitHub repository rename and npm work stay with
 the owner (section 7).
 

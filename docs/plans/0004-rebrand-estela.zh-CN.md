@@ -58,7 +58,7 @@
 
 ### 2.2 边界与职责
 
-更名涉及每个工作区包、根目录脚本、CI workflow、PR 和 MR 模板、`renovate.json`、`.changeset/`
+更名涉及每个工作区包、根目录脚本、CI workflow、`renovate.json`、`.changeset/`
 以及文档。GitHub 仓库改名和 npm 相关工作由所有者负责（第 7 节）。
 
 ### 2.3 主路径
