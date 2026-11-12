@@ -39,6 +39,7 @@ jobs:
           sha256sum pnpm-lock.yaml > "$RUNNER_TEMP/lockfile.sha256"
           pnpm install --frozen-lockfile --ignore-scripts --no-runtime
           sha256sum -c "$RUNNER_TEMP/lockfile.sha256"
+          pnpm exec changeset --patch @rivus/agent-trace --message "Refresh bundled dependency resolution with the regenerated pnpm lockfile."
           git diff --stat
           git diff -- pnpm-lock.yaml > "$RUNNER_TEMP/lockfile.patch"
       # Keep the generated file only in this same private repository, for one day.
@@ -49,6 +50,7 @@ jobs:
           retention-days: 1
           path: |
             pnpm-lock.yaml
+            .changeset/*.md
             ${{ runner.temp }}/lockfile.sha256
             ${{ runner.temp }}/lockfile.patch
           if-no-files-found: error
