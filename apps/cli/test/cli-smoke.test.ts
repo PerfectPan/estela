@@ -4,11 +4,27 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertTrace } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 
 const cliDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const repoRoot = join(cliDir, '../..')
 const demo = join(repoRoot, 'fixtures/demo.trace.json')
+
+/** The id of the first main-lane request after the demo trace's compaction. */
+async function requestAfterCompaction(): Promise<string> {
+  const value: unknown = JSON.parse(await readFile(demo, 'utf8'))
+  assertTrace(value, demo)
+  const at = value.events.findIndex(event => event.kind === 'compaction')
+  if (at === -1) {
+    throw new Error('the demo trace has no compaction')
+  }
+  const request = value.events.slice(at).find(event => event.kind === 'request' && event.agentId === undefined)
+  if (!request) {
+    throw new Error('the demo trace has no request after its compaction')
+  }
+  return request.id
+}
 const webDir = join(repoRoot, 'apps/web')
 
 function childEnv(): NodeJS.ProcessEnv {
@@ -126,7 +142,7 @@ describe('cli smoke', () => {
         jsonrpc: '2.0',
         id: 2,
         method: 'tools/call',
-        params: { name: 'estela_reconstruct', arguments: { eventId: 'e6' } },
+        params: { name: 'estela_reconstruct', arguments: { eventId: await requestAfterCompaction() } },
       }),
     ].join('')
     const child = spawn(process.execPath, ['bin.mjs', 'mcp', demo], {

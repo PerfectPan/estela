@@ -83,7 +83,7 @@ canonical trace 增加两个导出投影，各对应一个写入单个文件的 
 - Then 文档通过 Harbor 的 ATIF 校验器
   （`python -m harbor.utils.trajectory_validator`），compaction 是带
   `extra.context_management` 的 system step，被其 shadow 的事件不产生
-  step，保留的 pre-compaction step 带 `is_copied_context: true`。
+  step，保留下来的 pre-compaction step（如有）带 `is_copied_context: true`。
 
 ### A2: 每个已注册 agent 的 fixture 都导出为合法 ATIF
 
