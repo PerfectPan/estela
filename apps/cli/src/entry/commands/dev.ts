@@ -1,15 +1,9 @@
-import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
-import { createNodePlatform } from '@rivus/agent-kit/node'
-import { bindReportExporter, bindSessionService, bindTraceStore } from '@rivus/estela-rpc'
+import { BASE_PATH, type OpenedSession, type SessionCatalog } from '@rivus/estela-server'
 import { createDevServer, resolveDevServerPort } from 'devframe/adapters/dev'
-import { SessionCatalog } from '../../catalog/session-catalog.ts'
-import { exportReport } from '../../report/report.ts'
-import devframe, { BASE_PATH } from '../../server/devframe.ts'
-import { openBrowser } from '../../server/open-browser.ts'
-import { createTraceStore } from '../../server/trace-store.ts'
-import { loadSession, type ShellPlatform } from '../../sessions/load-session.ts'
+import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
+import { openBrowser } from '../open-browser.ts'
 import { sayIndexFromCache, startSessionIndex } from '../ui/index-progress.ts'
 import { pickSession, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
 
@@ -53,13 +47,13 @@ export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, hasLaunchSes
   }
 }
 
-/** The launch session, loaded once before the server listens; it seeds the TraceStore. */
-async function loadLaunch(platform: ShellPlatform, target: SessionTarget, label: string): Promise<Trace> {
+/** A session loaded before the server listens, behind the load spinner; `open` makes it `current`. */
+async function loadShown(open: () => Promise<OpenedSession>, label: string): Promise<OpenedSession> {
   const loading = startLoad()
   try {
-    const trace = await loadSession(target, { platform })
-    loading.stop(trace.events.length)
-    return trace
+    const opened = await open()
+    loading.stop(opened.trace.events.length)
+    return opened
   } catch (cause) {
     loading.cancel()
     throw new CliError({ kind: 'session', action: 'load', label, cause })
@@ -90,26 +84,23 @@ async function indexSessions(catalog: SessionCatalog): Promise<void> {
 /** The local server: the session browser, the workspace of the launch or picked session, and "Export report". */
 export async function runDev(input: DevInput, packageVersion: string): Promise<void> {
   sayStart(packageVersion)
-  const platform = createNodePlatform()
-  const catalog = new SessionCatalog({ platform, noIndex: !input.index, deferSummaries: true })
-  const traces = createTraceStore({
-    platform,
+  const server = createEstelaServer({
+    catalog: { index: input.index },
+    launch: input.launch?.target,
     redacts: input.redacts,
-    resolve: traceId => catalog.resolve(traceId),
     log: sayStoreWarning,
   })
-  bindTraceStore(traces.store)
-  bindSessionService({ listSessions: query => catalog.listSessions(query) })
-  bindReportExporter(query => exportReport(traces.store, query))
+  const catalog = server.catalog!
   if (catalog.indexUnavailable) {
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
   }
 
+  // The launch load, the index, and the picker run before the server listens, so the terminal can
+  // show each one; the definition's setup then finds them done and binds the services.
   let readyTraceId: string | undefined
   if (input.launch) {
-    const trace = await loadLaunch(platform, input.launch.target, input.launch.label)
-    readyTraceId = catalog.openPath(input.launch.target, trace)
-    await traces.seed({ key: readyTraceId, target: input.launch.target }, trace)
+    const launched = await loadShown(async () => (await server.openLaunch())!, input.launch.label)
+    readyTraceId = launched.traceId
   }
 
   await indexSessions(catalog)
@@ -124,12 +115,10 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     if (picked === undefined) {
       throw new CliError({ kind: 'cancelled' })
     }
-    const session = catalog.resolve(picked)!
-    const trace = await loadLaunch(platform, session.target, 'the picked session')
-    await traces.seed(session, trace)
-    readyTraceId = picked
+    readyTraceId = (await loadShown(() => server.open(picked), 'the picked session')).traceId
   }
 
+  const devframe = server.definition
   const plan = browserPlan(input, readyTraceId !== undefined)
   await createDevServer(devframe, {
     host: input.host,
@@ -138,7 +127,6 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     auth: plan.auth,
     openBrowser: plan.devframeOpens,
     async onReady({ origin }) {
-      catalog.resumeSummaries()
       const base = `${origin.replace(/\/$/, '')}${BASE_PATH}`
       sayReady(readyTraceId ? `${base}#/s/${readyTraceId}` : `${base}#/`)
       if (plan.cliOpens && readyTraceId) {

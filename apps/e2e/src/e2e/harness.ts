@@ -157,14 +157,14 @@ export async function generateTrace(dir: string, events: number): Promise<string
   return stdout.split('\n')[0]!
 }
 
-/** `apps/cli/src/testsupport/large-session.ts` run by path: a synthetic Codex rollout of at least `bytes` in `dir`. */
+/** `packages/server/src/testsupport/large-session.ts` run by path: a synthetic Codex rollout of at least `bytes` in `dir`. */
 export async function generateCodex(
   dir: string,
   bytes: number,
 ): Promise<{ path: string; bytes: number; turns: number; longOutputs: number }> {
   const { stdout } = await exec(
     process.execPath,
-    [join(ctx.repo, 'apps/cli/src/testsupport/large-session.ts'), dir, String(bytes)],
+    [join(ctx.repo, 'packages/server/src/testsupport/large-session.ts'), dir, String(bytes)],
     { maxBuffer: 1024 * 1024 },
   )
   return z.parse(

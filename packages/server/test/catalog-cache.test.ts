@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
 import { oneLine } from '../src/sessions/session-target.ts'
-import { createTraceStore } from '../src/server/trace-store.ts'
+import { createTraceStore } from '../src/store/trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 

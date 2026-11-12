@@ -1,11 +1,6 @@
-import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
-import { createNodePlatform } from '@rivus/agent-kit/node'
-import { bindTraceStore } from '@rivus/estela-rpc'
-import devframe from '../../server/devframe.ts'
-import { createTraceStore } from '../../server/trace-store.ts'
-import { loadSession } from '../../sessions/load-session.ts'
-import { sessionTargetLabel } from '../../sessions/session-target.ts'
+import { sessionTargetLabel } from '@rivus/estela-server'
+import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
 import { sayMcpReady, sayStoreWarning } from '../ui/terminal.ts'
 
@@ -15,19 +10,15 @@ export interface McpInput {
 
 /** MCP tools over one session on stdio. stdout carries the protocol only; everything else goes to stderr. Always redacted. */
 export async function runMcp(input: McpInput): Promise<void> {
-  const label = sessionTargetLabel(input.target)
-  let trace: Trace
+  const server = createEstelaServer({ catalog: undefined, launch: input.target, redacts: true, log: sayStoreWarning })
   try {
-    trace = await loadSession(input.target, { platform: createNodePlatform() })
+    await server.openLaunch()
   } catch (cause) {
-    throw new CliError({ kind: 'session', action: 'load', label, cause })
+    throw new CliError({ kind: 'session', action: 'load', label: sessionTargetLabel(input.target), cause })
   }
-  const traces = createTraceStore({ redacts: true, log: sayStoreWarning })
-  bindTraceStore(traces.store)
-  await traces.seed({ key: label, target: input.target }, trace)
   const { createMcpServer } = await import('devframe/adapters/mcp')
-  await createMcpServer(devframe, {
+  await createMcpServer(server.definition, {
     transport: 'stdio',
-    onReady: ({ transport }) => sayMcpReady(devframe.id, transport),
+    onReady: ({ transport }) => sayMcpReady(server.definition.id, transport),
   })
 }

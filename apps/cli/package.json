@@ -48,6 +48,7 @@
     "@rivus/estela-rpc": "workspace:*",
     "@rivus/estela-runtime-node": "workspace:*",
     "@rivus/estela-schema": "workspace:*",
+    "@rivus/estela-server": "workspace:*",
     "@rivus/estela-web": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",

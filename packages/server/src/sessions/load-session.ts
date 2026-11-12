@@ -59,12 +59,3 @@ export async function loadSession(target: SessionTarget, options: LoadSessionOpt
   }
   return transcriptToTrace(loaded.value)
 }
-
-/** The one session `build` and `mcp` work on: loaded once, with its original records. */
-export function sessionLoader(target: SessionTarget, platform: ShellPlatform): () => Promise<Trace> {
-  let loaded: Promise<Trace> | undefined
-  return () => {
-    loaded ??= loadSession(target, { platform })
-    return loaded
-  }
-}

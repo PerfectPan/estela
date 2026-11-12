@@ -8,11 +8,19 @@
 // `defineConfig`.
 import { fmt, lint } from './packages/schema/node_modules/@perfectpan/lint-config/vite-plus.js'
 
-/** Only apps/cli imports the kit at runtime; elsewhere its types come in through `import type`. */
+/** packages/server reads sessions through the kit; elsewhere its types come in through `import type`. */
 const agentKitTypesOnly = {
   group: ['@rivus/agent-kit', '@rivus/agent-kit/**'],
   allowTypeImports: true,
-  message: 'Only apps/cli may import agent-kit at runtime; use import type.',
+  message: 'Only packages/server reads sessions through agent-kit at runtime; use import type.',
+}
+
+/** apps/cli imports only the kit's redaction and Node platform at runtime, for its terminal lines and exports. */
+const agentKitCliEntries = {
+  group: ['@rivus/agent-kit', '@rivus/agent-kit/**', '!@rivus/agent-kit/redact', '!@rivus/agent-kit/node'],
+  allowTypeImports: true,
+  message:
+    'apps/cli imports only @rivus/agent-kit/redact and @rivus/agent-kit/node at runtime; read sessions through @rivus/estela-server.',
 }
 
 export default {
@@ -29,9 +37,15 @@ export default {
       {
         // A later override that sets no-restricted-imports replaces these options, so it repeats this pattern.
         files: ['**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
-        excludeFiles: ['apps/cli/**'],
+        excludeFiles: ['apps/cli/**', 'packages/server/**'],
         rules: {
           'no-restricted-imports': ['error', { patterns: [agentKitTypesOnly] }],
+        },
+      },
+      {
+        files: ['apps/cli/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': ['error', { patterns: [agentKitCliEntries] }],
         },
       },
       {

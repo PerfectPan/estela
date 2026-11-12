@@ -1,4 +1,4 @@
-import { errorMessage } from '../sessions/read-failure.ts'
+import { errorMessage } from '@rivus/estela-server'
 
 const SESSION_FIX = 'Pass a canonical Estela JSON file, or a session path a registered agent adapter accepts.'
 

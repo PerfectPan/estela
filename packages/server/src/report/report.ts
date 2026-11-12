@@ -12,9 +12,9 @@ import process from 'node:process'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { bindReportSource, buildReport } from '@rivus/estela-rpc'
 import { homeDir } from '@rivus/estela-runtime-node'
+import type { DevframeDefinition } from 'devframe'
 import { createBuild } from 'devframe/adapters/build'
 import * as z from 'zod/mini'
-import devframe from '../server/devframe.ts'
 import { packForFile } from './report-site.ts'
 
 /**
@@ -41,15 +41,15 @@ function serialized<T>(run: () => Promise<T>): Promise<T> {
   return next
 }
 
-/** DevFrame's static build with `report-trace` bound to `report`, then `packForFile`. */
-async function buildSite(outDir: string, report: ReportTrace): Promise<void> {
+/** DevFrame's static build of `definition` with `report-trace` bound to `report`, then `packForFile`. */
+async function buildSite(definition: DevframeDefinition, outDir: string, report: ReportTrace): Promise<void> {
   bindReportSource(async () => report)
-  await createBuild(devframe, { outDir })
+  await createBuild(definition, { outDir })
   await packForFile(outDir)
 }
 
-export function writeReport(outDir: string, report: ReportTrace): Promise<void> {
-  return serialized(() => buildSite(outDir, report))
+export function writeReport(definition: DevframeDefinition, outDir: string, report: ReportTrace): Promise<void> {
+  return serialized(() => buildSite(definition, outDir, report))
 }
 
 function pad(value: number): string {
@@ -82,6 +82,7 @@ async function reserveDir(base: string): Promise<string> {
  * working directory. The error message reaches the browser, so it is redacted too.
  */
 export async function exportReport(
+  definition: DevframeDefinition,
   store: TraceStore,
   input: ExportReportInput,
   now = new Date(),
@@ -93,7 +94,7 @@ export async function exportReport(
       const dir = await reserveDir(
         resolve(process.cwd(), `estela-report-${input.traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`),
       )
-      await buildSite(dir, report)
+      await buildSite(definition, dir, report)
       return dir
     })
     // Absolute, so the browser can say exactly where; the home directory shows as `~`.

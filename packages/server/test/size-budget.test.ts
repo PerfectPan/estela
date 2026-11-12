@@ -7,7 +7,7 @@ import type { LoadProgress } from '@rivus/estela-rpc'
 import { VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
-import { createTraceStore } from '../src/server/trace-store.ts'
+import { createTraceStore } from '../src/store/trace-store.ts'
 import { writeLargeCodexSession } from '../src/testsupport/large-session.ts'
 
 // S12 size budget. Opt-in: it writes about 350 MB to a temp directory.

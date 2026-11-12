@@ -8,7 +8,7 @@ import { createNodePlatform } from '@rivus/agent-kit/node'
 import { describe, expect, it } from 'vite-plus/test'
 import type { Trace } from '@rivus/estela-schema'
 import { exportOf, writeExport } from './write-export.ts'
-import { loadSession } from '../sessions/load-session.ts'
+import { loadSession } from '@rivus/estela-server'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, '../../../..')

@@ -5,7 +5,7 @@ import { zstdCompressSync } from 'node:zlib'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { Trace } from '@rivus/estela-schema'
 import { expect, it } from 'vite-plus/test'
-import { createTraceStore } from '../src/server/trace-store.ts'
+import { createTraceStore } from '../src/store/trace-store.ts'
 
 it.each([
   ['invalid-json', false],
