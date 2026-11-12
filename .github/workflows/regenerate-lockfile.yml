@@ -1,0 +1,54 @@
+name: Regenerate lockfile for PR 87
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/regenerate-lockfile.yml]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    if: github.event.pull_request.number == 87
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      npm_config_registry: https://registry.npmjs.org/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@26.13.1
+          install: false
+          cache: false
+          require-lockfile: true
+      - name: Generate the complete lockfile with pnpm
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          node --version
+          pnpm --version
+          git show "$BASE_SHA:pnpm-lock.yaml" > pnpm-lock.yaml
+          pnpm install --fix-lockfile --lockfile-only --ignore-scripts --no-runtime
+          sha256sum pnpm-lock.yaml > "$RUNNER_TEMP/lockfile.sha256"
+          pnpm install --frozen-lockfile --ignore-scripts --no-runtime
+          sha256sum -c "$RUNNER_TEMP/lockfile.sha256"
+          git diff --stat
+          git diff -- pnpm-lock.yaml > "$RUNNER_TEMP/lockfile.patch"
+      # Keep the generated file only in this same private repository, for one day.
+      # Do not print lockfile contents or encoded file contents to logs.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pnpm-generated-lockfile
+          retention-days: 1
+          path: |
+            pnpm-lock.yaml
+            ${{ runner.temp }}/lockfile.sha256
+            ${{ runner.temp }}/lockfile.patch
+          if-no-files-found: error
