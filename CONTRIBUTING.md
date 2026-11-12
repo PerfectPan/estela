@@ -266,7 +266,9 @@ runs until the blocker is resolved.
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
 The tarball smoke step then builds `@rivus/estela` with `vp pack` (`pnpm --filter '@rivus/estela...' run build`, which also
 runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
-a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. Dependency installation uses
+a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. The budgets step
+(`node scripts/check-budgets.mjs`) then runs on that build and writes its measured-vs-budget table to the job summary;
+the budgets and their reasons live in `scripts/budgets/budgets.mjs`. Dependency installation uses
 `pnpm install --frozen-lockfile` with the committed lockfile; refresh the lockfile with `pnpm install` when dependency
 inputs change. pnpm rejects versions published
 less than a day ago (`minimumReleaseAge` in `pnpm-workspace.yaml`), so pick versions at least a day old when upgrading.
