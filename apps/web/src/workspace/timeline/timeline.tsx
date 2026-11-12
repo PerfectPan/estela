@@ -50,6 +50,10 @@ export function Timeline(props: {
   count: number
   selectedId?: string
   onSelect: (eventId: string) => void
+  /** The request the selected one is compared with, drawn with a dashed ring. */
+  compareId?: string
+  /** Shift-click on a request: compare the selected request with it. */
+  onCompare: (eventId: string) => void
 }) {
   let host: HTMLDivElement | undefined
   let svg: SVGSVGElement | undefined
@@ -110,6 +114,7 @@ export function Timeline(props: {
       return
     }
     const startX = localX(event)
+    const shift = event.shiftKey
     const anchor = tsOf(scale(), startX)
     let moved = false
     trackDrag(
@@ -130,7 +135,11 @@ export function Timeline(props: {
           return
         }
         const id = nearestRequest(startX)
-        if (id) {
+        // Compare only from a selected main-lane request: the bars are that lane's, and Compare stays on one lane.
+        const fromRequest = props.data.main.bars.some(bar => bar.id === props.selectedId)
+        if (id && shift && fromRequest && props.selectedId !== id) {
+          props.onCompare(id)
+        } else if (id) {
           props.onSelect(id)
         }
         // A click outside the selected range clears it; inside it keeps the range.
@@ -235,7 +244,13 @@ export function Timeline(props: {
               />
             )}
           </Show>
-          <MainLane draw={props.data.main} scale={scale()} top={props.data.top} selectedId={props.selectedId} />
+          <MainLane
+            draw={props.data.main}
+            scale={scale()}
+            top={props.data.top}
+            selectedId={props.selectedId}
+            compareId={props.compareId}
+          />
           <For each={subs()}>
             {(draw, index) => (
               <SubLane

@@ -11,14 +11,21 @@ function barHeight(tokens: number, top: number): number {
   return top > 0 ? Math.max(1, (tokens / top) * LAYOUT.barMax) : 0
 }
 
-export function MainLane(props: { draw: LaneDraw; scale: TimeScale; top: number; selectedId?: string }) {
+export function MainLane(props: {
+  draw: LaneDraw
+  scale: TimeScale
+  top: number
+  selectedId?: string
+  compareId?: string
+}) {
   const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 3.5))
   const tools = createMemo(() => bucketBars(props.draw.tools, props.scale, 4))
   const grid = createMemo(() => tokenGrid(props.top))
-  const selected = createMemo(() => {
-    const id = props.selectedId
-    return id ? bars().find(bar => bar.id === id) : undefined
-  })
+  const barOf = (id: string | undefined) => (id ? bars().find(bar => bar.id === id) : undefined)
+  const selected = createMemo(() => barOf(props.selectedId))
+  const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
+  const ringHeight = (bar: { tokens?: number }) =>
+    bar.tokens !== undefined && props.top > 0 ? barHeight(bar.tokens, props.top) : 10
   return (
     <g>
       <text x={LAYOUT.labelX} y="44" class="font-sans" font-size="12" fill="var(--muted-foreground)">
@@ -109,9 +116,25 @@ export function MainLane(props: { draw: LaneDraw; scale: TimeScale; top: number;
         )}
       </For>
       <FailedMarks marks={props.draw.failed} scale={props.scale} y={LAYOUT.failedY} />
+      <Show when={compared()}>
+        {bar => (
+          <rect
+            x={bar().x - 4}
+            y={LAYOUT.baseline - ringHeight(bar()) - 2.5}
+            width="8"
+            height={ringHeight(bar()) + 5.5}
+            rx="2"
+            fill="none"
+            stroke="var(--muted-foreground)"
+            stroke-width="1.25"
+            stroke-dasharray="2 2"
+            data-testid="compare-ring"
+          />
+        )}
+      </Show>
       <Show when={selected()}>
         {bar => {
-          const h = () => (bar().tokens !== undefined ? barHeight(bar().tokens!, props.top) : 10)
+          const h = () => ringHeight(bar())
           return (
             <rect
               x={bar().x - 4}

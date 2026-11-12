@@ -1,5 +1,6 @@
 import type { LedgerFilter, LedgerLayout, LedgerModel } from '@/lib/ledger-model.ts'
 import type { TimeRange } from '@/lib/timeline-scale.ts'
+import type { InspectorTab } from './inspector/inspector-tab.ts'
 import type { LoadedSession } from './load-session.ts'
 import { batch, createMemo, createSignal } from 'solid-js'
 import { flattenLanes } from '@/lib/ledger-lanes.ts'
@@ -40,6 +41,9 @@ export function createWorkspaceState(session: LoadedSession) {
   const [layout, writeLayout] = createSignal<LedgerLayout>('turns')
   /** Key of the selected ledger row (an entry id, a turn id, or a lane id). */
   const [selectedKey, setSelectedKey] = createSignal<string>()
+  const [tab, setTab] = createSignal<InspectorTab>('input')
+  /** The request the user picked to compare the selected one with; used while it stays on the selected lane. */
+  const [comparePick, setComparePick] = createSignal<string>()
 
   const rows = createMemo(() => {
     const view = {
@@ -142,6 +146,14 @@ export function createWorkspaceState(session: LoadedSession) {
     })
   }
 
+  /** Compare the selected request with `eventId` (a timeline Shift-click or a quick pick) and show the diff. */
+  function compareWith(eventId: string | undefined): void {
+    batch(() => {
+      setComparePick(eventId)
+      setTab('compare')
+    })
+  }
+
   return {
     session,
     model,
@@ -169,6 +181,10 @@ export function createWorkspaceState(session: LoadedSession) {
     selectedEntry,
     selectedEventId,
     reveal,
+    tab,
+    setTab,
+    comparePick,
+    compareWith,
   }
 }
 

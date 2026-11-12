@@ -1,6 +1,5 @@
-import type { ContextSlot, ContextSlotName, ReconstructResult, Trace } from '@rivus/estela-schema'
+import type { ContextSlotName, ReconstructResult, Trace } from '@rivus/estela-schema'
 import type { LedgerModel } from '@/lib/ledger-model.ts'
-import type { MessageKey } from '@/i18n/locale.ts'
 import { reconstruct } from '@rivus/estela-kernel'
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { ArrowRightIcon } from '@/components/icons.tsx'
@@ -10,23 +9,7 @@ import { rowLine, rowText } from '@/lib/event-text.ts'
 import { formatNumber, formatTokens } from '@/lib/format.ts'
 import { unavailableNote } from '@/lib/unavailable-note.ts'
 import { StatusPill } from '@/workspace/inspector/status-pill.tsx'
-
-const SLOT_LABEL: Record<ContextSlotName, MessageKey> = {
-  system: 'inspector.slots.system',
-  tools: 'inspector.slots.tools',
-  summary: 'inspector.slots.summary',
-  messages: 'inspector.slots.messages',
-  currentTurn: 'inspector.slots.currentTurn',
-}
-
-/** Slot colors from the design: tools orange, summary purple, messages blue, this turn green. */
-const SLOT_FILL: Record<ContextSlotName, string> = {
-  system: 'bg-subtle',
-  tools: 'bg-kind-tool',
-  summary: 'bg-kind-reasoning',
-  messages: 'bg-kind-request',
-  currentTurn: 'bg-kind-user',
-}
+import { SLOT_LABEL, slotClass } from './slot-style.ts'
 
 /** Removed events listed before "Show all". */
 const PREVIEW_DROPPED = 3
@@ -39,14 +22,6 @@ function covers(names: ContextSlotName[]): string {
     : names.map(name => t(SLOT_LABEL[name])).join(t('inspector.listSeparator'))
 }
 
-/** Hatched when the agent does not record the slot, outlined when it is empty, else the slot color. */
-function slotClass(slot: ContextSlot, small = false): string {
-  if (slot.status === 'unavailable') {
-    return small ? 'hatched hatched-small' : 'hatched'
-  }
-  return slot.status === 'empty' ? 'border border-input' : SLOT_FILL[slot.name]
-}
-
 /**
  * "Model saw" (S7): the composition at the selected event from `reconstruct`, the token
  * counts the agent recorded (each with the slots it covers; never split or estimated), and
@@ -57,6 +32,8 @@ export function ModelSaw(props: {
   model: LedgerModel
   eventId: string
   onSelectEvent: (id: string) => void
+  /** Opens the Compare tab for this request. */
+  onCompare: () => void
 }) {
   const result = createMemo((): ReconstructResult => reconstruct(props.trace, props.eventId))
   const event = () => props.model.byId.get(props.eventId)
@@ -195,11 +172,22 @@ export function ModelSaw(props: {
           </div>
         </Show>
         <Show when={note()}>{text => <p class="m-0 text-[12px] leading-normal text-subtle">{text()}</p>}</Show>
+        <Show when={props.model.requests.has(props.eventId)}>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 self-start text-[12.5px] text-link hover:underline"
+            data-testid="open-compare"
+            onClick={() => props.onCompare()}
+          >
+            {t('compare.open')}
+            <ArrowRightIcon size={13} />
+          </button>
+        </Show>
       </div>
       <div class="flex flex-col gap-2">
         <div class="flex items-baseline justify-between">
           <h3 class="section-label m-0 text-muted-foreground">{t('inspector.dropped')}</h3>
-          <span class="font-mono text-[12px] text-muted-foreground">
+          <span class="font-mono text-[12px] text-muted-foreground" data-testid="dropped-count">
             {plural(
               removed().length,
               'inspector.droppedCountOne',
