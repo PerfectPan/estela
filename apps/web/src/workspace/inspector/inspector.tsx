@@ -115,11 +115,8 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     const ordinal = entryOrdinal(current)
     return `${t(KIND_TITLE[entryKind(current)])}${ordinal ? ` #${ordinal}` : ''}`
   }
-  /** The cost of the request the selected row belongs to: its own `request` event's. */
-  const requestCost = createMemo(() => {
-    const request = state.model.requests.get(primaryId() ?? '')?.entry
-    return request ? state.cost.requests.get(request.id) : undefined
-  })
+  /** The cost of the selected row when it is a `request` event. */
+  const requestCost = createMemo(() => state.cost.requests.get(primaryId() ?? ''))
   const costLine = createMemo(() => {
     const cost = requestCost()
     if (!cost) {

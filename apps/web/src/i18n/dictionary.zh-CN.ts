@@ -258,7 +258,6 @@ export const zhCN = {
   },
   cost: {
     label: '目录价费用',
-    title: '目录价费用',
     unavailable: '不可用',
     unavailableShort: '费用不可用',
     partial: '{{ total }} 个请求中有 {{ unpriced }} 个未计价',

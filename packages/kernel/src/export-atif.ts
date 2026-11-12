@@ -1,7 +1,7 @@
 import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { isPlainObject } from 'es-toolkit'
 import { laneIds, laneOf, mainAgentId, shadowedIn } from './lanes.ts'
-import { priceTrace, type TraceCost, type TracePricing } from './price-trace.ts'
+import { priceTrace, type CostTotal, type TraceCost, type TracePricing } from './price-trace.ts'
 import { promptSnapshot } from './prompt-snapshot.ts'
 import {
   agentKind,
@@ -337,33 +337,17 @@ function buildLane(
   return build
 }
 
-/** What the export's prices say about one trajectory's requests: their sum, and how many are unpriced. */
-interface TrajectoryCost {
-  usd: number
-  priced: number
-  unpriced: number
-}
-
-function costOfDrafts(drafts: StepDraft[], cost: TraceCost): TrajectoryCost {
-  const out = { usd: 0, priced: 0, unpriced: 0 }
-  for (const draft of drafts) {
-    const request = draft.request ? cost.requests.get(draft.request.id) : undefined
-    if (request?.kind === 'priced') {
-      out.usd += request.usd
-      out.priced += 1
-    } else if (request) {
-      out.unpriced += 1
-    }
-  }
-  return out
-}
-
 function finishTrajectory(
   trace: Trace,
   build: TrajectoryBuild,
   laneId: string,
   embedded: boolean,
-  cost?: { trace: TraceCost; total: TrajectoryCost },
+  /**
+   * The trace's prices and the total this trajectory reports: its lane's, or for the root the whole trace's (ATIF's
+   * root total includes subagents). Totals count every request of the lane, also those a compaction hid, which
+   * produce no step, so a total is never complete while a hidden request is unpriced.
+   */
+  cost?: { trace: TraceCost; total: CostTotal | undefined },
 ): AtifTrajectory {
   const mainId = mainAgentId(trace)
   if (build.drafts.length === 0) {
@@ -392,8 +376,9 @@ function finishTrajectory(
     stepOf(draft, index + 1, build.laneCompactionSeqs, agent.model_name, priced(draft)),
   )
   const metrics = finalMetrics(steps)
-  if (cost && cost.total.unpriced === 0 && cost.total.priced > 0) {
-    metrics.total_cost_usd = cost.total.usd
+  const total = cost?.total
+  if (total?.usd !== undefined && total.priced === total.requests) {
+    metrics.total_cost_usd = total.usd
   }
   return {
     schema_version: ATIF_SCHEMA_VERSION,
@@ -417,7 +402,14 @@ function finishTrajectory(
               capabilities: [...trace.capabilities],
               skipped: skippedOf(trace),
               ...build.rootExtras,
-              ...(cost ? { pricing: { version: cost.trace.version, unpricedRequests: cost.total.unpriced } } : {}),
+              ...(cost
+                ? {
+                    pricing: {
+                      version: cost.trace.version,
+                      unpricedRequests: (total?.requests ?? 0) - (total?.priced ?? 0),
+                    },
+                  }
+                : {}),
             },
           },
         }
@@ -445,18 +437,8 @@ export function toAtif(trace: Trace, options: { pricing?: TracePricing } = {}): 
   const embedded = new Set<string>()
   const subagents: AtifTrajectory[] = []
   const traceCost = options.pricing ? priceTrace(trace, options.pricing) : undefined
-  // ATIF's root total_cost_usd includes the subagents' cost.
-  const rootTotal = { usd: 0, priced: 0, unpriced: 0 }
-  const laneCost = (laneId: string) => {
-    if (!traceCost) {
-      return undefined
-    }
-    const total = costOfDrafts(builds.get(laneId)!.drafts, traceCost)
-    rootTotal.usd += total.usd
-    rootTotal.priced += total.priced
-    rootTotal.unpriced += total.unpriced
-    return { trace: traceCost, total }
-  }
+  const laneCost = (laneId: string) =>
+    traceCost ? { trace: traceCost, total: traceCost.lanes.get(laneId) } : undefined
   for (const laneId of laneIdsList) {
     if (laneId !== mainId && builds.get(laneId)!.drafts.length > 0) {
       embedded.add(laneId)
@@ -465,13 +447,12 @@ export function toAtif(trace: Trace, options: { pricing?: TracePricing } = {}): 
   }
   attachSpawnRefs(trace, builds, embedded)
 
-  laneCost(mainId)
   const rootTrajectory = finishTrajectory(
     trace,
     builds.get(mainId)!,
     mainId,
     false,
-    traceCost ? { trace: traceCost, total: rootTotal } : undefined,
+    traceCost ? { trace: traceCost, total: traceCost.total } : undefined,
   )
   if (subagents.length > 0) {
     rootTrajectory.subagent_trajectories = subagents

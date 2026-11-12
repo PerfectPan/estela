@@ -229,7 +229,6 @@ export const en = {
   },
   cost: {
     label: 'list cost',
-    title: 'List cost',
     unavailable: 'unavailable',
     unavailableShort: 'cost unavailable',
     partial: '{{ unpriced }} of {{ total }} requests unpriced',

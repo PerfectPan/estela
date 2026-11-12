@@ -67,6 +67,27 @@ describe('toAtif with prices', () => {
     expect(atif.extra?.estela?.pricing).toEqual({ version: 'test-prices', unpricedRequests: 1 })
   })
 
+  it('counts requests a compaction hid in the totals, though they produce no step', () => {
+    const hidden = (id: string, seq: number, payload: EventOf<'request'>['payload']) => ({
+      ...request(id, seq, payload),
+      shadowedBy: 'c',
+    })
+    const events = [
+      { ...event('u', 0, { kind: 'user', payload: { text: 'go' } }), shadowedBy: 'c' },
+      hidden('r1', 1, priced),
+      hidden('r2', 2, { model: 'model-unknown', usage: { inputTokens: 10, outputTokens: 1 } }),
+      event('c', 3, { kind: 'compaction', payload: { trigger: 'auto' } }),
+      event('u2', 4, { kind: 'user', payload: { text: 'again' } }),
+      request('r3', 5, priced),
+    ]
+    const atif = toAtif(traceOf(events), { pricing })
+    expect(atif.final_metrics?.total_cost_usd).toBeUndefined()
+    expect(atif.extra?.estela?.pricing).toEqual({ version: 'test-prices', unpricedRequests: 1 })
+    const allPriced = toAtif(traceOf(events.filter(item => item.id !== 'r2')), { pricing })
+    // The hidden priced request counts: $2 before the compaction and $2 after.
+    expect(allPriced.final_metrics?.total_cost_usd).toBeCloseTo(4, 10)
+  })
+
   it('adds no cost field without a price table', () => {
     const atif = toAtif(traceOf([event('u', 0, { kind: 'user', payload: { text: 'go' } }), request('r1', 1, priced)]))
     expect(atif.steps[1]?.metrics?.cost_usd).toBeUndefined()

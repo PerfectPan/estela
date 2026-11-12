@@ -40,18 +40,13 @@ export {
 } from './project-turns.ts'
 export {
   costOfEvents,
-  priceRequest,
   priceTrace,
-  sumCosts,
   UNPRICED_REASONS,
-  type CostShares,
   type CostTotal,
-  type PricedRequest,
   type RequestCost,
   type TraceCost,
   type TracePricing,
   type UnpricedReason,
-  type UnpricedRequest,
 } from './price-trace.ts'
 export { reconstruct } from './reconstruct.ts'
 export { snapshotPricing } from './snapshot-pricing.ts'
