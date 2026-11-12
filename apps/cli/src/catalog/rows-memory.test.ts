@@ -3,7 +3,7 @@ import v8 from 'node:v8'
 import vm from 'node:vm'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { createMemoryPlatform } from '@rivus/agent-kit/testing'
-import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
+import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/estela-runtime-node'
 import { describe, expect, it } from 'vite-plus/test'
 import { summarizeRow } from './rows.ts'
 

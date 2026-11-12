@@ -2,9 +2,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** `true` in `dist/cli.mjs` (`define` in the pack config); undeclared when Node runs `src/` directly. */
-declare const AGENT_TRACE_BUNDLE: true
+declare const ESTELA_BUNDLE: true
 
-const bundled = typeof AGENT_TRACE_BUNDLE !== 'undefined'
+const bundled = typeof ESTELA_BUNDLE !== 'undefined'
 const here = dirname(fileURLToPath(import.meta.url))
 
 /** Built SPA: `dist/web/` in the package, `apps/web/dist` in the workspace. */

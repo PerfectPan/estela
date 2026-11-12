@@ -1,5 +1,5 @@
 import type { Lane } from '@rivus/agent-kit/transcript'
-import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { laneOf, mainAgentId, promptStarts, requestUsage } from './lanes.ts'
 
 /** One model request, for timeline bars. Numbers are `undefined` when the agent did not record them. */

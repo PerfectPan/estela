@@ -3,7 +3,7 @@ import { createSignal } from 'solid-js'
 /** `system` follows `prefers-color-scheme`; `light` and `dark` are a stored manual choice (S11). */
 export type ThemeMode = 'system' | 'light' | 'dark'
 
-const STORAGE_KEY = 'agent-trace-theme'
+const STORAGE_KEY = 'estela-theme'
 const media = () => window.matchMedia('(prefers-color-scheme: dark)')
 
 function stored(): 'light' | 'dark' | undefined {

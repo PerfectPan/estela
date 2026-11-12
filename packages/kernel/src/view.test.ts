@@ -1,11 +1,11 @@
-import type { Trace, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEventPayloads } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { fitView, toView } from './view.ts'
 
 /** One `user` event: its payload declares no required field, so any keys can stand in for a recorded payload. */
 function traceOf(payload: TraceEventPayloads['user'], session: Trace['session'] = { id: 's' }): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'demo',
     session,
     capabilities: [],

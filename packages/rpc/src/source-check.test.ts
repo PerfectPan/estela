@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import type { TraceEvent } from '@rivus/agent-trace-schema'
+import type { TraceEvent } from '@rivus/estela-schema'
 import { fingerprint, checkedOriginal } from './source-check.ts'
 
 const fs = {

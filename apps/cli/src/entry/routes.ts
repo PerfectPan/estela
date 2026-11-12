@@ -19,12 +19,12 @@ const tristate = z.optional(z.boolean())
 function session(fallback: string) {
   return argument(
     name('session'),
-    description(`A session file, path#sessionId, or canonical agent-trace JSON (default: ${fallback})`),
+    description(`A session file, path#sessionId, or canonical Estela JSON (default: ${fallback})`),
     schema(z.optional(nonEmpty)),
   )
 }
 
-const ONE_SESSION = 'AGENT_TRACE_PATH, else the bundled demo trace'
+const ONE_SESSION = 'ESTELA_PATH, else the bundled demo trace'
 
 /**
  * Every way into the CLI. `@bomb.sh/router` rejects any token a route does not take, so an unknown
@@ -39,10 +39,10 @@ const ONE_SESSION = 'AGENT_TRACE_PATH, else the bundled demo trace'
  */
 export function cliRoutes(packageVersion: string) {
   return command(
-    name('agent-trace'),
+    name('estela'),
     description('Inspect coding-agent sessions in the browser: one session, or every session the agents keep.'),
     version(packageVersion),
-    session('AGENT_TRACE_PATH'),
+    session('ESTELA_PATH'),
     option(
       name('port'),
       description('Port to listen on; 0 picks a free one (default: 7392 or the next free port)'),
@@ -82,7 +82,7 @@ export function cliRoutes(packageVersion: string) {
       session(ONE_SESSION),
       option(
         name('out'),
-        description('Output file (default: agent-trace-<session>.atif.json)'),
+        description('Output file (default: estela-<session>.atif.json)'),
         schema(z.optional(outputPath)),
       ),
     ),
@@ -93,7 +93,7 @@ export function cliRoutes(packageVersion: string) {
       session(ONE_SESSION),
       option(
         name('out'),
-        description('Output file (default: agent-trace-<session>.otlp.json)'),
+        description('Output file (default: estela-<session>.otlp.json)'),
         schema(z.optional(outputPath)),
       ),
     ),

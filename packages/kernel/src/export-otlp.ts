@@ -1,4 +1,4 @@
-import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { spanIdHex, traceIdHex } from './hash-id.ts'
 import { laneIds, laneOf, mainAgentId } from './lanes.ts'
 import { promptSnapshot } from './prompt-snapshot.ts'
@@ -417,8 +417,8 @@ export function toOtlp(trace: Trace): OtlpExportTraceRequest {
   return {
     resourceSpans: [
       {
-        resource: { attributes: [kv('service.name', str('agent-trace'))] },
-        scopeSpans: [{ scope: { name: 'agent-trace' }, spans }],
+        resource: { attributes: [kv('service.name', str('estela'))] },
+        scopeSpans: [{ scope: { name: 'estela' }, spans }],
       },
     ],
   }

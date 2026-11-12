@@ -1,4 +1,4 @@
-import { mainAgentId } from '@rivus/agent-trace-kernel'
+import { mainAgentId } from '@rivus/estela-kernel'
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/icons.tsx'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { formatNumber } from '@/lib/format.ts'

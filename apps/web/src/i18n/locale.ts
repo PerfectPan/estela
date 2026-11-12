@@ -11,7 +11,7 @@ export type MessageKey = {
   [K in keyof FlatDictionary]: FlatDictionary[K] extends string ? K : never
 }[keyof FlatDictionary]
 
-const STORAGE_KEY = 'agent-trace-locale'
+const STORAGE_KEY = 'estela-locale'
 
 const dictionaries: Record<Locale, FlatDictionary> = {
   en: flatten(en),

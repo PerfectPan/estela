@@ -11,7 +11,7 @@ import {
   flattenLedger,
   isFailedResult,
 } from '@/lib/ledger-model.ts'
-import { mainAgentId } from '@rivus/agent-trace-kernel'
+import { mainAgentId } from '@rivus/estela-kernel'
 import { timelineData } from './timeline/timeline-data.ts'
 
 function toggled(set: ReadonlySet<string>, id: string): Set<string> {

@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-agent-trace is licensed under GPL-3.0-only; see [LICENSE](LICENSE). The files listed here contain code copied or adapted from other projects. That code keeps its original license, reproduced below. The CLI build appends this file to `dist/THIRD-PARTY-NOTICES.txt`.
+Estela is licensed under GPL-3.0-only; see [LICENSE](LICENSE). The files listed here contain code copied or adapted from other projects. That code keeps its original license, reproduced below. The CLI build appends this file to `dist/THIRD-PARTY-NOTICES.txt`.
 
 ## shadcn-solid
 

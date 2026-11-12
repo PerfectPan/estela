@@ -25,17 +25,17 @@ export interface Installed {
   files: string[]
   /** Empty project the tarball is installed into. */
   installDir: string
-  /** `node_modules/.bin/agent-trace` inside `installDir`. */
+  /** `node_modules/.bin/estela` inside `installDir`. */
   bin: string
 }
 
 /**
- * Builds `@rivus/agent-trace` and the workspace packages it depends on, so the tarball never
+ * Builds `@rivus/estela` and the workspace packages it depends on, so the tarball never
  * holds a stale bundle.
  */
 async function buildCli(repo: string): Promise<void> {
   try {
-    await exec('pnpm', ['--filter', '@rivus/agent-trace...', 'run', 'build'], {
+    await exec('pnpm', ['--filter', '@rivus/estela...', 'run', 'build'], {
       cwd: repo,
       // Vitest sets NODE_ENV=test; the published artifact must use the production build conditions.
       env: { ...process.env, NODE_ENV: 'production' },
@@ -44,7 +44,7 @@ async function buildCli(repo: string): Promise<void> {
   } catch (error) {
     const { stdout, stderr } = execOutput(error)
     throw new Error(
-      `pnpm --filter '@rivus/agent-trace...' run build failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`,
+      `pnpm --filter '@rivus/estela...' run build failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`,
       {
         cause: error,
       },
@@ -72,13 +72,13 @@ export async function packAndInstall(root: string, repo: string): Promise<Instal
   const { size } = await stat(tarball)
   const installDir = join(root, 'install')
   await mkdir(installDir, { recursive: true })
-  await writeFile(join(installDir, 'package.json'), `${JSON.stringify({ name: 'agent-trace-smoke', private: true })}\n`)
+  await writeFile(join(installDir, 'package.json'), `${JSON.stringify({ name: 'estela-smoke', private: true })}\n`)
   await exec('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', tarball], { cwd: installDir })
   return {
     tarball,
     tarballBytes: size,
     files: packed.files.map(file => file.path).toSorted(),
     installDir,
-    bin: join(installDir, 'node_modules/.bin/agent-trace'),
+    bin: join(installDir, 'node_modules/.bin/estela'),
   }
 }

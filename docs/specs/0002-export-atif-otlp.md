@@ -27,11 +27,11 @@ incremental export, no new package.
 
 ## Behavioral Requirements
 
-- `agent-trace export-atif <path> [--out <file>]` and
-  `agent-trace export-otlp <path> [--out <file>]` load the session at `path`
-  (a canonical agent-trace JSON file, or a session path a registered agent
+- `estela export-atif <path> [--out <file>]` and
+  `estela export-otlp <path> [--out <file>]` load the session at `path`
+  (a canonical Estela JSON file, or a session path a registered agent
   adapter accepts) exactly once and write the export to `--out`, or to
-  `agent-trace-<first 8 characters of the session id>.atif.json` /
+  `estela-<first 8 characters of the session id>.atif.json` /
   `.otlp.json` in the working directory when `--out` is omitted. On success
   the command prints the written path (with `~` for the home directory) and
   exits 0. On load failure it exits 1 with the load error's message.
@@ -65,7 +65,7 @@ incremental export, no new package.
   never invented; `agent.version` is the one exception, `"unknown"` when the
   log records no agent version, because ATIF requires the field.
 - Both exports are redacted by default, whatever the source: the same
-  redaction the report uses (`AGENT_TRACE_REDACT=0` opts out). Errors that
+  redaction the report uses (`ESTELA_REDACT=0` opts out). Errors that
   reach the terminal keep the redaction the shell already applies.
 - Unit tests cover the mapping rules on synthetic traces, and every
   registered agent's fixture sessions export to a document that passes the
@@ -79,7 +79,7 @@ incremental export, no new package.
 - Missing data is `unavailable`: an export omits what the agent did not
   record. The exporters never estimate or default a count, a time, or a text.
 - Every exported fact stays traceable to the event it came from: an ATIF
-  step names its canonical event ids in `extra.agent_trace.eventIds`.
+  step names its canonical event ids in `extra.estela.eventIds`.
 - Unknown data fails loud at load, as everywhere else; the exporters only see
   a checked `Trace`.
 
@@ -131,7 +131,7 @@ incremental export, no new package.
   functions (`toAtif`, `toOtlp`). Nothing existing changes shape.
 - Persisted data: the export file the user asked for; nothing else is
   written.
-- Configuration: `--out`; `AGENT_TRACE_REDACT=0` opts out of redaction.
+- Configuration: `--out`; `ESTELA_REDACT=0` opts out of redaction.
 - Operational bounds: the export runs on a loaded trace, so the memory
   profile is the load's (the 355 MB session loads in about 1.7 s); the
   written file is the size of the projected data.

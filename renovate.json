@@ -14,13 +14,13 @@
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
   "prBodyNotes": [
-    "Bot PRs carry no changeset. The lockfile counts as what the CLI ships, so an npm update needs a patch changeset for @rivus/agent-trace added by the reviewer before merging, per [Release Intent](https://github.com/PerfectPan/agent-trace/blob/main/CONTRIBUTING.md#release-intent)."
+    "Bot PRs carry no changeset. The lockfile counts as what the CLI ships, so an npm update needs a patch changeset for @rivus/estela added by the reviewer before merging, per [Release Intent](https://github.com/PerfectPan/estela/blob/main/CONTRIBUTING.md#release-intent)."
   ],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["* 0-6 1 * *"],
     "prBodyNotes": [
-      "Lock-file-only updates follow the same rule: check whether a bundled dependency changed what the CLI ships and add a patch changeset if so; see [Release Intent](https://github.com/PerfectPan/agent-trace/blob/main/CONTRIBUTING.md#release-intent)."
+      "Lock-file-only updates follow the same rule: check whether a bundled dependency changed what the CLI ships and add a patch changeset if so; see [Release Intent](https://github.com/PerfectPan/estela/blob/main/CONTRIBUTING.md#release-intent)."
     ]
   },
   "packageRules": [

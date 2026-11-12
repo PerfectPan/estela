@@ -1,6 +1,6 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import type { ReportTrace } from '@rivus/agent-trace-rpc'
-import { firstIssue, traceEventSchema, traceSchema } from '@rivus/agent-trace-schema'
+import type { ReportTrace } from '@rivus/estela-rpc'
+import { firstIssue, traceEventSchema, traceSchema } from '@rivus/estela-schema'
 import * as z from 'zod/mini'
 import { LOCALES } from '@/i18n/locale.ts'
 

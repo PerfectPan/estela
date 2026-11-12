@@ -1,4 +1,4 @@
-import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { toOtlp, type OtlpSpan } from './export-otlp.ts'
 
@@ -27,7 +27,7 @@ function traceOf(
   session: Trace['session'] = { id: 's1' },
 ): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'test-agent',
     session,
     capabilities: ['requests', 'usage', 'compaction', 'systemPrompt', 'toolSchemas', 'subagents'],

@@ -1,4 +1,4 @@
-import type { ReportTrace } from '@rivus/agent-trace-rpc'
+import type { ReportTrace } from '@rivus/estela-rpc'
 import { Match, Show, Switch } from 'solid-js'
 import { escapeBidi } from '@/lib/preview.ts'
 import { connectionLost } from '@/shell/connection.ts'

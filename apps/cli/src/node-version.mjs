@@ -2,7 +2,7 @@
 export function unsupportedNodeMessage(version) {
   const major = Number(String(version).split('.')[0])
   if (major < 24) {
-    return 'agent-trace requires Node.js 24 or later.'
+    return 'estela requires Node.js 24 or later.'
   }
   return null
 }

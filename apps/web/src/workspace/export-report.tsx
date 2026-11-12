@@ -1,4 +1,4 @@
-import type { ExportReportResult } from '@rivus/agent-trace-rpc'
+import type { ExportReportResult } from '@rivus/estela-rpc'
 import { Match, Show, Switch, createSignal } from 'solid-js'
 import { ExportIcon } from '@/components/icons.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
@@ -6,7 +6,7 @@ import { messageOf } from '@/lib/error-message.ts'
 import { formatBytes, formatNumber } from '@/lib/format.ts'
 import { scopedClient } from '@/shell/client.ts'
 
-/** Must match `REPORT_MAX_EVENTS` and `REPORT_MAX_BYTES` in `@rivus/agent-trace-rpc`. */
+/** Must match `REPORT_MAX_EVENTS` and `REPORT_MAX_BYTES` in `@rivus/estela-rpc`. */
 const MAX_EVENTS = 2000
 const MAX_BYTES = 20 * 1000 * 1000
 

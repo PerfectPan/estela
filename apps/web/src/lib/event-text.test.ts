@@ -1,4 +1,4 @@
-import type { TraceEvent } from '@rivus/agent-trace-schema'
+import type { TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { exitCode, isShortened, rowText, toolTarget } from './event-text.ts'
 

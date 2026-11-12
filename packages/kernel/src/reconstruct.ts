@@ -6,7 +6,7 @@ import type {
   ReconstructResult,
   Trace,
   TraceEvent,
-} from '@rivus/agent-trace-schema'
+} from '@rivus/estela-schema'
 import { isPrompt, laneOf, mainAgentId, recordUserStart, requestUsage, shadowedIn } from './lanes.ts'
 import {
   latestSnapshot,

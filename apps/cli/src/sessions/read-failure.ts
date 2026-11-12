@@ -1,4 +1,4 @@
-import type { SessionError } from '@rivus/agent-trace-rpc'
+import type { SessionError } from '@rivus/estela-rpc'
 import type { LoadTranscriptError } from '@rivus/agent-kit/transcript'
 import type { SessionListError } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'

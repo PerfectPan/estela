@@ -1,4 +1,4 @@
-import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 
 const MAIN = 'main'
 

@@ -1,5 +1,5 @@
 {
-  "name": "@rivus/agent-trace-rpc",
+  "name": "@rivus/estela-rpc",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -14,8 +14,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@rivus/agent-trace-kernel": "workspace:*",
-    "@rivus/agent-trace-schema": "workspace:*",
+    "@rivus/estela-kernel": "workspace:*",
+    "@rivus/estela-schema": "workspace:*",
     "devframe": "catalog:",
     "es-toolkit": "catalog:",
     "zod": "catalog:"

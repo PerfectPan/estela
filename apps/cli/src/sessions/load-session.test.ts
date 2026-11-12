@@ -33,7 +33,7 @@ async function unknownGeneration(): Promise<string> {
 /** A canonical trace file's text with one `hook` event carrying `payload`. */
 function canonicalHook(payload: Record<string, unknown>): string {
   return JSON.stringify({
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'demo',
     session: { id: 's' },
     capabilities: [],
@@ -160,12 +160,12 @@ describe('loadSession', () => {
   it('falls through a canonical head whose body is not JSON to the kit adapters', async () => {
     const dir = await tempDir()
     const path = join(dir, 'session.jsonl')
-    // The head says "canonical agent-trace", the body is a Claude record. The schema parse
+    // The head says "canonical Estela", the body is a Claude record. The schema parse
     // fails with SyntaxError, the file falls through to the kit adapters, and the canonical
     // first record is one no adapter reads — not a raw JSON parse error.
     await writeFile(
       path,
-      `${JSON.stringify({ schema: 'agent-trace', truncated: true })}\n${JSON.stringify({
+      `${JSON.stringify({ schema: 'estela', truncated: true })}\n${JSON.stringify({
         type: 'user',
         uuid: 'u1',
         timestamp: '2026-01-01T00:00:00.000Z',
@@ -197,7 +197,7 @@ describe('loadSession', () => {
     ).rejects.toThrow(`${path}#s1 does not exist`)
   })
 
-  it('a canonical agent-trace file loads as the parsed file, originals included', async () => {
+  it('a canonical Estela file loads as the parsed file, originals included', async () => {
     const path = join(repo, 'fixtures/demo.trace.json')
     // No kit adapter accepts this file, so only the canonical fast path can return it.
     const expected: unknown = JSON.parse(await readFile(path, 'utf8'))
@@ -230,7 +230,7 @@ describe('loadSession', () => {
       { agent: 'claude-code', path: join(projects, 'session.jsonl'), sessionId: 's' },
       { platform },
     )
-    expect(trace.schema).toBe('agent-trace')
+    expect(trace.schema).toBe('estela')
     expect(trace.agent).toBe('claude-code')
     expect(trace.events.length).toBeGreaterThan(0)
     expect(trace.events[0]!.original).toBeDefined()

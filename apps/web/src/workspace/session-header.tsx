@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import { Show } from 'solid-js'
 import { AgentMark } from '@/browser/agent-mark.tsx'
 import { Metric } from '@/components/metric.tsx'

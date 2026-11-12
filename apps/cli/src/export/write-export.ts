@@ -1,10 +1,10 @@
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
-import { toAtif, toOtlp } from '@rivus/agent-trace-kernel'
+import { toAtif, toOtlp } from '@rivus/estela-kernel'
 import { redact, redactText } from '@rivus/agent-kit/redact'
-import { homeDir } from '@rivus/agent-trace-runtime-node'
+import { homeDir } from '@rivus/estela-runtime-node'
 
 export type ExportFormat = 'atif' | 'otlp'
 
@@ -13,16 +13,16 @@ export function exportOf(trace: Trace, format: ExportFormat): unknown {
   return format === 'atif' ? toAtif(trace) : toOtlp(trace)
 }
 
-/** `agent-trace-<session id prefix>.atif.json` / `.otlp.json` in the working directory. */
+/** `estela-<session id prefix>.atif.json` / `.otlp.json` in the working directory. */
 export function defaultExportPath(sessionId: string, format: ExportFormat): string {
   const short = sessionId.replaceAll(/[^\w-]/g, '').slice(0, 8) || 'session'
-  return resolve(process.cwd(), `agent-trace-${short}.${format}.json`)
+  return resolve(process.cwd(), `estela-${short}.${format}.json`)
 }
 
 /**
  * Serializes the export (two-space JSON) and writes it, creating the directory when
  * `--out` names one that does not exist yet. `redacts` is the CLI's reading of
- * `AGENT_TRACE_REDACT`; the returned path always shows `~` for home.
+ * `ESTELA_REDACT`; the returned path always shows `~` for home.
  */
 export async function writeExport(
   trace: Trace,

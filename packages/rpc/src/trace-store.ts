@@ -1,8 +1,8 @@
 import type { SessionSummary, SessionTarget } from '@rivus/agent-kit/transcript'
-import type { ReconstructResult, Trace, TraceEvent } from '@rivus/agent-trace-schema'
-import type { FittedView, SessionFs } from '@rivus/agent-trace-kernel'
+import type { ReconstructResult, Trace, TraceEvent } from '@rivus/estela-schema'
+import type { FittedView, SessionFs } from '@rivus/estela-kernel'
 import type { FileStamp, ReadOriginal } from './source-check.ts'
-import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/agent-trace-kernel'
+import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import { checkedOriginal, fingerprints, stampFiles } from './source-check.ts'
 import { canonicalRecord, compressedRecord, reloadOnce, reloadShared, type Reloadable } from './original-reload.ts'
 

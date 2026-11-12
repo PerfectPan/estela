@@ -1,4 +1,4 @@
-import type { EventOf, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, TraceEvent } from '@rivus/estela-schema'
 import * as z from 'zod/mini'
 import { translate as t } from '@/i18n/locale.ts'
 import { escapeBidi, previewText, previewUnknown } from './preview.ts'

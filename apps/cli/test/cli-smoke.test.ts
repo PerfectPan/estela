@@ -118,7 +118,7 @@ describe('cli smoke', () => {
         params: {
           protocolVersion: '2025-11-25',
           capabilities: {},
-          clientInfo: { name: 'agent-trace-smoke', version: '0.0.0' },
+          clientInfo: { name: 'estela-smoke', version: '0.0.0' },
         },
       }),
       mcpMessage({ jsonrpc: '2.0', method: 'notifications/initialized' }),
@@ -126,7 +126,7 @@ describe('cli smoke', () => {
         jsonrpc: '2.0',
         id: 2,
         method: 'tools/call',
-        params: { name: 'agent-trace_reconstruct', arguments: { eventId: 'e6' } },
+        params: { name: 'estela_reconstruct', arguments: { eventId: 'e6' } },
       }),
     ].join('')
     const child = spawn(process.execPath, ['bin.mjs', 'mcp', demo], {

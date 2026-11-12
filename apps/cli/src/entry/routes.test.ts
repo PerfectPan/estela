@@ -154,9 +154,9 @@ describe('helpText', () => {
 
   it('lists every command and the dev server options', () => {
     const text = help()
-    expect(text.split('\n')[0]).toBe('agent-trace 1.2.3')
+    expect(text.split('\n')[0]).toBe('estela 1.2.3')
     // The session goes before options or after a command name, never before one.
-    expect(text).toContain('Usage:\n  agent-trace [OPTIONS] [SESSION]\n  agent-trace <COMMAND> [OPTIONS] [SESSION]\n')
+    expect(text).toContain('Usage:\n  estela [OPTIONS] [SESSION]\n  estela <COMMAND> [OPTIONS] [SESSION]\n')
     expect(text).not.toContain('<SESSION>')
     for (const name of ['build', 'mcp', 'export-atif', 'export-otlp', '--pick', '--no-index', '--port <VALUE>']) {
       expect(text).toContain(name)
@@ -165,9 +165,9 @@ describe('helpText', () => {
 
   it('names a command with the program in front of it', () => {
     const text = help('build')
-    expect(text.split('\n')[0]).toBe('agent-trace build 1.2.3')
-    expect(text).toContain('Usage:\n  agent-trace build [OPTIONS] [SESSION]\n')
-    expect(text).toContain('[SESSION]  A session file, path#sessionId, or canonical agent-trace JSON')
+    expect(text.split('\n')[0]).toBe('estela build 1.2.3')
+    expect(text).toContain('Usage:\n  estela build [OPTIONS] [SESSION]\n')
+    expect(text).toContain('[SESSION]  A session file, path#sessionId, or canonical Estela JSON')
     expect(text).toContain('--out-dir <VALUE>')
     expect(text).not.toContain('--pick')
   })

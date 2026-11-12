@@ -74,14 +74,14 @@ export interface OpenIndexOptions {
   summaryVersion: number
 }
 
-/** `$XDG_CACHE_HOME/rivus-agent-trace/index.sqlite`, else `~/.cache/rivus-agent-trace/index.sqlite`. */
+/** `$XDG_CACHE_HOME/rivus-estela/index.sqlite`, else `~/.cache/rivus-estela/index.sqlite`. */
 export function sessionIndexFile(
   env: Readonly<Record<string, string | undefined>> = process.env,
   home: string = homedir(),
 ): string {
   const xdg = env.XDG_CACHE_HOME
   const base = xdg && xdg.length > 0 ? xdg : join(home, '.cache')
-  return join(base, 'rivus-agent-trace', 'index.sqlite')
+  return join(base, 'rivus-estela', 'index.sqlite')
 }
 
 const SUMMARY_COLUMNS = [

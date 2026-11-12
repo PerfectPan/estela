@@ -1,5 +1,5 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import type { EventDetail, TraceViewResult } from './trace-store.ts'
 
 /** A report holds the originals of at most the first 2,000 events or 20 MB, whichever is smaller. */

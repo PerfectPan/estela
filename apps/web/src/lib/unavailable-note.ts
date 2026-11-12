@@ -1,5 +1,5 @@
 import type { Capability } from '@rivus/agent-kit/transcript'
-import type { ContextSlot, ContextSlotName } from '@rivus/agent-trace-schema'
+import type { ContextSlot, ContextSlotName } from '@rivus/estela-schema'
 import type { MessageKey } from '@/i18n/locale.ts'
 import { translate as t } from '@/i18n/locale.ts'
 

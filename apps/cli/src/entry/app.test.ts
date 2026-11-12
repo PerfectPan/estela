@@ -24,13 +24,13 @@ function capture(): { stdout: () => string; stderr: () => string } {
   return { stdout: () => out.join(''), stderr: () => err.join('') }
 }
 
-const FIX = 'Run agent-trace --help for usage.\n'
+const FIX = 'Run estela --help for usage.\n'
 
 describe('runCli', () => {
   it('prints the package version', async () => {
     const io = capture()
     expect(await runCli(['--version'])).toBe(0)
-    expect(io.stdout()).toBe(`agent-trace ${pkg.version}\n`)
+    expect(io.stdout()).toBe(`estela ${pkg.version}\n`)
   })
 
   it('fails an unknown option before the session is read, with the cause and one fix line', async () => {
@@ -76,8 +76,6 @@ describe('runCli', () => {
     const io = capture()
     expect(await runCli(['mcp', '/nonexistent/session.jsonl'])).toBe(1)
     expect(io.stdout()).toBe('')
-    expect(io.stderr()).toMatch(
-      /^Could not load \/nonexistent\/session\.jsonl: .+\nPass a canonical agent-trace JSON file/,
-    )
+    expect(io.stderr()).toMatch(/^Could not load \/nonexistent\/session\.jsonl: .+\nPass a canonical Estela JSON file/)
   })
 })

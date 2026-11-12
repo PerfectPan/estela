@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { NAMESPACE } from '@rivus/agent-trace-rpc'
+import { NAMESPACE } from '@rivus/estela-rpc'
 import { describe, expect, it } from 'vite-plus/test'
 import { packForFile } from './report-site.ts'
 

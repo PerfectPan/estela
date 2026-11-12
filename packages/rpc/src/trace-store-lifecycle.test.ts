@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { deferred, fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
 import { TraceStore } from './trace-store.ts'
@@ -157,7 +157,7 @@ describe('TraceStore lifecycle', () => {
       source: { file: '/logs/big.jsonl', offset: index, length: 1, line: index + 1 },
     }))
     const trace: Trace = {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       session: { id: 'big' },
       capabilities: [],

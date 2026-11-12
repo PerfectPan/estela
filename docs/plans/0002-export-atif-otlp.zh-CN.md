@@ -26,7 +26,7 @@
 
 ### 1.1 Current behavior and constraints
 
-- canonical trace（`@rivus/agent-trace-schema`）是带 per-kind payload 的事件
+- canonical trace（`@rivus/estela-schema`）是带 per-kind payload 的事件
   列表；kit 的 payload 注释写明每个字段对应的 OTel GenAI 属性
   （`gen_ai.request.model`、`gen_ai.usage.input_tokens`……）。
   `reconstruct(trace, eventId)` 是一个事件处的模型可见面：system、tools、
@@ -99,13 +99,13 @@ trace 只能被查看，不能被带走。canonical 模型当初就是为这两�
 ### 3.1 Entry points
 
 ```
-npx @rivus/agent-trace export-atif <path> [--out <file>]
-npx @rivus/agent-trace export-otlp <path> [--out <file>]
+npx @rivus/estela export-atif <path> [--out <file>]
+npx @rivus/estela export-otlp <path> [--out <file>]
 ```
 
-`<path>` 与 `build` 接受的相同：canonical agent-trace JSON 文件或会话路径。
+`<path>` 与 `build` 接受的相同：canonical Estela JSON 文件或会话路径。
 `--out` 写入该文件（创建或截断）；省略时写入工作目录下的
-`agent-trace-<session id 前 8 字符>.atif.json` / `.otlp.json`。plain 模式下
+`estela-<session id 前 8 字符>.atif.json` / `.otlp.json`。plain 模式下
 输出一行（`Wrote <path>`，home 用 `~`）；否则 clack intro/outro。
 
 ### 3.2 Kernel interfaces
@@ -135,7 +135,7 @@ export function toOtlp(trace: Trace): OtlpExportTraceRequest
 | `agent`, `agentVersion` | `agent.name`, `agent.version`（未记录时 `"unknown"`） |
 | `session.systemPrompt`, `session.tools` | 第一个 `system` step 的 `message`；`agent.tool_definitions`（仅当为记录数组） |
 | request `model` 恰有一个不同值 | `agent.model_name` |
-| `skipped`, `capabilities`, `agents`, `source`, `original` | `extra.agent_trace`（skipped 按 reason 计数；capabilities；无 per-event 内容——`source`/`original` 不放入） |
+| `skipped`, `capabilities`, `agents`, `source`, `original` | `extra.estela`（skipped 按 reason 计数；capabilities；无 per-event 内容——`source`/`original` 不放入） |
 | — | `notes`：写明本映射的 producer note |
 
 Steps（主 lane 按 `seq` 顺序走 `events`；其余每条 lane 成为一条按同样方式
@@ -143,21 +143,21 @@ Steps（主 lane 按 `seq` 顺序走 `events`；其余每条 lane 成为一条�
 
 | Canonical | ATIF |
 |---|---|
-| `user` 事件 | `source: "user"` 的 step，`message` = `payload.text`（缺失时为空串）；`meta`/`injected`/`command`/`continued`/`compactSummary` 标志 → `extra.agent_trace.flags` |
+| `user` 事件 | `source: "user"` 的 step，`message` = `payload.text`（缺失时为空串）；`meta`/`injected`/`command`/`continued`/`compactSummary` 标志 → `extra.estela.flags` |
 | 该 lane 上一个 `requestId` 组（`assistant`、`reasoning`、`tool_call`、`tool_result`、带该 id 的 `request`） | 一个 `source: "agent"` 的 step |
 | `assistant` payload `text` | `message` |
 | `reasoning` payload `text`（空行连接） | `reasoning_content` |
-| `tool_call`（`callId`, `name`, `args`） | `tool_calls[]`：`tool_call_id`, `function_name`, `arguments`（`args` 为记录时用之，否则 `{}`）；`title` → `extra.agent_trace.title` |
+| `tool_call`（`callId`, `name`, `args`） | `tool_calls[]`：`tool_call_id`, `function_name`, `arguments`（`args` 为记录时用之，否则 `{}`）；`title` → `extra.estela.title` |
 | `tool_result`（`callId`, `output`） | 进入持有匹配 `tool_call` 的 step 的 `observation.results[]`（`source_call_id`, `content` = `output` 为字符串时用之，否则 JSON 文本）；orphan result → 当前 agent step 上省略 `source_call_id` |
-| `request` payload | `metrics`：`prompt_tokens` = `usage.inputTokens`, `completion_tokens` = `usage.outputTokens`, `cached_tokens` = `usage.cacheReadTokens`；`metrics.extra.agent_trace`：`cacheWriteTokens`, `reasoningTokens`, `totalTokens`, `cacheWrite1hTokens`, `granularity`, `modelCalls`, `responseId`；`model_name` = `payload.model`（与 `agent.model_name` 不同时）；granularity 为 `turn`/`session` 时 `llm_call_count` = `modelCalls` |
-| `compaction` 事件 | `system` step，`message` = summary 文本（`payload.summaryEventId` 指名的 `compactSummary` user 事件，否则 `"Context compaction performed"`），`observation.results[0].content` = 该 summary，`extra.context_management = { type: "compaction", boundary: "replace" }`，`extra.agent_trace` 带 `trigger`/`preTokens`/`postTokens` |
+| `request` payload | `metrics`：`prompt_tokens` = `usage.inputTokens`, `completion_tokens` = `usage.outputTokens`, `cached_tokens` = `usage.cacheReadTokens`；`metrics.extra.estela`：`cacheWriteTokens`, `reasoningTokens`, `totalTokens`, `cacheWrite1hTokens`, `granularity`, `modelCalls`, `responseId`；`model_name` = `payload.model`（与 `agent.model_name` 不同时）；granularity 为 `turn`/`session` 时 `llm_call_count` = `modelCalls` |
+| `compaction` 事件 | `system` step，`message` = summary 文本（`payload.summaryEventId` 指名的 `compactSummary` user 事件，否则 `"Context compaction performed"`），`observation.results[0].content` = 该 summary，`extra.context_management = { type: "compaction", boundary: "replace" }`，`extra.estela` 带 `trigger`/`preTokens`/`postTokens` |
 | 跨 compaction 保留的事件（在它之前且未被 `shadowedBy`） | 其 step 带 `is_copied_context: true` |
 | 被 compaction `shadowedBy` 的事件 | 不产生 step |
 | `system` 事件 `type: 'prompt_snapshot'` 带 `systemPrompt` | `message` 为该快照文本的 `system` step（第一份与 `session.systemPrompt` 相同则复用之） |
-| `system` 事件 `type: 'turn_duration'` | 不产生 step；`durationMs` → 进行中 step 的 `extra.agent_trace.turnDurationMs` |
-| `hook` / `unknown` 事件 | 不产生 step；收集进进行中 step 的 `extra.agent_trace.hooks` / `.unknown` |
+| `system` 事件 `type: 'turn_duration'` | 不产生 step；`durationMs` → 进行中 step 的 `extra.estela.turnDurationMs` |
+| `hook` / `unknown` 事件 | 不产生 step；收集进进行中 step 的 `extra.estela.hooks` / `.unknown` |
 | `ts` | `timestamp`（ISO 8601） |
-| `durationMs`, `skipped`, `source`, `original`, `requestId`, `agentId` | `extra`（`extra.agent_trace.eventIds` 写明 step 的事件；`requestId` 在 step 的 `extra.agent_trace` 上） |
+| `durationMs`, `skipped`, `source`, `original`, `requestId`, `agentId` | `extra`（`extra.estela.eventIds` 写明 step 的事件；`requestId` 在 step 的 `extra.estela` 上） |
 
 Step 分组规则：lane 的遍历在第一个带 `requestId` 的事件（或未分组的
 `assistant`/`tool_call`/`reasoning`）处打开一个 agent step，持续吸收该
@@ -175,8 +175,8 @@ spawn 事件所在 lane 的 step 将 `spawnEventId` 分组进自己，其
 
 ### 3.4 OTLP 映射（固定：semconv `gen-ai-dev/1.42.0-dev`）
 
-一个 `resourceSpans`，resource 属性 `service.name = "agent-trace"`；一个
-`scopeSpans`，scope 为 `agent-trace`。JSON 遵循 OTLP JSON 编码规则：枚举用
+一个 `resourceSpans`，resource 属性 `service.name = "estela"`；一个
+`scopeSpans`，scope 为 `estela`。JSON 遵循 OTLP JSON 编码规则：枚举用
 整数（`span_kind`）、hex `traceId`/`spanId`、纳秒时间为十进制字符串。
 
 Id 与时间：trace id = `agent + session.id` 的哈希；span id = 事件 id 的
@@ -201,7 +201,7 @@ registry 允许 any 处的结构化值（`kvlistValue` / JSON 字符串）。
 ### 3.5 Redaction
 
 CLI 在写入前对导出的对象树应用 kit 的 `redact`（仅字符串：home 目录 → `~`、
-已知 token 模式），除非 `AGENT_TRACE_REDACT=0`。report 的规则（始终脱敏）
+已知 token 模式），除非 `ESTELA_REDACT=0`。report 的规则（始终脱敏）
 仍是 report 专有：数据导出可关闭，因为数据集或后端接入可能合法地需要未脱敏
 的字节。
 
@@ -215,7 +215,7 @@ CLI 在写入前对导出的对象树应用 kit 的 `redact`（仅字符串：ho
 
 ### 3.7 Compatibility and migration
 
-只有新命令与 kernel 导出；没有任何东西改变形态。`@rivus/agent-trace` 上的
+只有新命令与 kernel 导出；没有任何东西改变形态。`@rivus/estela` 上的
 changeset（minor）记录新能力。
 
 ## 4. Rollout and stability
@@ -231,7 +231,7 @@ changeset（minor）记录新能力。
   `export-otlp.test.ts`（span 树、属性名与值、OTLP JSON 编码规则、来自
   `reconstruct` 的消息）。
 - CLI 测试：`export.test.ts` —— demo fixture 上的命令接线（文件写出、应用
-  脱敏、`AGENT_TRACE_REDACT=0` 保留内容），以及每个已注册 agent 的
+  脱敏、`ESTELA_REDACT=0` 保留内容），以及每个已注册 agent 的
   conformance fixture 各一次导出并跑结构化 ATIF 检查器，使 CI 无 Python 也
   覆盖 A2 的形态。
 - `scripts/validate-exports.mjs`：用 CLI 导出每个已注册 agent 的 fixture
@@ -246,8 +246,8 @@ changeset（minor）记录新能力。
 
 | Batch | Command or evidence | Expected result |
 |---|---|---|
-| kernel | `pnpm --filter @rivus/agent-trace-kernel test` | exporter 单元测试绿色 |
-| cli | `pnpm --filter @rivus/agent-trace test` | export 接线 + fixture 导出绿色 |
+| kernel | `pnpm --filter @rivus/estela-kernel test` | exporter 单元测试绿色 |
+| cli | `pnpm --filter @rivus/estela test` | export 接线 + fixture 导出绿色 |
 | validator | `node scripts/validate-exports.mjs` | 每个 fixture 导出都通过 Harbor 校验器 |
 | backends | PR evidence：Phoenix + Langfuse 接入输出 | 会话可见，含 model、messages、usage |
 | gates | `node scripts/format.mjs --check`, `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`, `node scripts/check-layers.mjs`, `node scripts/check-browser-bundle.mjs` | 全绿 |

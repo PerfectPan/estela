@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { zstdCompressSync } from 'node:zlib'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import { expect, it } from 'vite-plus/test'
 import { createTraceStore } from '../src/server/trace-store.ts'
 
@@ -23,7 +23,7 @@ it.each([
     const platform = createNodePlatform({ home, env: {} })
     let fail = false
     const trace: Trace = {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       session: { id: 's' },
       agents: [{ id: 'main' }],

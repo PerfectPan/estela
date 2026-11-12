@@ -1,10 +1,10 @@
-import { isCanonicalTraceFile, readRange } from '@rivus/agent-trace-kernel'
-import type { Trace } from '@rivus/agent-trace-schema'
+import { isCanonicalTraceFile, readRange } from '@rivus/estela-kernel'
+import type { Trace } from '@rivus/estela-schema'
 import type { Platform } from '@rivus/agent-kit/platform'
 import type { SessionAdapters, SessionPlatform } from '@rivus/agent-kit/sessions'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
-import { isTrace } from '@rivus/agent-trace-schema'
+import { isTrace } from '@rivus/estela-schema'
 import { loadErrorMessage } from './read-failure.ts'
 import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
@@ -25,7 +25,7 @@ export interface LoadSessionOptions {
 }
 
 /**
- * One session load for the whole shell: canonical agent-trace JSON keeps its fast path
+ * One session load for the whole shell: canonical Estela JSON keeps its fast path
  * (`isCanonicalTraceFile` + `isTrace`, which checks each payload against its kind; originals
  * live in the file), and a file that fails it is read like any other. Everything else reads
  * through the kit and maps to the canonical `Trace`. The kit's expected failures throw with

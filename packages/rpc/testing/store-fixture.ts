@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import type { LoadedTrace, TraceStoreDeps } from '../src/trace-store.ts'
 import { cloneDeepWith } from 'es-toolkit/object'
 import * as z from 'zod/mini'
@@ -60,7 +60,7 @@ export function fixture() {
       line += 1
     }
     return {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       session: { id: file },
       capabilities: ['requests'],

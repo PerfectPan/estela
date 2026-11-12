@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { projectTurns, reconstruct } from '@rivus/agent-trace-kernel'
+import { projectTurns, reconstruct } from '@rivus/estela-kernel'
 import { builtinAdapters } from './adapters.ts'
 import {
   oversizedSession,

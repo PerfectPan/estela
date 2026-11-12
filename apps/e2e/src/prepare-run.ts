@@ -16,7 +16,7 @@ export interface Run extends Installed {
 }
 
 /** Records each URL the CLI opens instead of starting a browser (`open` on macOS, `xdg-open` on Linux). */
-const OPENER = '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "$AGENT_TRACE_SMOKE_OPEN_LOG"\n'
+const OPENER = '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "$ESTELA_SMOKE_OPEN_LOG"\n'
 
 /**
  * The shared global setup of `test:smoke` and `test:e2e`: a temp root, the built, packed, and
@@ -28,7 +28,7 @@ export async function prepareRun<T>(
   keepVariable: string,
   extra: (root: string) => Promise<T>,
 ): Promise<{ context: Run & T; cleanup: () => Promise<void> }> {
-  const root = await mkdtemp(join(tmpdir(), `agent-trace-${name}-`))
+  const root = await mkdtemp(join(tmpdir(), `estela-${name}-`))
   const cleanup = async () => {
     if (process.env[keepVariable] !== '1') {
       await rm(root, { recursive: true, force: true })

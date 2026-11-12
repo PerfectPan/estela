@@ -1,4 +1,4 @@
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { mainAgentId, promptStarts, recordUserStart, requestUsage, shadowedIn } from './lanes.ts'
 
 /** A ledger row: one event, or one run of consecutive `hook` events. */

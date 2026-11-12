@@ -1,4 +1,4 @@
-import type { ReportTrace } from '@rivus/agent-trace-rpc'
+import type { ReportTrace } from '@rivus/estela-rpc'
 import { Match, Switch } from 'solid-js'
 import { SessionBrowser } from '@/browser/session-browser.tsx'
 import { useRoute } from '@/shell/router.ts'

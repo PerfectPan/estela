@@ -1,9 +1,9 @@
-import { summaryOf } from '@rivus/agent-trace-kernel'
-import type { IndexHead, IndexRow } from '@rivus/agent-trace-runtime-node'
-import type { SessionError, SessionListRow } from '@rivus/agent-trace-rpc'
+import { summaryOf } from '@rivus/estela-kernel'
+import type { IndexHead, IndexRow } from '@rivus/estela-runtime-node'
+import type { SessionError, SessionListRow } from '@rivus/estela-rpc'
 import type { SessionAdapters, SessionHead, SessionRef } from '@rivus/agent-kit/sessions'
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/agent-trace-runtime-node'
+import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/estela-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
@@ -34,7 +34,7 @@ export interface LiveRow {
   revision: number
 }
 
-/** Session text shown in the browser and the terminal: redacted like the workspace unless `AGENT_TRACE_REDACT=0`. */
+/** Session text shown in the browser and the terminal: redacted like the workspace unless `ESTELA_REDACT=0`. */
 export type Redactor = (text: string) => string
 
 /** The preview shows about nine lines; the whole prompt stays searchable in the index. */

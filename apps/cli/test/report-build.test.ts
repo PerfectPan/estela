@@ -14,7 +14,7 @@ function build(path: string, outDir: string): Promise<number> {
     const child = spawn(process.execPath, ['bin.mjs', 'build', path, '--out-dir', outDir], {
       cwd: cliDir,
       stdio: 'ignore',
-      env: { ...process.env, AGENT_TRACE_REDACT: '0' },
+      env: { ...process.env, ESTELA_REDACT: '0' },
     })
     child.on('error', reject)
     child.on('close', code => resolve(code ?? 1))
@@ -25,7 +25,7 @@ describe('report site', () => {
   it('is one index.html holding the redacted report-trace, the script, and the styles', async () => {
     const outDir = await mkdtemp(join(tmpdir(), 'at-m5-report-'))
     try {
-      // AGENT_TRACE_REDACT=0 affects only the local server; the report is redacted anyway.
+      // ESTELA_REDACT=0 affects only the local server; the report is redacted anyway.
       expect(await build(compaction, outDir)).toBe(0)
       expect(await readdir(outDir)).toEqual(['index.html'])
       const html = await readFile(join(outDir, 'index.html'), 'utf8')

@@ -1,6 +1,6 @@
 import type { Lane } from '@rivus/agent-kit/transcript'
-import type { SkippedEntry, Trace, TraceEvent, TruncatedPath, ViewInfo } from '@rivus/agent-trace-schema'
-import { assertTrace } from '@rivus/agent-trace-schema'
+import type { SkippedEntry, Trace, TraceEvent, TruncatedPath, ViewInfo } from '@rivus/estela-schema'
+import { assertTrace } from '@rivus/estela-schema'
 import { isPlainObject } from 'es-toolkit/predicate'
 import { promptSnapshot } from './prompt-snapshot.ts'
 

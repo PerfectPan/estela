@@ -24,7 +24,7 @@ const fixtureHome = z.object({
   counts: z.object({ 'claude-code': z.number(), codex: z.number(), grok: z.number() }),
 })
 
-/** `E2eContext` as it travels through `AGENT_TRACE_E2E_CONTEXT`, parsed once at this boundary. */
+/** `E2eContext` as it travels through `ESTELA_E2E_CONTEXT`, parsed once at this boundary. */
 const e2eContext = z.object({
   repo: z.string(),
   root: z.string(),
@@ -38,7 +38,7 @@ const e2eContext = z.object({
 })
 
 export interface Launched {
-  /** `http://localhost:<port>/__agent-trace/`. */
+  /** `http://localhost:<port>/__estela/`. */
   base: string
   /** The launch session's trace id, when a path was given. */
   traceId?: string
@@ -64,7 +64,7 @@ interface Fixtures {
   consoleErrors: string[]
 }
 
-const READY = /Ready: (http:\/\/localhost:\d+\/__agent-trace\/)(?:#\/s\/([0-9a-f]+))?/
+const READY = /Ready: (http:\/\/localhost:\d+\/__estela\/)(?:#\/s\/([0-9a-f]+))?/
 
 function readContext(): E2eContext {
   const raw = process.env[CONTEXT_ENV]

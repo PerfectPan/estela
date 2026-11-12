@@ -185,7 +185,7 @@ function sorted(notices: Iterable<PackageNotice>): PackageNotice[] {
   const byId = new Map<string, PackageNotice>()
   for (const notice of notices) {
     // Workspace packages are this repository's own GPL code; @rivus/agent-kit is an external MIT package.
-    if (!notice.name.startsWith('@rivus/agent-trace')) {
+    if (!notice.name.startsWith('@rivus/estela')) {
       byId.set(`${notice.name}@${notice.version}`, notice)
     }
   }
@@ -215,13 +215,13 @@ export function thirdPartyNotices(options: { webPackage: string; sourceNotices: 
       const rolldown = rolldownNotice(vitePlusCoreOf(dirname(fileURLToPath(import.meta.url))), options.webPackage)
       const adapted = readFileSync(options.sourceNotices, 'utf8').trim()
       const text = [
-        'Third-party software in @rivus/agent-trace',
+        'Third-party software in @rivus/estela',
         '',
         'dist/cli.mjs and dist/bin.mjs bundle the packages in the first section; rolldown is listed there',
         'for the runtime helpers it writes into them. dist/web/ is built from the packages in the second',
         'section; it may list a package whose code was tree-shaken away.',
         'devframe and @devframes/agentic are installed as dependencies with their own licenses.',
-        'The last section covers code adapted into the agent-trace sources themselves.',
+        'The last section covers code adapted into the Estela sources themselves.',
         '',
         render('dist/cli.mjs', sorted([...[...bundled].map(noticeOf), rolldown])),
         render('dist/web/', sorted(webNotices(options.webPackage))),

@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Trace, TraceEventPayloads } from '@rivus/agent-trace-schema'
-import { assertTrace, isTrace } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEventPayloads } from '@rivus/estela-schema'
+import { assertTrace, isTrace } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { reconstruct } from './reconstruct.ts'
 
@@ -65,7 +65,7 @@ describe('reconstruct', () => {
   it('stays on the event lane and records no count the agent did not log', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       session: { id: 's' },
       capabilities: ['requests'],
@@ -100,7 +100,7 @@ describe('reconstruct', () => {
 
   it('reports system unavailable unless the agent declares and recorded a system prompt', () => {
     const base = {
-      schema: 'agent-trace' as const,
+      schema: 'estela' as const,
       agent: 'test',
       session: { id: 's' },
       capabilities: [] as Trace['capabilities'],
@@ -128,7 +128,7 @@ describe('reconstruct', () => {
   it('does not invent a missing event', () => {
     const result = reconstruct(
       {
-        schema: 'agent-trace',
+        schema: 'estela',
         agent: 'test',
         session: { id: 's' },
         capabilities: [],
@@ -145,7 +145,7 @@ describe('reconstruct', () => {
   it("starts a subagent turn at the lane start and needs the lane's own system prompt", () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       session: { id: 's', systemPrompt: 'main prompt' },
       capabilities: ['systemPrompt'],
@@ -182,7 +182,7 @@ describe('reconstruct', () => {
   it('keeps the main lane without a prompt out of the current turn', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const trace: Trace = {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       session: { id: 's' },
       capabilities: [],
@@ -223,7 +223,7 @@ describe('reconstruct', () => {
       source: { ...source, line: seq + 1 },
     })
     const trace: Trace = {
-      schema: 'agent-trace',
+      schema: 'estela',
       agent: 'test',
       // Session fields hold the latest snapshot; they must not leak to earlier events.
       session: { id: 's', systemPrompt: 'two', tools: [{ name: 'b' }] },

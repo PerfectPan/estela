@@ -1,10 +1,10 @@
 {
-  "name": "@rivus/agent-trace-e2e",
+  "name": "@rivus/estela-e2e",
   "private": true,
   "type": "module",
   "version": "0.0.0",
   "license": "GPL-3.0-only",
-  "description": "Smoke and browser end-to-end tests against the packed @rivus/agent-trace tarball.",
+  "description": "Smoke and browser end-to-end tests against the packed @rivus/estela tarball.",
   "scripts": {
     "build": "tsc --noEmit",
     "lint": "vp lint src vite.config.ts playwright.config.ts 2>&1",

@@ -1,7 +1,7 @@
-import type { TimelineLane } from '@rivus/agent-trace-kernel'
-import type { Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { TimelineLane } from '@rivus/estela-kernel'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import type { BarInput } from '@/lib/timeline-scale.ts'
-import { mainAgentId } from '@rivus/agent-trace-kernel'
+import { mainAgentId } from '@rivus/estela-kernel'
 
 export interface Mark {
   ts: number

@@ -1,4 +1,4 @@
-import type { SessionListRow } from '@rivus/agent-trace-rpc'
+import type { SessionListRow } from '@rivus/estela-rpc'
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatNumber } from '@/lib/format.ts'
@@ -247,7 +247,7 @@ export function SessionBrowser() {
               <path d="M5 8 L9 12 L5 16" />
               <path d="M11 16 H19" />
             </svg>
-            <span class="font-mono">npx @rivus/agent-trace</span>
+            <span class="font-mono">npx @rivus/estela</span>
             <span>· {t('common.nothingLeaves')}</span>
           </footer>
         </main>

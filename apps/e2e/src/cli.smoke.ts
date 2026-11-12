@@ -43,12 +43,12 @@ describe('installed tarball', () => {
   })
 
   it('--help through npx', async () => {
-    const result = await run('npx', ['--no-install', 'agent-trace', '--help'], {
+    const result = await run('npx', ['--no-install', 'estela', '--help'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'help')),
     })
     expect(result.code).toBe(0)
-    expect(result.stdout.split('\n')[0]).toBe(`agent-trace ${cliPackage.version}`)
+    expect(result.stdout.split('\n')[0]).toBe(`estela ${cliPackage.version}`)
     expect(result.stdout).toContain('Usage:')
     expect(result.stdout).toContain('--pick')
     expect(result.stdout).toContain('export-otlp')
@@ -59,11 +59,11 @@ describe('installed tarball', () => {
     const env = smokeEnv(ctx, openLogPath(ctx, 'version'))
     const version = await run(process.execPath, [ctx.bin, '--version'], { cwd: ctx.installDir, env })
     expect(version.code).toBe(0)
-    expect(version.stdout).toBe(`agent-trace ${cliPackage.version}\n`)
+    expect(version.stdout).toBe(`estela ${cliPackage.version}\n`)
     const unknown = await run(process.execPath, [ctx.bin, '--bogus', ctx.claudePlain], { cwd: ctx.installDir, env })
     expect(unknown.code).toBe(1)
     expect(unknown.stdout).toBe('')
-    expect(unknown.stderr).toBe('unexpected: `--bogus`\nRun agent-trace --help for usage.\n')
+    expect(unknown.stderr).toBe('unexpected: `--bogus`\nRun estela --help for usage.\n')
   })
 
   it("S2: a session path opens that session's workspace", async () => {
@@ -116,19 +116,19 @@ describe('installed tarball', () => {
         params: {
           protocolVersion: '2025-11-25',
           capabilities: {},
-          clientInfo: { name: 'agent-trace-smoke', version: '0.0.0' },
+          clientInfo: { name: 'estela-smoke', version: '0.0.0' },
         },
       })
-      expect((await response(1)).result.serverInfo.name).toContain('agent-trace')
+      expect((await response(1)).result.serverInfo.name).toContain('estela')
       send({ jsonrpc: '2.0', method: 'notifications/initialized' })
       send({ jsonrpc: '2.0', id: 2, method: 'tools/list' })
       const tools = (await response(2)).result.tools.map((tool: { name: string }) => tool.name)
-      expect(tools).toContain('agent-trace_reconstruct')
+      expect(tools).toContain('estela_reconstruct')
       send({
         jsonrpc: '2.0',
         id: 3,
         method: 'tools/call',
-        params: { name: 'agent-trace_reconstruct', arguments: { eventId: 'a1' } },
+        params: { name: 'estela_reconstruct', arguments: { eventId: 'a1' } },
       })
       const call = (await response(3)).result
       expect(call.isError).not.toBe(true)
@@ -152,7 +152,7 @@ describe('installed tarball', () => {
       env: smokeEnv(ctx, openLogPath(ctx, 's13')),
     })
     expect(result.code).toBe(1)
-    expect(`${result.stdout}${result.stderr}`).toBe('agent-trace requires Node.js 24 or later.\n')
+    expect(`${result.stdout}${result.stderr}`).toBe('estela requires Node.js 24 or later.\n')
   })
 
   it('S15: build piped to a file writes plain lines and no home path', async () => {

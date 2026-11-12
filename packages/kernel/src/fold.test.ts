@@ -1,5 +1,5 @@
 import type { TranscriptEventKind } from '@rivus/agent-kit/transcript'
-import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/agent-trace-schema'
+import type { Trace, TraceEvent, TraceEventPayloads } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { downsample, fold } from './fold.ts'
 
@@ -16,7 +16,7 @@ function event(input: EventInput): TraceEvent {
 
 function trace(partial: Partial<Trace> & Pick<Trace, 'events' | 'capabilities'>): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'demo',
     session: { id: 's' },
     agents: [{ id: 'main' }],

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { unsupportedNodeMessage } from './node-version.mjs'
 
-const message = 'agent-trace requires Node.js 24 or later.'
+const message = 'estela requires Node.js 24 or later.'
 
 describe('unsupportedNodeMessage', () => {
   it('rejects Node 20, 22, and 23', () => {

@@ -1,23 +1,23 @@
 {
-  "name": "@rivus/agent-trace",
+  "name": "@rivus/estela",
   "type": "module",
   "version": "0.1.0",
-  "description": "DevFrame shell: CLI, static dump, and MCP over the agent-trace kernel.",
-  "homepage": "https://github.com/PerfectPan/agent-trace",
+  "description": "DevFrame shell: CLI, static dump, and MCP over the Estela kernel.",
+  "homepage": "https://github.com/PerfectPan/estela",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PerfectPan/agent-trace.git",
+    "url": "git+https://github.com/PerfectPan/estela.git",
     "directory": "apps/cli"
   },
   "bugs": {
-    "url": "https://github.com/PerfectPan/agent-trace/issues"
+    "url": "https://github.com/PerfectPan/estela/issues"
   },
   "license": "GPL-3.0-only",
   "engines": {
     "node": ">=24"
   },
   "bin": {
-    "agent-trace": "./dist/bin.mjs"
+    "estela": "./dist/bin.mjs"
   },
   "files": [
     "dist",
@@ -44,11 +44,11 @@
     "@clack/prompts": "1.8.1",
     "@perfectpan/lint-config": "catalog:",
     "@rivus/agent-kit": "catalog:",
-    "@rivus/agent-trace-kernel": "workspace:*",
-    "@rivus/agent-trace-rpc": "workspace:*",
-    "@rivus/agent-trace-runtime-node": "workspace:*",
-    "@rivus/agent-trace-schema": "workspace:*",
-    "@rivus/agent-trace-web": "workspace:*",
+    "@rivus/estela-kernel": "workspace:*",
+    "@rivus/estela-rpc": "workspace:*",
+    "@rivus/estela-runtime-node": "workspace:*",
+    "@rivus/estela-schema": "workspace:*",
+    "@rivus/estela-web": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",

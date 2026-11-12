@@ -6,7 +6,7 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { describe, expect, it } from 'vite-plus/test'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { Trace } from '@rivus/estela-schema'
 import { exportOf, writeExport } from './write-export.ts'
 import { loadSession } from '../sessions/load-session.ts'
 
@@ -110,7 +110,7 @@ function checkAtif(trajectory: Record<string, unknown>, embedded: boolean): void
 }
 
 describe('export', () => {
-  it('writes a redacted ATIF file and keeps content with AGENT_TRACE_REDACT=0', async () => {
+  it('writes a redacted ATIF file and keeps content with ESTELA_REDACT=0', async () => {
     const trace = await claudeLoad('plain/session.jsonl')
     const dir = mkdtempSync(join(tmpdir(), 'at-export-'))
     try {
@@ -157,7 +157,7 @@ describe('export', () => {
     }
     expect(value.resourceSpans).toHaveLength(1)
     expect(value.resourceSpans[0]!.resource.attributes).toEqual([
-      { key: 'service.name', value: { stringValue: 'agent-trace' } },
+      { key: 'service.name', value: { stringValue: 'estela' } },
     ])
     for (const span of value.resourceSpans[0]!.scopeSpans[0]!.spans) {
       expect(span.traceId).toMatch(/^[0-9a-f]{32}$/)

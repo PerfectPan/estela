@@ -62,9 +62,9 @@ function concurrentIndexWriter(file: string): string {
 
 describe('session index', () => {
   it('honors XDG_CACHE_HOME and otherwise uses ~/.cache', () => {
-    expect(sessionIndexFile({ XDG_CACHE_HOME: '/xdg' }, '/h/u')).toBe('/xdg/rivus-agent-trace/index.sqlite')
-    expect(sessionIndexFile({ XDG_CACHE_HOME: '' }, '/h/u')).toBe('/h/u/.cache/rivus-agent-trace/index.sqlite')
-    expect(sessionIndexFile({}, '/h/u')).toBe('/h/u/.cache/rivus-agent-trace/index.sqlite')
+    expect(sessionIndexFile({ XDG_CACHE_HOME: '/xdg' }, '/h/u')).toBe('/xdg/rivus-estela/index.sqlite')
+    expect(sessionIndexFile({ XDG_CACHE_HOME: '' }, '/h/u')).toBe('/h/u/.cache/rivus-estela/index.sqlite')
+    expect(sessionIndexFile({}, '/h/u')).toBe('/h/u/.cache/rivus-estela/index.sqlite')
   })
 
   it('creates the file with mode 0600 and reopens the same summary', async () => {
@@ -284,7 +284,7 @@ describe('session index', () => {
   })
 
   it('creates the directory 0700 and the file 0600', async () => {
-    const file = join(await tempDir(), 'cache', 'rivus-agent-trace', 'index.sqlite')
+    const file = join(await tempDir(), 'cache', 'rivus-estela', 'index.sqlite')
     openSessionIndex({ summaryVersion: 1, file }).close()
     expect(statSync(dirname(file)).mode & 0o777).toBe(0o700)
     expect(statSync(file).mode & 0o777).toBe(0o600)
@@ -350,7 +350,7 @@ describe('session index', () => {
   })
 
   it('uses WAL, and gives the -wal and -shm files and an existing directory the private modes', async () => {
-    const dir = join(await tempDir(), 'rivus-agent-trace')
+    const dir = join(await tempDir(), 'rivus-estela')
     mkdirSync(dir, { mode: 0o755 })
     chmodSync(dir, 0o755)
     const file = join(dir, 'index.sqlite')

@@ -105,10 +105,10 @@ function boxFits(url: string): boolean {
 
 export function sayStart(version: string): void {
   if (isPlainOutput()) {
-    process.stdout.write(`agent-trace ${version}\n`)
+    process.stdout.write(`estela ${version}\n`)
     return
   }
-  intro(`agent-trace ${version}`)
+  intro(`estela ${version}`)
 }
 
 export function startLoad(): { stop: (events: number) => void; cancel: () => void } {
@@ -141,13 +141,13 @@ export async function sayBuild(
   },
 ): Promise<void> {
   if (isPlainOutput()) {
-    process.stdout.write(`agent-trace ${version}\n`)
+    process.stdout.write(`estela ${version}\n`)
     process.stdout.write(`Load: ${await steps.load()}\n`)
     process.stdout.write(`Redact: ${await steps.redact()}\n`)
     process.stdout.write(`Write: ${await steps.write()}\n`)
     return
   }
-  intro(`agent-trace ${version}`)
+  intro(`estela ${version}`)
   await tasks([
     { title: 'Load', task: async () => steps.load() },
     { title: 'Redact', task: async () => steps.redact() },
@@ -218,7 +218,7 @@ export function sayMcpReady(name: string, transport: string): void {
 
 /** A TraceStore warning: one plain stderr line in a terminal and in a pipe alike, so `mcp` stdout stays protocol. */
 export function sayStoreWarning(line: string): void {
-  process.stderr.write(`agent-trace: ${line}\n`)
+  process.stderr.write(`estela: ${line}\n`)
 }
 
 /** The file an export wrote: one plain line in a terminal and in a pipe alike. */

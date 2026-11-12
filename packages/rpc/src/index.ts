@@ -3,7 +3,7 @@ import { listSessions } from './functions/list-sessions.ts'
 import { exportReport, reportTrace } from './functions/report.ts'
 import { getEvent, getTraceView, loadTrace, reconstructAt } from './functions/trace-view.ts'
 
-export const NAMESPACE = 'agent-trace'
+export const NAMESPACE = 'estela'
 
 export const serverFunctions = [listSessions, loadTrace, getTraceView, getEvent, reconstructAt, exportReport] as const
 /** Registered only when DevFrame builds a static report: the one argument-free snapshot it bakes. */

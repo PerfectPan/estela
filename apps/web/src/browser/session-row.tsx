@@ -1,4 +1,4 @@
-import type { SessionListRow } from '@rivus/agent-trace-rpc'
+import type { SessionListRow } from '@rivus/estela-rpc'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatActive, formatDuration, formatNumber, formatOptional, formatTokens } from '@/lib/format.ts'

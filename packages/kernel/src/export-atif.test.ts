@@ -1,4 +1,4 @@
-import type { EventOf, Trace, TraceEvent } from '@rivus/agent-trace-schema'
+import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { toAtif } from './export-atif.ts'
 
@@ -19,7 +19,7 @@ function traceOf(
   session: Trace['session'] = { id: 's1' },
 ): Trace {
   return {
-    schema: 'agent-trace',
+    schema: 'estela',
     agent: 'test-agent',
     session,
     capabilities: ['requests', 'usage', 'compaction', 'subagents'],
@@ -64,7 +64,7 @@ describe('toAtif', () => {
 
     const [user, agent, compaction, secondUser, second] = atif.steps
     expect(user).toMatchObject({ source: 'user', message: 'Fix the bug' })
-    expect(user?.extra?.agent_trace?.eventIds).toEqual(['e1'])
+    expect(user?.extra?.estela?.eventIds).toEqual(['e1'])
 
     // Events the compaction removed produce no step content: the surviving turn keeps
     // its assistant text and its request metrics, marked as copied context.
@@ -72,8 +72,8 @@ describe('toAtif', () => {
     expect(agent?.tool_calls).toBeUndefined()
     expect(agent?.observation).toBeUndefined()
     expect(agent?.metrics).toMatchObject({ prompt_tokens: 30, completion_tokens: 12 })
-    expect(agent?.extra?.agent_trace?.requestId).toBe('r1')
-    expect(agent?.extra?.agent_trace?.eventIds).toEqual(['e4', 'e5'])
+    expect(agent?.extra?.estela?.requestId).toBe('r1')
+    expect(agent?.extra?.estela?.eventIds).toEqual(['e4', 'e5'])
 
     expect(compaction).toMatchObject({
       source: 'system',
@@ -152,13 +152,13 @@ describe('toAtif', () => {
     expect(agent.tool_calls![0]!.arguments).toEqual({ input: 'ls -la' })
     expect(agent.llm_call_count).toBe(3)
     expect(agent.metrics?.prompt_tokens).toBe(5)
-    expect(agent.metrics?.extra?.agent_trace).toMatchObject({
+    expect(agent.metrics?.extra?.estela).toMatchObject({
       responseId: 'resp_1',
       granularity: 'turn',
       modelCalls: 3,
     })
-    expect(agent.extra?.agent_trace?.hooks).toEqual([{ type: 'tool', name: 'PreToolUse', exitCode: 0 }])
-    expect(atif.steps[0]!.extra?.agent_trace?.flags).toEqual(['meta'])
+    expect(agent.extra?.estela?.hooks).toEqual([{ type: 'tool', name: 'PreToolUse', exitCode: 0 }])
+    expect(atif.steps[0]!.extra?.estela?.flags).toEqual(['meta'])
     // No output tokens recorded, so none exported.
     expect(agent.metrics?.completion_tokens).toBeUndefined()
   })
@@ -170,7 +170,7 @@ describe('toAtif', () => {
     const atif = toAtif(trace)
     expect(atif.steps).toHaveLength(1)
     expect(atif.steps[0]!.source).toBe('agent')
-    expect(atif.steps[0]!.observation?.results).toEqual([{ content: 'late', extra: { agent_trace: { orphan: true } } }])
+    expect(atif.steps[0]!.observation?.results).toEqual([{ content: 'late', extra: { estela: { orphan: true } } }])
   })
 
   it('builds system steps from snapshots and turn durations go to extra', () => {
@@ -184,7 +184,7 @@ describe('toAtif', () => {
     expect(atif.steps[0]).toMatchObject({ source: 'system', message: 'Be nice.' })
     expect(atif.steps).toHaveLength(3)
     const agent = atif.steps[2]!
-    expect(agent.extra?.agent_trace?.turnDurationMs).toBe(42)
+    expect(agent.extra?.estela?.turnDurationMs).toBe(42)
   })
 
   it('throws when a trace has nothing an ATIF step can come from', () => {

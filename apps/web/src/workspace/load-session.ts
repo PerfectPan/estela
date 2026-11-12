@@ -1,11 +1,11 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
-import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/agent-trace-rpc'
-import type { Trace } from '@rivus/agent-trace-schema'
+import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/estela-rpc'
+import type { Trace } from '@rivus/estela-schema'
 import { createSignal, onCleanup } from 'solid-js'
 import { messageOf } from '@/lib/error-message.ts'
 import { devframeClient, scopedClient } from '@/shell/client.ts'
 
-/** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/agent-trace-rpc` (the web app imports only its types). */
+/** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/estela-rpc` (the web app imports only its types). */
 const LOAD_PROGRESS_CHANNEL = 'load-progress'
 
 /** A report holds the first events in full; any other event comes back as its view with `notInReport`. */

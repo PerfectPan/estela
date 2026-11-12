@@ -7,20 +7,20 @@ import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 
 const FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
-const KERNEL = '@rivus/agent-trace-kernel'
-const SCHEMA = '@rivus/agent-trace-schema'
-const RPC = '@rivus/agent-trace-rpc'
+const KERNEL = '@rivus/estela-kernel'
+const SCHEMA = '@rivus/estela-schema'
+const RPC = '@rivus/estela-rpc'
 const KIT = '@rivus/agent-kit'
 const CORE = [RPC, KERNEL, SCHEMA]
 
 const ALLOW = {
   // Only the CLI imports the kit at runtime; oxlint enforces type-only imports elsewhere.
-  '@rivus/agent-trace': [KIT, '@rivus/agent-trace-web', '@rivus/agent-trace-runtime-node', ...CORE],
-  '@rivus/agent-trace-web': [KIT, ...CORE],
+  '@rivus/estela': [KIT, '@rivus/estela-web', '@rivus/estela-runtime-node', ...CORE],
+  '@rivus/estela-web': [KIT, ...CORE],
   // Tests the packed tarball from outside; it depends on no workspace package.
-  '@rivus/agent-trace-e2e': [],
+  '@rivus/estela-e2e': [],
   [RPC]: [KIT, KERNEL, SCHEMA],
-  '@rivus/agent-trace-runtime-node': [KIT, KERNEL, SCHEMA],
+  '@rivus/estela-runtime-node': [KIT, KERNEL, SCHEMA],
   [KERNEL]: [KIT, SCHEMA],
   [SCHEMA]: [KIT],
 }
@@ -31,7 +31,7 @@ const HELP = `Usage:
 Reads every workspace package from "pnpm ls -r" and checks each package.json
 @rivus/* dependency (dependencies, devDependencies, peerDependencies,
 optionalDependencies) against the "May depend on" column of the Layers table
-in AGENTS.md. @rivus/agent-trace-e2e may have no runtime dependencies at all.
+in AGENTS.md. @rivus/estela-e2e may have no runtime dependencies at all.
 A new workspace package needs an ALLOW entry in this script.
 Exits 1 and prints one line per violation.
 `
@@ -58,7 +58,7 @@ const projects = listed
 const violations = []
 for (const project of projects) {
   const manifest = JSON.parse(readFileSync(join(root, project, 'package.json'), 'utf8'))
-  if (manifest.name === '@rivus/agent-trace-e2e' && Object.keys(manifest.dependencies ?? {}).length > 0) {
+  if (manifest.name === '@rivus/estela-e2e' && Object.keys(manifest.dependencies ?? {}).length > 0) {
     violations.push(
       `check-layers: ${manifest.name} has runtime dependencies; it may only use devDependencies (test tooling)`,
     )

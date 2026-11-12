@@ -1,6 +1,6 @@
 import { errorMessage } from '../sessions/read-failure.ts'
 
-const SESSION_FIX = 'Pass a canonical agent-trace JSON file, or a session path a registered agent adapter accepts.'
+const SESSION_FIX = 'Pass a canonical Estela JSON file, or a session path a registered agent adapter accepts.'
 
 /** Every way a command fails on purpose. Any other error is a bug and keeps its stack. */
 export type CliFailure =
@@ -15,7 +15,7 @@ export class CliError extends Error {
   readonly failure: CliFailure
 
   constructor(failure: CliFailure) {
-    super(`agent-trace: ${failure.kind} failure`)
+    super(`estela: ${failure.kind} failure`)
     this.name = 'CliError'
     this.failure = failure
   }
@@ -31,7 +31,7 @@ export interface FailureReport {
 export function failureReport(failure: CliFailure): FailureReport {
   switch (failure.kind) {
     case 'usage':
-      return { message: { cause: failure.detail, fix: 'Run agent-trace --help for usage.' }, exitCode: 1 }
+      return { message: { cause: failure.detail, fix: 'Run estela --help for usage.' }, exitCode: 1 }
     case 'session':
       return {
         message: {

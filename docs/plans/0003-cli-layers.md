@@ -57,7 +57,7 @@ to touch both parsers.
   the terminal, and sets the exit code.
 - One parse. The route table rejects unknown options and extra positionals before a session is
   loaded or indexed.
-- `agent-trace --help` lists every command, each command has its own `--help`, and `--version`
+- `estela --help` lists every command, each command has its own `--help`, and `--version`
   prints the package version.
 - One table maps every expected failure to its message, fix line, and exit code, and the type
   checker keeps it exhaustive.
@@ -127,13 +127,13 @@ bin.mjs → main() → runCli(argv)
   intents (`help`, `version`, `execute`), validates each value with a Standard Schema (the
   repository's `zod/mini` schemas work unchanged), rejects tokens no route takes, and returns the
   tokens after `--` as literals. It is bundled into `dist/cli.mjs` like `@clack/prompts`.
-- **D2. `AGENT_TRACE_PATH` stays a fallback the CLI reads itself.** Given an environment record,
+- **D2. `ESTELA_PATH` stays a fallback the CLI reads itself.** Given an environment record,
   the router would also bind `PORT`, `HOST`, and every other option name, and `--pick` must ignore
   the variable.
 - **D3. Help comes from the router's `printHelp`, under the full command name.** The printer titles
   a nested route by its path alone (`build`), so `help.ts` passes the route renamed to
-  `agent-trace build`. Every route carries the version, and `--version` prints
-  `agent-trace <version>`.
+  `estela build`. Every route carries the version, and `--version` prints
+  `estela <version>`.
 - **D4. Failures are one table.** `entry/failure.ts` holds the `CliFailure` union and
   `failureReport`, a `switch` that must return for every kind. Commands throw `CliError`; nothing
   below `entry/` exits. Every failure keeps exit code 1.
@@ -152,14 +152,14 @@ bin.mjs → main() → runCli(argv)
 | `/mcp` | `[session]` | none |
 | `/export-atif`, `/export-otlp` | `[session]` | `--out <file>` |
 
-- `session` falls back to `AGENT_TRACE_PATH` (an empty value names nothing); `build`, `mcp`, and
+- `session` falls back to `ESTELA_PATH` (an empty value names nothing); `build`, `mcp`, and
   the exports then fall back to the bundled demo trace. The one token after `--` counts as the
   session, for a path that starts with `-`.
 - `--port` is an integer from 0 to 65535; `0` lets the OS choose.
 - `open` and `mcp` are absent unless given, so DevFrame's defaults apply: the browser opens, and
   the MCP route mounts once agent tools exist. `auth` and `index` stay on unless `--no-auth` or
   `--no-index`.
-- A session or option written before a command name (`agent-trace --port 1 build x`) is a usage
+- A session or option written before a command name (`estela --port 1 build x`) is a usage
   failure: it belongs to the dev server, which that command never starts.
 - Command names are reserved on the dev server's command line. By design ("Command literals are
   routing tokens, not positional arguments"), the router reads the first bare word that names a
@@ -169,7 +169,7 @@ bin.mjs → main() → runCli(argv)
   `app.ts` can spot one written before a command name.
 - `port` is `--port`, else `resolveDevServerPort(devframe, { host })`: the definition's 7392 or
   the next free port.
-- With a launch session (a path, `AGENT_TRACE_PATH`, or `--pick`), the CLI opens
+- With a launch session (a path, `ESTELA_PATH`, or `--pick`), the CLI opens
   `?s=<traceId>` itself unless `--no-open`, and DevFrame opens nothing. Without one, DevFrame opens
   the session browser unless `--no-open`.
 - `--no-auth` passes `auth: false`; otherwise the CLI's own browser open carries the one-time code.
@@ -191,8 +191,8 @@ stdout carries protocol only; the ready line and every failure go to stderr as p
 
 | Kind | Message | Fix line | Exit |
 | --- | --- | --- | --- |
-| `usage` | the router's issue (``unexpected: `--bogus` ``, `--port requires a value`, `port: expected a port number from 0 to 65535`, `out: expected a path; writing to stdout (-) is not supported`), `--pick needs an interactive terminal`, `--pick cannot be used with a session path`, ``put the session and options after `build` `` | `Run agent-trace --help for usage.` | 1 |
-| `session` (`load`, `build`, `export`) | `Could not <action> <target>: <reason>` | `Pass a canonical agent-trace JSON file, or a session path a registered agent adapter accepts.` | 1 |
+| `usage` | the router's issue (``unexpected: `--bogus` ``, `--port requires a value`, `port: expected a port number from 0 to 65535`, `out: expected a path; writing to stdout (-) is not supported`), `--pick needs an interactive terminal`, `--pick cannot be used with a session path`, ``put the session and options after `build` `` | `Run estela --help for usage.` | 1 |
+| `session` (`load`, `build`, `export`) | `Could not <action> <target>: <reason>` | `Pass a canonical Estela JSON file, or a session path a registered agent adapter accepts.` | 1 |
 | `index` | `Could not index sessions: <reason>` | `Check the agent session directories, or pass --no-index.` | 1 |
 | `no-sessions` | `No sessions to pick.` | as for `session` | 1 |
 | `cancelled` | none (the picker prints its own cancel line) | none | 1 |
@@ -210,15 +210,15 @@ Usage failures and every `mcp` failure are plain lines on stderr. Other failures
 
 ### 3.6 Compatibility
 
-Unchanged: command names, option names and defaults, `AGENT_TRACE_PATH` (an empty value aside,
-below), `AGENT_TRACE_REDACT`, exit codes, the plain output lines, the Ready box, MCP stdout, and the
+Unchanged: command names, option names and defaults, `ESTELA_PATH` (an empty value aside,
+below), `ESTELA_REDACT`, exit codes, the plain output lines, the Ready box, MCP stdout, and the
 report and export files.
 
 Changed:
 
 - `--help` uses the router's layout and lists every command; `<command> --help` describes that
   command.
-- `--version` prints `agent-trace <version>` (was `agent-trace/0.0.0 <platform> node-<version>`).
+- `--version` prints `estela <version>` (was `agent-trace/0.0.0 <platform> node-<version>`).
 - An unknown option or a second positional fails before any work with the router's wording, on
   every command; `build --pretty` is now rejected.
 - `--pick` with a session path fails; the path used to be ignored.
@@ -229,7 +229,7 @@ Changed:
   old parser read them as an option's value (`--port -h` used to fail with `--port needs a value`).
 - `--out -` and `--out-dir -` are refused because the CLI does not write to stdout; the old parser
   reported a missing value.
-- An empty `AGENT_TRACE_PATH` names no session, so `build`, `mcp`, and the exports use the demo
+- An empty `ESTELA_PATH` names no session, so `build`, `mcp`, and the exports use the demo
   trace; it used to resolve to the working directory and fail.
 - An option given twice is rejected. The old parser kept the last toggle (`--open --no-open`); for a
   repeated `--port` it loaded the session, indexed every agent, and then failed to listen
@@ -251,7 +251,7 @@ Changed:
 - Integration: `apps/cli/test/cli-smoke.test.ts` (one read per `build`, MCP stdout) and
   `apps/cli/test/report-build.test.ts` (one redacted `index.html`, split out of
   `report/report-site.test.ts` because it starts the CLI).
-- Tarball: `test:smoke` checks `--help` (`agent-trace <version>`, `Usage:`, `--pick`,
+- Tarball: `test:smoke` checks `--help` (`estela <version>`, `Usage:`, `--pick`,
   `export-otlp`), `--version`, and an unknown flag that fails with exit 1 and nothing on stdout;
   `test:e2e` runs unchanged.
 - Repository gates: format, lint, typecheck, test, build, conventions, layers, translations, and
@@ -280,7 +280,7 @@ reads without logic changes.
 - Change: `git mv` into the directories of 2.2; rewrite relative imports; move the platform type the
   kit calls take into `sessions/` as `ShellPlatform`.
 - Tests: the existing suite, with fixture paths adjusted for the new depth.
-- Exit condition: `pnpm --filter @rivus/agent-trace test` and `typecheck` pass with no logic change.
+- Exit condition: `pnpm --filter @rivus/estela test` and `typecheck` pass with no logic change.
 
 #### Task 2: Route the commands
 
@@ -304,7 +304,7 @@ reads without logic changes.
 
 | Batch | Command or evidence | Expected result |
 | --- | --- | --- |
-| Task 1 | `pnpm --filter @rivus/agent-trace test` | every moved test passes |
+| Task 1 | `pnpm --filter @rivus/estela test` | every moved test passes |
 | Task 2 | `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `node scripts/format.mjs --check` | pass |
 | Task 2 | `cd apps/e2e && pnpm run test:smoke && pnpm run test:e2e` | pass on the installed tarball |
 | Task 3 | `node scripts/check-*.mjs`, `gh repo-checks repository` | pass |

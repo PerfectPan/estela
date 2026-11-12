@@ -1,4 +1,4 @@
-import type { SessionsSignal } from '@rivus/agent-trace-rpc'
+import type { SessionsSignal } from '@rivus/estela-rpc'
 import { defineDevframe } from 'devframe'
 import {
   bindSessionPublisher,
@@ -7,15 +7,15 @@ import {
   reportFunctions,
   serverFunctions,
   SESSIONS_STATE,
-} from '@rivus/agent-trace-rpc'
+} from '@rivus/estela-rpc'
 import pkg from '../../package.json' with { type: 'json' }
 import { webDistDir } from '../paths.ts'
 
-export const BASE_PATH = '/__agent-trace/'
+export const BASE_PATH = '/__estela/'
 
 export default defineDevframe({
-  id: 'agent-trace',
-  name: 'Agent Trace',
+  id: 'estela',
+  name: 'Estela',
   version: pkg.version,
   packageName: pkg.name,
   importMetaUrl: import.meta.url,

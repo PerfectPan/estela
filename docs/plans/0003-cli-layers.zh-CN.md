@@ -49,7 +49,7 @@
 
 - `apps/cli/src` 按职责分组（2.2）。只有 `entry/` 解析命令行、写终端输出、设置退出码。
 - 只解析一遍。路由表在加载会话或建立索引之前拒绝未知选项和多余的位置参数。
-- `agent-trace --help` 列出所有命令，每个命令都有自己的 `--help`，`--version` 输出包的版本。
+- `estela --help` 列出所有命令，每个命令都有自己的 `--help`，`--version` 输出包的版本。
 - 一张表把每种预期失败映射到它的消息、修复提示行和退出码，并由类型检查保证没有遗漏。
 - 命令、选项、默认值、环境变量、退出码和纯文本输出行（`Ready:`、`Load:`、`Redact:`、`Write:`、
   `Wrote`）保持不变，3.6 列出的变化除外。
@@ -111,11 +111,11 @@ bin.mjs → main() → runCli(argv)
   （0.8.0，MIT，只有一个纯类型依赖）把命令行匹配为类型化的意图（`help`、`version`、`execute`），用
   Standard Schema 校验每个值（仓库现有的 `zod/mini` schema 不用改就能用），拒绝任何路由都不接受的
   token，并把 `--` 之后的 token 作为 literal 返回。它和 `@clack/prompts` 一样打包进 `dist/cli.mjs`。
-- **D2. `AGENT_TRACE_PATH` 仍由 CLI 自己读取，作为回退值。** 如果给 router 传入环境变量记录，它还会
+- **D2. `ESTELA_PATH` 仍由 CLI 自己读取，作为回退值。** 如果给 router 传入环境变量记录，它还会
   绑定 `PORT`、`HOST` 以及其他所有选项名；而 `--pick` 必须忽略这个变量。
 - **D3. 帮助文本来自 router 的 `printHelp`，但用完整命令名。** 打印器只用路径给嵌套路由起标题
-  （`build`），所以 `help.ts` 把路由改名为 `agent-trace build` 后再交给它。每个路由都带版本号，
-  `--version` 输出 `agent-trace <version>`。
+  （`build`），所以 `help.ts` 把路由改名为 `estela build` 后再交给它。每个路由都带版本号，
+  `--version` 输出 `estela <version>`。
 - **D4. 所有失败在一张表里。** `entry/failure.ts` 定义 `CliFailure` 联合类型和 `failureReport`，后者是一个
   每种 kind 都必须返回的 `switch`。命令抛出 `CliError`；`entry/` 以下没有代码退出进程。所有失败的退出码
   仍是 1。
@@ -133,19 +133,19 @@ bin.mjs → main() → runCli(argv)
 | `/mcp` | `[session]` | 无 |
 | `/export-atif`、`/export-otlp` | `[session]` | `--out <file>` |
 
-- `session` 回退到 `AGENT_TRACE_PATH`（空值视为未设置）；`build`、`mcp` 和导出命令再回退到内置的
+- `session` 回退到 `ESTELA_PATH`（空值视为未设置）；`build`、`mcp` 和导出命令再回退到内置的
   演示 trace。`--` 之后的那一个 token 算作会话，用于以 `-` 开头的路径。
 - `--port` 是 0 到 65535 的整数；`0` 由操作系统选择。
 - `open` 和 `mcp` 不给就不设置，沿用 DevFrame 的默认值：打开浏览器，有 agent 工具时挂载 MCP 路由。
   `auth` 和 `index` 默认开启，只有 `--no-auth` 或 `--no-index` 才关闭。
-- 写在命令名之前的会话或选项（`agent-trace --port 1 build x`）是用法错误：它属于 dev 服务器，而该命令
+- 写在命令名之前的会话或选项（`estela --port 1 build x`）是用法错误：它属于 dev 服务器，而该命令
   不会启动 dev 服务器。
 - 在 dev 服务器的命令行上，命令名是保留字。router 按设计（"Command literals are routing tokens, not
   positional arguments"）把第一个与命令同名的单独词当成命令，所以同名的主机或会话要写成 `--host=build`
   或 `./build`；命令名之后（`mcp build`、`build --out-dir mcp`）这个词就是普通的值。`--host` 的帮助文字
   写明了这一点；dev 服务器的每个参数不给时都保持 `undefined`，`app.ts` 才能发现写在命令名之前的参数。
 - `port` 取 `--port`，否则取 `resolveDevServerPort(devframe, { host })`：定义里的 7392 或下一个空闲端口。
-- 有启动会话时（路径、`AGENT_TRACE_PATH` 或 `--pick`），除非给了 `--no-open`，由 CLI 自己打开
+- 有启动会话时（路径、`ESTELA_PATH` 或 `--pick`），除非给了 `--no-open`，由 CLI 自己打开
   `?s=<traceId>`，DevFrame 不打开任何页面。没有启动会话时，除非给了 `--no-open`，由 DevFrame 打开会话浏览器。
 - `--no-auth` 传入 `auth: false`；否则 CLI 自己打开浏览器时带上一次性验证码。
 - `onReady` 依次恢复摘要计算、打印 Ready 行、打开浏览器。
@@ -165,8 +165,8 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 | Kind | Message | Fix line | Exit |
 | --- | --- | --- | --- |
-| `usage` | router 的问题描述（``unexpected: `--bogus` ``、`--port requires a value`、`port: expected a port number from 0 to 65535`、`out: expected a path; writing to stdout (-) is not supported`）、`--pick needs an interactive terminal`、`--pick cannot be used with a session path`、``put the session and options after `build` `` | `Run agent-trace --help for usage.` | 1 |
-| `session`（`load`、`build`、`export`） | `Could not <action> <target>: <reason>` | `Pass a canonical agent-trace JSON file, or a session path a registered agent adapter accepts.` | 1 |
+| `usage` | router 的问题描述（``unexpected: `--bogus` ``、`--port requires a value`、`port: expected a port number from 0 to 65535`、`out: expected a path; writing to stdout (-) is not supported`）、`--pick needs an interactive terminal`、`--pick cannot be used with a session path`、``put the session and options after `build` `` | `Run estela --help for usage.` | 1 |
+| `session`（`load`、`build`、`export`） | `Could not <action> <target>: <reason>` | `Pass a canonical Estela JSON file, or a session path a registered agent adapter accepts.` | 1 |
 | `index` | `Could not index sessions: <reason>` | `Check the agent session directories, or pass --no-index.` | 1 |
 | `no-sessions` | `No sessions to pick.` | 同 `session` | 1 |
 | `cancelled` | 无（选择器自己打印取消行） | 无 | 1 |
@@ -184,13 +184,13 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 ### 3.6 Compatibility
 
-不变：命令名、选项名和默认值、`AGENT_TRACE_PATH`（空值除外，见下文）、`AGENT_TRACE_REDACT`、退出码、
+不变：命令名、选项名和默认值、`ESTELA_PATH`（空值除外，见下文）、`ESTELA_REDACT`、退出码、
 纯文本输出行、Ready 框、MCP 的 stdout，以及报告和导出文件。
 
 变化：
 
 - `--help` 使用 router 的版式并列出所有命令；`<command> --help` 描述该命令。
-- `--version` 输出 `agent-trace <version>`（原来是 `agent-trace/0.0.0 <platform> node-<version>`）。
+- `--version` 输出 `estela <version>`（原来是 `agent-trace/0.0.0 <platform> node-<version>`）。
 - 未知选项或第二个位置参数在任何命令上都会在开始工作前失败，措辞来自 router；`build --pretty` 现在会被拒绝。
 - `--pick` 同时给出会话路径时失败；原来会忽略这个路径。
 - 写在命令名之前的会话或选项会失败；原来会被忽略或误读。
@@ -199,7 +199,7 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 - `-h`/`--help` 和 `-v`/`--version` 出现在任何位置都会输出帮助或版本，包括旧解析器会把它们当作选项值的
   位置（`--port -h` 原来报 `--port needs a value`）。
 - `--out -` 和 `--out-dir -` 会被拒绝，因为 CLI 不支持写到 stdout；旧解析器报的是缺少值。
-- 空的 `AGENT_TRACE_PATH` 视为没有指定会话，所以 `build`、`mcp` 和导出命令使用演示 trace；原来会解析成
+- 空的 `ESTELA_PATH` 视为没有指定会话，所以 `build`、`mcp` 和导出命令使用演示 trace；原来会解析成
   工作目录然后失败。
 - 同一个选项写两次会被拒绝。旧解析器对重复的开关（`--open --no-open`）取最后一个；对重复的 `--port`，
   它会先读完会话、给所有 agent 建完索引，再在监听端口时失败（`Failed to listen on localhost:1,2`）。开关
@@ -219,7 +219,7 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 - 集成测试：`apps/cli/test/cli-smoke.test.ts`（每次 `build` 只读一次文件、MCP 的 stdout），以及
   `apps/cli/test/report-build.test.ts`（一个脱敏的 `index.html`；它会启动 CLI，所以从
   `report/report-site.test.ts` 拆了出来）。
-- Tarball：`test:smoke` 检查 `--help`（`agent-trace <version>`、`Usage:`、`--pick`、`export-otlp`）、
+- Tarball：`test:smoke` 检查 `--help`（`estela <version>`、`Usage:`、`--pick`、`export-otlp`）、
   `--version`，以及未知 flag 以退出码 1 失败且 stdout 为空；`test:e2e` 不变。
 - 仓库检查：format、lint、typecheck、test、build、conventions、layers、translations 和 browser bundle。
 
@@ -245,7 +245,7 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 - Change：用 `git mv` 移到 2.2 的目录；改写相对 import；把 kit 调用所需的 platform 类型移到 `sessions/`，
   命名为 `ShellPlatform`。
 - Tests：现有测试，按新的目录深度调整 fixture 路径。
-- Exit condition：`pnpm --filter @rivus/agent-trace test` 和 `typecheck` 通过，没有逻辑改动。
+- Exit condition：`pnpm --filter @rivus/estela test` 和 `typecheck` 通过，没有逻辑改动。
 
 #### Task 2: Route the commands
 
@@ -268,7 +268,7 @@ DevFrame 定义去掉只有 cac 适配器读取的 `cli.command` 和 `cli.config
 
 | Batch | Command or evidence | Expected result |
 | --- | --- | --- |
-| Task 1 | `pnpm --filter @rivus/agent-trace test` | 所有移动过的测试通过 |
+| Task 1 | `pnpm --filter @rivus/estela test` | 所有移动过的测试通过 |
 | Task 2 | `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm build`、`node scripts/format.mjs --check` | 通过 |
 | Task 2 | `cd apps/e2e && pnpm run test:smoke && pnpm run test:e2e` | 在安装后的 tarball 上通过 |
 | Task 3 | `node scripts/check-*.mjs`、`gh repo-checks repository` | 通过 |

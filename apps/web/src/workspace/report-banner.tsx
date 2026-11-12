@@ -1,4 +1,4 @@
-import type { ReportTrace } from '@rivus/agent-trace-rpc'
+import type { ReportTrace } from '@rivus/estela-rpc'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { formatNumber } from '@/lib/format.ts'

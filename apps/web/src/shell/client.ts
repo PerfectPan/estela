@@ -1,7 +1,7 @@
 import type { DevframeRpcClient, DevframeScopedClientContext } from 'devframe/client'
 import { connectDevframe } from 'devframe/client'
 
-const NAMESPACE = 'agent-trace'
+const NAMESPACE = 'estela'
 /** Long enough to type the one-time code by hand when the URL did not carry it. */
 const TRUST_TIMEOUT_MS = 10 * 60_000
 

@@ -1,6 +1,6 @@
 import { printHelp, type Help, type RoutePath } from '@bomb.sh/router'
 
-const PROGRAM = 'agent-trace'
+const PROGRAM = 'estela'
 
 /**
  * Help for the route the command line selected, from the router's printer with three corrections.

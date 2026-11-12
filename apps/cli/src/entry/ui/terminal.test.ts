@@ -40,7 +40,7 @@ function capture(columns: number): string[] {
 }
 
 describe('sayReady', () => {
-  const url = 'http://localhost:7392/__agent-trace/'
+  const url = 'http://localhost:7392/__estela/'
 
   it('does not throw when stdout has 0 columns', () => {
     const chunks = capture(0)
