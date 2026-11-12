@@ -12,6 +12,9 @@ on:
 
 permissions: {}
 
+env:
+  npm_config_registry: https://registry.npmjs.org/
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   queue: max
@@ -25,20 +28,23 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      has-changesets: ${{ steps.changesets.outputs.has-changesets }}
+      mode: ${{ steps.mode.outputs.mode }}
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/setup@v3
         with:
           runtime: node@^26.13.1
           require-lockfile: true
+      - name: Select Changesets mode
+        id: mode
+        uses: changesets/action/select-mode@v2.1.2
       - name: Create or update the version pull request
-        id: changesets
-        uses: changesets/action@v2
+        if: steps.mode.outputs.mode == 'version'
+        uses: changesets/action/version@v2.1.2
         with:
-          version-script: pnpm run version-packages
           commit-message: 'chore(release): version packages'
           pr-title: 'chore(release): version packages'
           # CI starts when a maintainer marks the updated version PR ready for review.
@@ -48,7 +54,8 @@ jobs:
     needs: version
     if: >-
       !cancelled() && github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' || needs.version.outputs.has-changesets == 'false')
+      ((github.event_name == 'workflow_dispatch' && inputs.dry-run == false) ||
+      (github.event_name == 'push' && needs.version.outputs.mode == 'publish'))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -56,6 +63,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/setup@v3
         with:
           runtime: node@^26.13.1
@@ -63,37 +72,35 @@ jobs:
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
         run: pnpm run test:smoke
-      - name: Publish unpublished package versions
-        env:
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+      - name: Publish packages and create tags and GitHub Releases
+        uses: changesets/action/publish@v2.1.2
+
+  dry-run:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          require-lockfile: true
+      - name: CLI smoke on the installed tarball
+        working-directory: apps/e2e
+        run: pnpm run test:smoke
+      - name: Inspect the publish plan and package archive
         run: |
-          args=(-r --access public --registry https://registry.npmjs.org/ --publish-wait-timeout 600000 --report-summary)
-          if [ "$DRY_RUN" = "true" ]; then
-            args+=(--dry-run)
-          fi
-          pnpm publish "${args[@]}"
-      - name: Tag the published version and create its GitHub Release
-        if: github.event_name == 'push' || inputs.dry-run == false
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version="$(jq -r '.publishedPackages[] | select(.name == "@rivus/agent-trace") | .version' pnpm-publish-summary.json)"
-          if [ -z "$version" ]; then
-            exit 0
-          fi
-          tag="v$version"
-          awk -v heading="## $version" '
-            $0 == heading { active = 1; next }
-            active && /^## / { exit }
-            active { print }
-          ' apps/cli/CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
-          git push origin "$GITHUB_SHA:refs/tags/$tag"
-          gh release create "$tag" --verify-tag --title "$tag" --notes-file "$RUNNER_TEMP/release-notes.md"
-      - name: Save the native publish result
-        if: always()
+          pnpm exec changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
+          pnpm --filter @rivus/agent-trace pack --out "$RUNNER_TEMP/agent-trace.tgz"
+      - name: Save the dry-run evidence
         uses: actions/upload-artifact@v7
         with:
-          name: publish-summary
-          path: pnpm-publish-summary.json
-          if-no-files-found: ignore
+          name: release-dry-run
+          path: |
+            ${{ runner.temp }}/publish-plan.json
+            ${{ runner.temp }}/agent-trace.tgz
+          if-no-files-found: error
