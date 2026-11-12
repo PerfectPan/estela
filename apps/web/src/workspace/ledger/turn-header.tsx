@@ -2,6 +2,7 @@ import type { TurnGroup } from '@/lib/ledger-model.ts'
 import { Show } from 'solid-js'
 import { ChevronDownIcon, ChevronRightIcon, EyeIcon } from '@/components/icons.tsx'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
+import { costBasisText, costShort } from '@/lib/cost-text.ts'
 import { formatDuration, formatNumber } from '@/lib/format.ts'
 import { previewText } from '@/lib/preview.ts'
 import type { RowContext } from './row-frame.tsx'
@@ -20,11 +21,13 @@ export function TurnHeader(props: {
     const text = event?.kind === 'user' ? event.payload.text : undefined
     return text?.trim() ? `“${previewText(text)}”` : ''
   }
+  const cost = () => props.ctx.turnCosts.get(props.group.id)
   const totals = () => {
     const turn = props.group.turn.totals
     return [
       plural(turn.requests, 'ledger.requestCountOne', 'ledger.requestCount', formatNumber(turn.requests, locale())),
       turn.durationMs !== undefined ? formatDuration(turn.durationMs, locale()) : '',
+      cost() ? costShort(cost()!) : '',
     ]
       .filter(Boolean)
       .join(' · ')
@@ -55,7 +58,13 @@ export function TurnHeader(props: {
           {t('ledger.hiddenBadge')}
         </span>
       </Show>
-      <span class="shrink-0 font-mono text-[11.5px] text-subtle">{totals()}</span>
+      <span
+        class="shrink-0 font-mono text-[11.5px] text-subtle"
+        title={cost()?.requests ? costBasisText(props.ctx.cost.version) : undefined}
+        data-testid="turn-totals"
+      >
+        {totals()}
+      </span>
     </div>
   )
 }

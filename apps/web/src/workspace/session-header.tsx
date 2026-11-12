@@ -1,24 +1,35 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
+import type { TraceCost } from '@rivus/estela-kernel'
 import type { Trace } from '@rivus/estela-schema'
 import { Show } from 'solid-js'
 import { AgentMark } from '@/browser/agent-mark.tsx'
 import { Metric } from '@/components/metric.tsx'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { escapeBidi } from '@/lib/preview.ts'
-import { formatDuration, formatInOut, formatNumber, formatOptional, formatStart } from '@/lib/format.ts'
+import { formatDuration, formatInOut, formatNumber, formatOptional, formatPercent, formatStart } from '@/lib/format.ts'
 import { agentName } from '@/lib/agent-names.ts'
+import { costBasisText, costHeadline, totalCostDetail } from '@/lib/cost-text.ts'
 
 /**
- * Agent, working directory, start time, title, and the seven numbers from `fold`.
+ * Agent, working directory, start time, title, the seven numbers from `fold`, and the list cost.
  * A number whose capability the agent does not declare is `undefined` and shows "—".
  */
 const dash = () => t('common.dash')
 
-export function SessionHeader(props: { trace: Trace; summary: SessionSummary }) {
+export function SessionHeader(props: { trace: Trace; summary: SessionSummary; cost: TraceCost }) {
   const num = (value: number | undefined) => formatOptional(value, v => formatNumber(v, locale()), dash())
   const tokens = () => formatInOut(props.summary.inputTokens, props.summary.outputTokens, dash())
   const started = () => props.trace.session.startedAt ?? props.trace.events[0]?.ts
   const failed = () => props.summary.failedTools ?? 0
+  const cost = () => costHeadline(props.cost.total)
+  // A complete sum's label carries the cache hit rate; a partial or missing one says what is missing instead.
+  const costLabel = () => {
+    const rate = props.cost.total.cacheHitRate
+    const note =
+      cost().note ?? (rate === undefined ? undefined : t('cost.hitRate', { value: formatPercent(rate, locale()) }))
+    return note ? `${t('cost.label')} · ${note}` : t('cost.label')
+  }
+  const costTitle = () => [costBasisText(props.cost.version), ...totalCostDetail(props.cost.total)].join('\n')
   return (
     <section
       class="flex shrink-0 items-end justify-between gap-8 border-b border-border px-5 pt-5 pb-4"
@@ -70,6 +81,14 @@ export function SessionHeader(props: { trace: Trace; summary: SessionSummary }) 
         />
         <Metric term value={num(props.summary.subagents)} label={t('workspace.subagents')} />
         <Metric term value={num(props.summary.failedTools)} label={t('workspace.failedTools')} failed={failed() > 0} />
+        <Metric
+          term
+          value={cost().value}
+          label={costLabel()}
+          muted={cost().unavailable}
+          title={costTitle()}
+          testId="session-cost"
+        />
       </dl>
     </section>
   )

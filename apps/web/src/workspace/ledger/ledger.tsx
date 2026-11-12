@@ -25,7 +25,13 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
   let scroller: HTMLDivElement | undefined
   const state = props.state
   const rows = state.rows
-  const ctx = createMemo((): RowContext => ({ model: state.model, start: props.start, dim: state.dim() }))
+  const ctx = createMemo((): RowContext => ({
+    model: state.model,
+    cost: state.cost,
+    turnCosts: state.turnCosts,
+    start: props.start,
+    dim: state.dim(),
+  }))
   // Turn 0 without a prompt is "Before the first prompt"; numbering then starts at its successor.
   const offset = state.model.turns[0]?.turn.promptEventId ? 1 : 0
   const turnNumber = (index: number, hasPrompt: boolean) => (hasPrompt || index > 0 ? index + offset : undefined)

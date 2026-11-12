@@ -17,7 +17,7 @@ export function SessionView(props: { session: LoadedSession; report: boolean }) 
   const start = state.timeline.start
   return (
     <div class="flex min-h-0 flex-1 flex-col">
-      <SessionHeader trace={props.session.trace} summary={props.session.summary} />
+      <SessionHeader trace={props.session.trace} summary={props.session.summary} cost={state.cost} />
       <Show when={view() && (view()!.withinBudget === false || view()!.maxString < DEFAULT_MAX_STRING)}>
         <p
           class="m-0 shrink-0 border-b border-border bg-secondary px-5 py-1.5 text-[12px] text-muted-foreground"

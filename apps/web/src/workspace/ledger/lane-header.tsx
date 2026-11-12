@@ -1,6 +1,7 @@
 import { mainAgentId } from '@rivus/estela-kernel'
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/icons.tsx'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
+import { costBasisText, costShort } from '@/lib/cost-text.ts'
 import { formatNumber } from '@/lib/format.ts'
 import type { VirtualRow } from '@/lib/ledger-model.ts'
 import { escapeBidi } from '@/lib/preview.ts'
@@ -13,6 +14,7 @@ export function LaneHeader(props: {
   ctx: RowContext
   onToggle: () => void
 }) {
+  const cost = () => props.ctx.cost.lanes.get(props.row.laneId)
   const title = () => {
     const { title, laneId } = props.row
     if (title === undefined && laneId === mainAgentId(props.ctx.model.trace)) {
@@ -40,13 +42,22 @@ export function LaneHeader(props: {
       >
         {title()}
       </span>
-      <span class="shrink-0 font-mono text-[11.5px] text-subtle">
-        {plural(
-          props.row.requests,
-          'ledger.requestCountOne',
-          'ledger.requestCount',
-          formatNumber(props.row.requests, locale()),
-        )}
+      <span
+        class="shrink-0 font-mono text-[11.5px] text-subtle"
+        title={cost() ? costBasisText(props.ctx.cost.version) : undefined}
+        data-testid="lane-totals"
+      >
+        {[
+          plural(
+            props.row.requests,
+            'ledger.requestCountOne',
+            'ledger.requestCount',
+            formatNumber(props.row.requests, locale()),
+          ),
+          cost() ? costShort(cost()!) : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
       </span>
     </div>
   )

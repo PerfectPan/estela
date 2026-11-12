@@ -195,3 +195,27 @@ export function formatInOut(input: number | undefined, output: number | undefine
   }
   return `${formatOptional(input, formatTokens, dash)} / ${formatOptional(output, formatTokens, dash)}`
 }
+
+const USD = { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol' } as const
+
+/**
+ * A USD amount: `$1,234.56`, `$0.42`, `$0.0034` (two significant digits below a cent, so a small request does
+ * not read as `$0.00`), and `<$0.0001` below that; `$0.00` only for an exact 0. `$` in every locale.
+ */
+export function formatUsd(value: number, locale: string): string {
+  if (value === 0) {
+    return new Intl.NumberFormat(locale, { ...USD, minimumFractionDigits: 2 }).format(0)
+  }
+  if (Math.abs(value) < 0.0001) {
+    return `<${new Intl.NumberFormat(locale, { ...USD, maximumFractionDigits: 4 }).format(0.0001)}`
+  }
+  if (Math.abs(value) < 0.01) {
+    return new Intl.NumberFormat(locale, { ...USD, maximumSignificantDigits: 2 }).format(value)
+  }
+  return new Intl.NumberFormat(locale, { ...USD, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+}
+
+/** A ratio as a whole percent: `0.934` → `93%`. */
+export function formatPercent(ratio: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(ratio)
+}

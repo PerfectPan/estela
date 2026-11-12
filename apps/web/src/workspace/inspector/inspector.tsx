@@ -13,6 +13,7 @@ import { exitCode, isShortened, pretty, toolName } from '@/lib/event-text.ts'
 import { messageOf } from '@/lib/error-message.ts'
 import { createEventCache, rawFetchKey } from '@/lib/event-cache.ts'
 import { elapsedFrom, formatDuration, formatTokens } from '@/lib/format.ts'
+import { costBasisText, priceVersionText, requestCostDetail, requestCostText } from '@/lib/cost-text.ts'
 import { ModelSaw } from './model-saw.tsx'
 import { inputText, outputText } from './tab-text.ts'
 import { TextView } from './text-view.tsx'
@@ -114,6 +115,19 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     const ordinal = entryOrdinal(current)
     return `${t(KIND_TITLE[entryKind(current)])}${ordinal ? ` #${ordinal}` : ''}`
   }
+  /** The cost of the request the selected row belongs to: its own `request` event's. */
+  const requestCost = createMemo(() => {
+    const request = state.model.requests.get(primaryId() ?? '')?.entry
+    return request ? state.cost.requests.get(request.id) : undefined
+  })
+  const costLine = createMemo(() => {
+    const cost = requestCost()
+    if (!cost) {
+      return undefined
+    }
+    const head = cost.kind === 'priced' ? requestCostDetail(cost) : [requestCostText(cost), ...requestCostDetail(cost)]
+    return [...head, priceVersionText(state.cost.version)]
+  })
   const meta = createMemo((): string[] => {
     const event = state.model.byId.get(primaryId() ?? '')
     if (!event) {
@@ -130,6 +144,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
           : '',
         request.durationMs !== undefined ? formatDuration(request.durationMs, locale()) : '',
         finishReason ? t('common.finishReason', { reason: finishReason }) : '',
+        requestCost()?.kind === 'priced' ? requestCostText(requestCost()!) : '',
       ].filter(Boolean)
     }
     const at = elapsedFrom(event.ts, props.start)
@@ -213,6 +228,17 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
                 <div class="flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[11.5px] text-muted-foreground">
                   <For each={meta()}>{item => <span>{item}</span>}</For>
                 </div>
+              </Show>
+              <Show when={costLine()}>
+                {line => (
+                  <p
+                    class="m-0 flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[11.5px] text-subtle"
+                    title={costBasisText(state.cost.version)}
+                    data-testid="request-cost"
+                  >
+                    <For each={line()}>{item => <span class="whitespace-nowrap">{item}</span>}</For>
+                  </p>
+                )}
               </Show>
               <div
                 class="flex gap-[22px] border-b border-border text-[13px]"
