@@ -26,7 +26,7 @@ export interface LoadFailure {
   file?: string
   line?: number
   reason: string
-  /** The WebSocket closed: DevFrame 1.0.0 does not reconnect, so only a reload helps. */
+  /** The WebSocket closed: a closed DevFrame client never reconnects, so only a reload helps. */
   lost?: boolean
 }
 
@@ -85,7 +85,7 @@ function lostFailure(): LoadFailure {
  * The workspace load flow: `load-trace(traceId)`, subscribe to `load-progress` with the
  * returned id at once (the server releases an unsubscribed hold after 5 s), then
  * `get-trace-view(traceId)`. Leaving the route cancels the stream, which releases the hold.
- * DevFrame 1.0.0 never reconnects a closed WebSocket, so a drop during the load ends it with
+ * A closed DevFrame client never reconnects, by design, so a drop during the load ends it with
  * a "lost the connection" failure; the page offers a reload.
  */
 export function createSessionLoad(traceId: string, connect: () => Promise<LoadClient> = defaultClient) {

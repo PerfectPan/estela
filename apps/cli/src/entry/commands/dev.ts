@@ -35,8 +35,10 @@ export interface BrowserPlan {
 }
 
 /**
- * DevFrame opens `/__estela/` and puts its one-time code in the fragment, so it cannot open
- * `#/s/<traceId>` itself: with a launch session the CLI opens the browser instead.
+ * DevFrame appends its one-time code to the URL fragment and re-encodes the fragment as
+ * `key=value` pairs, so a `#/s/<traceId>` route cannot share it: the launch session rides
+ * `?s=<traceId>` and the SPA moves it into the route. DevFrame's `openBrowser` option also
+ * accepts a relative `?s=<traceId>`; the CLI opens that URL itself (`server/open-browser.ts`).
  */
 export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, hasLaunchSession: boolean): BrowserPlan {
   const opens = input.open !== false

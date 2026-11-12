@@ -5,9 +5,9 @@ const [lost, setLost] = createSignal(false)
 let watching = false
 
 /**
- * True once the DevFrame WebSocket has closed or failed. DevFrame 1.0.0 does not reconnect a
- * closed client, so every later call would fail: the screens show "Lost the connection" with a
- * Reload button instead of waiting. A report never calls this: it has no server.
+ * True once the DevFrame WebSocket has closed or failed. By design a closed DevFrame client is
+ * done and never reconnects, so every later call would fail: the screens show "Lost the
+ * connection" with a Reload button instead of waiting. A report never calls this: it has no server.
  */
 export function connectionLost(): boolean {
   if (!watching) {
