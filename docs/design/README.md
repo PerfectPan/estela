@@ -17,7 +17,7 @@ Screenshots are not committed. Take one from the HTML at a 1440 × 900 viewport 
 
 **Session workspace.** Top to bottom:
 
-1. Session header: agent, working directory, start time, title, and seven numbers (duration, turns, requests, tokens in / out, compactions, subagents, failed tool calls).
+1. Session header: agent, working directory, start time, title, and seven numbers (duration, turns, requests, tokens in / out, compactions, subagents, failed tool calls), then the list cost (a recorded-token sum at the bundled price snapshot; its label says when it is partial or unavailable). The mockups predate the cost and do not show it.
 2. Timeline: one lane for the main agent and one per subagent. The time range under the brush filters the ledger.
 3. Ledger: events grouped by turn, or by agent with one header per agent. Turns and agents collapse. Hook events fold into one row. Events hidden from the model after a compaction can be dimmed.
 4. Inspector: Input, Output, Model saw, Raw. "Model saw" shows the context composition for the selected request and the events dropped by compaction.
