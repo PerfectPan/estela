@@ -17,8 +17,9 @@ const SERVER = '@rivus/estela-server'
 const RUNTIME_NODE = '@rivus/estela-runtime-node'
 
 const ALLOW = {
-  // The server reads sessions through the kit; the CLI imports only its redact and node entries at runtime, and
-  // oxlint enforces type-only imports everywhere else.
+  // The server reads sessions through the kit; the CLI imports only its redact and node entries at runtime, and the
+  // kernel only the import-free /cost and /cost/prices. oxlint (root vite.config.ts) enforces type-only imports
+  // everywhere else.
   '@rivus/estela': [KIT, SERVER, '@rivus/estela-web', RUNTIME_NODE, ...CORE],
   [SERVER]: [KIT, RUNTIME_NODE, ...CORE],
   '@rivus/estela-web': [KIT, ...CORE],
