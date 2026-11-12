@@ -32,7 +32,7 @@ jobs:
           persist-credentials: false
       - uses: pnpm/setup@v3
         with:
-          runtime: node@26.13.1
+          runtime: node@^26.13.1
           require-lockfile: true
       - name: Create or update the version pull request
         id: changesets
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: pnpm/setup@v3
         with:
-          runtime: node@26.13.1
+          runtime: node@^26.13.1
           require-lockfile: true
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e

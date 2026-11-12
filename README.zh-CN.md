@@ -45,7 +45,7 @@ npx @rivus/agent-trace
 
 它会在 `localhost:7392` 启动服务，自动打开浏览器，并索引受支持 Agent 的会话。`--no-open` 只打印 URL；`--port 0` 选择空闲端口。
 
-从源码构建需要 Node.js 26.13.1；构建出的 CLI 可在 Node.js 24 或更高版本运行：
+从源码构建需要 Node.js `^26.13.1`（26.13.1 或更高的 26.x 版本）；构建出的 CLI 可在 Node.js 24 或更高版本运行：
 
 ```sh
 pnpm install
