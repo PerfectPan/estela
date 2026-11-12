@@ -16,7 +16,8 @@
   "dependencies": {
     "@rivus/agent-kit": "catalog:",
     "@rivus/estela-schema": "workspace:*",
-    "es-toolkit": "catalog:"
+    "es-toolkit": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@perfectpan/lint-config": "catalog:",

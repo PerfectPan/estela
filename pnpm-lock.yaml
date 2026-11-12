@@ -375,6 +375,9 @@ importers:
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.6
     devDependencies:
       '@perfectpan/lint-config':
         specifier: 'catalog:'
