@@ -2,7 +2,7 @@ import type { Trace } from '@rivus/estela-schema'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
-import { toAtif, toOtlp } from '@rivus/estela-kernel'
+import { snapshotPricing, toAtif, toOtlp } from '@rivus/estela-kernel'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { homeDir } from '@rivus/estela-runtime-node'
 
@@ -10,7 +10,7 @@ export type ExportFormat = 'atif' | 'otlp'
 
 /** The projection of one export command: ATIF v1.8 or OTLP/JSON. */
 export function exportOf(trace: Trace, format: ExportFormat): unknown {
-  return format === 'atif' ? toAtif(trace) : toOtlp(trace)
+  return format === 'atif' ? toAtif(trace, { pricing: snapshotPricing() }) : toOtlp(trace)
 }
 
 /** `estela-<session id prefix>.atif.json` / `.otlp.json` in the working directory. */

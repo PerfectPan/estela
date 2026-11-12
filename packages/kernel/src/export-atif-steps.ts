@@ -232,7 +232,7 @@ function llmCallCount(draft: StepDraft): number | undefined {
   return draft.request?.payload.modelCalls
 }
 
-function metricsOf(request: EventOf<'request'> | undefined): AtifMetrics | undefined {
+function metricsOf(request: EventOf<'request'> | undefined, costUsd: number | undefined): AtifMetrics | undefined {
   if (request === undefined) {
     return undefined
   }
@@ -256,6 +256,7 @@ function metricsOf(request: EventOf<'request'> | undefined): AtifMetrics | undef
     ...(usage?.inputTokens !== undefined ? { prompt_tokens: usage.inputTokens } : {}),
     ...(usage?.outputTokens !== undefined ? { completion_tokens: usage.outputTokens } : {}),
     ...(usage?.cacheReadTokens !== undefined ? { cached_tokens: usage.cacheReadTokens } : {}),
+    ...(costUsd !== undefined ? { cost_usd: costUsd } : {}),
     ...(Object.keys(trace).length > 0 ? { extra: { estela: trace } } : {}),
   }
 }
@@ -275,18 +276,22 @@ function extraOf(draft: StepDraft): { extra: AtifStep['extra'] } | {} {
   }
 }
 
-/** The ATIF step a draft becomes: ids, copied-context mark, metrics, and `extra`. */
+/**
+ * The ATIF step a draft becomes: ids, copied-context mark, metrics, and `extra`. `costUsd` is the price of the
+ * step's request when the exporter was given a price table and the request is priced.
+ */
 export function stepOf(
   draft: StepDraft,
   stepId: number,
   compactionSeqs: number[],
   agentModel: string | undefined,
+  costUsd?: number,
 ): AtifStep {
   const message = draft.texts.length > 0 ? draft.texts.join('\n\n') : ''
   const reasoning = joined(draft.reasoning)
   const lastSeq = draft.events.length > 0 ? Math.max(...draft.events.map(event => event.seq)) : -1
   const copied = draft.events.length > 0 && compactionSeqs.some(seq => seq > lastSeq)
-  const metrics = metricsOf(draft.request)
+  const metrics = metricsOf(draft.request, costUsd)
   const step: AtifStep = {
     step_id: stepId,
     ...(draft.events.length > 0 ? { timestamp: new Date(draft.events[0]!.ts).toISOString() } : {}),

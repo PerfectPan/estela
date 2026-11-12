@@ -1,6 +1,7 @@
 import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { isPlainObject } from 'es-toolkit'
 import { laneIds, laneOf, mainAgentId, shadowedIn } from './lanes.ts'
+import { priceTrace, type TraceCost, type TracePricing } from './price-trace.ts'
 import { promptSnapshot } from './prompt-snapshot.ts'
 import {
   agentKind,
@@ -57,6 +58,8 @@ export interface AtifMetrics {
   prompt_tokens?: number
   completion_tokens?: number
   cached_tokens?: number
+  /** The step's request at the export's price table; absent when unpriced or exported without prices. */
+  cost_usd?: number
   extra?: {
     estela?: {
       responseId?: string
@@ -89,6 +92,8 @@ export interface AtifFinalMetrics {
   total_prompt_tokens?: number
   total_completion_tokens?: number
   total_cached_tokens?: number
+  /** Only when every request of the trajectory, subagents included, is priced: a partial sum is not a total. */
+  total_cost_usd?: number
   total_steps?: number
 }
 
@@ -108,6 +113,8 @@ export interface AtifTrajectory {
       unknown?: { type: string }[]
       turnDurationsMs?: number[]
       snapshotEventIds?: string[]
+      /** The price table behind every `cost_usd`, and how many exported requests it could not price. */
+      pricing?: { version: string; unpricedRequests: number }
     }
   }
   subagent_trajectories?: AtifTrajectory[]
@@ -330,7 +337,34 @@ function buildLane(
   return build
 }
 
-function finishTrajectory(trace: Trace, build: TrajectoryBuild, laneId: string, embedded: boolean): AtifTrajectory {
+/** What the export's prices say about one trajectory's requests: their sum, and how many are unpriced. */
+interface TrajectoryCost {
+  usd: number
+  priced: number
+  unpriced: number
+}
+
+function costOfDrafts(drafts: StepDraft[], cost: TraceCost): TrajectoryCost {
+  const out = { usd: 0, priced: 0, unpriced: 0 }
+  for (const draft of drafts) {
+    const request = draft.request ? cost.requests.get(draft.request.id) : undefined
+    if (request?.kind === 'priced') {
+      out.usd += request.usd
+      out.priced += 1
+    } else if (request) {
+      out.unpriced += 1
+    }
+  }
+  return out
+}
+
+function finishTrajectory(
+  trace: Trace,
+  build: TrajectoryBuild,
+  laneId: string,
+  embedded: boolean,
+  cost?: { trace: TraceCost; total: TrajectoryCost },
+): AtifTrajectory {
   const mainId = mainAgentId(trace)
   if (build.drafts.length === 0) {
     const prompt = laneId === mainId ? trace.session.systemPrompt : undefined
@@ -350,7 +384,17 @@ function finishTrajectory(trace: Trace, build: TrajectoryBuild, laneId: string, 
     ...(models.size === 1 ? { model_name: [...models][0] } : {}),
     ...(laneId === mainId ? toolDefinitions(trace.session.tools) : {}),
   }
-  const steps = build.drafts.map((draft, index) => stepOf(draft, index + 1, build.laneCompactionSeqs, agent.model_name))
+  const priced = (draft: StepDraft) => {
+    const request = draft.request ? cost?.trace.requests.get(draft.request.id) : undefined
+    return request?.kind === 'priced' ? request.usd : undefined
+  }
+  const steps = build.drafts.map((draft, index) =>
+    stepOf(draft, index + 1, build.laneCompactionSeqs, agent.model_name, priced(draft)),
+  )
+  const metrics = finalMetrics(steps)
+  if (cost && cost.total.unpriced === 0 && cost.total.priced > 0) {
+    metrics.total_cost_usd = cost.total.usd
+  }
   return {
     schema_version: ATIF_SCHEMA_VERSION,
     session_id: trace.session.id,
@@ -360,8 +404,12 @@ function finishTrajectory(trace: Trace, build: TrajectoryBuild, laneId: string, 
     notes:
       'Exported from an Estela canonical trace (https://github.com/PerfectPan/estela). '
       + 'Each step lists its canonical event ids in extra.estela.eventIds. Events a compaction '
-      + 'removed are not steps; steps kept across a compaction boundary are marked is_copied_context.',
-    final_metrics: finalMetrics(steps),
+      + 'removed are not steps; steps kept across a compaction boundary are marked is_copied_context.'
+      + (cost
+        ? ' cost_usd is the list price of the recorded tokens at the price table extra.estela.pricing names '
+          + '(on the root trajectory), not an amount billed; total_cost_usd appears only when every request is priced.'
+        : ''),
+    final_metrics: metrics,
     ...(laneId === mainId
       ? {
           extra: {
@@ -369,6 +417,7 @@ function finishTrajectory(trace: Trace, build: TrajectoryBuild, laneId: string, 
               capabilities: [...trace.capabilities],
               skipped: skippedOf(trace),
               ...build.rootExtras,
+              ...(cost ? { pricing: { version: cost.trace.version, unpricedRequests: cost.total.unpriced } } : {}),
             },
           },
         }
@@ -382,7 +431,7 @@ function finishTrajectory(trace: Trace, build: TrajectoryBuild, laneId: string, 
  * per compaction; each subagent lane embedded as its own trajectory; fields ATIF has no
  * place for in `extra`. Events a compaction removed produce no step.
  */
-export function toAtif(trace: Trace): AtifTrajectory {
+export function toAtif(trace: Trace, options: { pricing?: TracePricing } = {}): AtifTrajectory {
   const mainId = mainAgentId(trace)
   const hidden = shadowedIn(trace.events)
   const byId = new Map(trace.events.map(event => [event.id, event]))
@@ -395,15 +444,35 @@ export function toAtif(trace: Trace): AtifTrajectory {
   // trajectory, and its spawn step carries no ref, so every ref stays resolvable.
   const embedded = new Set<string>()
   const subagents: AtifTrajectory[] = []
+  const traceCost = options.pricing ? priceTrace(trace, options.pricing) : undefined
+  // ATIF's root total_cost_usd includes the subagents' cost.
+  const rootTotal = { usd: 0, priced: 0, unpriced: 0 }
+  const laneCost = (laneId: string) => {
+    if (!traceCost) {
+      return undefined
+    }
+    const total = costOfDrafts(builds.get(laneId)!.drafts, traceCost)
+    rootTotal.usd += total.usd
+    rootTotal.priced += total.priced
+    rootTotal.unpriced += total.unpriced
+    return { trace: traceCost, total }
+  }
   for (const laneId of laneIdsList) {
     if (laneId !== mainId && builds.get(laneId)!.drafts.length > 0) {
       embedded.add(laneId)
-      subagents.push(finishTrajectory(trace, builds.get(laneId)!, laneId, true))
+      subagents.push(finishTrajectory(trace, builds.get(laneId)!, laneId, true, laneCost(laneId)))
     }
   }
   attachSpawnRefs(trace, builds, embedded)
 
-  const rootTrajectory = finishTrajectory(trace, builds.get(mainId)!, mainId, false)
+  laneCost(mainId)
+  const rootTrajectory = finishTrajectory(
+    trace,
+    builds.get(mainId)!,
+    mainId,
+    false,
+    traceCost ? { trace: traceCost, total: rootTotal } : undefined,
+  )
   if (subagents.length > 0) {
     rootTrajectory.subagent_trajectories = subagents
   }
