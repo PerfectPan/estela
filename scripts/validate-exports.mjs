@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Acceptance evidence for the ATIF export (Spec 0002, scenarios A1/A2): export every
+// Acceptance evidence for the ATIF export (scenarios A1 and A2 in docs/development/setup.md): export every
 // registered agent's fixture sessions with the CLI, then validate each output with
 // Harbor's ATIF validator. A manual gate, not part of `pnpm test`: it needs uv and
 // network access for the first `uv run` (Python 3.12 plus the `harbor` package).

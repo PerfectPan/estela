@@ -4,7 +4,7 @@ Active Specs define interactions, scope, failure behavior, compatibility, and ac
 
 Each Spec has a Chinese reading copy; see [Bilingual Specs And Plans](../../CONTRIBUTING.md#bilingual-specs-and-plans).
 
-Active Specs: [`0002-export-atif-otlp.md`](0002-export-atif-otlp.md) (delivered in #68, waiting to be retired), [`0007-context-diff.md`](0007-context-diff.md), [`0008-cost.md`](0008-cost.md), and [`0009-mcp-tools.md`](0009-mcp-tools.md).
+There are no active Specs. Delivered Specs were retired after their behavior moved into the [user guide](../guide/README.md), the [public interface](../reference/public-interface.md), the [architecture overview](../architecture/overview.md), and the tests; the acceptance scenario IDs that tests still use are listed in [Development](../development/setup.md#acceptance-scenarios). Git history keeps the retired files.
 
 Start from [`0000-template.md`](0000-template.md). Use `Draft`, `Accepted`, or `Superseded`. Give acceptance scenarios stable IDs and use Given/When/Then where useful. Link them to tests. No separate BDD document or framework is required. Technical decisions and the detailed execution plan belong in the paired Plan.
 

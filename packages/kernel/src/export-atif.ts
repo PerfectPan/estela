@@ -418,8 +418,8 @@ function finishTrajectory(
 }
 
 /**
- * The canonical trace as one ATIF v1.8 trajectory (Harbor RFC 0001), the mapping of the
- * delivery plan's ATIF table: one step per user event, per `requestId` group on a lane, and
+ * The canonical trace as one ATIF v1.8 trajectory (Harbor RFC 0001), the mapping in
+ * `docs/reference/export-formats.md`: one step per user event, per `requestId` group on a lane, and
  * per compaction; each subagent lane embedded as its own trajectory; fields ATIF has no
  * place for in `extra`. Events a compaction removed produce no step.
  */

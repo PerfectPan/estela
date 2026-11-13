@@ -15,7 +15,7 @@ const chip = (active: boolean) =>
   )
 
 /**
- * Compare (S1–S8 of spec 0007): the selected request's context against another request of its lane,
+ * Compare (scenarios CD-S1 to CD-S9 in `docs/development/setup.md`): the selected request's context against another request of its lane,
  * from kernel `diffContext` on the view trace. Counts per slot are events, never tokens; the only
  * token numbers are the recorded input tokens of the two requests and each compaction's pre → post.
  */
