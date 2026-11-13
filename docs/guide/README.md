@@ -16,4 +16,4 @@ Then, as needed:
 - [Privacy and redaction](privacy.md): what stays local, what redaction covers, what a report still contains.
 - [Troubleshooting](troubleshooting.md): Node version, ports, unreadable files, the index cache.
 
-Reference: [command line and public interface](../reference/public-interface.md), [export formats](../reference/export-formats.md).
+Reference: [command line and public interface](../reference/public-interface.md), [export formats](../reference/export-formats.md), [MCP tools](../reference/mcp-tools.md).

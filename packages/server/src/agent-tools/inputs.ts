@@ -1,7 +1,7 @@
 import * as z from 'zod/mini'
 
 /**
- * Tool inputs (`docs/guide/mcp.md`). Each schema both parses what an MCP client sends and is the JSON Schema the tool
+ * Tool inputs (`docs/reference/mcp-tools.md`). Each schema both parses what an MCP client sends and is the JSON Schema the tool
  * advertises (`inputJsonSchema`), so the two cannot drift. Objects are strict: an unknown key is an error, not
  * silently ignored. Every check sets `error`, which is the message the client sees after the tool and field name.
  */

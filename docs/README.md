@@ -9,6 +9,7 @@ Keep collaboration policy in `CONTRIBUTING.md`, AI-agent instructions in `AGENTS
 - [User guide](guide/README.md): install and run Estela, the concepts, the workspace, supported agents, reports and exports, MCP tools, privacy, and troubleshooting.
 - [Public interface](reference/public-interface.md): what semver covers from 1.0, and the current pre-1.0 policy.
 - [Export formats](reference/export-formats.md): the ATIF and OTLP mappings and their pinned versions.
+- [MCP tools reference](reference/mcp-tools.md): every tool's inputs, result fields, bounds, and errors.
 - [Architecture](architecture/overview.md) and [Development](development/setup.md): for contributors.
 
 ## What Belongs Here

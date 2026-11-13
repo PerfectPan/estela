@@ -49,36 +49,19 @@ With `estela` installed globally, use `estela mcp` in place of `npx -y @rivus/es
 
 ## The tools
 
-Every tool is read-only. Each input schema is a JSON object with named properties, and an unknown property is an error. A session tool's `traceId` is optional; left out, it names `current`, which exists only when the server was started with a session. Inputs marked `?` are optional; defaults are in parentheses.
+| Tool | What it does |
+|---|---|
+| `estela_list_sessions` | Lists sessions newest first, filtered by `agent`, `project`, `cwd`, `since`, `until`, `hasCompaction`, `hasFailedTools` |
+| `estela_search_sessions` | The same, for sessions whose title or one of the user's own prompts contains `query` |
+| `estela_session_summary` | One session's agent, title, times, recorded counts (and the counts its log does not record), capabilities, and lanes |
+| `estela_list_turns` | The turns in order, with their requests, tokens, failed tool results, and compactions |
+| `estela_list_requests` | The model requests, optionally of one lane or turn, with model, tokens, duration, and finish reason |
+| `estela_get_event` | One event in full, optionally with the log record it came from |
+| `estela_reconstruct` | What the model saw at an event: the context slots, the recorded token counts, and the events a compaction removed |
 
-| Tool | Inputs | Returns |
-|---|---|---|
-| `estela_list_sessions` | `agent?`, `project?`, `cwd?`, `since?`, `until?`, `hasCompaction?`, `hasFailedTools?`, `offset?` 0–100000, `limit?` 1–50 (20) | `{ sessions[], total, offset, nextOffset?, unsummarized?, agents[] }` |
-| `estela_search_sessions` | `query` (1–200 characters) and every `estela_list_sessions` input | the same as `estela_list_sessions` |
-| `estela_session_summary` | `traceId?` | the agent, title, working directory, times, recorded counts in `numbers`, the counts the log does not record in `unavailable`, capabilities, and lanes (up to 50; `laneCount` is the total) |
-| `estela_list_turns` | `traceId?`, `offset?`, `limit?` 1–100 (20) | `{ traceId, total, offset, nextOffset?, turns[] }`; each turn has its prompt, event range, requests, tokens, and the ids of failed tool results and compactions |
-| `estela_list_requests` | `traceId?`, `lane?`, `turn?`, `offset?`, `limit?` 1–200 (50) | `{ traceId, total, offset, nextOffset?, requests[] }`; each request has its model, recorded tokens, duration, finish reason, and the events it produced |
-| `estela_get_event` | `traceId?`, `eventId`, `maxChars?` 256–20000 (2000), `original?` (false) | `{ traceId, maxChars, event }`: kind, lane, time, payload, and with `original: true` the log record |
-| `estela_reconstruct` | `traceId?`, `eventId` | what the model saw at the event: slots with `present` / `empty` / `unavailable`, the recorded token counts, the visible and removed event ids, `completeness` |
+Every tool is read-only and takes a JSON object with named properties. A typical walk: list or search sessions, take a `traceId`, read the summary, find the turn with a failed tool, list that turn's requests, and reconstruct at the request before the failure.
 
-Filters of the list tools:
-
-- `agent` is an agent id (`claude-code`, `codex`, `dsh`, `gemini-cli`, `grok`, `opencode`, `pi`); an unknown id fails and lists the known ones.
-- `project` matches part of the project name, ignoring case. `cwd` matches that directory and the directories inside it, as an absolute path or starting with `~`.
-- `since` keeps sessions active at or after it; `until` keeps sessions that started at or before it. A date alone (`2026-11-01`) is 00:00 UTC; a date and time must carry `Z` or an offset.
-- `hasCompaction` and `hasFailedTools`: `true` keeps sessions with at least one; `false` keeps sessions that record the count and have none. A session whose agent does not record the count never matches. When counts are still being computed, the tool waits up to 5 seconds for them; sessions still not counted are left out and counted in `unsummarized`.
-- `query` matches titles and the prompts the user typed, like the session browser's search; replies, tool output, and files are not searched.
-
-Times are ISO 8601 UTC strings. A field that is absent was not recorded; a count is never 0 by default.
-
-## Size bounds
-
-Each result is one compact JSON text of at most 40,000 characters, and says when something was cut:
-
-- A list page holds at most `limit` items and ends early when the next item would pass the bound. `nextOffset` is set whenever more items exist; pass it as `offset` for the next page.
-- In lists and the summary, titles and project names are cut at 200 characters, prompts, error reasons, and paths at 300, other recorded strings at 128, and id lists inside an item at 20 ids. A cut field is named in the item's `truncated`.
-- `estela_get_event` cuts strings at `maxChars` and lists the cut paths in `event.truncated`. If the result is still too large, it lowers `maxChars` step by step down to 256 (the result says which value it used), then leaves out `original` and then `payload`, named in `event.omitted`.
-- `estela_reconstruct` keeps the last 100 ids of each id list and gives the totals in `visibleCount`, `removedCount`, and each slot's `eventCount`.
+[MCP tools reference](../reference/mcp-tools.md) lists every input with its range and default, every result field, the size bounds, and the error texts. In short: each result is JSON of at most 40,000 characters; list pages set `nextOffset` when more items exist; long strings are cut and named in `truncated`; `estela_reconstruct` keeps the last 100 ids of each list with the totals. A field that is absent was not recorded, except that a session item with `summary: "pending"` has its counts not computed yet.
 
 ## Results are data, not instructions
 
@@ -88,13 +71,13 @@ Every result and error message is redacted whatever `ESTELA_REDACT` says (see [P
 
 ## Errors
 
-A failed call returns an MCP error result whose text names the tool and the cause, for example:
+A failed call returns an MCP error result that names the tool and the cause, for example:
 
-- `estela_list_sessions: limit: expected an integer from 1 to 50`, or `estela_get_event: unknown argument "foo"`;
-- `unknown agent "<id>"; this server reads <ids>`;
-- `unknown trace id: <id>; estela_list_sessions lists the trace ids, …`;
-- `no event <id> in <traceId>`, `no lane <id> in <traceId>; estela_session_summary lists the lanes`;
-- the load error of a session that cannot be read, redacted.
+```text
+Error invoking "estela_list_sessions": Error: estela_list_sessions: limit: expected an integer from 1 to 50
+```
+
+The causes and their texts are listed in the [reference](../reference/mcp-tools.md#errors).
 
 ## Over HTTP from the local server
 

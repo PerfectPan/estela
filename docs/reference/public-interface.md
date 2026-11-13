@@ -56,7 +56,9 @@ The default locations and home overrides in [Supported agents](../guide/supporte
 
 ### MCP tools
 
-The seven tool names, their input properties, types, ranges, and defaults, the result fields, the 40,000-character bound, the `@e<n>` / `@l<n>` id forms, and the always-on redaction, as listed in [MCP tools](../guide/mcp.md). The `estela_<tool>: <field>: …` error form is covered; the rest of an error text is not. Tests: `packages/server/src/agent-tools/inputs.test.ts` (schemas and error texts), `packages/server/test/agent-tools.test.ts` (tool list, schemas, walk, hostile session), `apps/e2e/src/mcp.smoke.ts` (S17, S18 on the installed tarball), `apps/cli/test/cli-smoke.test.ts` (S10).
+Covered: the seven tool names and their input schemas (property names, types, ranges, defaults, and that unknown properties are rejected), as listed in the [MCP tools reference](mcp-tools.md#inputs); the 40,000-character bound; the `@e<n>` / `@l<n>` id forms; and that results and errors are always redacted. Tests: `packages/server/src/agent-tools/inputs.test.ts` (schemas and error texts), `packages/server/test/agent-tools.test.ts` (tool list, schemas, walk, hostile session), `apps/e2e/src/mcp.smoke.ts` (S17, S18 on the installed tarball), `apps/cli/test/cli-smoke.test.ts` (S10).
+
+Result fields are documented in the [reference](mcp-tools.md#results) and will be covered from 1.0, after a review of the shapes with agent users; until then they may change in a minor release. Error texts are for people: Estela's part starts with `estela_<tool>: <field>:` for an invalid input, and DevFrame adds its own prefix.
 
 The HTTP route `/__estela/__mcp` exists only with `--mcp` and is covered as a route; how it is authorized will change (it has none beyond DevFrame's loopback and origin checks today).
 

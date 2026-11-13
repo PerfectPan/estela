@@ -56,7 +56,7 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Registers Estela's agent tools (`docs/guide/mcp.md`) on DevFrame's agent host, which the MCP adapters (`estela mcp` over
+ * Registers Estela's agent tools (`docs/reference/mcp-tools.md`) on DevFrame's agent host, which the MCP adapters (`estela mcp` over
  * stdio, the dev server's `--mcp` route) serve. Each tool carries a JSON Schema with named properties built from the
  * same `zod/mini` schema that parses its input. Every result and every error message is redacted here, whatever
  * `ESTELA_REDACT` says, after the services below have (or have not) redacted it.

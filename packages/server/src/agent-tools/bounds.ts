@@ -1,5 +1,5 @@
 /**
- * Size bounds every agent tool result keeps (`docs/guide/mcp.md`). A result is one JSON text in an MCP reply; MCP clients cap
+ * Size bounds every agent tool result keeps (`docs/reference/mcp-tools.md`). A result is one JSON text in an MCP reply; MCP clients cap
  * what they pass to the model (Claude Code warns above 10,000 tokens), so a serialized result stays at or under
  * `RESULT_CHARS` UTF-16 units, about 10,000 to 13,000 tokens of JSON.
  */
