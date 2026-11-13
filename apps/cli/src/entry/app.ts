@@ -41,7 +41,7 @@ function redactsFromEnv(): boolean {
   return process.env.ESTELA_REDACT !== '0'
 }
 
-/** `build`, `mcp`, and the exports always read one session: the bundled demo trace when nothing names one. */
+/** `build` and the exports always read one session: the bundled demo trace when nothing names one. */
 function oneSession(session: string | undefined): SessionTarget {
   return commandLineTarget(session ?? sessionFromEnv() ?? demoFixturePath())
 }
@@ -111,7 +111,8 @@ function commandOf(intent: Execute): () => Promise<void> {
       return () => runBuild(input, pkg.version)
     }
     case '/mcp': {
-      const input: McpInput = { target: oneSession(session) }
+      const named = session ?? sessionFromEnv()
+      const input: McpInput = { target: named === undefined ? undefined : commandLineTarget(named) }
       return () => runMcp(input)
     }
     case '/export-atif':

@@ -160,6 +160,21 @@ describe('TraceStore', () => {
     expect(loads).toEqual([])
     expect((await store.reconstruct('a', 'u1')).visibleIds).toEqual(['u1'])
   })
+
+  it('presents reconstruct like get-event, and withTrace hands over the trace without originals', async () => {
+    const f = fixture()
+    const id = `${HOME}/u1`
+    f.write('/logs/a.jsonl', [{ id, kind: 'user', text: 'hi' }])
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, present })
+    const surface = await store.reconstruct('a', id)
+    expect(surface.eventId).toBe('~/u1')
+    expect(JSON.stringify(surface)).not.toContain(HOME)
+    const events = await store.withTrace('a', trace => trace.events)
+    expect(events.map(event => event.id)).toEqual([id])
+    expect(events[0]).not.toHaveProperty('original')
+    await expect(store.withTrace('missing', trace => trace)).rejects.toThrow('unknown trace id: missing')
+  })
+
   it('withEvents reads source pointers in the order asked', async () => {
     const f = fixture()
     f.write(

@@ -219,7 +219,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 
 - File and directory names are kebab-case: lowercase letters and digits joined by `-`. Suffixes after the stem follow the same rule (`fold.test.ts`, `vite.config.ts`), except a locale tag such as `zh-CN`.
 - Files under `fixtures/` keep the agent log's names when those names are not kebab-case (`system_prompt.txt`, `tool_definitions.json`).
-- Names fixed by convention or a platform keep their form: `README.md`, `README.zh-CN.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, and `.gitlab/merge_request_templates/`.
+- Names fixed by convention or a platform keep their form: `README.md`, `README.zh-CN.md`, `LICENSE`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `SECURITY.md`, `SKILL.md` (an agent skill), `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, and `.gitlab/merge_request_templates/`.
 - A code file (`.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, and their variants) under `apps/`, `packages/`, or `scripts/` has at most 500 lines, tests included. Fixtures and documentation have no line limit. A file near the limit splits along a responsibility, not at an arbitrary line.
 
 `node scripts/check-conventions.mjs` checks every tracked file. CI and the pre-commit hook run it.

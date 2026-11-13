@@ -89,6 +89,22 @@ describe('session catalog', () => {
     index.close()
   })
 
+  it('redacts titles and prompts with the caller’s rule when one is passed, whatever ESTELA_REDACT says', async () => {
+    const home = await tempHome()
+    await mkdir(join(home, '.claude/projects/plain'), { recursive: true })
+    await cp(
+      join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl'),
+      join(home, '.claude/projects/plain/session.jsonl'),
+    )
+    const index = openSessionIndex({ summaryVersion: 1, file: join(home, 'index.sqlite') })
+    const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }), index })
+    const own = await catalog.listSessions()
+    expect(own.rows[0]).toMatchObject({ title: 'Run the tests', firstPrompt: 'Run the tests' })
+    const theirs = await catalog.listSessions({}, text => `[${text.length}]`)
+    expect(theirs.rows[0]).toMatchObject({ title: '[13]', firstPrompt: '[13]', project: '[3]' })
+    catalog.close()
+  })
+
   it('summarizes the newest sessions first, four at a time', async () => {
     const home = await tempHome()
     const root = join(home, 'sessions')

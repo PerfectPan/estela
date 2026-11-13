@@ -185,7 +185,11 @@ export class SessionCatalog {
       }))
   }
 
-  async listSessions(input: ListSessionsQuery = {}): Promise<ListSessionsResult> {
+  /**
+   * `redact` replaces the catalog's own rule (`ESTELA_REDACT`) for this call's titles, projects, and prompts; the MCP
+   * tools pass one that always redacts, because a prompt is shortened after redaction.
+   */
+  async listSessions(input: ListSessionsQuery = {}, redact: Redactor = this.redact): Promise<ListSessionsResult> {
     await this.start()
     if (input.first && input.first.length > 0) {
       this.queue.prioritize(input.first)
@@ -193,7 +197,7 @@ export class SessionCatalog {
     const since = input.since
     const rows = this.sortedRows()
       .filter(row => since === undefined || row.revision > since)
-      .map(row => publicRow(row, this.redact))
+      .map(row => publicRow(row, redact))
     const removed =
       since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([traceId]) => traceId)
     const query = input.query?.trim() ?? ''

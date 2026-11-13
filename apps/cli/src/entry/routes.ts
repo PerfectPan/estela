@@ -57,7 +57,9 @@ export function cliRoutes(packageVersion: string) {
     toggle(name('auth'), description('Gate the browser with a one-time code (default: on)'), schema(tristate)),
     toggle(
       name('mcp'),
-      description('Serve MCP over HTTP from the dev server (default: once agent tools exist)'),
+      description(
+        'Also serve the MCP tools over HTTP at /__estela/__mcp; not gated by the one-time code (default: off)',
+      ),
       schema(tristate),
     ),
     toggle(name('pick'), description('Pick a session in the terminal'), schema(tristate)),
@@ -71,9 +73,9 @@ export function cliRoutes(packageVersion: string) {
     ),
     command(
       name('mcp'),
-      description('Serve MCP tools for one session over stdio'),
+      description('Serve MCP tools over stdio: every discovered session, or the one session given'),
       version(packageVersion),
-      session(ONE_SESSION),
+      session('ESTELA_PATH, else every discovered session'),
     ),
     command(
       name('export-atif'),

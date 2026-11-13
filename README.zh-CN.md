@@ -33,7 +33,7 @@ Estela 将本机的 Agent 会话集中呈现在一个界面中。每个会话包
 - **会话工作区。** 会话指标、请求时间线、事件列表和事件检查器。时间线中每个请求对应一个柱形（高度为输入 Token），每个子代理对应一条泳道，并标注提示词、失败的工具调用和上下文压缩；事件列表按轮次或按代理分组，检查器展示所选事件详情。
 - **模型所见。** 所选请求的上下文重建：系统提示词、工具、消息，以及被上下文压缩移除的事件；日志未记录的槽位标记为 `unavailable`。
 - **报告。** 单个会话工作区的脱敏静态导出：一个 `index.html` 文件，无需服务器，可直接从磁盘打开。
-- **MCP。** `estela mcp <path>`：通过 stdio 提供 `reconstruct` 工具。
+- **面向 coding agent 的 MCP。** `estela mcp` 通过 stdio 为 agent 提供只读工具：找到早先的会话，读取其轮次、请求和事件，并在失败请求处重建模型看到的内容；一个 skill 告诉 agent 如何使用。
 
 两个页面的静态设计稿见 [`docs/design/`](docs/design/README.md)。
 
@@ -71,7 +71,8 @@ npx @rivus/estela export-otlp [path] [--out <file>]
 | `estela <path>` | 在服务器开始监听前加载该会话（若没有适配器接受，会以退出码 1 退出并说明原因），然后打开它的工作区。 |
 | `estela --pick` | 在终端中可搜索的会话列表；按 Enter 打开选中的会话。需要交互式终端。 |
 | `estela build <path> --out-dir <dir>` | 把单个会话的报告写到 `<dir>/index.html`（默认 `dist-static`）。 |
-| `estela mcp <path>` | 通过 stdio 提供该会话的 MCP 服务，包含 `reconstruct` 工具。只有协议消息会写到 stdout。 |
+| `estela mcp` | 通过 stdio 提供 MCP 服务，工具覆盖本机的每个会话（见 [面向 coding agent 的 MCP](#面向-coding-agent-的-mcp)）。只有协议消息会写到 stdout。 |
+| `estela mcp <path>` | 同样的服务，只覆盖该会话：提供会话工具，没有列表与搜索。 |
 | `estela export-atif <path> --out <file>` | 将会话写成一条 [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) 轨迹（默认 `estela-<session>.atif.json`），用于 Harbor 数据集和评估。 |
 | `estela export-otlp <path> --out <file>` | 将会话写成一个 OTLP/JSON `ExportTraceServiceRequest`（默认 `estela-<session>.otlp.json`），其中的 span 携带 `gen-ai-dev/1.42.0-dev` 的 OpenTelemetry GenAI 属性，用于 Langfuse、LangSmith 和 Phoenix。 |
 
@@ -83,8 +84,9 @@ npx @rivus/estela export-otlp [path] [--out <file>]
 | `--no-auth` | 关闭 DevFrame 的一次性验证码。默认打开的 URL 会带上验证码。 |
 | `--pick` | 在终端中选择会话。 |
 | `--no-index` | 不读写会话索引；每次启动重新计算摘要，不存储。 |
+| `--mcp` | 另外通过 HTTP 在 `/__estela/__mcp` 提供 MCP 工具。默认关闭：一次性验证码不保护这个路由，本机任何进程都能调用它。 |
 
-`ESTELA_PATH` 是默认的会话路径。没有给路径时，`build`、`mcp` 和导出命令会回退到内置的演示 trace。数据库里共用同一个库的会话要带 id 打开：`estela ~/.local/share/opencode/opencode.db#<sessionId>`。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。`estela --help` 和 `estela <command> --help` 列出每个命令的参数和 flag；不认识的 flag 会在读取任何会话之前以退出码 1 结束。
+`ESTELA_PATH` 是默认的会话路径。没有给路径时，`build` 和导出命令会回退到内置的演示 trace；`mcp` 提供所有会话。数据库里共用同一个库的会话要带 id 打开：`estela ~/.local/share/opencode/opencode.db#<sessionId>`。输出不是终端，或设置了 `NO_COLOR` 时，CLI 会打印不带转义序列的纯文本行。`estela --help` 和 `estela <command> --help` 列出每个命令的参数和 flag；不认识的 flag 会在读取任何会话之前以退出码 1 结束。
 
 ## 会话导出
 
@@ -107,6 +109,40 @@ curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb ht
 ```
 
 导出和服务器一样进行脱敏（home 目录替换为 `~`，已知凭据模式被替换）；`ESTELA_REDACT=0` 会写出未脱敏的字节。被上下文压缩移除的事件不生成 ATIF step；跨压缩保留的 step 标记为 `is_copied_context`，压缩本身是携带 `extra.context_management` 的 system step。
+
+## 面向 coding agent 的 MCP
+
+`estela mcp` 通过 stdio 提供七个只读工具：`estela_list_sessions` 与 `estela_search_sessions`（按 agent、项目、目录、时间、上下文压缩、失败的工具调用过滤）、`estela_session_summary`、`estela_list_turns`、`estela_list_requests`、`estela_get_event` 和 `estela_reconstruct`。每个工具都有带命名属性的 JSON 输入 schema。每个结果都是 JSON，最多 40,000 个字符，被截断时会说明并告诉如何读取更多，且已脱敏。工具、输入和结果的规定见 [Spec 0009](docs/specs/0009-mcp-tools.zh-CN.md)。
+
+把服务器加到 agent 中（在 `@rivus/estela` 发布到 npm 之前，用 `node <repo>/apps/cli/dist/bin.mjs mcp` 代替 `npx -y @rivus/estela mcp`）：
+
+```sh
+# Claude Code
+claude mcp add --scope user estela -- npx -y @rivus/estela mcp
+
+# Codex
+codex mcp add estela -- npx -y @rivus/estela mcp
+```
+
+Codex 也可以从 `~/.codex/config.toml` 读取：
+
+```toml
+[mcp_servers.estela]
+command = "npx"
+args = ["-y", "@rivus/estela", "mcp"]
+```
+
+Gemini CLI 的 `~/.gemini/settings.json`（或项目的 `.gemini/settings.json`）：
+
+```json
+{ "mcpServers": { "estela": { "command": "npx", "args": ["-y", "@rivus/estela", "mcp"] } } }
+```
+
+skill [`skills/estela/SKILL.md`](skills/estela/SKILL.md) 告诉 agent 如何用这些工具调试早先的会话。它不在 npm 包中；从本仓库复制 `skills/estela` 目录：
+
+- Claude Code：复制到 `~/.claude/skills/estela/`（所有项目）或 `.claude/skills/estela/`（单个项目）。
+- Codex：复制到 `~/.codex/skills/estela/`（Codex CLI 0.167 从那里读取 skill）；不支持 skill 的版本，把 `SKILL.md` 的正文粘贴到 `AGENTS.md`。
+- Gemini CLI：把 `SKILL.md` 的正文粘贴到 `GEMINI.md`。
 
 ## 支持的 Agent
 
@@ -131,6 +167,7 @@ curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb ht
 - 会话索引位于 `$XDG_CACHE_HOME/rivus-estela/index.sqlite`（默认 `~/.cache/rivus-estela/`），权限为 0600。它保存标题、路径、数字，以及用户输入的前 200 条提示词（每条 500 字符）用于搜索——不保存 Agent 注入或 Agent 自己记录的文本。可以随时删除；它会从日志重建。`--no-index` 可以在没有索引的情况下运行。
 - URL 只携带不透明的 trace id，从不包含路径。
 - 本地服务器会把 home 目录替换成 `~`，并把已知的凭据模式替换成占位符；`ESTELA_REDACT=0` 只对本地服务器关闭这一行为。
+- MCP 工具结果无论 `ESTELA_REDACT` 如何设置，都会按同样的方式脱敏。结果仍包含会话文本，agent 必须把它当作数据，而不是指令。
 - 报告（`build`，或工作区里的“导出报告”）无论 `ESTELA_REDACT` 如何设置，都会按同样的方式脱敏。**报告仍保留会话文本和文件内容，分享前请先阅读。** 报告包含每个事件的视图，以及前 2,000 个事件或 20 MB（取较小者）的原始记录；如果实际更少，报告头部会说明。
 
 ## 开发

@@ -20,6 +20,7 @@ const FIXED_NAMES = new Set([
   'README.md',
   'README.zh-CN.md',
   'SECURITY.md',
+  'SKILL.md',
 ])
 /** Paths whose names a platform or tool decides. */
 const FIXED_PATHS = [

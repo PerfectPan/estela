@@ -237,6 +237,16 @@ export function toView(trace: Trace, opts?: { maxString?: number }): Trace {
   return draft
 }
 
+/**
+ * `value` (arbitrary JSON) with every string and object key cut to at most `max` UTF-16 units, as `toView` cuts an
+ * event payload, never splitting a surrogate pair; `truncated` lists the shortened paths. `max` is used as given: the
+ * view's floor of 256 does not apply, because the result is not checked against the trace schema.
+ */
+export function capStrings(value: unknown, max: number): { value: unknown; truncated: TruncatedPath[] } {
+  const capper = new Capper(Math.max(1, Math.floor(max)))
+  return { value: capper.value(value, []), truncated: capper.truncated }
+}
+
 export interface FittedView {
   /** The view; `trace.view` holds the cap, the budget, and `withinBudget`. */
   trace: Trace
