@@ -2,6 +2,18 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.3.0
+
+### Minor Changes
+
+- [#114](https://github.com/PerfectPan/estela/pull/114) [`cc8c52d`](https://github.com/PerfectPan/estela/commit/cc8c52d6dd35dc289cb279ded0e370ad14272310) Thanks [@nyx-cell](https://github.com/nyx-cell)! - The workspace inspector has a Compare tab: pick another request of the same lane (or the request before the last compaction) and see which events entered the context, which a compaction hid, whether the system prompt or tools changed, and the change in recorded input tokens.
+
+- [#116](https://github.com/PerfectPan/estela/pull/116) [`ff3b26e`](https://github.com/PerfectPan/estela/commit/ff3b26e3c7843d42e455c94c8155d1f88f19e050) Thanks [@nyx-cell](https://github.com/nyx-cell)! - The workspace and reports show what a session's recorded tokens cost at LiteLLM list prices: the session total with its cache hit rate, per turn, per agent, and per request with input, cache, and output shares. Requests without usage or with an unlisted model show cost as unavailable with the reason, and partial sums say how many requests they leave out. `export-atif` writes the same cost to ATIF's `cost_usd` fields.
+
+### Patch Changes
+
+- [#128](https://github.com/PerfectPan/estela/pull/128) [`0f4ca6b`](https://github.com/PerfectPan/estela/commit/0f4ca6b72e9fb3b415c1ab0e5973f504b4dba314) Thanks [@nyx-cell](https://github.com/nyx-cell)! - The help text, the MCP tool descriptions, and the package description say "agent" instead of "coding agent".
+
 ## 0.2.0
 
 ### Minor Changes
