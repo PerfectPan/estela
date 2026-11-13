@@ -40,7 +40,7 @@ const ONE_SESSION = 'ESTELA_PATH, else the bundled demo trace'
 export function cliRoutes(packageVersion: string) {
   return command(
     name('estela'),
-    description('Inspect coding-agent sessions in the browser: one session, or every session the agents keep.'),
+    description('Inspect agent sessions in the browser: one session, or every session the agents keep.'),
     version(packageVersion),
     session('ESTELA_PATH'),
     option(

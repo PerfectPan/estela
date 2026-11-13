@@ -1,7 +1,7 @@
 import * as z from 'zod/mini'
 
 /**
- * Tool inputs (Spec 0009). Each schema both parses what an MCP client sends and is the JSON Schema the tool
+ * Tool inputs (`docs/reference/mcp-tools.md`). Each schema both parses what an MCP client sends and is the JSON Schema the tool
  * advertises (`inputJsonSchema`), so the two cannot drift. Objects are strict: an unknown key is an error, not
  * silently ignored. Every check sets `error`, which is the message the client sees after the tool and field name.
  */
@@ -82,7 +82,7 @@ function text(max: number, description: string) {
 
 /** The session filters `estela_list_sessions` and `estela_search_sessions` share. */
 const sessionFilters = {
-  agent: text(64, 'Only sessions of this coding agent, such as `claude-code`, `codex`, or `grok`.'),
+  agent: text(64, 'Only sessions of this agent, such as `claude-code`, `codex`, or `grok`.'),
   project: text(
     500,
     'Only sessions whose project name (the last segment of the working directory) contains this text, ignoring case.',

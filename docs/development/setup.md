@@ -87,7 +87,7 @@ Never publish from a local checkout. Use the manual Publish workflow's default d
 
 ## Acceptance scenarios
 
-Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `test:e2e`, both on the installed tarball.
+Test titles and comments use these IDs, so a test name says which behavior it checks. `smoke` is `test:smoke` and `e2e` is `test:e2e`, both on the installed tarball. The behavior itself is described for users in the [guide](../guide/README.md).
 
 | ID | Behavior | Suite |
 |---|---|---|
@@ -102,13 +102,34 @@ Test titles and comments use these IDs. `smoke` is `test:smoke` and `e2e` is `te
 | S9 | An exported report opens from `file://` without a server, in the export language, and contains no home path | e2e |
 | S10 | `mcp` lists its tools, `reconstruct` returns the visible ids, unavailable slots, and completeness, and stdout carries only protocol | smoke, `apps/cli/test/cli-smoke.test.ts` |
 | S11 | The theme follows the system color scheme; a manual switch survives a reload | e2e |
-| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `apps/cli/test/size-budget.test.ts` (opt-in) |
+| S12 | A 350 MB Codex file opens after load progress, at most 12 MB reaches the browser before a selection, and a shortened output loads in full when selected | e2e, `packages/server/test/size-budget.test.ts` (opt-in) |
 | S13 | On Node.js 22 the CLI prints one line naming Node.js 24 and exits 1 | smoke |
 | S14 | A `zh-CN` browser gets Chinese labels and date formats with session content unchanged; a switch to English survives a reload | e2e |
 | S15 | `build` piped to a file writes plain lines with no escape sequences and no home path | smoke |
 | S16 | `--pick` in a terminal: typing part of a title and pressing Enter opens that session | smoke |
-| S17 | `mcp` without a path lists seven tools with named input properties and walks list, summary, turns, requests, reconstruct, and get-event to a failed tool result ([Spec 0009](../specs/0009-mcp-tools.md)) | smoke, `packages/server/test/agent-tools.test.ts` |
+| S17 | `mcp` without a path lists seven tools with named input properties and walks list, summary, turns, requests, reconstruct, and get-event to a failed tool result ([MCP tools](../guide/mcp.md)) | smoke, `packages/server/test/agent-tools.test.ts` |
 | S18 | MCP tool results on a hostile session hold no home path and no unsafe id as written (`@e0` instead), with `ESTELA_REDACT=0` | smoke, `packages/server/test/agent-tools.test.ts` |
+
+Context diff (the Compare tab; [workspace guide](../guide/workspace.md#compare)):
+
+| ID | Behavior | Evidence |
+|---|---|---|
+| CD-S1 | Across a compaction (pre 3.5k, post 400), the first request after it is compared with the last request before it: input tokens `3k → 600` and `−2.4k`, one compaction row `3.5k → 400`, the compaction summary among the entered events, and as many events hidden by compaction as Model saw lists as dropped | `compare.e2e.ts`, `packages/kernel/src/context-diff.test.ts` |
+| CD-S2 | The last request compares with the previous one by default (no compaction, no hidden events); "Before the last compaction" picks the last request before it and shows one compaction row | `compare.e2e.ts`, `apps/web/src/lib/context-compare.test.ts` |
+| CD-S3 | Shift-click on another main-lane request bar makes it the target, draws it with a dashed ring, and keeps the selection | `compare.e2e.ts` |
+| CD-S4 | A slot the log does not record is hatched and `unavailable` with no change listed; without both input-token counts no difference is shown | `compare.e2e.ts`, `context-diff.test.ts` |
+| CD-S5 | With prompt snapshots, the same recorded system prompt is "same" on the full and the view trace; tool names added and removed are listed, or "not recorded" when a definition has no name; tools first recorded after the earlier request are `unavailable` | `compare.e2e.ts`, `context-diff.test.ts` |
+| CD-S6 | A request diffed with itself: nothing entered, left, or hidden, and an input-token delta of 0 when recorded | `context-diff.test.ts` |
+| CD-S7 | In a report opened from `file://`, Compare gives the same diff, and switching to Chinese translates every label | `compare.e2e.ts` |
+| CD-S8 | On a subagent lane the diff covers only that lane; the picker never offers another lane's request, and the kernel rejects a cross-lane pair with `different-lanes` | `context-diff.test.ts`, `context-compare.test.ts` |
+| CD-S9 | With a non-request selected, or no other request on its lane, the tab says so in one line | `context-compare.test.ts` |
+
+ATIF export ([export formats](../reference/export-formats.md)):
+
+| ID | Behavior | Evidence |
+|---|---|---|
+| A1 | `fixtures/demo.trace.json` exports to ATIF that passes Harbor's validator; the compaction is a system step with `extra.context_management`, the events it hid produce no step, and steps kept from before it carry `is_copied_context: true` | `packages/kernel/src/export-atif.test.ts`, `apps/cli/src/export/write-export.test.ts`, `node scripts/validate-exports.mjs` |
+| A2 | Every registered agent's conformance fixtures export to ATIF that passes Harbor's validator | `write-export.test.ts` (structural check in CI), `node scripts/validate-exports.mjs` (Harbor, manual) |
 
 ## CLI smoke on the installed tarball
 

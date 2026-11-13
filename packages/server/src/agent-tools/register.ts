@@ -56,7 +56,7 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Registers Estela's agent tools (Spec 0009) on DevFrame's agent host, which the MCP adapters (`estela mcp` over
+ * Registers Estela's agent tools (`docs/reference/mcp-tools.md`) on DevFrame's agent host, which the MCP adapters (`estela mcp` over
  * stdio, the dev server's `--mcp` route) serve. Each tool carries a JSON Schema with named properties built from the
  * same `zod/mini` schema that parses its input. Every result and every error message is redacted here, whatever
  * `ESTELA_REDACT` says, after the services below have (or have not) redacted it.
@@ -111,7 +111,7 @@ export function registerAgentTools(host: AgentToolHost, deps: AgentToolDeps): st
     add({
       name: 'list_sessions',
       title: 'List sessions',
-      description: `List the coding-agent sessions on this machine, newest activity first, with their counts (turns, requests, tokens, compactions, failed tools). Filter by agent, project, working directory, time, or whether a session had a compaction or a failed tool. Use a session's traceId with the other estela tools. ${DATA_NOTE}`,
+      description: `List the agent sessions on this machine, newest activity first, with their counts (turns, requests, tokens, compactions, failed tools). Filter by agent, project, working directory, time, or whether a session had a compaction or a failed tool. Use a session's traceId with the other estela tools. ${DATA_NOTE}`,
       input: listSessionsInput,
       run: async input => listSessionPage(catalog, input, redaction),
     })

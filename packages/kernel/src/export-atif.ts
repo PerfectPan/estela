@@ -19,7 +19,7 @@ import {
   type TrajectoryBuild,
 } from './export-atif-steps.ts'
 
-/** ATIF version this projection targets, pinned per the delivery plan (Harbor RFC 0001). */
+/** ATIF version this projection targets (Harbor RFC 0001); the mapping is listed in `docs/reference/export-formats.md`. */
 export const ATIF_SCHEMA_VERSION = 'ATIF-v1.8' as const
 
 export interface AtifAgent {
@@ -223,8 +223,8 @@ function attachSpawnRefs(trace: Trace, builds: Map<string, TrajectoryBuild>, emb
 }
 
 /**
- * One lane's walk in `seq` order: user and system and compaction events close the open
- * agent step, agent-kind events join or open the step of their `requestId`, and a
+ * One lane's walk in `seq` order: user and compaction events, and system events that become a
+ * step, close the open agent step, agent-kind events join or open the step of their `requestId`, and a
  * `tool_result` follows its `tool_call`'s step.
  */
 function buildLane(
@@ -418,8 +418,8 @@ function finishTrajectory(
 }
 
 /**
- * The canonical trace as one ATIF v1.8 trajectory (Harbor RFC 0001), the mapping of the
- * delivery plan's ATIF table: one step per user event, per `requestId` group on a lane, and
+ * The canonical trace as one ATIF v1.8 trajectory (Harbor RFC 0001), the mapping in
+ * `docs/reference/export-formats.md`: one step per user event, per `requestId` group on a lane, and
  * per compaction; each subagent lane embedded as its own trajectory; fields ATIF has no
  * place for in `extra`. Events a compaction removed produce no step.
  */

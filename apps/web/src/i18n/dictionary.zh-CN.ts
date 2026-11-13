@@ -6,7 +6,7 @@ import type { Dictionary } from './dictionary.en.ts'
  * | English | 中文 | Note |
  * |---|---|---|
  * | session | 会话 | |
- * | agent | 代理 | The coding agent whose logs are read. Agent names (Claude Code, Codex, Grok) stay in English. |
+ * | agent | 代理 | The agent whose logs are read. Agent names (Claude Code, Codex, Grok) stay in English. |
  * | project | 项目 | The last folder of the working directory. |
  * | turn | 轮次 | One user prompt and what follows it. |
  * | request | 请求 | One model call. |
