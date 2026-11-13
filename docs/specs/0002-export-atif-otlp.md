@@ -92,7 +92,7 @@ incremental export, no new package.
 - Then the document passes Harbor's ATIF validator
   (`python -m harbor.utils.trajectory_validator`), the compaction is a system
   step with `extra.context_management`, the events it shadowed produce no
-  step, and the kept pre-compaction steps carry `is_copied_context: true`.
+  step, and any kept pre-compaction steps carry `is_copied_context: true`.
 
 ### A2: Every registered agent's fixtures export to valid ATIF
 

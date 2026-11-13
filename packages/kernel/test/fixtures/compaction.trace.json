@@ -1,0 +1,83 @@
+{
+  "schema": "estela",
+  "agent": "demo",
+  "session": {
+    "id": "demo-compaction",
+    "title": "Fix auth, then compact"
+  },
+  "capabilities": ["requests", "usage", "compaction", "compactionTokens"],
+  "agents": [{ "id": "main" }],
+  "skipped": [],
+  "events": [
+    {
+      "id": "e1",
+      "seq": 0,
+      "ts": 0,
+      "kind": "system",
+      "payload": { "text": "You are a coding agent." },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 1 },
+      "original": { "type": "system" }
+    },
+    {
+      "id": "e2",
+      "seq": 1,
+      "ts": 1,
+      "kind": "user",
+      "payload": { "text": "Fix the auth bug in src/auth.ts" },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 2 },
+      "original": { "type": "user" }
+    },
+    {
+      "id": "e3",
+      "seq": 2,
+      "ts": 2,
+      "kind": "tool_call",
+      "shadowedBy": "e5",
+      "payload": { "callId": "c1", "name": "read", "args": { "path": "src/auth.ts" } },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 3 },
+      "original": { "type": "tool_call" }
+    },
+    {
+      "id": "e4",
+      "seq": 3,
+      "ts": 3,
+      "kind": "tool_result",
+      "shadowedBy": "e5",
+      "payload": { "callId": "c1", "output": "export const secret = 'sk-demoFAKESECRET_k2l3m4n5o6p7q8r9s0t1'" },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 4 },
+      "original": { "type": "tool_result" }
+    },
+    {
+      "id": "e5",
+      "seq": 4,
+      "ts": 4,
+      "kind": "compaction",
+      "payload": { "trigger": "auto", "preTokens": 1000, "postTokens": 100 },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 5 },
+      "original": { "type": "compaction" }
+    },
+    {
+      "id": "e6",
+      "seq": 5,
+      "ts": 5,
+      "kind": "assistant",
+      "payload": { "text": "The token check is inverted." },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 6 },
+      "original": { "type": "assistant" }
+    },
+    {
+      "id": "e7",
+      "seq": 6,
+      "ts": 6,
+      "kind": "request",
+      "requestId": "req-1",
+      "payload": {
+        "model": "demo-model",
+        "usage": { "inputTokens": 30, "outputTokens": 12 },
+        "finishReason": "end_turn"
+      },
+      "source": { "file": "compaction.trace.json", "offset": 0, "length": 2, "line": 7 },
+      "original": { "type": "request" }
+    }
+  ]
+}

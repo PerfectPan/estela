@@ -6,7 +6,7 @@ import { assertTrace, isTrace } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { reconstruct } from './reconstruct.ts'
 
-const fixturePath = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/demo.trace.json')
+const fixturePath = join(dirname(fileURLToPath(import.meta.url)), '../test/fixtures/compaction.trace.json')
 
 async function demoTrace(): Promise<Trace> {
   const value: unknown = JSON.parse(await readFile(fixturePath, 'utf8'))
