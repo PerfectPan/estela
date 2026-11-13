@@ -105,11 +105,11 @@ async function firstRows(env, expected, warm) {
   })
 }
 
-/** `apps/cli/src/testsupport/large-session.ts` run by path, as the S12 browser test does. */
+/** `packages/server/src/testsupport/large-session.ts` run by path, as the S12 browser test does. */
 function writeLargeSession(dir) {
   const stdout = execFileSync(
     process.execPath,
-    [join(root, 'apps/cli/src/testsupport/large-session.ts'), dir, String(LARGE_SESSION_BYTES)],
+    [join(root, 'packages/server/src/testsupport/large-session.ts'), dir, String(LARGE_SESSION_BYTES)],
     { encoding: 'utf8' },
   )
   return JSON.parse(stdout)
