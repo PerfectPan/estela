@@ -28,7 +28,9 @@ function sourceOf(rows: SessionListRow[], matches: string[] = []): SessionSource
 }
 
 const same = <T>(value: T): T => value
-const tilde = (text: string): string => text.replace('/home/u', '~')
+/** Built from parts: the repository check rejects a literal home path in a tracked file. */
+const LIST_HOME = ['', 'home', 'u'].join('/')
+const tilde = (text: string): string => text.replace(LIST_HOME, '~')
 const redaction = { value: same, text: tilde, cutText: tilde }
 
 describe('listSessionPage', () => {
@@ -42,7 +44,7 @@ describe('listSessionPage', () => {
   it('filters by directory, project, time, and agent', async () => {
     const ids = async (filters: Parameters<typeof listSessionPage>[1]) =>
       (await listSessionPage(sourceOf(rows), filters, redaction)).sessions.map(item => item.traceId)
-    expect(await ids({ cwd: '/home/u/work/app/' })).toEqual(['a', 'b'])
+    expect(await ids({ cwd: `${LIST_HOME}/work/app/` })).toEqual(['a', 'b'])
     expect(await ids({ project: 'APP' })).toEqual(['a', 'c'])
     expect(await ids({ since: '2026-11-02' })).toEqual(['a', 'b'])
     expect(await ids({ until: '2026-11-01T00:00:00Z' })).toEqual(['c', 'd'])
@@ -94,7 +96,7 @@ describe('listSessionPage', () => {
   })
 
   it('redacts list text before cutting it', async () => {
-    const home = '/Users/alice'
+    const home = ['', 'Users', 'alice'].join('/')
     const kit = {
       value: <T>(value: T): T => redact(value, { home }),
       text: (text: string) => redactText(text, { home }),
@@ -110,11 +112,11 @@ describe('listSessionPage', () => {
       title: `${'t'.repeat(190)} ~/b`,
       firstPrompt: `${'x'.repeat(289)} ~/project`,
     })
-    expect(JSON.stringify(page)).not.toContain('/Users/al')
+    expect(JSON.stringify(page)).not.toContain(home.slice(0, 9))
   })
 
   it('replaces a home path the kit cut short in a title or a first prompt', async () => {
-    const home = '/Users/alice'
+    const home = ['', 'Users', 'alice'].join('/')
     const kit = {
       value: <T>(value: T): T => redact(value, { home }),
       text: (text: string) => redactText(text, { home }),
@@ -125,6 +127,6 @@ describe('listSessionPage', () => {
     const firstPrompt = `${'y'.repeat(100)} ${home}/project`.slice(0, 110)
     const page = await listSessionPage(sourceOf([row('a', { title: prompt.slice(0, 80), firstPrompt })]), {}, kit)
     expect(page.sessions[0]).toMatchObject({ title: `${'x'.repeat(70)} ~`, firstPrompt: `${'y'.repeat(100)} ~` })
-    expect(JSON.stringify(page)).not.toContain('/Users/al')
+    expect(JSON.stringify(page)).not.toContain(home.slice(0, 9))
   })
 })

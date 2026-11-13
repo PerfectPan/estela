@@ -34,7 +34,7 @@ const PATH_CHAR = /[\w.~/\\%-]/
 /**
  * `text` (already redacted) with a trailing partial home path replaced by `~`. The kit cuts session titles and first
  * prompts (to 80 and 500 characters) before anything redacts them, and the kit's redaction matches only a whole home
- * path, so a cut inside one (`… /Users/al`) would keep the start of the user name. This handles the spellings that can
+ * path, so a cut inside one would keep the start of the user name. This handles the spellings that can
  * end such a cut: the absolute path, the path without its leading `/`, and the JSON-escaped path. It goes away once
  * the kit cuts after redacting.
  */

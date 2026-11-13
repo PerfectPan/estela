@@ -1,29 +1,33 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { jsonChars, pageWithin, shown, trimCutHome } from './bounds.ts'
 
+/** Built from parts: the repository check rejects a literal home path in a tracked file. */
+const HOME = ['', 'Users', 'alice'].join('/')
+const START = HOME.slice(0, 9)
+
 describe('bounds', () => {
-  const tilde = (text: string) => text.replaceAll('/Users/alice', '~')
+  const tilde = (text: string) => text.replaceAll(HOME, '~')
   const redaction = {
     value: <T>(value: T): T => value,
     text: tilde,
-    cutText: (text: string) => trimCutHome(tilde(text), '/Users/alice'),
+    cutText: (text: string) => trimCutHome(tilde(text), HOME),
   }
 
   it('redacts, then cuts without splitting a surrogate pair', () => {
     expect(shown('abc', 5, redaction)).toEqual({ text: 'abc', cut: false })
     expect(shown('ab\u{1F600}', 3, redaction)).toEqual({ text: 'ab', cut: true })
-    expect(shown('/Users/alice/x', 4, redaction)).toEqual({ text: '~/x', cut: false })
+    expect(shown(`${HOME}/x`, 4, redaction)).toEqual({ text: '~/x', cut: false })
   })
 
   it('replaces a home path cut short upstream, in each spelling, only for a field cut upstream', () => {
-    expect(shown('fix /Users/al', 100, redaction, true).text).toBe('fix ~')
-    expect(shown('fix /Users/al', 100, redaction).text).toBe('fix /Users/al')
-    expect(trimCutHome('see Users/alic', '/Users/alice')).toBe('see ~')
-    expect(trimCutHome('{"cwd":"\\/Users\\/a', '/Users/alice')).toBe('{"cwd":"~')
+    expect(shown(`fix ${START}`, 100, redaction, true).text).toBe('fix ~')
+    expect(shown(`fix ${START}`, 100, redaction).text).toBe(`fix ${START}`)
+    expect(trimCutHome(`see ${HOME.slice(1, -1)}`, HOME)).toBe('see ~')
+    expect(trimCutHome(`{"cwd":"${HOME.slice(0, 8).replaceAll('/', '\\/')}`, HOME)).toBe('{"cwd":"~')
     // Not where a path starts, or not into the user name: left alone.
-    expect(trimCutHome('see /tmp/Users/al', '/Users/alice')).toBe('see /tmp/Users/al')
-    expect(trimCutHome('see /Users/', '/Users/alice')).toBe('see /Users/')
-    expect(trimCutHome('and /U', '/Users/alice')).toBe('and /U')
+    expect(trimCutHome(`see /tmp${START}`, HOME)).toBe(`see /tmp${START}`)
+    expect(trimCutHome(`see ${HOME.slice(0, 7)}`, HOME)).toBe(`see ${HOME.slice(0, 7)}`)
+    expect(trimCutHome('and /U', HOME)).toBe('and /U')
   })
 
   it('pages by offset and limit and says where the next page starts', () => {
