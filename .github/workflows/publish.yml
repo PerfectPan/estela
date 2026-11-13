@@ -1,3 +1,6 @@
+# npm Trusted Publishing for @rivus/estela is registered against this file name; renaming it requires changing the
+# package's trusted publisher on npmjs.com first. The release jobs come from the shared workflow in
+# PerfectPan/gh-repo-checks; "Publishing to npm" in CONTRIBUTING.md describes how this repository uses it.
 name: Publish
 
 on:
@@ -12,68 +15,31 @@ on:
 
 permissions: {}
 
-env:
-  npm_config_registry: https://registry.npmjs.org/
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   queue: max
 
 jobs:
-  version:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  release:
+    # A manual dispatch runs the release only with dry-run unchecked.
+    if: github.event_name == 'push' || !inputs.dry-run
+    uses: PerfectPan/gh-repo-checks/.github/workflows/npm-release.yml@v1
+    # The shared workflow narrows these per job; only its publish job can request an OIDC token.
     permissions:
       contents: write
       pull-requests: write
-    outputs:
-      mode: ${{ steps.mode.outputs.mode }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: pnpm/setup@v3
-        with:
-          runtime: node@^26.13.1
-          require-lockfile: true
-      - name: Select Changesets mode
-        id: mode
-        uses: changesets/action/select-mode@v2.1.2
-      - name: Create or update the version pull request
-        if: steps.mode.outputs.mode == 'version'
-        uses: changesets/action/version@v2.1.2
-        with:
-          commit-message: 'chore(release): version packages'
-          pr-title: 'chore(release): version packages'
-          # CI starts when a maintainer marks the updated version PR ready for review.
-          pr-draft: always
-
-  publish:
-    needs: version
-    if: >-
-      !cancelled() && github.ref == 'refs/heads/main' &&
-      ((github.event_name == 'workflow_dispatch' && inputs.dry-run == false) ||
-      (github.event_name == 'push' && needs.version.outputs.mode == 'publish'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: write
       id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: pnpm/setup@v3
-        with:
-          runtime: node@^26.13.1
-          require-lockfile: true
-      - name: CLI smoke on the installed tarball
-        working-directory: apps/e2e
-        run: pnpm run test:smoke
-      - name: Publish packages and create tags and GitHub Releases
-        uses: changesets/action/publish@v2.1.2
+    with:
+      # Builds @rivus/estela and the packages it bundles with production conditions, packs and installs the tarball,
+      # and runs the CLI smoke scenarios against the installed bin. The pack step then packs that build.
+      check-command: pnpm -C apps/e2e run test:smoke
+      # The CLI bundles every workspace package it depends on and its own devDependencies, so the audit follows the
+      # workspace graph and keeps dev dependencies; the e2e suite and the root release tooling stay out. The scope
+      # also takes in build tooling (Vite+, TypeScript), so a high advisory there blocks a release too: the trade for
+      # not missing a bundled dependency. The dry-run job runs the same command.
+      audit-command: pnpm --filter '@rivus/estela...' audit --audit-level=high
+      # The root package defines no version-packages script.
+      version-command: pnpm exec changeset version
 
   dry-run:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.dry-run
@@ -81,6 +47,8 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+    env:
+      npm_config_registry: https://registry.npmjs.org/
     steps:
       - uses: actions/checkout@v7
         with:
@@ -92,6 +60,8 @@ jobs:
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
         run: pnpm run test:smoke
+      - name: Audit dependencies, as the release does
+        run: pnpm --filter '@rivus/estela...' audit --audit-level=high
       - name: Inspect the publish plan and package archive
         run: |
           pnpm exec changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
