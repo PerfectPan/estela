@@ -76,7 +76,7 @@ of the product name in prose and a lockfile refresh with `pnpm install`.
 | D1 | The product name is "Estela" in prose and UI text; `estela` in commands, package names, and identifiers. | Lowercase everywhere matched the old style, but "Estela" is a proper name. |
 | D2 | No fallback to old env vars, the old schema id, or the old cache. | A fallback reader costs code and tests for users that do not exist. |
 | D3 | Pending changesets name `@rivus/estela`, and their text uses the new command and env var names. | They are unreleased; they become the first `@rivus/estela` changelog. |
-| D4 | `apps/cli/CHANGELOG.md` (including its `# @rivus/agent-trace` heading), `.changeset/ledger.yaml`, and the `v0.1.0` tag stay. | They record what was released under the old name; the changelog is generated and is not edited by hand. |
+| D4 | The released entries of `apps/cli/CHANGELOG.md`, `.changeset/ledger.yaml`, and the `v0.1.0` tag stay. The changelog heading is edited by hand to `# @rivus/estela`, with one line saying versions up to 0.1.0 were published as `@rivus/agent-trace`. | They record what was released under the old name. Changesets writes the heading only into an empty file and inserts every later entry below it, so without the edit the `@rivus/estela` entries would sit under the old name. |
 | D5 | Plan 0003 keeps its quotes of the old `--version` output (`agent-trace/0.0.0`). | They are observed output from before that change. |
 
 ## 3. Detailed design
@@ -107,7 +107,7 @@ The README drops the footer about Cursor's Agent Trace and gains one line on the
 
 ### 3.2 Kept history
 
-- `apps/cli/CHANGELOG.md`: the released entries and the `# @rivus/agent-trace` heading.
+- `apps/cli/CHANGELOG.md`: the released entries, and the line naming the package they were published as.
 - `.changeset/ledger.yaml`: the `@rivus/agent-trace@0.1.0` record.
 - `docs/plans/0003-cli-layers.md` and its reading copy: the old `--version` output.
 - This plan and its reading copy, which name the old identifiers.

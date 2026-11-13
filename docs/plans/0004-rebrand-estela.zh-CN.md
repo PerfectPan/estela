@@ -73,7 +73,7 @@ lockfile。
 | D1 | 正文和 UI 文案中产品名写作 "Estela"；命令、包名和标识中写作 `estela`。 | 全部小写与旧风格一致，但 "Estela" 是专有名称。 |
 | D2 | 不回退读取旧环境变量、旧 schema id 或旧缓存。 | 回退读取要付出代码和测试成本，而对应的用户并不存在。 |
 | D3 | 待发布的 changeset 改为指向 `@rivus/estela`，正文使用新的命令名和环境变量名。 | 它们尚未发布，将成为 `@rivus/estela` 的第一份 changelog。 |
-| D4 | `apps/cli/CHANGELOG.md`（包括其 `# @rivus/agent-trace` 标题）、`.changeset/ledger.yaml` 和 `v0.1.0` tag 保持不变。 | 它们记录以旧名称发布的内容；changelog 是生成文件，不手工编辑。 |
+| D4 | `apps/cli/CHANGELOG.md` 中已发布的条目、`.changeset/ledger.yaml` 和 `v0.1.0` tag 保持不变。changelog 的标题手工改为 `# @rivus/estela`，并加一行说明 0.1.0 及之前的版本以 `@rivus/agent-trace` 发布。 | 它们记录以旧名称发布的内容。Changesets 只在文件为空时写入标题，之后的条目都插在标题下方；不改的话，`@rivus/estela` 的条目会一直挂在旧名称下。 |
 | D5 | Plan 0003 保留其中引用的旧 `--version` 输出（`agent-trace/0.0.0`）。 | 那是该次修改之前实际观察到的输出。 |
 
 ## 3. 详细设计
@@ -103,7 +103,7 @@ README 删除关于 Cursor Agent Trace 的页脚，并增加一行说明西班�
 
 ### 3.2 保留的历史记录
 
-- `apps/cli/CHANGELOG.md`：已发布的条目和 `# @rivus/agent-trace` 标题。
+- `apps/cli/CHANGELOG.md`：已发布的条目，以及说明这些版本当时所用包名的那一行。
 - `.changeset/ledger.yaml`：`@rivus/agent-trace@0.1.0` 记录。
 - `docs/plans/0003-cli-layers.md` 及其阅读版：旧的 `--version` 输出。
 - 本计划及其阅读版，其中提到旧标识。
