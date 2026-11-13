@@ -23,14 +23,14 @@ export interface TraceStoreOptions {
 export interface ShellTraceStore {
   store: TraceStore
   /**
-   * Make `session` the launch session (resolved from `CURRENT_TRACE_ID`) and cache the trace the
-   * CLI already loaded for it. On the dev server its key is the catalog's trace id, so `current` and
+   * Make `session` the launch session (resolved from `CURRENT_TRACE_ID`) and cache the trace already
+   * loaded for it. On the dev server its key is the catalog's trace id, so `current` and
    * the list row share one cache entry.
    */
   seed: (session: ResolvedSession, trace: Trace) => Promise<void>
 }
 
-/** Map all expected kit original-read failures at the CLI boundary. */
+/** Map all expected kit original-read failures at the store boundary. */
 function originalFailure(error: ReadOriginalError): string {
   switch (error._tag) {
     case 'ReadFailed':

@@ -1,8 +1,7 @@
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { writeExport, type ExportFormat } from '../../export/write-export.ts'
-import { loadSession } from '../../sessions/load-session.ts'
-import { sessionTargetLabel } from '../../sessions/session-target.ts'
+import { loadSession, sessionTargetLabel } from '@rivus/estela-server'
 import { CliError } from '../failure.ts'
 import { sayWrote } from '../ui/terminal.ts'
 

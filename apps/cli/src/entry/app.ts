@@ -6,7 +6,7 @@ import { parse, printErrors } from '@bomb.sh/router'
 import { homeDir } from '@rivus/estela-runtime-node'
 import pkg from '../../package.json' with { type: 'json' }
 import { demoFixturePath } from '../paths.ts'
-import { parseSessionTarget } from '../sessions/session-target.ts'
+import { parseSessionTarget } from '@rivus/estela-server'
 import type { ExportFormat } from '../export/write-export.ts'
 import { runBuild, type BuildInput } from './commands/build.ts'
 import { runDev, type DevInput } from './commands/dev.ts'

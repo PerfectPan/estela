@@ -229,8 +229,8 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 ## Repository Architecture
 
 - `packages/schema` and `packages/kernel` are domain rules. They must not import DevFrame or UI.
-- Session reading is the external `@rivus/agent-kit`; `apps/cli` is the only package that imports it at runtime. Other packages may use its types with `import type`.
-- `@rivus/estela` (`apps/cli`) is the composition root and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/estela-web` (`apps/web`).
+- Session reading is the external `@rivus/agent-kit`; `packages/server` reads sessions through it at runtime, and `apps/cli` imports only its `redact` and `node` entries at runtime. Other packages may use its types with `import type`.
+- `@rivus/estela-server` (`packages/server`) composes the server: `createEstelaServer` returns the DevFrame definition whose `setup` builds and binds the services. `@rivus/estela` (`apps/cli`) is the command line that calls it and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/estela-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<agent>/` for the session logs the conformance suites read).
 - Shared lint, format, and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. The `lint` and `fmt` blocks of the root `vite.config.ts` spread its `vite-plus` export and `tsconfig.base.json` extends its tsconfig; both keep only this repository's rules. Change a shared default upstream, not here.
 - `node scripts/check-layers.mjs` checks each workspace package's `@rivus/*` dependencies against the "May depend on" column of the [Layers table in `AGENTS.md`](AGENTS.md#layers). CI and the pre-commit hook run it.

@@ -113,7 +113,7 @@ pnpm run test:e2e
 ESTELA_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome instead
 ```
 
-S8 runs `scripts/generate-trace.mjs` and S12 runs `apps/cli/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `ESTELA_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `ESTELA_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `test` job on Node.js `^26.13.1` only.
+S8 runs `scripts/generate-trace.mjs` and S12 runs `packages/server/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `ESTELA_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `ESTELA_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `test` job on Node.js `^26.13.1` only.
 
 ## Check in a real browser
 
@@ -157,7 +157,7 @@ For S12, write the 350 MB Codex-format file into a second home and open it from 
 
 ```bash
 mkdir -p "$TMPDIR/estela-big/.codex/sessions/2026/09/25"
-node -e "import('./apps/cli/src/testsupport/large-session.ts').then(m => m.writeLargeCodexSession(process.argv[1], { targetBytes: 350e6 }))" \
+node -e "import('./packages/server/src/testsupport/large-session.ts').then(m => m.writeLargeCodexSession(process.argv[1], { targetBytes: 350e6 }))" \
   "$TMPDIR/estela-big/.codex/sessions/2026/09/25"
 HOME="$TMPDIR/estela-big" XDG_CACHE_HOME="$TMPDIR/estela-cache-big" node apps/cli/bin.mjs --no-auth --no-open --port 7464
 ```

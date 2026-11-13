@@ -7,7 +7,7 @@ import type { SessionAdapter } from '@rivus/agent-kit/sessions'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { loadSession } from './load-session.ts'
 import { builtinAdapters } from './adapters.ts'
-import { createTraceStore } from '../server/trace-store.ts'
+import { createTraceStore } from '../store/trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const dirs: string[] = []

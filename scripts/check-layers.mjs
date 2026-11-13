@@ -13,14 +13,19 @@ const RPC = '@rivus/estela-rpc'
 const KIT = '@rivus/agent-kit'
 const CORE = [RPC, KERNEL, SCHEMA]
 
+const SERVER = '@rivus/estela-server'
+const RUNTIME_NODE = '@rivus/estela-runtime-node'
+
 const ALLOW = {
-  // Only the CLI imports the kit at runtime; oxlint enforces type-only imports elsewhere.
-  '@rivus/estela': [KIT, '@rivus/estela-web', '@rivus/estela-runtime-node', ...CORE],
+  // The server reads sessions through the kit; the CLI imports only its redact and node entries at runtime, and
+  // oxlint enforces type-only imports everywhere else.
+  '@rivus/estela': [KIT, SERVER, '@rivus/estela-web', RUNTIME_NODE, ...CORE],
+  [SERVER]: [KIT, RUNTIME_NODE, ...CORE],
   '@rivus/estela-web': [KIT, ...CORE],
   // Tests the packed tarball from outside; it depends on no workspace package.
   '@rivus/estela-e2e': [],
   [RPC]: [KIT, KERNEL, SCHEMA],
-  '@rivus/estela-runtime-node': [KIT, KERNEL, SCHEMA],
+  [RUNTIME_NODE]: [KIT, KERNEL, SCHEMA],
   [KERNEL]: [KIT, SCHEMA],
   [SCHEMA]: [KIT],
 }
