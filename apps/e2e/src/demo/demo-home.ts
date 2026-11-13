@@ -10,7 +10,7 @@ import { claudeSession, codexSession, geminiSession, grokSession } from './agent
 
 /**
  * A synthetic home for demos and screenshots: the demo session (Claude Code, written by
- * `apps/cli/src/testsupport/demo-session.ts`, run by path like the S12 generator) plus eight small
+ * `packages/server/src/testsupport/demo-session.ts`, run by path like the S12 generator) plus eight small
  * sessions from Claude Code, Codex, Gemini CLI, and Grok on three invented projects over ten days.
  * Every project lives under `<home>/work`, so the viewer's redaction shows it as `~/work/...`.
  *
@@ -253,7 +253,7 @@ export async function buildDemoHome(home: string): Promise<DemoHome> {
   const cwd = `${home}/work/tinyshelf`
   const projectDir = join(home, '.claude/projects', cwd.replaceAll(/[^A-Za-z0-9]/g, '-'))
   const { stdout } = await exec(process.execPath, [
-    join(repo, 'apps/cli/src/testsupport/demo-session.ts'),
+    join(repo, 'packages/server/src/testsupport/demo-session.ts'),
     projectDir,
     cwd,
   ])

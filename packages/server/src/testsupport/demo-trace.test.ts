@@ -15,7 +15,7 @@ describe('demo trace', () => {
     try {
       await writeDemoTrace(join(dir, 'demo.trace.json'))
       const fresh = await readFile(join(dir, 'demo.trace.json'), 'utf8')
-      // On a mismatch, regenerate: node apps/cli/src/testsupport/demo-trace.ts fixtures/demo.trace.json
+      // On a mismatch, regenerate: node packages/server/src/testsupport/demo-trace.ts fixtures/demo.trace.json
       expect(fresh === (await readFile(committed, 'utf8'))).toBe(true)
     } finally {
       await rm(dir, { recursive: true, force: true })

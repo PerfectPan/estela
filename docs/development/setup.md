@@ -38,10 +38,10 @@ Open `http://localhost:7392/__estela/`.
 
 With no path the app opens the session browser over every registered agent. A positional path (or `ESTELA_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` still defaults to `fixtures/demo.trace.json`; `mcp` without a path serves every session.
 
-`fixtures/demo.trace.json` is generated: an invented Claude Code session on a small book catalog API (five turns, 34 main requests with cache token counts, a `/compact`, two subagent lanes, three failed tool calls, hooks, and prompt snapshots), written by `apps/cli/src/testsupport/demo-session.ts` and read through the kit into canonical JSON. `demo-trace.test.ts` fails when the committed file and the generator disagree, for example after a kit upgrade; regenerate it with:
+`fixtures/demo.trace.json` is generated: an invented Claude Code session on a small book catalog API (five turns, 34 main requests with cache token counts, a `/compact`, two subagent lanes, three failed tool calls, hooks, and prompt snapshots), written by `packages/server/src/testsupport/demo-session.ts` and read through the kit into canonical JSON. `demo-trace.test.ts` fails when the committed file and the generator disagree, for example after a kit upgrade; regenerate it with:
 
 ```bash
-node apps/cli/src/testsupport/demo-trace.ts fixtures/demo.trace.json
+node packages/server/src/testsupport/demo-trace.ts fixtures/demo.trace.json
 ```
 
 For demos and screenshots, `apps/e2e/src/demo/demo-home.ts <dir>` builds a home with that session plus eight small ones from Claude Code, Codex, Gemini CLI, and Grok on three invented projects. `apps/e2e/src/demo/record-demo.ts` builds that home, starts `apps/cli/dist/bin.mjs` on it (run `pnpm build` first), and writes the README and showcase screenshots and the walkthrough video (MP4, WebM, and a short looping WebP and GIF) to `--out` (default `/tmp/estela-media`). It needs ffmpeg, `cwebp`, and `img2webp` on `PATH`; `--help` lists the outputs.

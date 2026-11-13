@@ -13,7 +13,7 @@ import { writeDemoSession } from './demo-session.ts'
  * kit exactly as a Claude Code log is, as canonical Estela JSON with originals. Source pointers
  * name the files relative to the session's project folder, so the output names no temp path.
  *
- *   node apps/cli/src/testsupport/demo-trace.ts fixtures/demo.trace.json
+ *   node packages/server/src/testsupport/demo-trace.ts fixtures/demo.trace.json
  */
 const DEMO_CWD = '/work/tinyshelf'
 
