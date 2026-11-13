@@ -4,10 +4,18 @@ Use `docs/` for durable project knowledge that a maintainer should be able to re
 
 Keep collaboration policy in `CONTRIBUTING.md`, AI-agent instructions in `AGENTS.md`, issue and review evidence requirements in templates, and automated enforcement in scripts or CI workflows.
 
+## Start Here
+
+- [User guide](guide/README.md): install and run Estela, the concepts, the workspace, supported agents, reports and exports, MCP tools, privacy, and troubleshooting.
+- [Public interface](reference/public-interface.md): what semver covers from 1.0, and the current pre-1.0 policy.
+- [Export formats](reference/export-formats.md): the ATIF and OTLP mappings and their pinned versions.
+- [Architecture](architecture/overview.md) and [Development](development/setup.md): for contributors.
+
 ## What Belongs Here
 
 - `architecture/` for the current system shape: domain boundaries, module boundaries, data flow, trust boundaries, storage, integrations, deployment topology, and major tradeoffs.
 - `assets/` for images referenced by the root README and by these docs.
+- `guide/` for users of the CLI, the workspace, and the MCP tools, one topic per file.
 - `development/` for local setup, common development tasks, debugging workflows, test strategy, fixtures, release dry-runs, and stack-specific commands.
 - `reference/` for stable factual material such as APIs, CLI commands, configuration, protocols, schemas, error codes, and generated interfaces.
 - `operations/` for runbooks, incident response, monitoring, backups, migrations, and rollback procedures when the project has operational responsibilities.

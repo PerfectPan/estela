@@ -1,6 +1,6 @@
 # Export formats
 
-Audience: someone who reads an Estela export with another tool, or changes the export code. This document lists how `estela export-atif` and `estela export-otlp` map a session onto each format. The code is `packages/kernel/src/export-atif.ts`, `export-atif-steps.ts`, and `export-otlp.ts`; how to run the commands is in [Reports and exports](../guide/reports-and-exports.md).
+Audience: someone who reads an Estela export with another tool, or changes the export code. This document lists how `estela export-atif` and `estela export-otlp` map a session onto each format. The code is `packages/kernel/src/export-atif.ts`, `export-atif-steps.ts`, and `export-otlp.ts`; how to run the commands is in [Reports and exports](../guide/exports.md).
 
 Two rules hold for both formats:
 
