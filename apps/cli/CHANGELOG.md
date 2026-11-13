@@ -1,4 +1,6 @@
-# @rivus/agent-trace
+# @rivus/estela
+
+Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
 ## 0.1.0
 
