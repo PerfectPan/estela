@@ -291,7 +291,7 @@ export type ViewInfo = z.infer<typeof viewInfoSchema>
 /** The canonical trace. A view trace (`toView`) is one too, with view fields set. */
 export interface Trace {
   schema: typeof TRACE_SCHEMA
-  /** The coding agent whose log this is, such as `claude-code`: the kit's `Transcript.agent`. */
+  /** The agent whose log this is, such as `claude-code`: the kit's `Transcript.agent`. */
   agent: string
   /** The agent version the log records: the kit's `Transcript.agentVersion`. */
   agentVersion?: string

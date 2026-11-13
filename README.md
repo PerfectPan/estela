@@ -9,7 +9,7 @@
 <h1 align="center">Estela</h1>
 
 <p align="center">
-  <strong>A local viewer for coding-agent sessions: every request, what the model saw, and what it cost.</strong>
+  <strong>A local viewer for agent sessions: every request, what the model saw, and what it cost.</strong>
 </p>
 
 <p align="center">
@@ -26,11 +26,11 @@
 npx @rivus/estela
 ```
 
-Needs Node.js 24 or later. It lists the sessions of the coding agents on this machine and opens them in your browser. Nothing leaves your machine.
+Needs Node.js 24 or later. It lists the sessions of the agents on this machine and opens them in your browser. Nothing leaves your machine.
 
 ## Why
 
-Coding agents keep detailed logs, but the logs are hard to read. When an agent goes wrong, you want to know what it actually had in front of it. Estela answers three questions from the logs alone:
+Agents keep detailed logs, but the logs are hard to read. When an agent goes wrong, you want to know what it actually had in front of it. Estela answers three questions from the logs alone:
 
 - **Why did the agent do that?** For any request, Estela rebuilds the context the model received: the system prompt, the tools, the earlier messages, and the current turn.
 - **What did a compaction remove?** It shows which events a compaction took out of the model's view, and compares the context before and after.
@@ -46,7 +46,7 @@ Anything a log does not record is shown as `unavailable`, never estimated.
 - **Compare.** The context of two requests side by side: what entered, what a compaction hid, and whether the system prompt or tools changed.
 - **Cost.** The list price of the recorded tokens per request, turn, subagent, and session, with cache shares; partial sums say how many requests they leave out.
 - **Reports and exports.** One redacted `index.html` to share, an ATIF v1.8 trajectory for Harbor, and an OTLP/JSON trace for Langfuse, LangSmith, or Phoenix.
-- **MCP tools.** `estela mcp` lets a coding agent find an earlier session and read what its model saw at a failing request.
+- **MCP tools.** `estela mcp` lets an agent find an earlier session and read what its model saw at a failing request.
 
 ## Supported agents
 
@@ -85,6 +85,10 @@ node apps/cli/dist/bin.mjs
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the first-contribution steps and the checks.
 
+## Name
+
+_Estela_ is Spanish for a wake: the trail a ship leaves on the water. A session log is the trail an agent leaves behind, and Estela reads it. The package is published in the `@rivus` scope; _rivus_ is Latin for a stream.
+
 ## License
 
-GPL-3.0-only. See [LICENSE](LICENSE). _Estela_ is Spanish for the wake a ship leaves behind.
+GPL-3.0-only. See [LICENSE](LICENSE).

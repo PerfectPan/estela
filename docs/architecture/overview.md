@@ -1,6 +1,6 @@
 # Architecture
 
-Audience: someone changing the viewer or the session reading. Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s; `packages/server` imports it at runtime to read sessions, and `apps/cli` imports only its redaction and Node platform entries at runtime. The kernel is the one other runtime importer, of the kit's import-free `/cost` and `/cost/prices` only ([Cost](#cost)). Other packages may use its types with `import type`, such as `SessionSummary` from `@rivus/agent-kit/transcript` and `SessionRef` (`{ agent, path, sessionId? }`) from `@rivus/agent-kit/sessions`. Trace names the coding agent `agent` everywhere, as the kit does: in `SessionRef`, the canonical `Trace.agent`, the wire rows, and the index.
+Audience: someone changing the viewer or the session reading. Session reading (discovery, detection, parsing, summaries) is `@rivus/agent-kit`'s; `packages/server` imports it at runtime to read sessions, and `apps/cli` imports only its redaction and Node platform entries at runtime. The kernel is the one other runtime importer, of the kit's import-free `/cost` and `/cost/prices` only ([Cost](#cost)). Other packages may use its types with `import type`, such as `SessionSummary` from `@rivus/agent-kit/transcript` and `SessionRef` (`{ agent, path, sessionId? }`) from `@rivus/agent-kit/sessions`. Trace names the agent `agent` everywhere, as the kit does: in `SessionRef`, the canonical `Trace.agent`, the wire rows, and the index.
 
 ## Shape
 

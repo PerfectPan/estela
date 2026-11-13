@@ -2,7 +2,7 @@
   "name": "@rivus/estela",
   "type": "module",
   "version": "0.2.0",
-  "description": "DevFrame shell: CLI, static dump, and MCP over the Estela kernel.",
+  "description": "Local viewer for agent sessions: every request, what the model saw, and what it cost.",
   "homepage": "https://github.com/PerfectPan/estela",
   "repository": {
     "type": "git",

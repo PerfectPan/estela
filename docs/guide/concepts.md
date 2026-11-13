@@ -4,7 +4,7 @@ Estela shows what an agent's log records and nothing else. These are the words t
 
 ## Session
 
-One conversation with a coding agent, as the agent saved it: a JSONL file, a folder of files, or rows in a database (OpenCode). Estela reads it and never writes to it. A session has a title (the agent's own, or the first prompt), a working directory, and the agent's version when the log records them.
+One conversation with an agent, as the agent saved it: a JSONL file, a folder of files, or rows in a database (OpenCode). Estela reads it and never writes to it. A session has a title (the agent's own, or the first prompt), a working directory, and the agent's version when the log records them.
 
 ## Event
 

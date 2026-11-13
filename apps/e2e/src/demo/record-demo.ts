@@ -195,7 +195,7 @@ async function walkthrough(page: Page, stage: Stage, base: string): Promise<void
   await page.locator('[data-trace-id]').filter({ hasText: DEMO_TITLE }).waitFor()
   await page.waitForTimeout(500)
   await stage.place()
-  await stage.caption('Every coding-agent session on this machine')
+  await stage.caption('Every agent session on this machine')
   await stage.hold(1800)
   await stage.moveTo(260, 330, 900)
   await stage.hold(400)

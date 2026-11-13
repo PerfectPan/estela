@@ -11,7 +11,7 @@
 <h1 align="center">Estela</h1>
 
 <p align="center">
-  <strong>编程 Agent 会话的本地查看器：每个请求、模型看到的内容，以及花费。</strong>
+  <strong>Agent 会话的本地查看器：每个请求、模型看到的内容，以及花费。</strong>
 </p>
 
 <p align="center">
@@ -28,11 +28,11 @@
 npx @rivus/estela
 ```
 
-需要 Node.js 24 或更高版本。它列出本机编程 Agent 的会话，并在浏览器中打开。任何数据都不会离开本机。
+需要 Node.js 24 或更高版本。它列出本机 Agent 的会话，并在浏览器中打开。任何数据都不会离开本机。
 
 ## 用途
 
-编程 Agent 会保存详细的日志，但日志很难读。Agent 出错时，需要知道它当时实际看到了什么。Estela 仅凭日志回答三个问题：
+Agent 会保存详细的日志，但日志很难读。Agent 出错时，需要知道它当时实际看到了什么。Estela 仅凭日志回答三个问题：
 
 - **Agent 为什么这样做？** 对任意请求，Estela 重建模型收到的上下文：系统提示词、工具、之前的消息和当前轮次。
 - **上下文压缩移除了什么？** 它显示压缩把哪些事件移出了模型的视野，并对比压缩前后的上下文。
@@ -48,7 +48,7 @@ npx @rivus/estela
 - **Compare。** 并排对比两个请求的上下文：哪些事件进入了上下文、哪些被压缩隐藏，以及系统提示词或工具是否变化。
 - **花费。** 按请求、轮次、子 Agent 和会话显示所记录 Token 的标价，以及缓存占比；不完整的合计会说明遗漏了多少个请求。
 - **报告与导出。** 一个可分享的已脱敏 `index.html`，一个供 Harbor 使用的 ATIF v1.8 轨迹，一个供 Langfuse、LangSmith 或 Phoenix 使用的 OTLP/JSON trace。
-- **MCP 工具。** `estela mcp` 让编程 Agent 找到之前的会话，并读取某个失败请求时模型看到的内容。
+- **MCP 工具。** `estela mcp` 让 Agent 找到之前的会话，并读取某个失败请求时模型看到的内容。
 
 ## 支持的 Agent
 
@@ -87,6 +87,10 @@ node apps/cli/dist/bin.mjs
 
 [CONTRIBUTING.md](CONTRIBUTING.md) 中有首次贡献的步骤和检查。
 
+## 名字
+
+_Estela_ 是西班牙语，指船驶过水面后留下的航迹。会话日志是 Agent 运行后留下的痕迹，Estela 读的就是它。包发布在 `@rivus` scope 下，_rivus_ 是拉丁语的“溪流”。
+
 ## 许可证
 
-GPL-3.0-only。见 [LICENSE](LICENSE)。_Estela_ 在西班牙语中指船驶过后留下的航迹。
+GPL-3.0-only。见 [LICENSE](LICENSE)。

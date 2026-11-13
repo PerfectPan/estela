@@ -1,6 +1,6 @@
 # MCP tools
 
-`estela mcp` is an MCP server over stdio. It gives a coding agent read-only tools to find an earlier session, read its turns, requests, and events, and reconstruct what the model saw at a request: for example to answer "why did the tests fail in my last session in this project".
+`estela mcp` is an MCP server over stdio. It gives an agent read-only tools to find an earlier session, read its turns, requests, and events, and reconstruct what the model saw at a request: for example to answer "why did the tests fail in my last session in this project".
 
 ## Start it
 

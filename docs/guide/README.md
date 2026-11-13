@@ -1,6 +1,6 @@
 # User guide
 
-Estela reads the session logs that coding agents keep on your machine and shows them in a local web page: every session in one list, and for one session its requests, events, token counts, list cost, and the context the model received at each request.
+Estela reads the session logs that agents keep on your machine and shows them in a local web page: every session in one list, and for one session its requests, events, token counts, list cost, and the context the model received at each request.
 
 Read in this order if you are new:
 
@@ -12,7 +12,7 @@ Then, as needed:
 
 - [Supported agents](supported-agents.md): where each agent's sessions are found and what each agent's log records.
 - [Reports and exports](exports.md): a static report to share, and ATIF and OTLP files for other tools.
-- [MCP tools](mcp.md): let a coding agent inspect earlier sessions.
+- [MCP tools](mcp.md): let an agent inspect earlier sessions.
 - [Privacy and redaction](privacy.md): what stays local, what redaction covers, what a report still contains.
 - [Troubleshooting](troubleshooting.md): Node version, ports, unreadable files, the index cache.
 

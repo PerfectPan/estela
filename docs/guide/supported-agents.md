@@ -1,6 +1,6 @@
 # Supported agents
 
-Estela reads the logs of seven coding agents. The readers live in [`@rivus/agent-kit`](https://www.npmjs.com/package/@rivus/agent-kit) 0.24.1, bundled into the CLI.
+Estela reads the logs of seven agents. The readers live in [`@rivus/agent-kit`](https://www.npmjs.com/package/@rivus/agent-kit) 0.24.1, bundled into the CLI.
 
 ## Where sessions are found
 

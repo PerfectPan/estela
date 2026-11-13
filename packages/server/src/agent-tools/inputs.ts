@@ -82,7 +82,7 @@ function text(max: number, description: string) {
 
 /** The session filters `estela_list_sessions` and `estela_search_sessions` share. */
 const sessionFilters = {
-  agent: text(64, 'Only sessions of this coding agent, such as `claude-code`, `codex`, or `grok`.'),
+  agent: text(64, 'Only sessions of this agent, such as `claude-code`, `codex`, or `grok`.'),
   project: text(
     500,
     'Only sessions whose project name (the last segment of the working directory) contains this text, ignoring case.',
