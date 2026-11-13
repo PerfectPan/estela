@@ -2,6 +2,40 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.2.0
+
+### Minor Changes
+
+- [#68](https://github.com/PerfectPan/estela/pull/68) [`efcc621`](https://github.com/PerfectPan/estela/commit/efcc6213ea0821d264dc60c0ba973e59a948d73f) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Add export-atif and export-otlp: write a session as one ATIF v1.8 trajectory (for Harbor datasets and evaluation) or one OTLP/JSON request with OpenTelemetry GenAI attributes (for Langfuse, LangSmith, and Phoenix). Exports are redacted unless ESTELA_REDACT=0.
+
+- [#70](https://github.com/PerfectPan/estela/pull/70) [`58d876a`](https://github.com/PerfectPan/estela/commit/58d876a2e6ed0a55cf4bb5bab71dceb2835a5485) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Read Pi, DeepSeek Harness and OpenCode sessions. The session list, workspace, reports, and exports find Pi's JSONL sessions, DeepSeek Harness's Zstandard logs, and OpenCode's SQLite database; a session in a shared database is opened as `opencode.db#<sessionId>`. `get-event` returns the original record of a compressed line or a database row, and a record changed since the session was loaded comes back as unavailable with the reason. A report decompresses a compressed log once for all of its events instead of once per event. The agent rail, picker, and marks use the product names Pi, DeepSeek Harness, OpenCode, and Gemini CLI, Claude sessions under a chats directory still load as Claude, and the README lists the new agents' homes and overrides.
+  
+  Sessions that share one OpenCode database keep independent cached summaries and search entries: each cache entry follows that session's own last write, and reading an original rejects a row changed after the session was loaded. A large OpenCode database does not make its sessions' summaries run one at a time.
+  
+  Keep the DSH and Pi marks readable at the list's small text size in both themes, and improve Gemini CLI's contrast on light backgrounds.
+
+- [#80](https://github.com/PerfectPan/estela/pull/80) [`97415fa`](https://github.com/PerfectPan/estela/commit/97415fa996cf1a346bd95a0c152aafeee621a791) Thanks [@PerfectPan](https://github.com/PerfectPan)! - The ledger can list events by agent: the Turns / Agents toggle in the ledger bar draws one collapsible header per agent, the main agent first, with that agent's events under it. The kind chips, the time range, and the selected event carry over between the two layouts.
+
+- [#118](https://github.com/PerfectPan/estela/pull/118) [`b09fca8`](https://github.com/PerfectPan/estela/commit/b09fca8c9d7292722a565ed0f761182370a7c703) Thanks [@nyx-cell](https://github.com/nyx-cell)! - `estela mcp` gives coding agents seven read-only tools to inspect earlier sessions: list and search sessions, a session summary, turns, model requests, one event, and the reconstruction at an event, each with a named input schema and a bounded, always redacted result. Without a path it serves every session on the machine instead of the demo trace. The dev server serves these tools over HTTP only with `--mcp`, because that route is not gated by the one-time code.
+
+- [#107](https://github.com/PerfectPan/estela/pull/107) [`055fccf`](https://github.com/PerfectPan/estela/commit/055fccf59f683a35c8523a6246c5fcb5589bd79f) Thanks [@nyx-cell](https://github.com/nyx-cell)! - The project is now Estela: install and run it as `@rivus/estela` with the `estela` command, and rename `AGENT_TRACE_*` environment variables to `ESTELA_*` (old names are no longer read). The session index cache moved to `rivus-estela`; the old `rivus-agent-trace` cache directory can be deleted.
+
+### Patch Changes
+
+- [#83](https://github.com/PerfectPan/estela/pull/83) [`a2db8ab`](https://github.com/PerfectPan/estela/commit/a2db8ab7b7d24a6c7851cbb4a3aa7a7e3f6d3e09) Thanks [@PerfectPan](https://github.com/PerfectPan)! - The CLI now reads its command line once, through one route table: an unknown, repeated, or misplaced flag, a toggle written as `--open=false`, an out-of-range value, or a second session path fails with the cause and one fix line before any session is read or indexed, `estela <command> --help` describes each command (the top-level help lists `export-atif` and `export-otlp` too), and `--version` prints the package version instead of `0.0.0`. `--pick` with a session path and `build --pretty` are refused, an empty `ESTELA_PATH` counts as unset, a host that is also a command name is written `--host=build`, and `-h` or `-v` after an option that takes a value prints the help or the version.
+
+- [#119](https://github.com/PerfectPan/estela/pull/119) [`3b497bd`](https://github.com/PerfectPan/estela/commit/3b497bd1de59695ca3cc4816dc83ccf7b5fee107) Thanks [@nyx-cell](https://github.com/nyx-cell)! - The bundled demo trace that `build`, `mcp`, and the exports open when no session is named is now a realistic Claude Code session: five turns with 34 requests and cache token counts, a `/compact`, two subagents, three failed tool calls, hooks, and prompt snapshots. All of it is invented.
+
+- [#113](https://github.com/PerfectPan/estela/pull/113) [`7be92a6`](https://github.com/PerfectPan/estela/commit/7be92a64d633b3c84c6c387e4ce6e568ac4f41d9) Thanks [@nyx-cell](https://github.com/nyx-cell)! - Update DevFrame to 1.3.3. With the default `--host localhost`, the server listens on both 127.0.0.1 and ::1, and moves to the next free port when 7392 is taken on either address.
+
+- [#72](https://github.com/PerfectPan/estela/pull/72) [`4d9610c`](https://github.com/PerfectPan/estela/commit/4d9610c3d1d9b8e5a048f9f6269bec2568c1e785) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Fix a flaky session index open under concurrent launches: node:sqlite reports extended result codes, and a reader that opens while another process converts the index to WAL or rebuilds it got SQLITE_BUSY_RECOVERY (261) or SQLITE_IOERR, which the open loop classified as fatal and gave up on the index. Busy and I/O errors are now matched as primary codes and retried until the open deadline.
+
+- [#74](https://github.com/PerfectPan/estela/pull/74) [`dec702e`](https://github.com/PerfectPan/estela/commit/dec702e66d3669ea06a85191cec853a865be1fcf) Thanks [@renovate](https://github.com/apps/renovate)! - Update bundled Zod to 4.6.6 so oversized arrays, sets, and maps with size limits are rejected before their elements are validated.
+
+- [#66](https://github.com/PerfectPan/estela/pull/66) [`e02d41a`](https://github.com/PerfectPan/estela/commit/e02d41a489f91a0be2e301e0c353f432bbc3429b) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Match the browser favicon to the new project logo.
+
+- [#87](https://github.com/PerfectPan/estela/pull/87) [`8d49550`](https://github.com/PerfectPan/estela/commit/8d49550df4d9a05968c74bd82c847a7ef84e5379) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Refresh bundled dependency resolution with the regenerated pnpm lockfile.
+
 ## 0.1.0
 
 ### Minor Changes
