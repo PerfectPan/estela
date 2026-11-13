@@ -19,7 +19,7 @@ import {
   type TrajectoryBuild,
 } from './export-atif-steps.ts'
 
-/** ATIF version this projection targets, pinned per the delivery plan (Harbor RFC 0001). */
+/** ATIF version this projection targets (Harbor RFC 0001); the mapping is listed in `docs/reference/export-formats.md`. */
 export const ATIF_SCHEMA_VERSION = 'ATIF-v1.8' as const
 
 export interface AtifAgent {

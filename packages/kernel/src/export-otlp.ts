@@ -5,9 +5,10 @@ import { promptSnapshot } from './prompt-snapshot.ts'
 import { reconstruct } from './reconstruct.ts'
 
 /**
- * The semconv version these attributes follow, pinned per the delivery plan: the schema URL
- * of `open-telemetry/semantic-conventions-genai` at implementation time. A semconv release
- * updates this constant and the mapping table together.
+ * The OpenTelemetry GenAI semantic-conventions version whose attribute names this export uses
+ * (a development version: the GenAI conventions have no release). The export does not write it
+ * into the file. A new version updates this constant and `docs/reference/export-formats.md`
+ * together.
  */
 export const OTLP_SEMCONV_VERSION = 'gen-ai-dev/1.42.0-dev' as const
 

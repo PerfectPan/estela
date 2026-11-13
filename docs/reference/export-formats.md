@@ -5,7 +5,7 @@ Audience: someone who reads an Estela export with another tool, or changes the e
 Two rules hold for both formats:
 
 - A value the agent did not record is left out, never written as zero or guessed. The one exception is ATIF's required `agent.version`, which is `"unknown"` when the log records no agent version.
-- Events a compaction removed from the model's context produce no ATIF step and no OTLP span of their own.
+- Events a compaction removed produce no ATIF step. In OTLP they keep their `chat` and `execute_tool` spans, but no later request's `gen_ai.input.messages` contains them.
 
 ## Pinned versions
 
@@ -38,7 +38,7 @@ One export is one root trajectory for the main agent. Each subagent lane with at
 
 ### Steps
 
-A lane's events are read in order. A user, system, or compaction event closes the open agent step. Agent events (`assistant`, `reasoning`, `tool_call`, `request`) with the same `requestId` form one agent step.
+A lane's events are read in order. A user event, a compaction, and a system event that becomes a step of its own (a text, or a prompt snapshot with a new system prompt) close the open agent step; a system event that becomes no step (a turn duration, an unchanged prompt snapshot) and hook and unknown events leave it open. Agent events (`assistant`, `reasoning`, `tool_call`, `request`) with the same `requestId` form one agent step.
 
 | Event | ATIF |
 |---|---|
@@ -49,14 +49,14 @@ A lane's events are read in order. A user, system, or compaction event closes th
 | `tool_call` | `tool_calls[]`: `tool_call_id`, `function_name`, `arguments` (the recorded object; any other value as `{ "input": … }`); a tool title goes to the call's `extra.estela.title` |
 | `tool_result` | `observation.results[]` on the step that holds its call, with `source_call_id`; `content` is the output text, or its JSON when it is not text; `isError`, `exitCode`, and `orphan` go to the result's `extra.estela`. A result without a call in the trajectory has no `source_call_id` |
 | `request` | the agent step's `metrics` (below), and `model_name` when it differs from `agent.model_name` |
-| `compaction` | a `system` step whose `message` is the compaction summary (or `Context compaction performed` when none is recorded), with the summary also as `observation.results[0].content`, `extra.context_management = { "type": "compaction", "boundary": "replace" }`, and `trigger`, `preTokens`, `postTokens` in `extra.estela.compaction` |
+| `compaction` | a `system` step whose `message` is the compaction summary (or `Context compaction performed` when none is recorded), with the summary also as `observation.results[0].content` when one is recorded. When the compaction records its `trigger`, `preTokens`, or `postTokens`, they go to `extra.estela.compaction` and the step carries `extra.context_management = { "type": "compaction", "boundary": "replace" }`; a compaction that records none of them has no `extra.context_management` |
 | a prompt snapshot with a new system prompt | a `system` step with that text; an unchanged one only adds its id to the open step's extras |
 | a `system` event with text | a `system` step |
 | a turn duration | `extra.estela.turnDurationMs` of the open step |
 | `hook`, `unknown`, other `system` events | no step; listed in the open step's `extra.estela.hooks` or `extra.estela.unknown` |
 | an event a compaction hid | no step |
 | a step before a later compaction on its lane | `is_copied_context: true` |
-| every step | `timestamp` (ISO 8601, its first event), `extra.estela.eventIds` (the canonical event ids), and `extra.estela.requestId` when grouped |
+| every step | `extra.estela.eventIds` (the canonical event ids; empty for the initial system-prompt step), and `extra.estela.requestId` when grouped. User and agent steps carry `timestamp` (ISO 8601, their first event); system steps, compaction steps included, have none |
 
 A subagent's spawn step gets an `observation.results[]` entry with `subagent_trajectory_ref: [{ trajectory_id: <lane id>, session_id }]` (and the spawn call's `source_call_id` when the spawn event is a tool call). A subagent lane with no exportable events is left out, with its reference.
 

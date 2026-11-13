@@ -66,7 +66,7 @@ npx @rivus/estela
 
 ## 隐私
 
-Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中缓存标题、数字和你最初的提示词，可随时删除。脱敏会替换你的 home 目录和部分 token 形式，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见 [Privacy and redaction](docs/guide/privacy.md)。
+Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的 home 目录和部分 token 形式，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见 [Privacy and redaction](docs/guide/privacy.md)。
 
 ## 文档
 

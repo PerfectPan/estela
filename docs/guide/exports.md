@@ -38,7 +38,7 @@ estela export-atif <session> --out trajectory.json
 Writes one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory and prints `Wrote <path>`. Without `--out` the file is `estela-<first 8 characters of the session id>.atif.json` in the working directory; `--out` creates missing parent folders and overwrites an existing file.
 
 - One step per prompt, per model request with its reply and tool calls, and per compaction. Each step lists the Estela event ids it came from in `extra.estela.eventIds`.
-- Events a compaction removed produce no step; steps kept from before a compaction carry `is_copied_context: true`, and the compaction is a system step with `extra.context_management`.
+- Events a compaction removed produce no step; steps kept from before a compaction carry `is_copied_context: true`, and the compaction is a system step, with `extra.context_management` when the compaction records its trigger or token counts.
 - Subagents are embedded trajectories in `subagent_trajectories`, referenced from the step that started them.
 - Token counts go to each step's `metrics`. The list cost goes to `metrics.cost_usd` for each priced request, and `final_metrics.total_cost_usd` only when every request is priced; `extra.estela.pricing` names the price snapshot and how many requests are unpriced.
 
@@ -54,23 +54,36 @@ uv run --python 3.12 --with harbor python -m harbor.utils.trajectory_validator t
 estela export-otlp <session> --out session.otlp.json
 ```
 
-Writes one OTLP/JSON `ExportTraceServiceRequest` (default name `estela-<first 8 characters of the session id>.otlp.json`). The spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`: one `invoke_agent` span per agent lane, one `chat` span per model request with its usage and the messages the model saw, and one `execute_tool` span per tool call. The OTLP export is experimental: the GenAI conventions have no release yet, so attribute names can change when Estela moves to a newer version. It carries no cost, because those conventions define no cost attribute.
+Writes one OTLP/JSON `ExportTraceServiceRequest` (default name `estela-<first 8 characters of the session id>.otlp.json`). The spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`: one `invoke_agent` span per agent lane, one `chat` span per model request with its usage and the messages the model saw, and one `execute_tool` span per tool call. Requests and tool calls a compaction later removed keep their spans; they are left out of the messages of the requests after the compaction. The OTLP export is experimental: the GenAI conventions have no release yet, so attribute names can change when Estela moves to a newer version. It carries no cost, because those conventions define no cost attribute.
 
-Post the file to a backend yourself; Estela sends nothing.
+Post the file to a backend yourself; Estela sends nothing. Langfuse accepts OTLP/JSON as it is:
 
 ```sh
-# Langfuse (accepts OTLP/JSON as is)
 curl -H "Content-Type: application/json" -u "$LANGFUSE_PUBLIC_KEY:$LANGFUSE_SECRET_KEY" \
   --data-binary @session.otlp.json https://cloud.langfuse.com/api/public/otel/v1/traces
+```
 
-# LangSmith or Phoenix (OTLP/protobuf receivers: convert once, then post)
-uv run --with opentelemetry-proto python -c \
-  "from google.protobuf.json_format import Parse; from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest as R; import sys; sys.stdout.buffer.write(Parse(open(sys.argv[1],'rb').read(), R()).SerializeToString())" \
-  session.otlp.json > session.otlp.pb
+LangSmith and Phoenix take OTLP/protobuf. Convert the file once with this script, saved as `otlp-to-pb.py`. OTLP/JSON writes trace and span ids as hex, while protobuf's JSON reader expects base64, so the script converts the ids first:
+
+```python
+import base64, json, sys
+from google.protobuf.json_format import ParseDict
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+d = json.load(open(sys.argv[1]))
+for rs in d["resourceSpans"]:
+    for ss in rs["scopeSpans"]:
+        for s in ss["spans"]:
+            for k in ("traceId", "spanId", "parentSpanId"):
+                if k in s: s[k] = base64.b64encode(bytes.fromhex(s[k])).decode()
+sys.stdout.buffer.write(ParseDict(d, ExportTraceServiceRequest()).SerializeToString())
+```
+
+```sh
+uv run --with opentelemetry-proto python otlp-to-pb.py session.otlp.json > session.otlp.pb
 curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
 ```
 
-The last line posts to a local Phoenix; for LangSmith, use its OTLP endpoint and API key header as its documentation describes.
+The last line posts to a local Phoenix; for LangSmith, use its OTLP endpoint and API key header as its documentation describes. These recipes produce valid requests (16-byte trace ids, 8-byte span ids); ingestion into each backend was not re-tested for this guide.
 
 ## Redaction of exports
 
