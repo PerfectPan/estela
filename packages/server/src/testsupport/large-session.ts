@@ -4,8 +4,8 @@ import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 /**
- * Test support for S12, shared by the server's size-budget test and the e2e
- * browser suite, which runs this file by path. Writes a synthetic Codex rollout of at
+ * Test support for S12, shared by the server's size-budget test, the e2e browser
+ * suite, and scripts/check-budgets.mjs; the last two run this file by path. Writes a synthetic Codex rollout of at
  * least `targetBytes`, shaped like a large real Codex rollout but with
  * generated text only. Per turn: a prompt, nine tool calls with usage records,
  * outputs from 900 characters to 45 KB (one 2 MB output every 40 turns),

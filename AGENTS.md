@@ -81,9 +81,10 @@ pnpm typecheck
 pnpm build
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
+node scripts/check-budgets.mjs
 cd apps/cli && pnpm run dev --no-auth
 cd apps/e2e && pnpm run test:smoke
 cd apps/e2e && pnpm run test:e2e
 ```
 
-`test:smoke` and `test:e2e` build `@rivus/estela`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `ESTELA_E2E_CHANNEL=chrome`). Release to npm only through the Publish workflow; local checks use `changeset status`, `changeset publish-plan`, and `pnpm pack` (see `CONTRIBUTING.md#publishing-to-npm`).
+`check-budgets.mjs` runs the built CLI after `pnpm build` and checks time to first rows, a large session's load and peak RSS, and the bundle and tarball sizes against `scripts/budgets/budgets.mjs`; a change that outgrows a size budget raises it there with the new number and reason. `test:smoke` and `test:e2e` build `@rivus/estela`, pack `apps/cli`, and install the tarball; neither is part of `pnpm test`. `test:e2e` needs `npx playwright install chromium` once (or `ESTELA_E2E_CHANNEL=chrome`). Release to npm only through the Publish workflow; local checks use `changeset status`, `changeset publish-plan`, and `pnpm pack` (see `CONTRIBUTING.md#publishing-to-npm`).

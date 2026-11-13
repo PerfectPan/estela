@@ -16,6 +16,7 @@
 - [ ] Changeset for shipped changes: a file under `.changeset/` (documentation-only and workflow-only MRs need none)
 - [ ] Lint, test, typecheck, build: `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm build`
 - [ ] Browser bundle: `node scripts/check-browser-bundle.mjs`
+- [ ] Performance and size budgets, after `pnpm build`: `node scripts/check-budgets.mjs` (a change that outgrows a size budget raises it in `scripts/budgets/budgets.mjs` with the new number and reason)
 
 ## Risks
 

@@ -25,7 +25,18 @@ pnpm lint
 pnpm test
 pnpm typecheck
 pnpm build
+node scripts/check-budgets.mjs
 ```
+
+### Performance and size budgets
+
+`node scripts/check-budgets.mjs` runs after `pnpm build` and uses `apps/cli/dist`. It generates its data into a temp directory and deletes it (`ESTELA_BUDGETS_KEEP=1` keeps it); nothing generated is committed. It measures:
+
+- First rows: a synthetic home with 2,500 Claude Code and 2,500 Codex sessions (about 190 MB, `scripts/budgets/synthetic-home.mjs`). The clock runs from spawning `dist/bin.mjs` to the first `list-sessions({})` response that holds every session, called through DevFrame's own client as the session browser does. The server listens only after the catalog has rows, so this is the moment the browser can show them. Cold has no index; warm reuses the index the cold run wrote after every summary finished, and fails unless the CLI reports that its rows came from the index.
+- Large session: a 100 MB Codex rollout from `packages/server/src/testsupport/large-session.ts` (the S12 generator), given on the command line; the clock runs to the `get-trace-view` response, and peak RSS is the CLI process's `maxRSS`.
+- Sizes: the web bundle's JS and CSS raw and gzip, `dist/cli.mjs`, and the `pnpm pack` tarball.
+
+It prints a measured-vs-budget table, appends it to `$GITHUB_STEP_SUMMARY` when set, and exits 1 when an enforced budget is exceeded. The budgets, which ones are enforced, and the reason for each number live in `scripts/budgets/budgets.mjs`. A PR that grows a size past its budget raises the number there in the same PR, with the new measurement in the reason and in its Validation section. CI runs it in the `test` job after the tarball smoke step, on that step's build.
 
 ## Run the UI
 
