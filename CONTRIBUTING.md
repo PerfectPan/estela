@@ -1,5 +1,15 @@
 # Contributing
 
+## First Contribution
+
+1. Clone the repository: `git clone https://github.com/PerfectPan/estela.git`.
+2. Use Node.js `^26.13.1` (26.13.1 or later within 26.x); `pnpm install` rejects other versions. pnpm switches to the version the root `package.json` pins.
+3. Install the dependencies and the Git hooks: `pnpm install`, then `./scripts/install-git-hooks.sh`.
+4. Before you open a pull request, run the five gates: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `node scripts/format.mjs --check`. The pre-commit hook runs the repository checks.
+5. Run the app on synthetic sessions as [Development](docs/development/setup.md#run-the-ui) shows.
+
+Ask questions and propose changes in a [GitHub issue](https://github.com/PerfectPan/estela/issues/new/choose) (bug, feature, or task template). A typo or narrow documentation fix can go straight to a pull request. The sections below are the full rules.
+
 ## Development Setup
 
 Use Node.js `^26.13.1` (26.13.1 or later within 26.x): the root `package.json` and `devEngines.runtime` reject development runtimes outside this range during `pnpm install`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm switches itself to the version pinned by `packageManager` in the root `package.json`.
@@ -230,7 +240,7 @@ The shared lint config adds three file rules: kebab-case names, at most 1000 lin
 
 - `packages/schema` and `packages/kernel` are domain rules. They must not import DevFrame or UI.
 - Session reading is the external `@rivus/agent-kit`; `packages/server` reads sessions through it at runtime, and `apps/cli` imports only its `redact` and `node` entries at runtime, and the kernel only the import-free `@rivus/agent-kit/cost` and `@rivus/agent-kit/cost/prices` (see the rule in `AGENTS.md`). Other packages may use its types with `import type`.
-- `@rivus/estela-server` (`packages/server`) composes the server: `createEstelaServer` returns the DevFrame definition whose `setup` builds and binds the services. `@rivus/estela` (`apps/cli`) is the command line that calls it and the only package that will be published. It bundles the other workspace packages. The Solid SPA is `@rivus/estela-web` (`apps/web`).
+- `@rivus/estela-server` (`packages/server`) composes the server: `createEstelaServer` returns the DevFrame definition whose `setup` builds and binds the services. `@rivus/estela` (`apps/cli`) is the command line that calls it and the only published package. It bundles the other workspace packages. The Solid SPA is `@rivus/estela-web` (`apps/web`).
 - Fixtures live in `fixtures/` (`fixtures/sessions/<agent>/` for the session logs the conformance suites read).
 - Shared lint, format, and `tsconfig` rules come from `@perfectpan/lint-config` (the `PerfectPan/lint-config` repository); see its README. The `lint` and `fmt` blocks of the root `vite.config.ts` spread its `vite-plus` export and `tsconfig.base.json` extends its tsconfig; both keep only this repository's rules. Change a shared default upstream, not here.
 - `node scripts/check-layers.mjs` checks each workspace package's `@rivus/*` dependencies against the "May depend on" column of the [Layers table in `AGENTS.md`](AGENTS.md#layers). CI and the pre-commit hook run it.
