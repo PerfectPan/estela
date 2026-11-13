@@ -29,6 +29,7 @@ The core capability is request-level context reconstruction. For any request, Es
 
 - **Session browser.** One place for every session found on this machine, grouped by day and newest first. Each row carries the agent, title, project, turns, requests, tokens, duration, last activity, and flags for compaction, subagents, and failed tool calls. Filters by agent, project, and flag; search across titles and your own prompts; a preview of the selected session's context-over-time shape.
 - **Session workspace.** Session metrics, a request timeline, an event ledger, and an event inspector. The timeline shows one bar per request (height is input tokens), one lane per subagent, and markers for prompts, failed tool calls, and compactions; the ledger groups events by turn or by agent, and the inspector shows the selected event.
+- **List cost.** The workspace and the report price the recorded tokens of each request at the LiteLLM list prices bundled with the CLI: the session total in the header (with its cache hit rate), per turn in the ledger, per agent in the Agents layout, and per request in the inspector with its input, cache read, cache write, and output shares. A request without usage, or with a model the price snapshot does not list, shows cost as unavailable with the reason; a sum that leaves such requests out says how many (`1 of 4 requests unpriced`). It is not the amount billed: plans, discounts, service tiers, and costs an agent logs itself are not applied, and the session browser does not show cost yet.
 - **Model saw.** The context reconstruction for the selected request: system prompt, tools, messages, and the events a compaction removed; slots the log never recorded are marked `unavailable`.
 - **Report.** A redacted static export of one session's workspace: one `index.html` that opens from disk with no server.
 - **MCP for coding agents.** `estela mcp` gives an agent read-only tools over stdio to find an earlier session, read its turns, requests, and events, and reconstruct what the model saw at a failing request; a skill tells the agent how.
@@ -106,7 +107,7 @@ uv run --with opentelemetry-proto python -c \
 curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
 ```
 
-Exports are redacted like the server (`~` for the home directory, known credential patterns replaced); `ESTELA_REDACT=0` writes the unredacted bytes. Events a compaction removed produce no ATIF step; steps kept across a compaction are marked `is_copied_context`, and the compaction is a system step with `extra.context_management`.
+Exports are redacted like the server (`~` for the home directory, known credential patterns replaced); `ESTELA_REDACT=0` writes the unredacted bytes. The ATIF export carries the list cost in ATIF's own fields, `metrics.cost_usd` per step and `final_metrics.total_cost_usd` only when every request is priced, and names the price snapshot in `extra.estela.pricing`; the OTLP export has no cost, because the pinned GenAI semantic conventions define no cost attribute. Events a compaction removed produce no ATIF step; steps kept across a compaction are marked `is_copied_context`, and the compaction is a system step with `extra.context_management`.
 
 ## MCP for coding agents
 

@@ -11,7 +11,7 @@ import {
   flattenLedger,
   isFailedResult,
 } from '@/lib/ledger-model.ts'
-import { mainAgentId } from '@rivus/estela-kernel'
+import { costOfEvents, mainAgentId, priceTrace, snapshotPricing } from '@rivus/estela-kernel'
 import { timelineData } from './timeline/timeline-data.ts'
 
 function toggled(set: ReadonlySet<string>, id: string): Set<string> {
@@ -28,6 +28,10 @@ function toggled(set: ReadonlySet<string>, id: string): Set<string> {
 export function createWorkspaceState(session: LoadedSession) {
   const model: LedgerModel = buildLedgerModel(session.trace)
   const timeline = timelineData(session.trace, model.lanes, model.byId)
+  // List prices of the recorded usage, from the kit's LiteLLM snapshot bundled through the kernel: the same
+  // numbers on the dev server and in a report, which has no server to ask.
+  const cost = priceTrace(session.trace, snapshotPricing())
+  const turnCosts = new Map(model.turns.map(group => [group.id, costOfEvents(cost, group.turn.eventIds)]))
   const [filter, setFilter] = createSignal<LedgerFilter>('all')
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set())
@@ -142,6 +146,8 @@ export function createWorkspaceState(session: LoadedSession) {
     session,
     model,
     timeline,
+    cost,
+    turnCosts,
     rows,
     eventCount,
     failures,

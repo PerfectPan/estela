@@ -1,4 +1,5 @@
 import type { JSX } from 'solid-js'
+import type { CostTotal, TraceCost } from '@rivus/estela-kernel'
 import type { LedgerModel } from '@/lib/ledger-model.ts'
 import { Show } from 'solid-js'
 import { KindMark } from '@/components/kind-mark.tsx'
@@ -7,6 +8,10 @@ import { elapsedFrom } from '@/lib/format.ts'
 
 export interface RowContext {
   model: LedgerModel
+  /** Every request priced, with lane totals. */
+  cost: TraceCost
+  /** Cost of each turn, by turn group id. */
+  turnCosts: ReadonlyMap<string, CostTotal>
   /** Session start, for the elapsed time column. */
   start: number
   dim: boolean

@@ -31,6 +31,7 @@ Estela 将本机的 Agent 会话集中呈现在一个界面中。每个会话包
 
 - **会话浏览器。** 本机 Agent 会话的集中列表：按天分组、最近活动在前。每行包含 Agent、标题、项目、轮次、请求、Token、时长、最近活动，以及上下文压缩、子代理和失败的工具调用标记。支持按 Agent、项目和标记筛选，按标题和用户提示词搜索，并提供所选会话的上下文变化预览。
 - **会话工作区。** 会话指标、请求时间线、事件列表和事件检查器。时间线中每个请求对应一个柱形（高度为输入 Token），每个子代理对应一条泳道，并标注提示词、失败的工具调用和上下文压缩；事件列表按轮次或按代理分组，检查器展示所选事件详情。
+- **目录价费用。** 工作区和报告按 CLI 自带的 LiteLLM 目录价，为每个请求已记录的 Token 计价：页头显示会话合计（及缓存命中率），事件列表按轮次显示，“代理”布局按代理显示，检查器按请求显示，并拆分为输入、缓存读取、缓存写入和输出。没有用量的请求，或模型不在价格快照中的请求，费用显示为不可用并给出原因；漏掉这类请求的合计会注明数量（`4 个请求中有 1 个未计价`）。这不是实际账单：订阅、折扣、服务等级和代理自己记录的费用都未计入，会话浏览器暂不显示费用。
 - **模型所见。** 所选请求的上下文重建：系统提示词、工具、消息，以及被上下文压缩移除的事件；日志未记录的槽位标记为 `unavailable`。
 - **报告。** 单个会话工作区的脱敏静态导出：一个 `index.html` 文件，无需服务器，可直接从磁盘打开。
 - **面向 coding agent 的 MCP。** `estela mcp` 通过 stdio 为 agent 提供只读工具：找到早先的会话，读取其轮次、请求和事件，并在失败请求处重建模型看到的内容；一个 skill 告诉 agent 如何使用。
@@ -108,7 +109,7 @@ uv run --with opentelemetry-proto python -c \
 curl -H "Content-Type: application/x-protobuf" --data-binary @session.otlp.pb http://localhost:6006/v1/traces
 ```
 
-导出和服务器一样进行脱敏（home 目录替换为 `~`，已知凭据模式被替换）；`ESTELA_REDACT=0` 会写出未脱敏的字节。被上下文压缩移除的事件不生成 ATIF step；跨压缩保留的 step 标记为 `is_copied_context`，压缩本身是携带 `extra.context_management` 的 system step。
+导出和服务器一样进行脱敏（home 目录替换为 `~`，已知凭据模式被替换）；`ESTELA_REDACT=0` 会写出未脱敏的字节。ATIF 导出把目录价费用写入 ATIF 自己的字段：每个 step 的 `metrics.cost_usd`，以及仅在所有请求都已计价时写入的 `final_metrics.total_cost_usd`，并在 `extra.estela.pricing` 中注明价格快照；OTLP 导出不含费用，因为所固定的 GenAI 语义约定没有定义费用属性。被上下文压缩移除的事件不生成 ATIF step；跨压缩保留的 step 标记为 `is_copied_context`，压缩本身是携带 `extra.context_management` 的 system step。
 
 ## 面向 coding agent 的 MCP
 

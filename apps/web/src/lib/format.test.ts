@@ -8,7 +8,9 @@ import {
   formatDuration,
   formatNumber,
   formatOptional,
+  formatPercent,
   formatTokens,
+  formatUsd,
   formatWhen,
   relativeDay,
 } from './format.ts'
@@ -53,6 +55,16 @@ describe('numbers', () => {
     expect(formatNumber(2310, 'zh-CN')).toBe('2,310')
     expect(formatOptional(undefined, String, '—')).toBe('—')
     expect(formatOptional(0, String, '—')).toBe('0')
+  })
+
+  it('formats USD with two significant digits below a dollar, never rounding a cost to $0.00', () => {
+    expect(formatUsd(1234.5, 'en')).toBe('$1,234.50')
+    expect(formatUsd(0.42, 'en')).toBe('$0.42')
+    expect(formatUsd(0.0034, 'en')).toBe('$0.0034')
+    expect(formatUsd(0.00001, 'en')).toBe('<$0.0001')
+    expect(formatUsd(0, 'en')).toBe('$0.00')
+    expect(formatUsd(12.3, 'zh-CN')).toBe('$12.30')
+    expect(formatPercent(0.934, 'en')).toBe('93%')
   })
 })
 

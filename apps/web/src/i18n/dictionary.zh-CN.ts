@@ -28,6 +28,8 @@ import type { Dictionary } from './dictionary.en.ts'
  * | main agent | 主代理 | |
  * | slot | 槽位 | A part of the model's context (system prompt, tools, …). |
  * | shortened | 已截短 | Text the view cut; the full text loads on selection. |
+ * | list cost | 目录价费用 | Recorded tokens at the price table's list prices; not the amount billed. |
+ * | unpriced | 未计价 | A request without a cost. |
  * | report | 报告 | The static export of one session. |
  * | redacted | 已脱敏 | Home directory and credential patterns replaced. |
  *
@@ -253,6 +255,31 @@ export const zhCN = {
     rawLoading: '正在加载原始记录…',
     rawUnavailable: '原始记录不可用：{{ reason }}',
     source: '源位置',
+  },
+  cost: {
+    label: '目录价费用',
+    unavailable: '不可用',
+    unavailableShort: '费用不可用',
+    partial: '{{ total }} 个请求中有 {{ unpriced }} 个未计价',
+    partialShort: '{{ value }} · {{ count }} 个未计价',
+    reasonCount: '{{ count }} × {{ reason }}',
+    reasons: {
+      'no-usage': '未记录用量',
+      'incomplete-usage': '未记录输入或输出 Token',
+      'no-model': '未记录模型',
+      'no-price': '没有 {{ models }} 的价格',
+    },
+    moreModels: '{{ models }} 及另外 {{ count }} 个',
+    basis:
+      '按 {{ version }} 目录价计算已记录的 Token，不是实际账单：订阅、折扣、服务等级和代理自己记录的费用都未计入。',
+    version: 'LiteLLM {{ date }} · {{ commit }}',
+    requestUnavailable: '费用不可用：{{ reason }}',
+    input: '输入',
+    cacheRead: '缓存读取',
+    cacheWrite: '缓存写入',
+    output: '输出',
+    hitRate: '缓存命中 {{ value }}',
+    share: '{{ label }} {{ value }}',
   },
   report: {
     title: '报告',

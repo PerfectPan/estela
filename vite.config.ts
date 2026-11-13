@@ -23,6 +23,41 @@ const agentKitCliEntries = {
     'apps/cli imports only @rivus/agent-kit/redact and @rivus/agent-kit/node at runtime; read sessions through @rivus/estela-server.',
 }
 
+/**
+ * The kernel may also import the kit's cost entries at runtime: `/cost` (pricing math) and `/cost/prices` (the
+ * LiteLLM snapshot) import nothing, so the browser bundle stays free of the kit's readers. Everything else stays
+ * type-only.
+ */
+const agentKitCostOnly = {
+  ...agentKitTypesOnly,
+  group: [...agentKitTypesOnly.group, '!@rivus/agent-kit/cost', '!@rivus/agent-kit/cost/prices'],
+  message:
+    'Only packages/server reads sessions through agent-kit at runtime; the kernel may import /cost and /cost/prices.',
+}
+
+const nodeBuiltins = [
+  'fs',
+  'fs/promises',
+  'path',
+  'path/promises',
+  'os',
+  'os/promises',
+  'url',
+  'url/promises',
+  'process',
+  'process/promises',
+  'child_process',
+  'child_process/promises',
+  'crypto',
+  'crypto/promises',
+  'util',
+  'util/promises',
+  'stream',
+  'stream/promises',
+  'buffer',
+  'buffer/promises',
+]
+
 export default {
   lint: {
     ...lint,
@@ -49,41 +84,30 @@ export default {
         },
       },
       {
+        files: ['packages/kernel/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': ['error', { patterns: [agentKitCostOnly] }],
+        },
+      },
+      {
         // No Node built-ins in the browser-safe core outside tests.
-        files: [
-          'packages/schema/src/**/*.{ts,mts,cts,tsx}',
-          'packages/kernel/src/**/*.{ts,mts,cts,tsx}',
-          'packages/rpc/src/**/*.{ts,mts,cts,tsx}',
-        ],
+        files: ['packages/schema/src/**/*.{ts,mts,cts,tsx}', 'packages/rpc/src/**/*.{ts,mts,cts,tsx}'],
         excludeFiles: ['**/*.test.{ts,mts,cts,tsx}'],
         rules: {
           'no-restricted-imports': [
             'error',
-            {
-              paths: [
-                'fs',
-                'fs/promises',
-                'path',
-                'path/promises',
-                'os',
-                'os/promises',
-                'url',
-                'url/promises',
-                'process',
-                'process/promises',
-                'child_process',
-                'child_process/promises',
-                'crypto',
-                'crypto/promises',
-                'util',
-                'util/promises',
-                'stream',
-                'stream/promises',
-                'buffer',
-                'buffer/promises',
-              ],
-              patterns: [{ group: ['node:*', 'node:*/**'] }, agentKitTypesOnly],
-            },
+            { paths: nodeBuiltins, patterns: [{ group: ['node:*', 'node:*/**'] }, agentKitTypesOnly] },
+          ],
+          'no-restricted-globals': ['error', 'process', 'Buffer'],
+        },
+      },
+      {
+        files: ['packages/kernel/src/**/*.{ts,mts,cts,tsx}'],
+        excludeFiles: ['**/*.test.{ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            { paths: nodeBuiltins, patterns: [{ group: ['node:*', 'node:*/**'] }, agentKitCostOnly] },
           ],
           'no-restricted-globals': ['error', 'process', 'Buffer'],
         },
