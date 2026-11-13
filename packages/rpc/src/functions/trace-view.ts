@@ -46,10 +46,10 @@ const defineTraceFunction = createDefineWrapperWithContext<TraceRpcContext>()
  * subscribed stream is aborted on disconnect, so an unsubscribed hold is
  * released after this grace period.
  *
- * Limitation: DevFrame 1.0.0 does not expose a stream's subscribers (the
- * channel's `get(id)` returns only the sink), so the check reads the calling
- * connection's `subscribedStreams`. DevFrame 1.0.0 does not reconnect a closed
- * WebSocket: when the socket drops, the browser shows "lost the connection"
+ * Limitation: DevFrame does not expose a stream's subscribers (the channel's
+ * `get(id)` returns only the sink), so the check reads the calling
+ * connection's `subscribedStreams`. A closed DevFrame client never reconnects,
+ * by design: when the socket drops, the browser shows "lost the connection"
  * and a reload, whose new `load-trace` joins the running load or gets the
  * cached trace.
  */

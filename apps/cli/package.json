@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@devframes/agentic": "1.1.0",
+    "@devframes/agentic": "1.3.3",
     "devframe": "catalog:"
   },
   "devDependencies": {

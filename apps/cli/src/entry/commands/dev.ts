@@ -1,6 +1,6 @@
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { BASE_PATH, type OpenedSession, type SessionCatalog } from '@rivus/estela-server'
-import { createDevServer, resolveDevServerPort } from 'devframe/adapters/dev'
+import { createDevServer } from 'devframe/adapters/dev'
 import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
 import { openBrowser } from '../open-browser.ts'
@@ -35,8 +35,10 @@ export interface BrowserPlan {
 }
 
 /**
- * DevFrame opens `/__estela/` and puts its one-time code in the fragment, so it cannot open
- * `#/s/<traceId>` itself: with a launch session the CLI opens the browser instead.
+ * DevFrame appends its one-time code to the URL fragment and re-encodes the fragment as
+ * `key=value` pairs, so a `#/s/<traceId>` route cannot share it: the launch session rides
+ * `?s=<traceId>` and the SPA moves it into the route. DevFrame's `openBrowser` option also
+ * accepts a relative `?s=<traceId>`; the CLI opens that URL itself (`server/open-browser.ts`).
  */
 export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, hasLaunchSession: boolean): BrowserPlan {
   const opens = input.open !== false
@@ -122,7 +124,8 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
   const plan = browserPlan(input, readyTraceId !== undefined)
   await createDevServer(devframe, {
     host: input.host,
-    port: input.port ?? (await resolveDevServerPort(devframe, { host: input.host })),
+    // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
+    port: input.port,
     mcp: input.mcp,
     auth: plan.auth,
     openBrowser: plan.devframeOpens,

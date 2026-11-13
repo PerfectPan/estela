@@ -40,7 +40,9 @@ export function defineEstela(app: EstelaApp, services: () => Promise<void>): Dev
     basePath: BASE_PATH,
     clientAssets: app.clientAssets,
     // The dev server's default port; the CLI's own route table owns every option.
-    cli: { port: 7392 },
+    // The range makes DevFrame try the following ports in order when 7392 is taken; without it a
+    // taken default falls back to a random port.
+    cli: { port: 7392, portRange: [7392, 7491] },
     async setup(ctx: DevframeNodeContext) {
       const scoped = ctx.scope(NAMESPACE)
       for (const fn of serverFunctions) {
