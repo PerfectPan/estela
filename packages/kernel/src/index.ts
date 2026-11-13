@@ -20,6 +20,16 @@ export {
   type OtlpKeyValue,
   type OtlpSpan,
 } from './export-otlp.ts'
+export {
+  diffContext,
+  type ContextDiff,
+  type ContextDiffRejection,
+  type ContextDiffResult,
+  type SlotDiff,
+  type SystemDiff,
+  type TokenDiff,
+  type ToolsDiff,
+} from './context-diff.ts'
 export { fold, summaryOf, type TraceFold } from './fold.ts'
 export { isCanonicalTraceFile } from './load.ts'
 export { mainAgentId } from './lanes.ts'

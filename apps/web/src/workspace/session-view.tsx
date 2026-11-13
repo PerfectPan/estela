@@ -1,6 +1,7 @@
 import type { LoadedSession } from './load-session.ts'
 import { Show } from 'solid-js'
 import { locale, translate as t } from '@/i18n/locale.ts'
+import { compareChoices, compareTarget } from '@/lib/context-compare.ts'
 import { formatNumber } from '@/lib/format.ts'
 import { Inspector } from './inspector/inspector.tsx'
 import { Ledger } from './ledger/ledger.tsx'
@@ -15,6 +16,13 @@ export function SessionView(props: { session: LoadedSession; report: boolean }) 
   const state = createWorkspaceState(props.session)
   const view = () => props.session.trace.view
   const start = state.timeline.start
+  /** The compared request while the Compare tab is open, so the ring and the tab say the same thing. */
+  const compareId = () => {
+    const selected = state.selectedEventId()
+    return selected && state.tab() === 'compare'
+      ? compareTarget(compareChoices(state.model, selected), state.comparePick())
+      : undefined
+  }
   return (
     <div class="flex min-h-0 flex-1 flex-col">
       <SessionHeader trace={props.session.trace} summary={props.session.summary} cost={state.cost} />
@@ -37,6 +45,8 @@ export function SessionView(props: { session: LoadedSession; report: boolean }) 
         count={state.eventCount()}
         selectedId={state.selectedEventId()}
         onSelect={state.reveal}
+        compareId={compareId()}
+        onCompare={state.compareWith}
       />
       <div class="flex min-h-0 flex-1">
         <Ledger state={state} start={start} />

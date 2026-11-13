@@ -1,9 +1,8 @@
 import type { JSX } from 'solid-js'
 import type { Entry, RowKind } from '@/lib/ledger-model.ts'
-import type { MessageKey } from '@/i18n/locale.ts'
 import type { SessionEvent } from '../load-session.ts'
 import type { WorkspaceState } from '../workspace-state.ts'
-import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js'
+import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal } from 'solid-js'
 import { CloseIcon } from '@/components/icons.tsx'
 import { KIND_TITLE } from '@/components/kind-mark.tsx'
 import { KindSquare } from '@/components/kind-square.tsx'
@@ -14,18 +13,11 @@ import { messageOf } from '@/lib/error-message.ts'
 import { createEventCache, rawFetchKey } from '@/lib/event-cache.ts'
 import { elapsedFrom, formatDuration, formatTokens } from '@/lib/format.ts'
 import { costBasisText, priceVersionText, requestCostDetail, requestCostText } from '@/lib/cost-text.ts'
+import { ContextCompare } from './context-compare.tsx'
+import { INSPECTOR_TABS, type InspectorTab } from './inspector-tab.ts'
 import { ModelSaw } from './model-saw.tsx'
 import { inputText, outputText } from './tab-text.ts'
 import { TextView } from './text-view.tsx'
-
-type Tab = 'input' | 'output' | 'model' | 'raw'
-
-const TABS: { id: Tab; label: MessageKey }[] = [
-  { id: 'input', label: 'inspector.input' },
-  { id: 'output', label: 'inspector.output' },
-  { id: 'model', label: 'inspector.model' },
-  { id: 'raw', label: 'inspector.raw' },
-]
 
 function entryKind(entry: Entry): RowKind {
   switch (entry.type) {
@@ -44,44 +36,48 @@ function entryOrdinal(entry: Entry): number | undefined {
   return entry.type === 'event' || entry.type === 'subagent' ? entry.ordinal || undefined : undefined
 }
 
-const tabId = (id: Tab) => `inspector-tab-${id}`
-const panelId = (id: Tab) => `inspector-panel-${id}`
+const tabId = (id: InspectorTab) => `inspector-tab-${id}`
+const panelId = (id: InspectorTab) => `inspector-panel-${id}`
 
 /**
- * Inspector (470 px): Input, Output, Model saw, Raw. A shortened event (S12) loads its full
+ * Inspector (470 px): Input, Output, Model saw, Compare, Raw. A shortened event (S12) loads its full
  * text through `get-event` on selection; "Raw" shows the pretty-printed original record.
  * Each tab panel is built the first time it is opened and then only hidden, so switching
  * tabs does not draw a large text again.
  */
 export function Inspector(props: { state: WorkspaceState; start: number }) {
   const state = props.state
-  const [tab, setTab] = createSignal<Tab>('input')
-  const [visited, setVisited] = createSignal<ReadonlySet<Tab>>(new Set(['input']))
-  const fetchEvent = createEventCache(id => state.session.event(id))
-  function choose(next: Tab): void {
-    setTab(next)
-    if (!visited().has(next)) {
-      setVisited(new Set([...visited(), next]))
+  const tab = state.tab
+  const [visited, setVisited] = createSignal<ReadonlySet<InspectorTab>>(new Set([tab()]))
+  // The timeline can open a tab too (Shift-click opens Compare), so a panel is built when its tab first shows.
+  createEffect(() => {
+    const current = tab()
+    if (!visited().has(current)) {
+      setVisited(new Set([...visited(), current]))
     }
+  })
+  const fetchEvent = createEventCache(id => state.session.event(id))
+  function choose(next: InspectorTab): void {
+    state.setTab(next)
   }
   function onTabKey(event: KeyboardEvent): void {
-    const at = TABS.findIndex(item => item.id === tab())
+    const at = INSPECTOR_TABS.findIndex(item => item.id === tab())
     const next =
       event.key === 'ArrowRight'
-        ? (at + 1) % TABS.length
+        ? (at + 1) % INSPECTOR_TABS.length
         : event.key === 'ArrowLeft'
-          ? (at + TABS.length - 1) % TABS.length
+          ? (at + INSPECTOR_TABS.length - 1) % INSPECTOR_TABS.length
           : event.key === 'Home'
             ? 0
             : event.key === 'End'
-              ? TABS.length - 1
+              ? INSPECTOR_TABS.length - 1
               : -1
     if (next < 0) {
       return
     }
     event.preventDefault()
-    choose(TABS[next]!.id)
-    document.getElementById(tabId(TABS[next]!.id))?.focus()
+    choose(INSPECTOR_TABS[next]!.id)
+    document.getElementById(tabId(INSPECTOR_TABS[next]!.id))?.focus()
   }
 
   const entry = () => state.selectedEntry()
@@ -170,7 +166,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     return `${file}:${event.source.line}`
   }
 
-  function Panel(panel: { id: Tab; children: JSX.Element }) {
+  function Panel(panel: { id: InspectorTab; children: JSX.Element }) {
     return (
       <div
         id={panelId(panel.id)}
@@ -238,12 +234,12 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
                 )}
               </Show>
               <div
-                class="flex gap-[22px] border-b border-border text-[13px]"
+                class="flex gap-[18px] border-b border-border text-[13px]"
                 role="tablist"
                 aria-label={t('inspector.label')}
                 onKeyDown={onTabKey}
               >
-                <For each={TABS}>
+                <For each={INSPECTOR_TABS}>
                   {item => (
                     <button
                       type="button"
@@ -284,8 +280,14 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
                       model={state.model}
                       eventId={id}
                       onSelectEvent={state.reveal}
+                      onCompare={() => state.setTab('compare')}
                     />
                   )}
+                </Show>
+              </Panel>
+              <Panel id="compare">
+                <Show when={primaryId()} keyed>
+                  {id => <ContextCompare state={state} eventId={id} />}
                 </Show>
               </Panel>
               <Panel id="raw">
