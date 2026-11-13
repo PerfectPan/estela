@@ -223,8 +223,8 @@ function attachSpawnRefs(trace: Trace, builds: Map<string, TrajectoryBuild>, emb
 }
 
 /**
- * One lane's walk in `seq` order: user and system and compaction events close the open
- * agent step, agent-kind events join or open the step of their `requestId`, and a
+ * One lane's walk in `seq` order: user and compaction events, and system events that become a
+ * step, close the open agent step, agent-kind events join or open the step of their `requestId`, and a
  * `tool_result` follows its `tool_call`'s step.
  */
 function buildLane(

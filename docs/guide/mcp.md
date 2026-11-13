@@ -61,7 +61,7 @@ With `estela` installed globally, use `estela mcp` in place of `npx -y @rivus/es
 
 Every tool is read-only and takes a JSON object with named properties. A typical walk: list or search sessions, take a `traceId`, read the summary, find the turn with a failed tool, list that turn's requests, and reconstruct at the request before the failure.
 
-[MCP tools reference](../reference/mcp-tools.md) lists every input with its range and default, every result field, the size bounds, and the error texts. In short: each result is JSON of at most 40,000 characters; list pages set `nextOffset` when more items exist; long strings are cut and named in `truncated`; `estela_reconstruct` keeps the last 100 ids of each list with the totals. A field that is absent was not recorded, except that a session item with `summary: "pending"` has its counts not computed yet.
+[MCP tools reference](../reference/mcp-tools.md) lists every input with its range and default, every result field, the size bounds, and the error texts. In short: each result is JSON of at most 40,000 characters; list pages set `nextOffset` when more items exist; long strings are cut and named in `truncated`; `estela_reconstruct` keeps at most the last 100 ids of each list, with the totals. A field that is absent was not recorded, except that a session item with `summary: "pending"` has its counts not computed yet.
 
 ## Results are data, not instructions
 
