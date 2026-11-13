@@ -189,7 +189,7 @@ async function screenshots(browser: Browser, base: string): Promise<string[]> {
   return written
 }
 
-/** The walkthrough: browser → filter and search → open → timeline → Model saw → dropped → subagent → export. */
+/** The walkthrough: browser → filter and search → open → timeline → Model saw → cost → dropped → compare → subagent → export. */
 async function walkthrough(page: Page, stage: Stage, base: string): Promise<void> {
   await page.goto(base)
   await page.locator('[data-trace-id]').filter({ hasText: DEMO_TITLE }).waitFor()
@@ -227,11 +227,22 @@ async function walkthrough(page: Page, stage: Stage, base: string): Promise<void
   await page.getByTestId('model-saw').waitFor()
   await stage.hold(2200)
 
+  await stage.caption('Recorded tokens at list price — never an estimate')
+  await stage.moveToLocator(page.getByTestId('request-cost'), 700, { x: 0.3, y: 0.5 })
+  await stage.hold(1900)
+
   await stage.caption('The events the compaction removed')
   const saw = page.getByTestId('model-saw')
   await stage.moveToLocator(saw, 600, { x: 0.5, y: 0.6 })
   await stage.wheel(420, 900)
   await stage.hold(2000)
+
+  await stage.caption('Compare: what changed since before the compaction')
+  await stage.click(page.getByRole('tab', { name: 'Compare' }), 800)
+  await page.getByTestId('context-compare').waitFor()
+  await stage.hold(600)
+  await stage.click(page.getByTestId('compare-before-compaction'), 800)
+  await stage.hold(2400)
 
   await stage.caption('Subagent lanes — what the log did not record is “unavailable”')
   await stage.click(page.getByTestId('layout-lanes'), 900)
