@@ -2,6 +2,12 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.3.1
+
+### Patch Changes
+
+- [#130](https://github.com/PerfectPan/estela/pull/130) [`e538b5e`](https://github.com/PerfectPan/estela/commit/e538b5eab72dcf4cf62c9a724e54a220e0bc522f) Thanks [@PerfectPan](https://github.com/PerfectPan)! - The bundled web UI moves to Solid 1.9.19, which carries upstream bug fixes and clears the seroval advisories that npm audit reports against Solid 1.9.15; seroval itself is not part of the browser bundle.
+
 ## 0.3.0
 
 ### Minor Changes
