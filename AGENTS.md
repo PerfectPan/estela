@@ -76,6 +76,7 @@ node scripts/check-conventions.mjs
 gh repo-checks pr-title "<title>"
 gh repo-checks pr-body pr-body.md
 pnpm install
+gh repo-checks release-plan
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
 pnpm lint

@@ -36,7 +36,12 @@ jobs:
           node scripts/check-doc-translations.mjs
           node scripts/check-conventions.mjs
           node scripts/check-layers.mjs
-          node scripts/check-release-plan.mjs
+      # Rejects a pending changeset that names a private package, which is never consumed, or that would move
+      # @rivus/estela to 1.0.0 without `allow-major` in .github/repo-checks.conf.
+      - name: Pending change records
+        uses: PerfectPan/gh-repo-checks@v1
+        with:
+          check: release-plan
       - name: Conventional PR title
         if: github.event_name == 'pull_request'
         uses: PerfectPan/gh-repo-checks@v1
