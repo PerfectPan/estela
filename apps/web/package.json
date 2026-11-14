@@ -21,7 +21,7 @@
     "@rivus/estela-schema": "workspace:*",
     "cva": "1.0.0-beta.12",
     "devframe": "catalog:",
-    "solid-js": "^1.9.15",
+    "solid-js": "^1.9.19",
     "tailwind-merge": "^3.7.0",
     "zod": "catalog:"
   },
