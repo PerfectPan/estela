@@ -63,14 +63,18 @@ function formatAuthorityHost(bareHost: string): string {
 }
 
 /**
- * Origin a local client should dial and print for `host` and `port`. Preserves explicit loopback
- * literals such as `127.0.0.1` and `[::1]` instead of rewriting them to `localhost`, which can
- * resolve to the opposite IP family and hit a different listener.
+ * Origin a local client should dial and print for `host` and `port`. Explicit loopback literals
+ * such as `127.0.0.1` and `[::1]` stay as given, and a wildcard bind maps to the loopback address
+ * of its own family (`0.0.0.0` → `127.0.0.1`, `::` → `[::1]`): `localhost` can resolve to the
+ * other family first and reach a different process listening on the same port there.
  */
 export function dialableOrigin(host: string, port: number, fallbackOrigin: string): string {
   const canon = canonicalizeHost(host)
-  if (canon === '' || isWildcardHost(canon)) {
+  if (canon === '') {
     return fallbackOrigin
+  }
+  if (isWildcardHost(canon)) {
+    return `http://${canon === '::' ? '[::1]' : '127.0.0.1'}:${port}`
   }
   if (isLoopbackHost(canon)) {
     return `http://${formatAuthorityHost(canon)}:${port}`

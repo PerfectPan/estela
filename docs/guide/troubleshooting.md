@@ -41,7 +41,7 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 
 The page lost its connection to the local server: the `estela` process stopped, or the computer slept. A loaded workspace stays readable. Start `estela` again and press Reload.
 
-If you started Estela with an explicit `--host` such as `127.0.0.1` or `[::1]`, open the exact URL printed in the terminal rather than `http://localhost:<port>/` — browser WebSocket and SSE connections from a mismatched origin host are rejected with HTTP 403.
+If you started Estela with an explicit `--host` such as `127.0.0.1` or `[::1]`, open the exact URL printed in the terminal rather than `http://localhost:<port>/` — browser WebSocket and SSE connections from a mismatched origin host are rejected with HTTP 403. With `--host 0.0.0.0` the terminal prints `http://127.0.0.1:<port>/`, and with `--host ::` it prints `http://[::1]:<port>/`: `localhost` may resolve to the other address family first and reach another program on that port.
 
 ## `--pick` fails
 

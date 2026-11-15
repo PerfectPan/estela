@@ -68,10 +68,17 @@ describe('dialableOrigin', () => {
     expect(dialableOrigin('0:0:0:0:0:0:0:1', 7392, 'http://localhost:7392')).toBe('http://[::1]:7392')
   })
 
-  it('uses the fallback origin for wildcard or empty bind hosts', () => {
+  it('maps a wildcard bind to the loopback address of its own family, not localhost', () => {
+    expect(dialableOrigin('0.0.0.0', 7392, 'http://localhost:7392')).toBe('http://127.0.0.1:7392')
+    expect(dialableOrigin('::', 7392, 'http://localhost:7392')).toBe('http://[::1]:7392')
+    expect(dialableOrigin('[::]', 7392, 'http://localhost:7392')).toBe('http://[::1]:7392')
+    expect(dialableOrigin('0:0:0:0:0:0:0:0', 7392, 'http://localhost:7392')).toBe('http://[::1]:7392')
+  })
+
+  it('keeps localhost and uses the fallback origin for an empty or non-loopback bind host', () => {
     expect(dialableOrigin('localhost', 7392, 'http://localhost:7392')).toBe('http://localhost:7392')
-    expect(dialableOrigin('0.0.0.0', 7392, 'http://localhost:7392')).toBe('http://localhost:7392')
-    expect(dialableOrigin('::', 7392, 'http://localhost:7392')).toBe('http://localhost:7392')
+    expect(dialableOrigin('', 7392, 'http://localhost:7392')).toBe('http://localhost:7392')
+    expect(dialableOrigin('192.168.1.50', 7392, 'http://192.168.1.50:7392')).toBe('http://192.168.1.50:7392')
   })
 })
 

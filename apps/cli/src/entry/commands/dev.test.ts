@@ -26,10 +26,12 @@ describe('browserPlan', () => {
 })
 
 describe('resolveAuthBannerUrl', () => {
-  it('preserves explicit loopback hosts under /__estela/', () => {
+  it('preserves explicit loopback hosts and maps wildcards to their loopback address under /__estela/', () => {
     expect(resolveAuthBannerUrl('http://localhost:7392', '127.0.0.1')).toBe('http://127.0.0.1:7392/__estela/')
     expect(resolveAuthBannerUrl('http://localhost:7392', '[::1]')).toBe('http://[::1]:7392/__estela/')
     expect(resolveAuthBannerUrl('http://localhost:7392', 'localhost')).toBe('http://localhost:7392/__estela/')
+    expect(resolveAuthBannerUrl('http://localhost:7392', '0.0.0.0')).toBe('http://127.0.0.1:7392/__estela/')
+    expect(resolveAuthBannerUrl('http://localhost:7392', '::')).toBe('http://[::1]:7392/__estela/')
   })
 })
 

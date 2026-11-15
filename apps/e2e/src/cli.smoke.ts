@@ -7,9 +7,43 @@ import { join } from 'node:path'
 import { describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import cliPackage from '../../cli/package.json' with { type: 'json' }
-import { openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
+import { lanAddress, openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
 
 const ctx = inject('smoke')
+
+const portOf = (server: NetServer) => z.object({ port: z.number() }).parse(server.address()).port
+
+/**
+ * A port another HTTP server holds on `[::1]`, which counts its hits: a CLI URL that dials `localhost`
+ * can reach it. Without IPv6 loopback, a free port with no holder.
+ */
+async function portHeldOnIpv6Loopback(): Promise<{ port: number; hits: () => number; close: () => Promise<void> }> {
+  let hits = 0
+  const holder = createHttpServer((_req, res) => {
+    hits += 1
+    res.writeHead(200)
+    res.end('wrong-server')
+  })
+  const bound = await new Promise<boolean>(resolve => {
+    holder.once('error', () => resolve(false))
+    holder.listen(0, '::1', () => resolve(true))
+  })
+  if (bound) {
+    return {
+      port: portOf(holder),
+      hits: () => hits,
+      close: () => new Promise<void>(resolve => holder.close(() => resolve())),
+    }
+  }
+  const probe = createServer()
+  await new Promise<void>((resolve, reject) => {
+    probe.once('error', reject)
+    probe.listen(0, '127.0.0.1', () => resolve())
+  })
+  const port = portOf(probe)
+  await new Promise<void>(resolve => probe.close(() => resolve()))
+  return { port, hits: () => hits, close: async () => {} }
+}
 
 async function filesContaining(dir: string, needle: string): Promise<string[]> {
   const hits: string[] = []
@@ -217,7 +251,7 @@ describe('installed tarball', () => {
       holder.once('error', reject)
       holder.listen(0, '127.0.0.1', () => resolve())
     })
-    const { port } = z.object({ port: z.number() }).parse(holder.address())
+    const port = portOf(holder)
     try {
       const result = await run(
         process.execPath,
@@ -234,28 +268,8 @@ describe('installed tarball', () => {
   })
 
   it('#126: --host 127.0.0.1 prints and opens http://127.0.0.1:<port> even when [::1] holds that port', async () => {
-    let v6Hits = 0
-    const v6Holder = createHttpServer((_req, res) => {
-      v6Hits += 1
-      res.writeHead(200)
-      res.end('wrong-server')
-    })
-    const v6Bound = await new Promise<boolean>(resolve => {
-      v6Holder.once('error', () => resolve(false))
-      v6Holder.listen(0, '::1', () => resolve(true))
-    })
-    let port: number
-    if (v6Bound) {
-      port = z.object({ port: z.number() }).parse(v6Holder.address()).port
-    } else {
-      const probe = createServer()
-      await new Promise<void>((resolve, reject) => {
-        probe.once('error', reject)
-        probe.listen(0, '127.0.0.1', () => resolve())
-      })
-      port = z.object({ port: z.number() }).parse(probe.address()).port
-      await new Promise<void>(resolve => probe.close(() => resolve()))
-    }
+    const held = await portHeldOnIpv6Loopback()
+    const { port } = held
 
     const log = openLogPath(ctx, 'host-v4-loopback')
     const server = start(process.execPath, [ctx.bin, '--host', '127.0.0.1', '--port', String(port)], {
@@ -278,7 +292,7 @@ describe('installed tarball', () => {
       const res = await fetch(`http://127.0.0.1:${port}/__estela/`)
       expect(res.status).toBe(200)
       expect(await res.text()).toContain('Estela')
-      expect(v6Hits).toBe(0)
+      expect(held.hits()).toBe(0)
 
       await new Promise<void>((resolve, reject) => {
         const ws = new WebSocket(`ws://127.0.0.1:${port}/__estela/__ws`)
@@ -314,9 +328,45 @@ describe('installed tarball', () => {
       expect(forgedCodeLines).toHaveLength(0)
     } finally {
       await server.stop()
-      if (v6Bound) {
-        await new Promise<void>(resolve => v6Holder.close(() => resolve()))
+      await held.close()
+    }
+  })
+
+  it('#135: --host 0.0.0.0 prints and opens http://127.0.0.1:<port>, not a localhost URL that [::1] answers', async () => {
+    const held = await portHeldOnIpv6Loopback()
+    const { port } = held
+    const log = openLogPath(ctx, 'host-v4-wildcard')
+    const server = start(process.execPath, [ctx.bin, '--host', '0.0.0.0', '--port', String(port)], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, log),
+    })
+    try {
+      await waitFor(
+        'the 127.0.0.1 Ready line and browser open',
+        () =>
+          server.output().stdout.includes(`Ready: http://127.0.0.1:${port}/__estela/#/`) && openedUrls(log).length > 0,
+      )
+      expect(server.output().stdout).not.toContain(`http://localhost:${port}`)
+      expect(openedUrls(log)).toEqual([
+        expect.stringMatching(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`)),
+      ])
+      expect((await fetch(`http://127.0.0.1:${port}/__estela/`)).status).toBe(200)
+      // The wildcard still serves the page on this machine's LAN address.
+      const lan = lanAddress()
+      if (lan) {
+        expect((await fetch(`http://${lan}:${port}/__estela/`)).status).toBe(200)
       }
+      // Without --mcp the MCP route is not mounted.
+      const mcp = await fetch(`http://127.0.0.1:${port}/__estela/__mcp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: `http://127.0.0.1:${port}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      })
+      expect(mcp.status).not.toBe(200)
+      expect(held.hits()).toBe(0)
+    } finally {
+      await server.stop()
+      await held.close()
     }
   })
 
@@ -329,7 +379,7 @@ describe('installed tarball', () => {
     if (!v6Supported) {
       return
     }
-    const port = z.object({ port: z.number() }).parse(v6Probe.address()).port
+    const port = portOf(v6Probe)
     await new Promise<void>(resolve => v6Probe.close(() => resolve()))
 
     const log = openLogPath(ctx, 'host-v6-loopback')

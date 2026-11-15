@@ -8,7 +8,7 @@ Estela runs on your machine and sends nothing anywhere. It reads session logs an
 - `--no-auth` prints a startup warning and is refused if `--host` is not a loopback address (`localhost`, `127.*`, `::1`). Even on loopback, the server still accepts non-browser requests without an `Origin` header, which any local process can send, so use `--no-auth` only for local development on synthetic sessions. Browser WebSocket and SSE `Origin` checks match the bound port and host: default `localhost` accepts any loopback origin (`localhost`, `127.*`, `[::1]`); an explicit loopback `--host` (`127.0.0.1`, `[::1]`) accepts only that exact host; wildcard `0.0.0.0` or `::` accepts only loopback origins and this machine's network interface IP literals (DNS names are rejected).
 - `--host <address>` binds another address. With `--host 0.0.0.0`, other machines on your network can reach the server, protected by the one-time code gate.
 - URLs carry opaque trace ids, never file paths.
-- The MCP route over HTTP exists only with `--mcp`, and is not protected by the one-time code ([MCP tools](mcp.md#over-http-from-the-local-server)).
+- The MCP route over HTTP exists only with `--mcp`. It is not protected by the one-time code; it answers only processes on this machine that connect over loopback and send a loopback `Origin` header, whatever `--host` says ([MCP tools](mcp.md#over-http-from-the-local-server)).
 
 Files Estela writes:
 

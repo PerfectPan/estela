@@ -81,6 +81,6 @@ The causes and their texts are listed in the [reference](../reference/mcp-tools.
 
 ## Over HTTP from the local server
 
-`estela --mcp` also serves the same tools over HTTP at `/__estela/__mcp` on the local server. It is off by default because the one-time code that protects the browser page does not protect this route: only DevFrame's loopback and origin checks apply, so any process on this machine that sends a loopback `Origin` header can read every session through it. Use the stdio server unless you need HTTP.
+`estela --mcp` also serves the same seven tools over HTTP at `/__estela/__mcp` on the local server. The one-time code that protects the browser page does not protect this route; DevFrame's checks do: a request must come from this machine over a loopback address and carry a loopback `Origin` header (`http://localhost:<port>`, `http://127.0.0.1:<port>`, or `http://[::1]:<port>`). A request without `Origin`, from another origin, or from another machine gets HTTP 403, also when `--host 0.0.0.0` lets other machines reach the page, and a web page cannot call the route because it answers no CORS preflight. So any process on this machine can read every session through it, as it can read the session files themselves; the route is off by default for that reason. Use the stdio server unless you need HTTP.
 
 The server keeps the last 3 loaded sessions in memory, so an agent that walks through many sessions makes Estela load them again.

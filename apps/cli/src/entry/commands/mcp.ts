@@ -1,6 +1,7 @@
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { sessionTargetLabel } from '@rivus/estela-server'
 import { createEstelaServer } from '../../server.ts'
+import { closeOnSignal } from '../close-on-signal.ts'
 import { CliError } from '../failure.ts'
 import { sayMcpReady, sayStoreWarning } from '../ui/terminal.ts'
 
@@ -21,6 +22,7 @@ export async function runMcp(input: McpInput): Promise<void> {
     redacts: true,
     log: sayStoreWarning,
   })
+  closeOnSignal(() => server.close())
   if (input.target) {
     try {
       await server.openLaunch()
