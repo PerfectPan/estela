@@ -14,9 +14,9 @@
   },
   "devDependencies": {
     "@perfectpan/lint-config": "catalog:",
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.65.0",
     "@types/node": "catalog:",
-    "node-pty": "1.2.0-beta.15",
+    "node-pty": "1.2.0-beta.18",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "zod": "catalog:"

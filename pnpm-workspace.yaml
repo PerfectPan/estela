@@ -29,16 +29,16 @@ catalogMode: strict
 catalog:
   '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.8.0
   '@rivus/agent-kit': 0.24.1
-  '@types/node': ^24.19.0
+  '@types/node': ^24.19.2
   devframe: 1.3.3
-  es-toolkit: 1.52.0
+  es-toolkit: 1.53.2
   typescript: ^7.0.2
   # Vite+ supplies Vite: every `vite` in the graph (the web plugins' peer included) resolves to
   # the core that vite-plus ships, so the catalog's `vite` must stay at the `vite-plus` version
   # above; a lone vite-plus bump leaves the override on the old core.
   vite: npm:@voidzero-dev/vite-plus-core@1.3.0
   vite-plus: 1.3.0
-  zod: 4.6.6
+  zod: 4.6.7
 
 # `allowedVersions` is the rule that silences the "missing peer vite" warning for
 # @tailwindcss/vite and the vite-plus plugins, whose peer ranges the vite-plus core's version
