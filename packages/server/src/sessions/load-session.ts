@@ -5,7 +5,7 @@ import type { SessionAdapters, SessionPlatform } from '@rivus/agent-kit/sessions
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { isTrace } from '@rivus/estela-schema'
-import { hardenPlatform, MAX_CANONICAL_TRACE_BYTES } from './node-platform.ts'
+import { hardenPlatform, MAX_CANONICAL_TRACE_BYTES, MAX_CANONICAL_TRACE_MB } from './node-platform.ts'
 import { loadErrorMessage } from './read-failure.ts'
 import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
@@ -41,7 +41,9 @@ export async function loadSession(target: SessionTarget, options: LoadSessionOpt
     if (await isCanonicalTraceFile(target.path, fs)) {
       const stat = await fs.stat(target.path, { followSymlinks: true })
       if (stat && stat.size > MAX_CANONICAL_TRACE_BYTES) {
-        throw new Error(`${sessionTargetLabel(target)}: canonical trace file exceeds the 256 MB limit`)
+        throw new Error(
+          `${sessionTargetLabel(target)}: canonical trace file exceeds the ${MAX_CANONICAL_TRACE_MB} MB limit`,
+        )
       }
       const bytes = await readRange(fs, target.path)
       options.onProgress?.(bytes.byteLength)

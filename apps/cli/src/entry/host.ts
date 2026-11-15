@@ -1,9 +1,12 @@
 import { randomBytes } from 'node:crypto'
 import { chmod, lstat, mkdir } from 'node:fs/promises'
 import { isIP, isIPv4 } from 'node:net'
+import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
+import { errorMessage } from '@rivus/estela-server'
 import * as z from 'zod/mini'
+import { sanitizeInline } from './failure.ts'
 
 const errnoSchema = z.object({ code: z.string() })
 
@@ -21,24 +24,33 @@ export function unbracketHost(host: string): string {
   return trimmed
 }
 
+/** Canonicalizes hostnames and IPv4/IPv6 literals (e.g. expanded IPv6 -> compressed form) without outer brackets. */
+export function canonicalizeHost(host: string): string {
+  const bare = unbracketHost(host)
+  if (bare === '') {
+    return ''
+  }
+  try {
+    const parsed = isIP(bare) === 6 ? new URL(`http://[${bare}]/`) : new URL(`http://${bare}/`)
+    return unbracketHost(parsed.hostname)
+  } catch {
+    return bare
+  }
+}
+
 /** True for wildcard bind hosts (`0.0.0.0`, `::`, and expanded IPv6 zero). */
 export function isWildcardHost(host: string): boolean {
-  const bare = unbracketHost(host)
-  return (
-    bare === '0.0.0.0'
-    || bare === '::'
-    || bare === '0:0:0:0:0:0:0:0'
-    || bare === '0000:0000:0000:0000:0000:0000:0000:0000'
-  )
+  const canon = canonicalizeHost(host)
+  return canon === '0.0.0.0' || canon === '::'
 }
 
 /** True only for loopback hosts (`localhost`, `127.*`, or `::1`). Wildcards (`0.0.0.0`, `::`) return false. */
 export function isLoopbackHost(host: string): boolean {
-  const bare = unbracketHost(host)
-  if (bare === 'localhost' || bare === '::1' || bare === '0:0:0:0:0:0:0:1') {
+  const canon = canonicalizeHost(host)
+  if (canon === 'localhost' || canon === '::1') {
     return true
   }
-  return isIPv4(bare) && bare.startsWith('127.')
+  return isIPv4(canon) && canon.startsWith('127.')
 }
 
 function formatAuthorityHost(bareHost: string): string {
@@ -51,12 +63,12 @@ function formatAuthorityHost(bareHost: string): string {
  * resolve to the opposite IP family and hit a different listener.
  */
 export function dialableOrigin(host: string, port: number, fallbackOrigin: string): string {
-  const bare = unbracketHost(host)
-  if (bare === '' || isWildcardHost(bare)) {
+  const canon = canonicalizeHost(host)
+  if (canon === '' || isWildcardHost(canon)) {
     return fallbackOrigin
   }
-  if (isLoopbackHost(bare)) {
-    return `http://${formatAuthorityHost(bare)}:${port}`
+  if (isLoopbackHost(canon)) {
+    return `http://${formatAuthorityHost(canon)}:${port}`
   }
   return fallbackOrigin
 }
@@ -71,15 +83,43 @@ export interface ServerOriginGate {
   }
 }
 
+function defaultInterfaceAddresses(): string[] {
+  const addresses: string[] = []
+  for (const entries of Object.values(networkInterfaces())) {
+    if (!entries) {
+      continue
+    }
+    for (const entry of entries) {
+      const address = entry.address.split('%')[0] ?? ''
+      if (address !== '') {
+        addresses.push(address)
+      }
+    }
+  }
+  return addresses
+}
+
 /**
  * Restricts browser `Origin` headers on WebSocket and SSE upgrades to this server's bound port
- * and host, rejecting `Origin: null` and cross-port loopback pages (e.g. `localhost:3000`).
- * Requests without an `Origin` header (non-browser clients) remain allowed.
+ * and host, rejecting `Origin: null`, cross-port loopback pages (e.g. `localhost:3000`), and
+ * arbitrary DNS hostnames on wildcard binds (to block DNS rebinding). Requests without an `Origin`
+ * header (non-browser clients) remain allowed.
  */
-export function createServerOriginGate(host: string, initialPort?: number): ServerOriginGate {
-  const bareHost = unbracketHost(host)
-  const wildcard = bareHost === '' || isWildcardHost(bareHost)
-  let activePort = initialPort
+export function createServerOriginGate(host: string, localAddresses?: () => Iterable<string>): ServerOriginGate {
+  const canonBind = canonicalizeHost(host)
+  const wildcard = canonBind !== '' && isWildcardHost(canonBind)
+  const readInterfaces = localAddresses ?? defaultInterfaceAddresses
+  let activePort: number | undefined
+
+  const isLocalInterfaceIp = (originIp: string): boolean => {
+    for (const addr of readInterfaces()) {
+      const stripped = addr.split('%')[0] ?? ''
+      if (stripped !== '' && canonicalizeHost(stripped) === originIp) {
+        return true
+      }
+    }
+    return false
+  }
 
   const isAllowed = (origin: string | undefined): boolean => {
     if (origin === undefined) {
@@ -101,10 +141,20 @@ export function createServerOriginGate(host: string, initialPort?: number): Serv
     if (originPort !== activePort) {
       return false
     }
-    if (wildcard) {
-      return true
+    const originHost = canonicalizeHost(parsed.hostname)
+    if (canonBind === '' || canonBind === 'localhost') {
+      return isLoopbackHost(originHost)
     }
-    return unbracketHost(parsed.hostname) === bareHost
+    if (wildcard) {
+      if (isLoopbackHost(originHost)) {
+        return true
+      }
+      if (isIP(originHost) === 0) {
+        return false
+      }
+      return isLocalInterfaceIp(originHost)
+    }
+    return originHost === canonBind
   }
 
   return {
@@ -122,29 +172,50 @@ export function createServerOriginGate(host: string, initialPort?: number): Serv
 }
 
 /**
- * Ensures `~/.estela/devframe` exists with `0o700` permissions (and `auth.json` has `0o600` if present)
- * on POSIX systems, without following symbolic links.
+ * Restricts `~/.estela/devframe` to mode `0o700` on POSIX (and tightens an existing regular
+ * `auth.json` to `0o600` if present) without following symlinks. Best-effort: reports a warning
+ * and returns without throwing when `HOME` cannot be written or a path component is not a directory.
  */
-export async function secureDevframeDir(home: string): Promise<void> {
+export async function secureDevframeDir(home: string, warn?: (message: string) => void): Promise<void> {
   if (process.platform === 'win32') {
     return
   }
-  const dir = join(home, '.estela', 'devframe')
-  await mkdir(dir, { recursive: true, mode: 0o700 })
-  const dirStats = await lstat(dir)
-  if (!dirStats.isSymbolicLink() && dirStats.isDirectory()) {
-    await chmod(dir, 0o700)
-  }
-
-  const authFile = join(dir, 'auth.json')
+  const estelaRoot = join(home, '.estela')
   try {
-    const fileStats = await lstat(authFile)
-    if (!fileStats.isSymbolicLink() && fileStats.isFile()) {
-      await chmod(authFile, 0o600)
+    const estelaStats = await lstat(estelaRoot)
+    if (estelaStats.isSymbolicLink() || !estelaStats.isDirectory()) {
+      warn?.('~/.estela is not a directory; skipping DevFrame storage permission hardening')
+      return
     }
   } catch (error) {
     if (errorCode(error) !== 'ENOENT') {
-      throw error
+      warn?.(`Could not set permissions on ~/.estela/devframe: ${sanitizeInline(errorMessage(error))}`)
+      return
     }
+  }
+
+  const dir = join(estelaRoot, 'devframe')
+  try {
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+    const dirStats = await lstat(dir)
+    if (dirStats.isSymbolicLink() || !dirStats.isDirectory()) {
+      warn?.('~/.estela/devframe is not a directory; skipping DevFrame storage permission hardening')
+      return
+    }
+    await chmod(dir, 0o700)
+
+    const authFile = join(dir, 'auth.json')
+    try {
+      const fileStats = await lstat(authFile)
+      if (!fileStats.isSymbolicLink() && fileStats.isFile()) {
+        await chmod(authFile, 0o600)
+      }
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        throw error
+      }
+    }
+  } catch (error) {
+    warn?.(`Could not set permissions on ~/.estela/devframe: ${sanitizeInline(errorMessage(error))}`)
   }
 }

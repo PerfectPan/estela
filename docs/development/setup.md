@@ -42,7 +42,7 @@ It prints a measured-vs-budget table, appends it to `$GITHUB_STEP_SUMMARY` when 
 
 ```bash
 cd apps/cli
-pnpm run dev --no-auth
+pnpm run dev
 ```
 
 Open `http://localhost:7392/__estela/`.

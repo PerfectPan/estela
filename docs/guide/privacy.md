@@ -5,7 +5,7 @@ Estela runs on your machine and sends nothing anywhere. It reads session logs an
 ## What stays local
 
 - The server binds `localhost` by default. The browser page needs the one-time code from the opened URL (or the code the terminal prints); `--no-auth` turns that check off.
-- `--no-auth` prints a startup warning and is refused if `--host` is not a loopback address (`localhost`, `127.*`, `::1`). Even on loopback, the server still accepts non-browser requests without an `Origin` header, which any local process can send, so use `--no-auth` only for local development on synthetic sessions. Browser WebSocket and SSE `Origin` checks are locked to the server's bound host and port.
+- `--no-auth` prints a startup warning and is refused if `--host` is not a loopback address (`localhost`, `127.*`, `::1`). Even on loopback, the server still accepts non-browser requests without an `Origin` header, which any local process can send, so use `--no-auth` only for local development on synthetic sessions. Browser WebSocket and SSE `Origin` checks are locked to the server's bound host and port; with wildcard `0.0.0.0` or `::`, only loopback origins and this machine's network interface IP literals on that port are allowed (DNS names are rejected).
 - `--host <address>` binds another address. With `--host 0.0.0.0`, other machines on your network can reach the server, protected by the one-time code gate.
 - URLs carry opaque trace ids, never file paths.
 - The MCP route over HTTP exists only with `--mcp`, and is not protected by the one-time code ([MCP tools](mcp.md#over-http-from-the-local-server)).
@@ -16,7 +16,7 @@ Files Estela writes:
 |---|---|
 | `$XDG_CACHE_HOME/rivus-estela/index.sqlite` (default `~/.cache/rivus-estela/`) | the session index, below |
 | `~/.devframe/instances/<pid>-<port>.json` | one record per running server (port, path, start time), written by DevFrame, the server framework |
-| `~/.estela/devframe/auth.json` | the tokens of browsers you let in with the one-time code, written by DevFrame (`~/.estela/devframe/` mode `0700` and `auth.json` mode `0600` on POSIX) |
+| `~/.estela/devframe/auth.json` | the tokens of browsers you let in with the one-time code, written by DevFrame (`~/.estela/devframe/` mode `0700` on POSIX) |
 | a report or export | only when you run `build`, "Export report", `export-atif`, or `export-otlp` |
 
 ## The session index

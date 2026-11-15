@@ -10,7 +10,7 @@ const errorShapeSchema = z.object({
   cause: z.optional(z.unknown()),
 })
 
-function sanitizeInline(text: string): string {
+export function sanitizeInline(text: string): string {
   return oneLine(stripVTControlCharacters(text))
 }
 

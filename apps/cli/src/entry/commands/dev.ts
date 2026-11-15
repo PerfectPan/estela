@@ -1,11 +1,14 @@
 import { stripVTControlCharacters } from 'node:util'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
+import type { DevframeDefinition } from 'devframe'
+import type { DevframeAuthHandler } from 'devframe/node/auth'
+import { createAuthBanner, createInteractiveAuth, type AuthBannerInfo } from 'devframe/recipes/interactive-auth'
 import { homeDir } from '@rivus/estela-runtime-node'
 import { BASE_PATH, type OpenedSession, type SessionCatalog } from '@rivus/estela-server'
 import { createDevServer } from 'devframe/adapters/dev'
 import { createEstelaServer } from '../../server.ts'
-import { CliError, isListenFailure } from '../failure.ts'
-import { createServerOriginGate, dialableOrigin, secureDevframeDir } from '../host.ts'
+import { CliError, isListenFailure, sanitizeInline } from '../failure.ts'
+import { createServerOriginGate, dialableOrigin, secureDevframeDir, unbracketHost } from '../host.ts'
 import { openBrowser } from '../open-browser.ts'
 import { sayIndexFromCache, startSessionIndex } from '../ui/index-progress.ts'
 import { pickSession, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
@@ -27,29 +30,92 @@ export interface DevInput {
   redacts: boolean
 }
 
-/** Who opens the browser once the server is ready, and whether DevFrame's one-time-code gate stays on. */
+/** Whether the CLI opens the browser once the server is ready, and whether DevFrame's one-time-code gate stays on. */
 export interface BrowserPlan {
-  /** Always `false`: DevFrame rewrites `127.0.0.1` to `localhost`, which can dial a different listener on `[::1]`. */
-  devframeOpens: false
   /** The CLI opens the dialable origin (and `?s=<traceId>` when launched or picked), unless `--no-open`. */
   cliOpens: boolean
-  /** `false` turns the gate off; `undefined` keeps the definition's default, which is on. */
+  /** `false` turns the gate off; `undefined` keeps the auth handler on. */
   auth: false | undefined
 }
 
 /**
- * DevFrame appends its one-time code to the URL fragment and re-encodes the fragment as
- * `key=value` pairs, so a `#/s/<traceId>` route cannot share it: the launch session rides
- * `?s=<traceId>` and the SPA moves it into the route. The CLI opens the browser itself for
- * both `/` and launched sessions so explicit loopback hosts (`127.0.0.1`, `[::1]`) stay intact.
+ * The CLI opens the browser itself (because DevFrame rewrites `127.0.0.1` to `localhost` and
+ * re-encodes `#/s/<traceId>` fragments when appending `#devframe_otp=`). Launches ride `?s=<traceId>`.
  */
-export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, _hasLaunchSession?: boolean): BrowserPlan {
-  const opens = input.open !== false
+export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>): BrowserPlan {
   return {
-    devframeOpens: false,
-    cliOpens: opens,
+    cliOpens: input.open !== false,
     auth: input.auth ? undefined : false,
   }
+}
+
+/** Strips ANSI SGR, non-SGR escapes, newlines, controls, and bidi characters from requester banner metadata. */
+export function sanitizeAuthBannerInfo(info: AuthBannerInfo): AuthBannerInfo {
+  if (!info.requester) {
+    return info
+  }
+  return {
+    ...info,
+    requester: {
+      ua: sanitizeInline(info.requester.ua),
+      origin: sanitizeInline(info.requester.origin),
+    },
+  }
+}
+
+/** Rewrites DevFrame's resolved origin to preserve explicit loopback hosts (`127.0.0.1`, `[::1]`) under `BASE_PATH`. */
+export function resolveAuthBannerUrl(resolvedOrigin: string, host: string): string {
+  try {
+    const parsed = new URL(resolvedOrigin)
+    const port = parsed.port === '' ? 80 : Number(parsed.port)
+    return `${dialableOrigin(host, port, parsed.origin).replace(/\/$/, '')}${BASE_PATH}`
+  } catch {
+    return resolvedOrigin
+  }
+}
+
+function createDevAuth(
+  baseDefinition: DevframeDefinition,
+  host: string,
+): { definition: DevframeDefinition; auth: DevframeAuthHandler } {
+  const baseBanner = createAuthBanner()
+  let inner: DevframeAuthHandler | undefined
+  const activeAuth = (): DevframeAuthHandler => {
+    if (!inner) {
+      throw new Error('Estela interactive auth accessed before server setup completed')
+    }
+    return inner
+  }
+  const definition: DevframeDefinition = {
+    ...baseDefinition,
+    async setup(ctx, info) {
+      await baseDefinition.setup(ctx, info)
+      inner = createInteractiveAuth(ctx, {
+        serverUrl: () => resolveAuthBannerUrl(ctx.host.resolveOrigin(), host),
+        banner: bannerInfo => {
+          baseBanner(sanitizeAuthBannerInfo(bannerInfo))
+        },
+      })
+    },
+  }
+  const auth: DevframeAuthHandler = {
+    get rpcFunctions() {
+      return activeAuth().rpcFunctions
+    },
+    authorize(methodName, session) {
+      return activeAuth().authorize(methodName, session)
+    },
+    onConnect(connection, session) {
+      activeAuth().onConnect(connection, session)
+    },
+    printBanner() {
+      activeAuth().printBanner()
+    },
+    buildOpenUrl(url) {
+      return activeAuth().buildOpenUrl?.(url) ?? url
+    },
+  }
+  return { definition, auth }
 }
 
 /** A session loaded before the server listens, behind the load spinner; `open` makes it `current`. */
@@ -171,25 +237,29 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
       readyTraceId = (await loadShown(() => server.open(picked), 'the picked session')).traceId
     }
 
-    const home = homeDir()
-    await secureDevframeDir(home)
+    const plan = browserPlan(input)
+    if (plan.auth !== false) {
+      await secureDevframeDir(homeDir(), sayWarning)
+    }
     const originGate = createServerOriginGate(input.host)
-    const devframe = server.definition
-    const plan = browserPlan(input, readyTraceId !== undefined)
+    const bindHost = unbracketHost(input.host)
+    const authSetup: { definition: DevframeDefinition; auth: false | DevframeAuthHandler } =
+      plan.auth === false
+        ? { definition: server.definition, auth: false }
+        : createDevAuth(server.definition, input.host)
     await withoutListenDiagnostic(
       onListening =>
-        createDevServer(devframe, {
-          host: input.host,
+        createDevServer(authSetup.definition, {
+          host: bindHost,
           // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
           port: input.port,
           mcp: input.mcp === true,
-          auth: plan.auth,
+          auth: authSetup.auth,
           allowedOrigins: originGate.registry,
-          openBrowser: plan.devframeOpens,
+          openBrowser: false,
           async onReady({ origin, port }) {
             onListening()
             originGate.setPort(port)
-            await secureDevframeDir(home)
             const dialable = dialableOrigin(input.host, port, origin)
             const base = `${dialable.replace(/\/$/, '')}${BASE_PATH}`
             sayReady(readyTraceId ? `${base}#/s/${readyTraceId}` : `${base}#/`)

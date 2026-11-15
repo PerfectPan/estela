@@ -1,11 +1,9 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { zstdCompressSync } from 'node:zlib'
-import type { Platform } from '@rivus/agent-kit/platform'
-import { createNodePlatform } from '@rivus/agent-kit/node'
-import { describe, expect, it, vi } from 'vite-plus/test'
-import type { ShellPlatform } from './load-session.ts'
-import { decompressZstdBounded, hardenPlatform } from './node-platform.ts'
-
-type SqliteDb = ReturnType<NonNullable<Platform['sqlite']>['open']>
+import { describe, expect, it } from 'vite-plus/test'
+import { createShellPlatform, decompressZstdBounded, hardenPlatform } from './node-platform.ts'
 
 describe('decompressZstdBounded', () => {
   it('decompresses valid single and concatenated zstd frames within the limit', () => {
@@ -33,32 +31,34 @@ describe('decompressZstdBounded', () => {
 })
 
 describe('hardenPlatform', () => {
-  it('enforces trusted_schema = OFF and cell_size_check = ON on read-only sqlite opens only', () => {
-    const calls: string[] = []
-    const base = createNodePlatform({ home: '/u/me', env: {} })
-    const mockPlatform: ShellPlatform = {
-      ...base,
-      sqlite: {
-        open() {
-          return {
-            exec(sql) {
-              calls.push(sql)
-            },
-            prepare: vi.fn<SqliteDb['prepare']>(),
-            close: vi.fn<SqliteDb['close']>(),
-          }
-        },
-      },
+  it('enforces trusted_schema = OFF and cell_size_check = ON on real read-only sqlite opens only', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'at-sqlite-harden-'))
+    try {
+      const dbPath = join(dir, 'session.sqlite')
+      const platform = createShellPlatform({ home: dir, env: {} })
+      expect(hardenPlatform(platform)).toBe(platform)
+
+      const rw = platform.sqlite!.open(dbPath)
+      rw.exec('CREATE TABLE t (x INTEGER)')
+      rw.close()
+
+      const ro = platform.sqlite!.open(dbPath, { readonly: true })
+      try {
+        expect(ro.prepare('PRAGMA trusted_schema').get()).toEqual({ trusted_schema: 0 })
+        expect(ro.prepare('PRAGMA cell_size_check').get()).toEqual({ cell_size_check: 1 })
+      } finally {
+        ro.close()
+      }
+
+      const rwReopened = platform.sqlite!.open(dbPath, { readonly: false })
+      try {
+        expect(rwReopened.prepare('PRAGMA trusted_schema').get()).toEqual({ trusted_schema: 1 })
+        expect(rwReopened.prepare('PRAGMA cell_size_check').get()).toEqual({ cell_size_check: 0 })
+      } finally {
+        rwReopened.close()
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
-    const hardened = hardenPlatform(mockPlatform)
-    expect(hardenPlatform(hardened)).toBe(hardened)
-
-    hardened.sqlite!.open('/tmp/a.db', { readonly: true })
-    expect(calls).toEqual(['PRAGMA trusted_schema = OFF; PRAGMA cell_size_check = ON;'])
-
-    calls.length = 0
-    hardened.sqlite!.open('/tmp/a.db', { readonly: false })
-    hardened.sqlite!.open('/tmp/a.db')
-    expect(calls).toEqual([])
   })
 })

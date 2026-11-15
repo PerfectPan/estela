@@ -279,11 +279,80 @@ describe('installed tarball', () => {
       expect(res.status).toBe(200)
       expect(await res.text()).toContain('Estela')
       expect(v6Hits).toBe(0)
+
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/__estela/__ws`)
+        ws.addEventListener('error', () => reject(new Error('WebSocket connection failed')))
+        ws.addEventListener('open', () => {
+          ws.send(
+            JSON.stringify({
+              t: 'q',
+              i: 'banner-check',
+              m: 'anonymous:devframe:auth:request-code',
+              a: [
+                {
+                  ua: 'Mozilla/5.0\nforged-ua\u001B[31m',
+                  origin: `http://127.0.0.1:${port}\n│ auth code  000000`,
+                },
+              ],
+            }),
+          )
+        })
+        ws.addEventListener('message', () => {
+          ws.close()
+          resolve()
+        })
+      })
+
+      await waitFor('sanitized auth banner on stdout', () =>
+        server.output().stdout.includes(`http://127.0.0.1:${port}/__estela/#devframe_otp=`),
+      )
+      const bannerOut = server.output().stdout
+      expect(bannerOut).not.toContain(`http://localhost:${port}`)
+      expect(bannerOut).not.toContain('\nforged-ua')
+      const forgedCodeLines = bannerOut.split('\n').filter(line => line.includes('000000') && !line.includes('origin'))
+      expect(forgedCodeLines).toHaveLength(0)
     } finally {
       await server.stop()
       if (v6Bound) {
         await new Promise<void>(resolve => v6Holder.close(() => resolve()))
       }
+    }
+  })
+
+  it('#126 / M1: --host [::1] binds IPv6 loopback and prints and opens http://[::1]:<port>', async () => {
+    const v6Probe = createServer()
+    const v6Supported = await new Promise<boolean>(resolve => {
+      v6Probe.once('error', () => resolve(false))
+      v6Probe.listen(0, '::1', () => resolve(true))
+    })
+    if (!v6Supported) {
+      return
+    }
+    const port = z.object({ port: z.number() }).parse(v6Probe.address()).port
+    await new Promise<void>(resolve => v6Probe.close(() => resolve()))
+
+    const log = openLogPath(ctx, 'host-v6-loopback')
+    const server = start(process.execPath, [ctx.bin, '--host', '[::1]', '--port', String(port)], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, log),
+    })
+    const readyPattern = new RegExp(`Ready: http://\\[::1\\]:${port}/__estela/#/`)
+    try {
+      await waitFor(
+        'the [::1] Ready line and browser open',
+        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+      )
+      expect(server.output().stdout).toContain(`http://[::1]:${port}/__estela/#/`)
+      const opened = openedUrls(log)
+      expect(opened).toHaveLength(1)
+      expect(opened[0]).toMatch(new RegExp(`^http://\\[::1\\]:${port}/__estela/#devframe_otp=\\w+$`))
+
+      const res = await fetch(`http://[::1]:${port}/__estela/`)
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain('Estela')
+    } finally {
+      await server.stop()
     }
   })
 
@@ -323,5 +392,16 @@ describe('installed tarball', () => {
     })
     expect(rebuild.code, rebuild.stderr).toBe(0)
     expect(await readdir(reportDir)).toEqual(['index.html'])
+
+    const notDirChild = await run(
+      process.execPath,
+      [ctx.bin, 'build', ctx.claudePlain, '--out-dir', join(keepFile, 'nested')],
+      {
+        cwd: ctx.installDir,
+        env: smokeEnv(ctx, openLogPath(ctx, 'build-enotdir')),
+      },
+    )
+    expect(notDirChild.code).toBe(1)
+    expect(notDirChild.stderr).toContain('Could not write build output:')
   })
 })

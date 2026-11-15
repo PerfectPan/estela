@@ -10,8 +10,11 @@ type PlatformSqlite = NonNullable<Platform['sqlite']>
 /** Cap decompressed bytes across all frames of a compressed session file (e.g. `.jsonl.zst`). */
 export const MAX_DECOMPRESSED_BYTES = 512 * 1024 * 1024
 
+/** Cap canonical `.trace.json` files loaded wholly into memory, in megabytes. */
+export const MAX_CANONICAL_TRACE_MB = 256
+
 /** Cap canonical `.trace.json` files loaded wholly into memory. */
-export const MAX_CANONICAL_TRACE_BYTES = 256 * 1024 * 1024
+export const MAX_CANONICAL_TRACE_BYTES = MAX_CANONICAL_TRACE_MB * 1024 * 1024
 
 const bufferTooLarge = z.object({ code: z.literal('ERR_BUFFER_TOO_LARGE') })
 const zstdFrameResult = z.object({
@@ -38,6 +41,7 @@ function startsFrame(bytes: Uint8Array): boolean {
 /**
  * Decodes concatenated zstd frames while bounding total decompressed output to `maxBytes`.
  * Mirrors `@rivus/agent-kit/node`'s trailing non-frame suffix break so appended plain bytes do not fail.
+ * Stopgap until `@rivus/agent-kit` enforces a decompression output cap natively (#123).
  */
 export function decompressZstdBounded(bytes: Uint8Array, maxBytes = MAX_DECOMPRESSED_BYTES): Uint8Array {
   const chunks: Uint8Array[] = []
@@ -93,11 +97,8 @@ function wrapSqlite(base: PlatformSqlite): PlatformSqlite {
     open(path, options) {
       const db = base.open(path, options)
       if (options?.readonly) {
-        try {
-          db.exec('PRAGMA trusted_schema = OFF; PRAGMA cell_size_check = ON;')
-        } catch {
-          // Older SQLite builds may reject newer pragmas; read-only mode remains enforced.
-        }
+        // Guard against schema triggers/views on read-only opens; query-level limits stay in @rivus/agent-kit (#123).
+        db.exec('PRAGMA trusted_schema = OFF; PRAGMA cell_size_check = ON;')
       }
       return db
     },
