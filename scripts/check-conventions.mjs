@@ -2,11 +2,16 @@
 // Repository conventions for tracked files. See CONTRIBUTING.md#file-conventions.
 // 1. Every file and directory name is kebab-case, except the names listed below.
 // 2. A code file under apps/, packages/, or scripts/ has at most 500 lines.
-import { execFileSync } from 'node:child_process'
+// 3. No tracked file, documentation included, names the company npm mirror: installs use the public
+//    registry (`registry` in pnpm-workspace.yaml). The shared check's `forbid` would skip AGENTS.md,
+//    CONTRIBUTING.md, and SECURITY.md, so the scan is here.
+import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
 
 const MAX_LINES = 500
+/** The mirror's name, spelled as character classes so that this file does not match it. */
+const MIRROR = '[Bb][Nn][Pp][Mm]'
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** Names fixed by convention or by a platform. */
@@ -83,6 +88,16 @@ for (const path of files) {
   if (lines) {
     problems.add(lines)
   }
+}
+
+// git grep exits 1 when nothing matches; above 1 is an error, which must not pass.
+const mirror = spawnSync('git', ['grep', '-n', '-I', '-E', '-e', MIRROR], { encoding: 'utf8' })
+if (mirror.status === 0) {
+  for (const line of mirror.stdout.split('\n').filter(Boolean)) {
+    problems.add(`${line.slice(0, line.indexOf(':', line.indexOf(':') + 1))} names the company npm mirror`)
+  }
+} else if (mirror.status !== 1) {
+  throw new Error(`git grep failed: ${mirror.stderr}`)
 }
 
 if (problems.size) {

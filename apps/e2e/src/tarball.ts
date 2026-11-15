@@ -27,6 +27,8 @@ export interface Installed {
   installDir: string
   /** `node_modules/.bin/estela` inside `installDir`. */
   bin: string
+  /** The repository's npm registry, for npm and npx calls, which do not read `pnpm-workspace.yaml`. */
+  registry: string
 }
 
 /**
@@ -73,12 +75,16 @@ export async function packAndInstall(root: string, repo: string): Promise<Instal
   const installDir = join(root, 'install')
   await mkdir(installDir, { recursive: true })
   await writeFile(join(installDir, 'package.json'), `${JSON.stringify({ name: 'estela-smoke', private: true })}\n`)
-  await exec('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', tarball], { cwd: installDir })
+  const registry = (await exec('pnpm', ['config', 'get', 'registry'], { cwd: repo })).stdout.trim()
+  await exec('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', '--registry', registry, tarball], {
+    cwd: installDir,
+  })
   return {
     tarball,
     tarballBytes: size,
     files: packed.files.map(file => file.path).toSorted(),
     installDir,
     bin: join(installDir, 'node_modules/.bin/estela'),
+    registry,
   }
 }

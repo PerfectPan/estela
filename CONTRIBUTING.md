@@ -12,7 +12,7 @@ Ask questions and propose changes in a [GitHub issue](https://github.com/Perfect
 
 ## Development Setup
 
-Use Node.js `^26.13.1` (26.13.1 or later within 26.x): the root `package.json` and `devEngines.runtime` reject development runtimes outside this range during `pnpm install`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm switches itself to the version pinned by `packageManager` in the root `package.json`, and installs from the public npm registry set in `pnpm-workspace.yaml`, whatever registry your `~/.npmrc` names.
+Use Node.js `^26.13.1` (26.13.1 or later within 26.x): the root `package.json` and `devEngines.runtime` reject development runtimes outside this range during `pnpm install`. The CLI itself runs on Node.js 24 or later, and `apps/cli/bin.mjs` exits before it loads the CLI when Node is older. pnpm switches itself to the version pinned by `packageManager` in the root `package.json`, and installs from the public npm registry set in `pnpm-workspace.yaml`, whatever default registry your `~/.npmrc` names; a scoped `@scope:registry` entry there still applies.
 
 ```bash
 gh extension install PerfectPan/gh-repo-checks

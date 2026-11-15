@@ -34,6 +34,7 @@ const e2eContext = z.object({
   files: z.array(z.string()),
   installDir: z.string(),
   bin: z.string(),
+  registry: z.string(),
   homes: z.object({ main: fixtureHome, noCodex: fixtureHome }),
 })
 
