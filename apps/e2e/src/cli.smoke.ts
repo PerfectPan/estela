@@ -183,7 +183,7 @@ describe('installed tarball', () => {
   })
 
   it('S13: Node 22 gets one line naming Node.js 24', async () => {
-    const result = await run('npx', ['-y', 'node@22', ctx.bin, '--help'], {
+    const result = await run('npx', ['-y', '--registry', ctx.registry, 'node@22', ctx.bin, '--help'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 's13')),
     })
