@@ -1,3 +1,4 @@
+import { constants } from 'node:os'
 import process from 'node:process'
 
 /** Ctrl-C, a kill, and a closed terminal (also a closed console window on Windows). */
@@ -24,7 +25,12 @@ export function closeOnSignal(close: () => void): () => void {
       } catch {
         // The index is a cache: a failed write costs a re-read next launch, and the signal still ends the process.
       }
-      process.kill(process.pid, signal)
+      try {
+        process.kill(process.pid, signal)
+      } catch {
+        // Windows cannot send itself SIGHUP; exit with the code a shell gives that signal.
+        process.exit(128 + constants.signals[signal])
+      }
     }
     handlers.set(signal, handler)
     process.on(signal, handler)

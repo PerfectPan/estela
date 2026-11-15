@@ -7,6 +7,9 @@ import { barHolding, bucketBars, tokenGrid, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
 
+/** Requests closer than this many px share one bar. */
+const BAR_GAP = 3.5
+
 function barHeight(tokens: number, top: number): number {
   return top > 0 ? Math.max(1, (tokens / top) * LAYOUT.barMax) : 0
 }
@@ -18,10 +21,10 @@ export function MainLane(props: {
   selectedId?: string
   compareId?: string
 }) {
-  const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 3.5))
+  const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, BAR_GAP))
   const tools = createMemo(() => bucketBars(props.draw.tools, props.scale, 4))
   const grid = createMemo(() => tokenGrid(props.top))
-  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale)
+  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale, BAR_GAP)
   const selected = createMemo(() => barOf(props.selectedId))
   const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
   const ringHeight = (bar: { tokens?: number }) =>

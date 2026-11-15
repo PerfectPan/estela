@@ -36,6 +36,16 @@ describe('closeOnSignal', () => {
     expect(kill).toHaveBeenCalledWith(process.pid, 'SIGTERM')
   })
 
+  it("exits with the signal's shell code when the signal cannot be sent again", () => {
+    vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw new Error('kill ENOSYS')
+    })
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never)
+    closeOnSignal(() => {})
+    process.emit('SIGHUP')
+    expect(exit).toHaveBeenCalledWith(129)
+  })
+
   it('removes its handlers when the caller closes the server itself', () => {
     const before = listeners()
     const close = vi.fn<() => void>()

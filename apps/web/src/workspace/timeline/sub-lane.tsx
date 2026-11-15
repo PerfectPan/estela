@@ -6,6 +6,9 @@ import { barHolding, bucketBars, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
 
+/** Requests closer than this many px share one bar. */
+const BAR_GAP = 5
+
 /** A bucket's bar is wider the more requests it holds. */
 function barWidth(bar: Bar): number {
   return Math.min(7, 3 + bar.count)
@@ -21,8 +24,8 @@ export function SubLane(props: {
   compareId?: string
 }) {
   const y = () => LAYOUT.firstLane + LAYOUT.laneStep * props.index
-  const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 5))
-  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale)
+  const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, BAR_GAP))
+  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale, BAR_GAP)
   const selected = createMemo(() => barOf(props.selectedId))
   const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
   const title = () => escapeBidi(props.draw.lane.title ?? props.draw.lane.id)
