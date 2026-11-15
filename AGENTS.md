@@ -86,7 +86,7 @@ pnpm build
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 node scripts/check-budgets.mjs
-cd apps/cli && pnpm run dev --no-auth
+cd apps/cli && pnpm run dev
 cd apps/e2e && pnpm run test:smoke
 cd apps/e2e && pnpm run test:e2e
 ```

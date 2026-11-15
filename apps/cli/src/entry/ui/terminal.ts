@@ -7,6 +7,118 @@ export function isPlainOutput(): boolean {
   return !process.stdout.isTTY || process.env.NO_COLOR !== undefined
 }
 
+function consumeEscSequence(text: string, start: number): { end: number; keep: string } {
+  const next = text.charCodeAt(start + 1)
+  // CSI: keep strictly SGR (`ESC [ <digits/;>* m`), strip cursor/erase/private-mode CSI.
+  if (next === 0x5b) {
+    let i = start + 2
+    while (i < text.length && text.charCodeAt(i) >= 0x30 && text.charCodeAt(i) <= 0x3f) {
+      i += 1
+    }
+    while (i < text.length && text.charCodeAt(i) >= 0x20 && text.charCodeAt(i) <= 0x2f) {
+      i += 1
+    }
+    if (i >= text.length) {
+      return { end: text.length, keep: '' }
+    }
+    const final = text.charCodeAt(i)
+    if (final >= 0x40 && final <= 0x7e) {
+      const seq = text.slice(start, i + 1)
+      const isSgr = seq.startsWith('\u001b[') && seq.endsWith('m') && /^[0-9;]*$/.test(seq.slice(2, -1))
+      return { end: i + 1, keep: isSgr ? seq : '' }
+    }
+    return { end: i, keep: '' }
+  }
+  // OSC (`]`), DCS (`P`), SOS (`X`), PM (`^`), APC (`_`): terminated by BEL, ST (`ESC \`), or C1 ST (`0x9c`).
+  if (next === 0x5d || next === 0x50 || next === 0x58 || next === 0x5e || next === 0x5f) {
+    let i = start + 2
+    while (i < text.length) {
+      const ch = text.charCodeAt(i)
+      if (ch === 0x07 || ch === 0x9c) {
+        return { end: i + 1, keep: '' }
+      }
+      if (ch === 0x1b && i + 1 < text.length && text.charCodeAt(i + 1) === 0x5c) {
+        return { end: i + 2, keep: '' }
+      }
+      i += 1
+    }
+    return { end: text.length, keep: '' }
+  }
+  // nF or 2-byte ESC sequence.
+  if (next >= 0x20 && next <= 0x2f) {
+    let i = start + 2
+    while (i < text.length && text.charCodeAt(i) >= 0x20 && text.charCodeAt(i) <= 0x2f) {
+      i += 1
+    }
+    if (i < text.length && text.charCodeAt(i) >= 0x30 && text.charCodeAt(i) <= 0x7e) {
+      return { end: i + 1, keep: '' }
+    }
+    return { end: i, keep: '' }
+  }
+  if (next >= 0x30 && next <= 0x7e) {
+    return { end: start + 2, keep: '' }
+  }
+  return { end: start + 1, keep: '' }
+}
+
+/**
+ * Strips OSC, DCS, SOS, PM, APC, non-SGR CSI, C0/C1 controls (except `\n`), and Unicode format/bidi
+ * characters while preserving SGR colors and newlines.
+ */
+function sanitizeTtyKeepSgr(text: string): string {
+  let out = ''
+  let i = 0
+  while (i < text.length) {
+    const code = text.charCodeAt(i)
+    if (code === 0x1b) {
+      if (i + 1 >= text.length) {
+        i += 1
+        continue
+      }
+      const res = consumeEscSequence(text, i)
+      out += res.keep
+      i = res.end
+      continue
+    }
+    if (code === 0x9b) {
+      let j = i + 1
+      while (j < text.length && text.charCodeAt(j) >= 0x30 && text.charCodeAt(j) <= 0x3f) {
+        j += 1
+      }
+      while (j < text.length && text.charCodeAt(j) >= 0x20 && text.charCodeAt(j) <= 0x2f) {
+        j += 1
+      }
+      if (j < text.length && text.charCodeAt(j) >= 0x40 && text.charCodeAt(j) <= 0x7e) {
+        j += 1
+      }
+      i = j
+      continue
+    }
+    if (code === 0x90 || code === 0x98 || code === 0x9d || code === 0x9e || code === 0x9f) {
+      let j = i + 1
+      while (j < text.length) {
+        const ch = text.charCodeAt(j)
+        if (ch === 0x07 || ch === 0x9c) {
+          j += 1
+          break
+        }
+        if (ch === 0x1b && j + 1 < text.length && text.charCodeAt(j + 1) === 0x5c) {
+          j += 2
+          break
+        }
+        j += 1
+      }
+      i = j
+      continue
+    }
+    if (code === 0x0a || (code >= 0x20 && code !== 0x7f && !(code >= 0x80 && code <= 0x9f))) {
+      out += text[i]
+    }
+    i += 1
+  }
+  return out.replace(/\p{Cf}+/gu, '')
+}
+
 /** `~` for the home directory, only on lines that DevFrame logs. */
 export function devframeTilde(homeDir: string): (text: string) => string {
   return text =>
@@ -18,6 +130,19 @@ export function devframeTilde(homeDir: string): (text: string) => string {
       : text
 }
 
+function sanitizeDevframeChunk(text: string): string {
+  if (text.includes('auth code') && text.includes('expires at')) {
+    return sanitizeTtyKeepSgr(text)
+  }
+  if (text.includes('[devframe]')) {
+    return text
+      .split('\n')
+      .map(line => (line.includes('[devframe]') ? sanitizeTtyKeepSgr(line) : line))
+      .join('\n')
+  }
+  return text
+}
+
 type WriteCallback = (error: Error | null | undefined) => void
 /** What follows the chunk in `Writable.write`'s two overloads; Node also accepts a null or undefined encoding. */
 type WriteTail = [callback?: WriteCallback] | [encoding: BufferEncoding | null | undefined, callback?: WriteCallback]
@@ -26,10 +151,16 @@ function wrap(stream: Writable, strip: boolean, tilde?: (text: string) => string
   const write = stream.write.bind(stream)
   const clean = (text: string): string => {
     const plain = strip ? stripVTControlCharacters(text) : text
-    return tilde ? tilde(plain) : plain
+    const safe = sanitizeDevframeChunk(plain)
+    return tilde ? tilde(safe) : safe
   }
-  const touched = (chunk: Uint8Array): boolean =>
-    (strip && chunk.includes(0x1b)) || (tilde !== undefined && Buffer.from(chunk).includes('[devframe]'))
+  const touched = (chunk: Uint8Array): boolean => {
+    if (strip && chunk.includes(0x1b)) {
+      return true
+    }
+    const buf = Buffer.from(chunk)
+    return buf.includes('[devframe]') || (buf.includes('auth code') && buf.includes('expires at'))
+  }
   stream.write = (chunk: string | Uint8Array, ...tail: WriteTail): boolean => {
     // Known-union narrowing over the two overloads: the callback is a function in either slot,
     // and only a string is an encoding.
@@ -61,9 +192,6 @@ export function installPlainFilter(options?: { stderrOnly?: boolean; homeDir?: s
     return
   }
   const strip = isPlainOutput()
-  if (!strip && !tilde) {
-    return
-  }
   wrap(process.stdout, strip, tilde)
   wrap(process.stderr, strip, tilde)
 }

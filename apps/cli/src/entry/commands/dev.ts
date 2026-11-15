@@ -1,8 +1,11 @@
+import { stripVTControlCharacters } from 'node:util'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
+import { homeDir } from '@rivus/estela-runtime-node'
 import { BASE_PATH, type OpenedSession, type SessionCatalog } from '@rivus/estela-server'
 import { createDevServer } from 'devframe/adapters/dev'
 import { createEstelaServer } from '../../server.ts'
-import { CliError } from '../failure.ts'
+import { CliError, isListenFailure } from '../failure.ts'
+import { createServerOriginGate, dialableOrigin, secureDevframeDir } from '../host.ts'
 import { openBrowser } from '../open-browser.ts'
 import { sayIndexFromCache, startSessionIndex } from '../ui/index-progress.ts'
 import { pickSession, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
@@ -26,9 +29,9 @@ export interface DevInput {
 
 /** Who opens the browser once the server is ready, and whether DevFrame's one-time-code gate stays on. */
 export interface BrowserPlan {
-  /** DevFrame opens the session browser, `/__estela/`. */
-  devframeOpens: boolean
-  /** The CLI opens the launch session's workspace, `?s=<traceId>`. */
+  /** Always `false`: DevFrame rewrites `127.0.0.1` to `localhost`, which can dial a different listener on `[::1]`. */
+  devframeOpens: false
+  /** The CLI opens the dialable origin (and `?s=<traceId>` when launched or picked), unless `--no-open`. */
   cliOpens: boolean
   /** `false` turns the gate off; `undefined` keeps the definition's default, which is on. */
   auth: false | undefined
@@ -37,14 +40,14 @@ export interface BrowserPlan {
 /**
  * DevFrame appends its one-time code to the URL fragment and re-encodes the fragment as
  * `key=value` pairs, so a `#/s/<traceId>` route cannot share it: the launch session rides
- * `?s=<traceId>` and the SPA moves it into the route. DevFrame's `openBrowser` option also
- * accepts a relative `?s=<traceId>`; the CLI opens that URL itself (`server/open-browser.ts`).
+ * `?s=<traceId>` and the SPA moves it into the route. The CLI opens the browser itself for
+ * both `/` and launched sessions so explicit loopback hosts (`127.0.0.1`, `[::1]`) stay intact.
  */
-export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, hasLaunchSession: boolean): BrowserPlan {
+export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>, _hasLaunchSession?: boolean): BrowserPlan {
   const opens = input.open !== false
   return {
-    devframeOpens: opens && !hasLaunchSession,
-    cliOpens: opens && hasLaunchSession,
+    devframeOpens: false,
+    cliOpens: opens,
     auth: input.auth ? undefined : false,
   }
 }
@@ -83,9 +86,56 @@ async function indexSessions(catalog: SessionCatalog): Promise<void> {
   }
 }
 
+/**
+ * DevFrame's `diagnostics.DF0052(...)` prints its library-facing fix text via `console.warn`
+ * before throwing; hold `[DF0052]` warnings until listening settles so a listen failure shows
+ * only Estela's `CliError` message, while flushing held warnings if startup fails another way.
+ */
+export async function withoutListenDiagnostic<T>(
+  run: (onListening: () => void) => Promise<T>,
+  isExpectedListenError: (cause: unknown) => boolean,
+): Promise<T> {
+  const originalWarn = console.warn
+  const held: unknown[][] = []
+  let restored = false
+  const restore = () => {
+    if (!restored) {
+      restored = true
+      console.warn = originalWarn
+    }
+  }
+  console.warn = (...args: unknown[]) => {
+    const first = args[0]
+    if (typeof first === 'string' && stripVTControlCharacters(first).trimStart().startsWith('[DF0052]')) {
+      held.push(args)
+      return
+    }
+    Reflect.apply(originalWarn, console, args)
+  }
+  let caughtListenError = false
+  try {
+    return await run(restore)
+  } catch (cause) {
+    caughtListenError = isExpectedListenError(cause)
+    throw cause
+  } finally {
+    restore()
+    if (!caughtListenError) {
+      for (const args of held) {
+        Reflect.apply(originalWarn, console, args)
+      }
+    }
+  }
+}
+
 /** The local server: the session browser, the workspace of the launch or picked session, and "Export report". */
 export async function runDev(input: DevInput, packageVersion: string): Promise<void> {
   sayStart(packageVersion)
+  if (!input.auth) {
+    sayWarning(
+      'Warning: --no-auth disables the one-time auth code; any process or script on this origin can read loaded sessions.',
+    )
+  }
   const server = createEstelaServer({
     catalog: { index: input.index },
     launch: input.launch?.target,
@@ -97,44 +147,67 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
   }
 
-  // The launch load, the index, and the picker run before the server listens, so the terminal can
-  // show each one; the definition's setup then finds them done and binds the services.
-  let readyTraceId: string | undefined
-  if (input.launch) {
-    const launched = await loadShown(async () => (await server.openLaunch())!, input.launch.label)
-    readyTraceId = launched.traceId
-  }
-
-  await indexSessions(catalog)
-
-  if (input.pick) {
-    await catalog.discovered()
-    const choices = catalog.pickChoices()
-    if (choices.length === 0) {
-      throw new CliError({ kind: 'no-sessions' })
+  try {
+    // The launch load, the index, and the picker run before the server listens, so the terminal can
+    // show each one; the definition's setup then finds them done and binds the services.
+    let readyTraceId: string | undefined
+    if (input.launch) {
+      const launched = await loadShown(async () => (await server.openLaunch())!, input.launch.label)
+      readyTraceId = launched.traceId
     }
-    const picked = await pickSession(choices)
-    if (picked === undefined) {
-      throw new CliError({ kind: 'cancelled' })
-    }
-    readyTraceId = (await loadShown(() => server.open(picked), 'the picked session')).traceId
-  }
 
-  const devframe = server.definition
-  const plan = browserPlan(input, readyTraceId !== undefined)
-  await createDevServer(devframe, {
-    host: input.host,
-    // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
-    port: input.port,
-    mcp: input.mcp === true,
-    auth: plan.auth,
-    openBrowser: plan.devframeOpens,
-    async onReady({ origin }) {
-      const base = `${origin.replace(/\/$/, '')}${BASE_PATH}`
-      sayReady(readyTraceId ? `${base}#/s/${readyTraceId}` : `${base}#/`)
-      if (plan.cliOpens && readyTraceId) {
-        await openBrowser(base, readyTraceId, input.auth)
+    await indexSessions(catalog)
+
+    if (input.pick) {
+      await catalog.discovered()
+      const choices = catalog.pickChoices()
+      if (choices.length === 0) {
+        throw new CliError({ kind: 'no-sessions' })
       }
-    },
-  })
+      const picked = await pickSession(choices)
+      if (picked === undefined) {
+        throw new CliError({ kind: 'cancelled' })
+      }
+      readyTraceId = (await loadShown(() => server.open(picked), 'the picked session')).traceId
+    }
+
+    const home = homeDir()
+    await secureDevframeDir(home)
+    const originGate = createServerOriginGate(input.host)
+    const devframe = server.definition
+    const plan = browserPlan(input, readyTraceId !== undefined)
+    await withoutListenDiagnostic(
+      onListening =>
+        createDevServer(devframe, {
+          host: input.host,
+          // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
+          port: input.port,
+          mcp: input.mcp === true,
+          auth: plan.auth,
+          allowedOrigins: originGate.registry,
+          openBrowser: plan.devframeOpens,
+          async onReady({ origin, port }) {
+            onListening()
+            originGate.setPort(port)
+            await secureDevframeDir(home)
+            const dialable = dialableOrigin(input.host, port, origin)
+            const base = `${dialable.replace(/\/$/, '')}${BASE_PATH}`
+            sayReady(readyTraceId ? `${base}#/s/${readyTraceId}` : `${base}#/`)
+            if (plan.cliOpens) {
+              await openBrowser(base, readyTraceId, input.auth)
+            }
+          },
+        }),
+      isListenFailure,
+    )
+  } catch (cause) {
+    server.close()
+    if (cause instanceof CliError) {
+      throw cause
+    }
+    if (isListenFailure(cause)) {
+      throw new CliError({ kind: 'listen', host: input.host, port: input.port, cause })
+    }
+    throw cause
+  }
 }

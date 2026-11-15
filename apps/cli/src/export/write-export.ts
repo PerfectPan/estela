@@ -1,12 +1,39 @@
 import type { Trace } from '@rivus/estela-schema'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, mkdir, open } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
+import * as z from 'zod/mini'
 import { snapshotPricing, toAtif, toOtlp } from '@rivus/estela-kernel'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { homeDir } from '@rivus/estela-runtime-node'
 
 export type ExportFormat = 'atif' | 'otlp'
+
+const MAX_DEFAULT_ATTEMPTS = 10_000
+const errnoSchema = z.object({ code: z.string() })
+
+/** Error raised when an export output path is unsafe or already blocked (e.g., a symlink or directory). */
+export class ExportPathError extends Error {
+  readonly path: string
+
+  constructor(path: string, message: string) {
+    super(message)
+    this.name = 'ExportPathError'
+    this.path = path
+  }
+}
+
+function errorCode(error: unknown): string | undefined {
+  const parsed = errnoSchema.safeParse(error)
+  return parsed.success ? parsed.data.code : undefined
+}
+
+function defaultExportCandidate(sessionId: string, format: ExportFormat, attempt: number): string {
+  const short = sessionId.replaceAll(/[^\w-]/g, '').slice(0, 8) || 'session'
+  const suffix = attempt === 1 ? '' : `-${attempt}`
+  return resolve(process.cwd(), `estela-${short}${suffix}.${format}.json`)
+}
 
 /** The projection of one export command: ATIF v1.8 or OTLP/JSON. */
 export function exportOf(trace: Trace, format: ExportFormat): unknown {
@@ -15,8 +42,76 @@ export function exportOf(trace: Trace, format: ExportFormat): unknown {
 
 /** `estela-<session id prefix>.atif.json` / `.otlp.json` in the working directory. */
 export function defaultExportPath(sessionId: string, format: ExportFormat): string {
-  const short = sessionId.replaceAll(/[^\w-]/g, '').slice(0, 8) || 'session'
-  return resolve(process.cwd(), `estela-${short}.${format}.json`)
+  return defaultExportCandidate(sessionId, format, 1)
+}
+
+async function writeDefaultUnique(
+  sessionId: string,
+  format: ExportFormat,
+  payload: string,
+  home: string,
+): Promise<string> {
+  const firstPath = defaultExportPath(sessionId, format)
+  await mkdir(dirname(firstPath), { recursive: true })
+  for (let attempt = 1; attempt <= MAX_DEFAULT_ATTEMPTS; attempt += 1) {
+    const candidate = defaultExportCandidate(sessionId, format, attempt)
+    try {
+      const handle = await open(candidate, 'wx')
+      try {
+        await handle.writeFile(payload, 'utf8')
+      } finally {
+        await handle.close()
+      }
+      return candidate
+    } catch (error) {
+      if (errorCode(error) === 'EEXIST') {
+        continue
+      }
+      throw error
+    }
+  }
+  throw new ExportPathError(firstPath, `No unused export filename available near ${redactText(firstPath, { home })}`)
+}
+
+async function writeExplicitTarget(path: string, payload: string, home: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  try {
+    const stats = await lstat(path)
+    if (stats.isSymbolicLink()) {
+      throw new ExportPathError(path, `Refusing to write export through symbolic link: ${redactText(path, { home })}`)
+    }
+    if (stats.isDirectory()) {
+      throw new ExportPathError(path, `Export path is a directory: ${redactText(path, { home })}`)
+    }
+  } catch (error) {
+    if (error instanceof ExportPathError) {
+      throw error
+    }
+    if (errorCode(error) !== 'ENOENT') {
+      throw error
+    }
+  }
+
+  // Bitwise OR with `constants.O_NOFOLLOW` leaves flags intact even if `O_NOFOLLOW` is 0 or absent on Windows.
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW
+  let handle: Awaited<ReturnType<typeof open>>
+  try {
+    handle = await open(path, flags, 0o666)
+  } catch (error) {
+    const code = errorCode(error)
+    if (code === 'ELOOP' || code === 'EMLINK') {
+      throw new ExportPathError(path, `Refusing to write export through symbolic link: ${redactText(path, { home })}`)
+    }
+    if (code === 'EISDIR') {
+      throw new ExportPathError(path, `Export path is a directory: ${redactText(path, { home })}`)
+    }
+    throw error
+  }
+  try {
+    await handle.writeFile(payload, 'utf8')
+  } finally {
+    await handle.close()
+  }
 }
 
 /**
@@ -31,9 +126,13 @@ export async function writeExport(
   redacts: boolean,
 ): Promise<string> {
   const home = homeDir()
-  const path = outFile !== undefined ? resolve(outFile) : defaultExportPath(trace.session.id, format)
   const value = exportOf(trace, format)
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, `${JSON.stringify(redacts ? redact(value, { home }) : value, null, 2)}\n`, 'utf8')
+  const payload = `${JSON.stringify(redacts ? redact(value, { home }) : value, null, 2)}\n`
+  if (outFile === undefined) {
+    const written = await writeDefaultUnique(trace.session.id, format, payload, home)
+    return redactText(written, { home })
+  }
+  const path = resolve(outFile)
+  await writeExplicitTarget(path, payload, home)
   return redactText(path, { home })
 }

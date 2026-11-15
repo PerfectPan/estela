@@ -2,7 +2,7 @@ import type { ReportTrace } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
-import { reportOf, sessionTargetLabel, writeReport } from '@rivus/estela-server'
+import { checkReportOutDir, reportOf, ReportOutDirError, sessionTargetLabel, writeReport } from '@rivus/estela-server'
 import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
 import { sayBuild, sayStoreWarning } from '../ui/terminal.ts'
@@ -19,6 +19,7 @@ export async function runBuild(input: BuildInput, packageVersion: string): Promi
   let trace: Trace | undefined
   let report: ReportTrace | undefined
   try {
+    await checkReportOutDir(input.outDir)
     await sayBuild(packageVersion, {
       load: async () => {
         // One load per build: the store gets this trace, so nothing reads the file again.
@@ -37,6 +38,11 @@ export async function runBuild(input: BuildInput, packageVersion: string): Promi
       },
     })
   } catch (cause) {
+    if (cause instanceof ReportOutDirError) {
+      throw new CliError({ kind: 'output', action: 'build', cause })
+    }
     throw new CliError({ kind: 'session', action: 'build', label, cause })
+  } finally {
+    server.close()
   }
 }

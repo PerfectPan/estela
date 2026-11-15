@@ -5,8 +5,8 @@ Estela runs on your machine and sends nothing anywhere. It reads session logs an
 ## What stays local
 
 - The server binds `localhost` by default. The browser page needs the one-time code from the opened URL (or the code the terminal prints); `--no-auth` turns that check off.
-- `--no-auth` on `localhost` alone is not private either: the server then accepts requests without an `Origin` header, which any local process can send, and requests from any page served on a loopback address (another local dev server, for example), so any of them can read every session on this machine. Use it only for local development on synthetic sessions.
-- `--host <address>` binds another address. With `--host 0.0.0.0`, other machines on your network can reach the server; the one-time code still applies unless you also pass `--no-auth`, which then exposes every session on this machine to them. Do not combine the two.
+- `--no-auth` prints a startup warning and is refused if `--host` is not a loopback address (`localhost`, `127.*`, `::1`). Even on loopback, the server still accepts non-browser requests without an `Origin` header, which any local process can send, so use `--no-auth` only for local development on synthetic sessions. Browser WebSocket and SSE `Origin` checks are locked to the server's bound host and port.
+- `--host <address>` binds another address. With `--host 0.0.0.0`, other machines on your network can reach the server, protected by the one-time code gate.
 - URLs carry opaque trace ids, never file paths.
 - The MCP route over HTTP exists only with `--mcp`, and is not protected by the one-time code ([MCP tools](mcp.md#over-http-from-the-local-server)).
 
@@ -16,7 +16,7 @@ Files Estela writes:
 |---|---|
 | `$XDG_CACHE_HOME/rivus-estela/index.sqlite` (default `~/.cache/rivus-estela/`) | the session index, below |
 | `~/.devframe/instances/<pid>-<port>.json` | one record per running server (port, path, start time), written by DevFrame, the server framework |
-| `~/.estela/devframe/auth.json` | the tokens of browsers you let in with the one-time code, written by DevFrame |
+| `~/.estela/devframe/auth.json` | the tokens of browsers you let in with the one-time code, written by DevFrame (`~/.estela/devframe/` mode `0700` and `auth.json` mode `0600` on POSIX) |
 | a report or export | only when you run `build`, "Export report", `export-atif`, or `export-otlp` |
 
 ## The session index
@@ -38,7 +38,7 @@ Redaction replaces two kinds of text:
 - **Your home directory** becomes `~`, in every spelling Estela knows: the plain path, without its leading `/`, JSON-escaped (`\/Users\/<name>`), URL-encoded, as Claude Code's dash-joined folder name and Grok's `%2F` form, and `~<name>`, ignoring case, in values and in keys. A longer name such as `/Users/<name>x` or `/Users/<name>.bak` is left as it is. In the session list and the `--pick` labels, a title or first prompt cut at 80 or 500 characters can still show the start of a home path.
 - **Tokens with known prefixes** become `[redacted]`: keys starting with `sk-` (OpenAI, Anthropic), AWS key ids (`AKIA`, `ASIA`), GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`), Slack tokens (`xoxa-`, `xoxb-`, `xoxp-`, `xoxr-`, `xoxs-`), npm tokens (`npm_`), and PEM private key blocks.
 
-Everything else passes through. **Redaction does not remove**, among others: AWS secret access keys, `Authorization: Bearer …` or `Basic …` values, JWTs, `PASSWORD=` and other `KEY=value` assignments from `.env` files or `env` output, credentials inside URLs (`postgres://user:password@host`), Stripe keys (`sk_live_`, `rk_live_`), GitLab tokens (`glpat-`), Hugging Face tokens (`hf_`), Google API keys (`AIza…`), Slack webhook URLs, and your user name where it appears outside the home path. If an agent ran `cat .env` or `env` in a session, those values are in its log and in anything made from it.
+Everything else passes through: **redaction replaces only your home directory, known-prefix API keys, and PEM private key blocks**, while arbitrary passwords, Bearer tokens, session prose, and file contents remain. **Redaction does not remove**, among others: AWS secret access keys, `Authorization: Bearer …` or `Basic …` values, JWTs, `PASSWORD=` and other `KEY=value` assignments from `.env` files or `env` output, credentials inside URLs (`postgres://user:password@host`), Stripe keys (`sk_live_`, `rk_live_`), GitLab tokens (`glpat-`), Hugging Face tokens (`hf_`), Google API keys (`AIza…`), Slack webhook URLs, and your user name where it appears outside the home path. If an agent ran `cat .env` or `env` in a session, those values are in its log and in anything made from it.
 
 ## Where redaction applies
 

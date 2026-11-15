@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { NAMESPACE } from '@rivus/estela-rpc'
@@ -88,11 +89,23 @@ export async function packForFile(outDir: string): Promise<void> {
   }
   const code = await readFile(join(assets, script[1]!), 'utf8')
   const css = await inlineFonts(await readFile(join(assets, style[1]!), 'utf8'), assets)
+  const inlinedScript = scriptSafe(code)
+  const scriptHash = createHash('sha256').update(inlinedScript, 'utf8').digest('base64')
+  const reportCsp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-${scriptHash}'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />`
   const data = `<script type="application/json" id="${REPORT_ELEMENT_ID}">${jsonSafe(report)}</script>`
   // Replacer functions: `$` in the inlined text must not be read as a replacement pattern.
   html = html
+    .replace(/<base\b[^>]*>\s*/i, '')
     .replace(style[0], () => `<style>${scriptSafe(css)}</style>`)
-    .replace(script[0], () => `${data}\n    <script type="module">${scriptSafe(code)}</script>`)
+    .replace(script[0], () => `${data}\n    <script type="module">${inlinedScript}</script>`)
+  const cspMeta = /<meta\b[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i
+  if (cspMeta.test(html)) {
+    html = html.replace(cspMeta, () => reportCsp)
+  } else if (/<head\b[^>]*>/i.test(html)) {
+    html = html.replace(/<head\b[^>]*>/i, match => `${match}\n    ${reportCsp}`)
+  } else {
+    html = `${reportCsp}\n${html}`
+  }
   await writeFile(indexPath, html)
 
   for (const name of ['assets', '__rpc-dump', '__connection.json']) {

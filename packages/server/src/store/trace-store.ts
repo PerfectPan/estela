@@ -2,11 +2,11 @@ import type { Trace } from '@rivus/estela-schema'
 import type { ResolvedSession } from '@rivus/estela-rpc'
 import { isCanonicalTraceFile } from '@rivus/estela-kernel'
 import { redact } from '@rivus/agent-kit/redact'
-import { createNodePlatform } from '@rivus/agent-kit/node'
 import { readOriginal, type ReadOriginalError, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_TRACE_ID, TraceStore } from '@rivus/estela-rpc'
 import { homeDir } from '@rivus/estela-runtime-node'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
+import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 
 export interface TraceStoreOptions {
   /** Defaults to `createNodePlatform()`. */
@@ -45,7 +45,7 @@ function originalFailure(error: ReadOriginalError): string {
 /** Store for `get-trace-view`, `get-event`, and `reconstruct` over Node file I/O. */
 export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
   const home = homeDir()
-  const platform = options.platform ?? createNodePlatform()
+  const platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
   // The store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`, `totalBytes`)
   // and the canonical fast path (`canonicalOf`, `loadSession`) all read through the platform.
   const fs = platform.fs

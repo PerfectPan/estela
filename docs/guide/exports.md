@@ -16,7 +16,7 @@ Each command takes the same session argument as `estela <path>`: a session file,
 estela build <session> --out-dir report
 ```
 
-This writes `report/index.html` (the default directory is `dist-static`). **`build` replaces the output directory: an existing directory at that path is deleted first, with everything in it.** Pick a new or empty directory.
+This writes `report/index.html` (the default directory is `dist-static`). **`build` replaces the output directory after checking that it is safe to overwrite**: `--out-dir` must be a new path, an empty directory, or a directory containing only an earlier Estela `index.html` report. `/`, your working directory, your home directory, symbolic links, non-directories, and directories with other files are refused.
 
 In the workspace, "Export report" writes the same file into a new directory `estela-report-<traceId>-<time>/` in the directory the server was started from, and shows the path. It never replaces an existing directory.
 
@@ -35,7 +35,7 @@ A report is always redacted, whatever `ESTELA_REDACT` says, but redaction remove
 estela export-atif <session> --out trajectory.json
 ```
 
-Writes one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory and prints `Wrote <path>`. Without `--out` the file is `estela-<first 8 characters of the session id>.atif.json` in the working directory; `--out` creates missing parent folders and overwrites an existing file.
+Writes one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory and prints `Wrote <path>`. Without `--out` the file is `estela-<first 8 characters of the session id>.atif.json` in the working directory (adding `-2`, `-3`, … if that file or symlink already exists). With `--out`, Estela creates missing parent folders, overwrites an existing regular file, and refuses to write through a symbolic link (the same rules apply to `export-otlp`).
 
 - One step per prompt, per model request with its reply and tool calls, and per compaction. Each step lists the Estela event ids it came from in `extra.estela.eventIds`.
 - Events a compaction removed produce no step; steps kept from before a compaction carry `is_copied_context: true`, and the compaction is a system step, with `extra.context_management` when the compaction records its trigger or token counts.

@@ -14,6 +14,7 @@ import { runExport, type ExportInput } from './commands/export.ts'
 import { runMcp, type McpInput } from './commands/mcp.ts'
 import { CliError, failureReport, type CliFailure } from './failure.ts'
 import { helpText, versionText } from './help.ts'
+import { isLoopbackHost } from './host.ts'
 import { cliRoutes, type CliRoutes } from './routes.ts'
 import { installPlainFilter, sayError } from './ui/terminal.ts'
 
@@ -92,14 +93,19 @@ function commandOf(intent: Execute): () => Promise<void> {
       if (pick && !process.stdin.isTTY) {
         throw usage('--pick needs an interactive terminal')
       }
+      const host = model.host ?? 'localhost'
+      const auth = model.auth !== false
+      if (!auth && !isLoopbackHost(host)) {
+        throw usage('--no-auth cannot be used with a non-loopback --host')
+      }
       const launch = pick ? undefined : (session ?? sessionFromEnv())
       const input: DevInput = {
         launch: launch === undefined ? undefined : { target: commandLineTarget(launch), label: launch },
         pick,
         port: model.port,
-        host: model.host ?? 'localhost',
+        host,
         open: model.open,
-        auth: model.auth !== false,
+        auth,
         mcp: model.mcp,
         index: model.index !== false,
         redacts: redactsFromEnv(),
