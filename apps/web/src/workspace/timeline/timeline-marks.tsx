@@ -3,7 +3,7 @@ import type { TimeScale } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
 import { formatTokens } from '@/lib/format.ts'
-import { bucketBars, tokenGrid, xOf } from '@/lib/timeline-scale.ts'
+import { barHolding, bucketBars, tokenGrid, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
 
@@ -21,7 +21,7 @@ export function MainLane(props: {
   const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 3.5))
   const tools = createMemo(() => bucketBars(props.draw.tools, props.scale, 4))
   const grid = createMemo(() => tokenGrid(props.top))
-  const barOf = (id: string | undefined) => (id ? bars().find(bar => bar.id === id) : undefined)
+  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale)
   const selected = createMemo(() => barOf(props.selectedId))
   const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
   const ringHeight = (bar: { tokens?: number }) =>

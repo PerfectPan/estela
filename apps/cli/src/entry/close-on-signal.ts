@@ -1,18 +1,24 @@
 import process from 'node:process'
 
-const SIGNALS = ['SIGINT', 'SIGTERM'] as const
+/** Ctrl-C, a kill, and a closed terminal (also a closed console window on Windows). */
+const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
 
 /**
- * Runs `close` when SIGINT or SIGTERM arrives, then sends that signal again with no handler left, so it
+ * Runs `close` when one of `SIGNALS` arrives, then sends that signal again with no handler left, so it
  * ends the process as it would have without one. The session catalog writes finished summaries to the
- * index in batches; a signal between two writes would otherwise drop the last batch.
+ * index in batches; a signal between two writes would otherwise drop the last batch. Returns a function
+ * that removes the handlers, for a caller that closes the server itself.
  */
-export function closeOnSignal(close: () => void): void {
-  const handlers = SIGNALS.map(signal => {
+export function closeOnSignal(close: () => void): () => void {
+  const handlers = new Map<NodeJS.Signals, () => void>()
+  const remove = () => {
+    for (const [signal, handler] of handlers) {
+      process.off(signal, handler)
+    }
+  }
+  for (const signal of SIGNALS) {
     const handler = () => {
-      for (const [other, registered] of handlers) {
-        process.off(other, registered)
-      }
+      remove()
       try {
         close()
       } catch {
@@ -20,9 +26,8 @@ export function closeOnSignal(close: () => void): void {
       }
       process.kill(process.pid, signal)
     }
-    return [signal, handler] as const
-  })
-  for (const [signal, handler] of handlers) {
+    handlers.set(signal, handler)
     process.on(signal, handler)
   }
+  return remove
 }

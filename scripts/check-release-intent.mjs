@@ -10,6 +10,7 @@
 // merge commit. Without it, the merge base of origin/main and HEAD.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import process from 'node:process'
 
 const INTERFACE = 'docs/reference/public-interface.md'
@@ -20,10 +21,13 @@ function git(...args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim()
 }
 
-/** The bump a changeset file gives `PACKAGE`, from its front matter; `undefined` when it names it not. */
+// `git diff --name-only` names files from the repository root, wherever the script runs.
+const root = git('rev-parse', '--show-toplevel')
+
+/** The bump a changeset file gives `PACKAGE`, from its front matter; `undefined` when it does not name it. */
 function bumpOf(path) {
-  const front = /^---\n([\s\S]*?)\n---/.exec(readFileSync(path, 'utf8'))
-  for (const line of front?.[1].split('\n') ?? []) {
+  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(join(root, path), 'utf8'))
+  for (const line of front?.[1].split(/\r?\n/) ?? []) {
     const entry = /^\s*(['"]?)([^'":]+)\1\s*:\s*(\w+)\s*$/.exec(line)
     if (entry?.[2] === PACKAGE) {
       return entry[3]

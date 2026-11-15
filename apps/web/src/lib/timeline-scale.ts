@@ -181,3 +181,22 @@ export function bucketBars(inputs: readonly BarInput[], scale: TimeScale, minGap
   }
   return out
 }
+
+/**
+ * The bar of `bars`, built by {@link bucketBars} from `inputs`, that holds request `id`: the bucket
+ * drawn for it, also when another request of the bucket is the one it names. Buckets start at the
+ * first request they take, in `inputs` order, which is time order on a lane.
+ */
+export function barHolding(
+  bars: readonly Bar[],
+  inputs: readonly BarInput[],
+  id: string | undefined,
+  scale: TimeScale,
+): Bar | undefined {
+  const input = id === undefined ? undefined : inputs.find(candidate => candidate.id === id)
+  if (!input) {
+    return undefined
+  }
+  const x = xOf(scale, input.ts)
+  return bars.findLast(bar => bar.x <= x)
+}

@@ -22,7 +22,6 @@ export async function runMcp(input: McpInput): Promise<void> {
     redacts: true,
     log: sayStoreWarning,
   })
-  closeOnSignal(() => server.close())
   if (input.target) {
     try {
       await server.openLaunch()
@@ -41,6 +40,8 @@ export async function runMcp(input: McpInput): Promise<void> {
       throw new CliError({ kind: 'index', cause })
     }
   }
+  // Only once the start succeeded: a failed start throws above, and the process exits with its code.
+  closeOnSignal(() => server.close())
   const { createMcpServer } = await import('devframe/adapters/mcp')
   await createMcpServer(server.definition, {
     transport: 'stdio',

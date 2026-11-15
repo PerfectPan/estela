@@ -2,25 +2,29 @@ import process from 'node:process'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { closeOnSignal } from './close-on-signal.ts'
 
+const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
+function listeners(): number[] {
+  return SIGNALS.map(signal => process.listenerCount(signal))
+}
+
 describe('closeOnSignal', () => {
-  it.each(['SIGINT', 'SIGTERM'] as const)('closes once on %s, then sends it again with no handler left', signal => {
+  it.each(SIGNALS)('closes once on %s, then sends it again with no handler left', signal => {
     const kill = vi.spyOn(process, 'kill').mockImplementation(() => true)
-    const before = { SIGINT: process.listenerCount('SIGINT'), SIGTERM: process.listenerCount('SIGTERM') }
+    const before = listeners()
     const close = vi.fn<() => void>()
     closeOnSignal(close)
-    expect(process.listenerCount('SIGINT')).toBe(before.SIGINT + 1)
-    expect(process.listenerCount('SIGTERM')).toBe(before.SIGTERM + 1)
+    expect(listeners()).toEqual(before.map(count => count + 1))
 
     process.emit(signal)
 
     expect(close).toHaveBeenCalledTimes(1)
     expect(kill).toHaveBeenCalledWith(process.pid, signal)
-    expect(process.listenerCount('SIGINT')).toBe(before.SIGINT)
-    expect(process.listenerCount('SIGTERM')).toBe(before.SIGTERM)
+    expect(listeners()).toEqual(before)
   })
 
   it('still sends the signal when close throws', () => {
@@ -30,5 +34,14 @@ describe('closeOnSignal', () => {
     })
     process.emit('SIGTERM')
     expect(kill).toHaveBeenCalledWith(process.pid, 'SIGTERM')
+  })
+
+  it('removes its handlers when the caller closes the server itself', () => {
+    const before = listeners()
+    const close = vi.fn<() => void>()
+    const remove = closeOnSignal(close)
+    remove()
+    expect(listeners()).toEqual(before)
+    expect(close).not.toHaveBeenCalled()
   })
 })

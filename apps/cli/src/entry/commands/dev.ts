@@ -216,7 +216,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     redacts: input.redacts,
     log: sayStoreWarning,
   })
-  closeOnSignal(() => server.close())
+  const stopClosingOnSignal = closeOnSignal(() => server.close())
   const catalog = server.catalog!
   if (catalog.indexUnavailable) {
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
@@ -281,6 +281,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
       isListenFailure,
     )
   } catch (cause) {
+    stopClosingOnSignal()
     server.close()
     if (cause instanceof CliError) {
       throw cause

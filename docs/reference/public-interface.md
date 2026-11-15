@@ -63,7 +63,7 @@ Covered: the seven tool names and their input schemas (property names, types, ra
 
 Result fields are documented in the [reference](mcp-tools.md#results) and will be covered from 1.0, after a review of the shapes with agent users; until then they may change in a minor release. Error texts are for people: Estela's part starts with `estela_<tool>: <field>:` for an invalid input, and DevFrame adds its own prefix.
 
-The HTTP route `/__estela/__mcp` exists only with `--mcp` and is covered as a route serving the same seven tools. It answers only a client connected over loopback that sends a loopback `Origin` header, whatever `--host` binds; the one-time code does not gate it.
+The HTTP route `/__estela/__mcp` exists only with `--mcp` and is covered as a route serving the same seven tools. It answers only a client connected over loopback that sends an `Origin` header with a loopback host name, whatever `--host` binds; the one-time code does not gate it, and how it is authorized may still change (issue #94).
 
 ### Report file
 

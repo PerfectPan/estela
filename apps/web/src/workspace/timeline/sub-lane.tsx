@@ -2,7 +2,7 @@ import type { LaneDraw } from './timeline-data.ts'
 import type { Bar, TimeScale } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo } from 'solid-js'
 import { escapeBidi } from '@/lib/preview.ts'
-import { bucketBars, xOf } from '@/lib/timeline-scale.ts'
+import { barHolding, bucketBars, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
 
@@ -22,7 +22,7 @@ export function SubLane(props: {
 }) {
   const y = () => LAYOUT.firstLane + LAYOUT.laneStep * props.index
   const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 5))
-  const barOf = (id: string | undefined) => (id ? bars().find(bar => bar.id === id) : undefined)
+  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale)
   const selected = createMemo(() => barOf(props.selectedId))
   const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
   const title = () => escapeBidi(props.draw.lane.title ?? props.draw.lane.id)
