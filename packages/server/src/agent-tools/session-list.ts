@@ -22,7 +22,7 @@ export interface SessionSource {
 export type SessionFilters = z.output<typeof listSessionsInput>
 
 /** One session in `estela_list_sessions` and `estela_search_sessions`. A count that is absent is not recorded. */
-export interface SessionItem {
+interface SessionItem {
   traceId: string
   agent: string
   title?: string

@@ -3,8 +3,8 @@ import type { Trace } from '@rivus/estela-schema'
 import type { EventDetail, TraceViewResult } from './trace-store.ts'
 
 /** A report holds the originals of at most the first 2,000 events or 20 MB, whichever is smaller. */
-export const REPORT_MAX_EVENTS = 2000
-export const REPORT_MAX_BYTES = 20 * 1000 * 1000
+const REPORT_MAX_EVENTS = 2000
+const REPORT_MAX_BYTES = 20 * 1000 * 1000
 
 /** Events asked for per call while filling the report (bounds memory before the byte check). */
 const BATCH = 250

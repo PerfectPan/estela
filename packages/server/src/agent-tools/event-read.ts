@@ -20,7 +20,7 @@ const MIN_CHARS = 256
 const STEP = 0.75
 export const DEFAULT_MAX_CHARS = 2000
 
-export interface ShownEvent {
+interface ShownEvent {
   id: string
   seq: number
   ts: string
@@ -125,7 +125,7 @@ export function eventResult(
   return result
 }
 
-export interface SurfaceSlot {
+interface SurfaceSlot {
   name: string
   status: string
   /** The last `SURFACE_IDS` (or fewer) event ids in this slot. */

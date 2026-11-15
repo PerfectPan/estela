@@ -6,12 +6,10 @@
 import { knip } from './packages/schema/node_modules/@perfectpan/lint-config/knip.js';
 
 // Package entry points resolve from package.json bin/exports; apps/e2e runs
-// Playwright specs and keeps its ad-hoc demo recorders as entries. Unused
-// exports/types are staged for a dedicated cleanup pass; configuration and tag
-// hints still fail the run.
+// Playwright specs and keeps its ad-hoc demo recorders as entries.
+// Configuration and tag hints fail the run.
 const config = {
   ...knip,
-  exclude: ['exports', 'types'],
   // Every workspace package declares @perfectpan/lint-config at the same catalog
   // version per the repository convention: its rules load through the root
   // vite.config.ts when each package runs `vp lint`, which Knip cannot see.

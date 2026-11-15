@@ -23,7 +23,7 @@ export type UnpricedReason = 'no-usage' | 'incomplete-usage' | 'no-model' | 'no-
 export const UNPRICED_REASONS: readonly UnpricedReason[] = ['no-usage', 'incomplete-usage', 'no-model', 'no-price']
 
 /** USD of each token class of a priced request: input without cache, cache reads, cache writes, output. */
-export interface CostShares {
+interface CostShares {
   input: number
   cacheRead: number
   cacheWrite: number
@@ -43,14 +43,14 @@ interface RequestCostBase {
   tokens: CacheTokens
 }
 
-export interface PricedRequest extends RequestCostBase {
+interface PricedRequest extends RequestCostBase {
   kind: 'priced'
   usd: number
   /** Absent when the counts do not add up (cache reads and writes above the input) or a split part lacks shares. */
   shares?: CostShares
 }
 
-export interface UnpricedRequest extends RequestCostBase {
+interface UnpricedRequest extends RequestCostBase {
   kind: 'unpriced'
   reason: UnpricedReason
   /** For `no-price`: the model ids the table has no price for. */

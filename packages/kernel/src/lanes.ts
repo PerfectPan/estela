@@ -33,7 +33,7 @@ export function isPrompt(event: TraceEvent): boolean {
 }
 
 /** Key of the log record an event came from. Content blocks of one record share it. */
-export function recordKey(event: TraceEvent): string {
+function recordKey(event: TraceEvent): string {
   return `${event.source.file}\0${event.source.line}`
 }
 

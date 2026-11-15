@@ -1,8 +1,8 @@
 /** Characters drawn before "Show all": a 21 MB output in one `<pre>` blocks the page for seconds. */
-export const TEXT_CAP = 256 * 1024
+const TEXT_CAP = 256 * 1024
 
 /** "Show all" appends the rest in blocks of about this size, one per frame. */
-export const TEXT_CHUNK = 256 * 1024
+const TEXT_CHUNK = 256 * 1024
 
 /** How far past the target a block may run to reach a newline before it is cut anyway. */
 const LINE_SLACK = 16 * 1024

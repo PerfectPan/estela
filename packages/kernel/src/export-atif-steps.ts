@@ -37,7 +37,7 @@ export interface TrajectoryBuild {
   rootExtras: Pick<TraceExtras, 'hooks' | 'unknown' | 'turnDurationsMs' | 'snapshotEventIds'>
 }
 
-export const COMPACTION_MESSAGE = 'Context compaction performed'
+const COMPACTION_MESSAGE = 'Context compaction performed'
 
 export function agentKind(event: TraceEvent): boolean {
   return (
@@ -49,7 +49,7 @@ export function agentKind(event: TraceEvent): boolean {
   )
 }
 
-export function textOf(value: unknown): string | undefined {
+function textOf(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
@@ -62,14 +62,14 @@ export function toolArguments(args: unknown): Record<string, unknown> {
 }
 
 /** Tool output becomes string content: text as is, anything else as its JSON. */
-export function resultContent(output: unknown): string | undefined {
+function resultContent(output: unknown): string | undefined {
   if (output === undefined) {
     return undefined
   }
   return typeof output === 'string' ? output : JSON.stringify(output)
 }
 
-export function joined(parts: string[]): string | undefined {
+function joined(parts: string[]): string | undefined {
   const text = parts.filter(part => part.length > 0).join('\n\n')
   return text.length > 0 ? text : undefined
 }

@@ -71,7 +71,7 @@ export function formatTokens(value: number): string {
   return `${sign}${Math.round(abs)}`
 }
 
-export function formatClock(ts: number, locale: string): string {
+function formatClock(ts: number, locale: string): string {
   return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ts)
 }
 
@@ -148,7 +148,7 @@ export function formatOptional(value: number | undefined, text: (value: number) 
 }
 
 /** Ledger time column: elapsed since the session start, `36:10` or `1:02:05`. Locale-independent. */
-export function formatElapsed(ms: number): string {
+function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
   const hours = Math.floor(total / 3600)
   const minutes = Math.floor((total % 3600) / 60)

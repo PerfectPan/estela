@@ -36,28 +36,24 @@ const eventId = z
     z.describe('An event id as another estela tool returned it, including the `@e<n>` form.'),
   )
 
-const offset = z.optional(
-  z
-    .int({ error: OFFSET })
-    .check(
-      z.gte(0, { error: OFFSET }),
-      z.lte(100_000, { error: OFFSET }),
-      z.describe('Skip this many items; pass the previous result’s `nextOffset` to read the next page. Default 0.'),
-    ),
+/** An optional bounded integer: the field's error names the range, so the client sees one message for it. */
+function boundedInt(min: number, max: number, error: string, description: string) {
+  return z.optional(z.int({ error }).check(z.gte(min, { error }), z.lte(max, { error }), z.describe(description)))
+}
+
+const offset = boundedInt(
+  0,
+  100_000,
+  OFFSET,
+  'Skip this many items; pass the previous result’s `nextOffset` to read the next page. Default 0.',
 )
 
 function limit(max: number, fallback: number) {
-  const error = `expected an integer from 1 to ${max}`
-  return z.optional(
-    z
-      .int({ error })
-      .check(
-        z.gte(1, { error }),
-        z.lte(max, { error }),
-        z.describe(
-          `Most items to return, default ${fallback}, at most ${max}. A page also ends early to keep the result under its size bound; \`nextOffset\` is then set.`,
-        ),
-      ),
+  return boundedInt(
+    1,
+    max,
+    `expected an integer from 1 to ${max}`,
+    `Most items to return, default ${fallback}, at most ${max}. A page also ends early to keep the result under its size bound; \`nextOffset\` is then set.`,
   )
 }
 
@@ -130,15 +126,7 @@ export const listRequestsInput = z.strictObject(
   {
     traceId,
     lane: text(200, 'Only requests on this lane (a lane id from estela_session_summary).'),
-    turn: z.optional(
-      z
-        .int({ error: OFFSET })
-        .check(
-          z.gte(0, { error: OFFSET }),
-          z.lte(100_000, { error: OFFSET }),
-          z.describe('Only requests in this turn (`index` from estela_list_turns).'),
-        ),
-    ),
+    turn: boundedInt(0, 100_000, OFFSET, 'Only requests in this turn (`index` from estela_list_turns).'),
     offset,
     limit: limit(200, 50),
   },
@@ -150,16 +138,11 @@ export const getEventInput = z.strictObject(
   {
     traceId,
     eventId,
-    maxChars: z.optional(
-      z
-        .int({ error: MAX_CHARS })
-        .check(
-          z.gte(256, { error: MAX_CHARS }),
-          z.lte(20_000, { error: MAX_CHARS }),
-          z.describe(
-            'Longest string to return whole, default 2000, at most 20000. Longer strings are cut and listed in `truncated`.',
-          ),
-        ),
+    maxChars: boundedInt(
+      256,
+      20_000,
+      MAX_CHARS,
+      'Longest string to return whole, default 2000, at most 20000. Longer strings are cut and listed in `truncated`.',
     ),
     original: flag('Also return the record the event was read from, capped the same way. Default false.'),
   },

@@ -163,6 +163,18 @@ function outputMessages(
   return parts
 }
 
+/** The prompt snapshot the slot's recording event carries, or `undefined` when the event is missing. */
+function recordedSnapshot(
+  slot: { recordedBy?: string },
+  byId: Map<string, TraceEvent>,
+): ReturnType<typeof promptSnapshot> | undefined {
+  if (slot.recordedBy === undefined) {
+    return undefined
+  }
+  const snapshotEvent = byId.get(slot.recordedBy)
+  return snapshotEvent !== undefined ? promptSnapshot(snapshotEvent) : undefined
+}
+
 /** The `system` slot's prompt: its snapshot's text, or the session/lane field the slot fell back to. */
 function systemPromptOf(
   trace: Trace,
@@ -174,9 +186,7 @@ function systemPromptOf(
     return undefined
   }
   if (slot.recordedBy !== undefined) {
-    const snapshotEvent = byId.get(slot.recordedBy)
-    const snapshot = snapshotEvent !== undefined ? promptSnapshot(snapshotEvent) : undefined
-    return snapshot?.systemPrompt
+    return recordedSnapshot(slot, byId)?.systemPrompt
   }
   return laneId === mainAgentId(trace)
     ? trace.session.systemPrompt
@@ -193,9 +203,7 @@ function toolsOf(
     return undefined
   }
   if (slot.recordedBy !== undefined) {
-    const snapshotEvent = byId.get(slot.recordedBy)
-    const snapshot = snapshotEvent !== undefined ? promptSnapshot(snapshotEvent) : undefined
-    return snapshot?.tools
+    return recordedSnapshot(slot, byId)?.tools
   }
   return Array.isArray(trace.session.tools) ? trace.session.tools : undefined
 }

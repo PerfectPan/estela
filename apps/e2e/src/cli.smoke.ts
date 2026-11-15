@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import cliPackage from '../../cli/package.json' with { type: 'json' }
-import { openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
+import { expectCleanOutput, openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
 
 const ctx = inject('smoke')
 
@@ -176,10 +176,7 @@ describe('installed tarball', () => {
     } finally {
       await server.stop()
     }
-    for (const line of lines()) {
-      expect(() => JSON.parse(line), line).not.toThrow()
-    }
-    expect(server.output().stderr).not.toContain('\u001B')
+    expectCleanOutput(lines(), server.output().stderr)
   })
 
   it('S13: Node 22 gets one line naming Node.js 24', async () => {
