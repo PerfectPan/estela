@@ -2,6 +2,10 @@ packages:
   - apps/*
   - packages/*
 
+# Installs resolve from the public npm registry, as in CI, whatever registry ~/.npmrc names (auth tokens
+# still come from there): the release-age check reads registry metadata, and a lagging mirror fails it.
+registry: https://registry.npmjs.org/
+
 # Rush installed with autoInstallPeers false, and its comment warns against the invisible
 # heuristic; pnpm 8+ defaults to true, so this stays explicit.
 autoInstallPeers: false
