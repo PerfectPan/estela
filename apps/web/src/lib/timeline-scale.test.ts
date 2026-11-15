@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test'
 import {
   axisTicks,
+  barHolding,
   bucketBars,
   edgeTo,
   isFullRange,
@@ -108,5 +109,37 @@ describe('bars', () => {
       3,
     )
     expect(bars).toEqual([{ x: 148, tokens: 7, id: 'b', count: 3 }])
+  })
+})
+
+describe('barHolding', () => {
+  const inputs = [
+    { ts: 0, id: 'a' },
+    { ts: 1000, tokens: 7, id: 'b' },
+    { ts: 36 * MINUTE, id: 'c' },
+  ]
+  const bars = bucketBars(inputs, scale, 3)
+
+  it('finds the bucket of a request that the bucket does not name', () => {
+    expect(bars.map(bar => bar.id)).toEqual(['b', 'c'])
+    expect(barHolding(bars, inputs, 'a', scale, 3)).toBe(bars[0])
+    expect(barHolding(bars, inputs, 'b', scale, 3)).toBe(bars[0])
+    expect(barHolding(bars, inputs, 'c', scale, 3)).toBe(bars[1])
+  })
+
+  it('follows the buckets when a lane records an earlier time after a later one', () => {
+    const unordered = [
+      { ts: 2000, id: 'a' },
+      { ts: 0, tokens: 9, id: 'b' },
+    ]
+    const merged = bucketBars(unordered, scale, 3)
+    expect(merged).toHaveLength(1)
+    expect(barHolding(merged, unordered, 'a', scale, 3)).toBe(merged[0])
+    expect(barHolding(merged, unordered, 'b', scale, 3)).toBe(merged[0])
+  })
+
+  it('finds nothing for a request of another lane or no request', () => {
+    expect(barHolding(bars, inputs, 'other', scale, 3)).toBeUndefined()
+    expect(barHolding(bars, inputs, undefined, scale, 3)).toBeUndefined()
   })
 })

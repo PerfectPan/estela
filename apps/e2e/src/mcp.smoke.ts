@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
-import { openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts'
+import { lanAddress, openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts'
 import { buildFixtureHome } from './fixture-home.ts'
 import { repo } from './prepare-run.ts'
 
@@ -186,5 +186,63 @@ describe('mcp without a path: the session catalog', () => {
       expect(() => JSON.parse(line), line).not.toThrow()
     }
     expect(server.output().stderr).not.toContain('\u001B')
+  })
+})
+
+describe('mcp over HTTP from the dev server', () => {
+  it('serves the tools at /__estela/__mcp with --mcp, to a loopback peer with a loopback Origin only', async () => {
+    const home = join(ctx.root, 'mcp-http-home')
+    await buildFixtureHome(home, repo)
+    const cache = join(ctx.root, 'mcp-http-cache')
+    await mkdir(cache, { recursive: true })
+    // The wildcard bind takes connections from the LAN; the route must still refuse them.
+    const server = start(process.execPath, [ctx.bin, '--mcp', '--no-open', '--host', '0.0.0.0', '--port', '0'], {
+      cwd: ctx.installDir,
+      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin }, openLogPath(ctx, 'mcp-http')),
+    })
+    try {
+      const ready = /Ready: http:\/\/127\.0\.0\.1:(\d+)\/__estela\//
+      await waitFor('the Ready line', () => ready.test(server.output().stdout))
+      const port = Number(ready.exec(server.output().stdout)![1])
+      const post = (host: string, origin: string | undefined, method: string, params: unknown) =>
+        fetch(`http://${host}:${port}/__estela/__mcp`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            ...(origin === undefined ? {} : { origin }),
+          },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+        })
+      /** The JSON-RPC result in a reply, which comes as one server-sent event. */
+      const resultOf = async (response: Response): Promise<unknown> => {
+        const data = (await response.text()).split('\n').find(line => line.startsWith('data: '))!
+        const message = z.parse(reply, JSON.parse(data.slice('data: '.length)))
+        expect(message.error).toBeUndefined()
+        return message.result
+      }
+
+      const loopback = `http://127.0.0.1:${port}`
+      const listed = await post('127.0.0.1', loopback, 'tools/list', {})
+      expect(listed.status).toBe(200)
+      expect(z.parse(toolList, await resultOf(listed)).tools).toHaveLength(7)
+      const called = await post('127.0.0.1', loopback, 'tools/call', {
+        name: 'estela_list_sessions',
+        arguments: { agent: 'claude-code' },
+      })
+      const result = z.parse(callResult, await resultOf(called))
+      expect(result.isError, result.content[0]!.text).not.toBe(true)
+      expect(z.parse(sessions, JSON.parse(result.content[0]!.text)).total).toBeGreaterThan(0)
+
+      // No Origin, another origin, or a peer on another address: refused before any tool runs.
+      expect((await post('127.0.0.1', undefined, 'tools/list', {})).status).toBe(403)
+      expect((await post('127.0.0.1', 'http://evil.example', 'tools/list', {})).status).toBe(403)
+      const lan = lanAddress()
+      if (lan) {
+        expect((await post(lan, loopback, 'tools/list', {})).status).toBe(403)
+      }
+    } finally {
+      await server.stop()
+    }
   })
 })

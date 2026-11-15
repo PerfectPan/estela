@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import process from 'node:process'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import pkg from '../../package.json' with { type: 'json' }
@@ -7,6 +10,7 @@ const stdinTTY = process.stdin.isTTY
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
   process.stdin.isTTY = stdinTTY
 })
 
@@ -77,6 +81,42 @@ describe('runCli', () => {
     expect(await runCli(['mcp', '/nonexistent/session.jsonl'])).toBe(1)
     expect(io.stdout()).toBe('')
     expect(io.stderr()).toMatch(/^Could not load \/nonexistent\/session\.jsonl: .+\nPass a canonical Estela JSON file/)
+  })
+
+  it('reads the session from ESTELA_PATH when the command line names none', async () => {
+    vi.stubEnv('ESTELA_PATH', '/nonexistent/from-env.jsonl')
+    const out = await mkdtemp(join(tmpdir(), 'estela-path-'))
+    try {
+      const io = capture()
+      expect(await runCli(['--no-open', '--no-index'])).toBe(1)
+      expect(await runCli(['mcp'])).toBe(1)
+      expect(await runCli(['build', '--out-dir', join(out, 'report')])).toBe(1)
+      expect(await runCli(['export-atif', '--out', join(out, 'a.json')])).toBe(1)
+      expect(await runCli(['export-otlp', '--out', join(out, 'o.json')])).toBe(1)
+      for (const action of ['load', 'load', 'build', 'export', 'export']) {
+        expect(io.stderr()).toContain(`Could not ${action} /nonexistent/from-env.jsonl: `)
+      }
+      expect(io.stderr().split('/nonexistent/from-env.jsonl: ')).toHaveLength(6)
+
+      // A session on the command line wins over ESTELA_PATH.
+      expect(await runCli(['export-atif', '/nonexistent/given.jsonl', '--out', join(out, 'g.json')])).toBe(1)
+      expect(io.stderr()).toContain('Could not export /nonexistent/given.jsonl: ')
+      expect(io.stderr().split('/nonexistent/from-env.jsonl: ')).toHaveLength(6)
+    } finally {
+      await rm(out, { recursive: true, force: true })
+    }
+  })
+
+  it('reads an empty ESTELA_PATH as no session: an export falls back to the bundled demo trace', async () => {
+    vi.stubEnv('ESTELA_PATH', '')
+    const out = await mkdtemp(join(tmpdir(), 'estela-path-'))
+    try {
+      capture()
+      expect(await runCli(['export-atif', '--out', join(out, 'demo.json')])).toBe(0)
+      expect(JSON.parse(await readFile(join(out, 'demo.json'), 'utf8'))).toHaveProperty('schema_version', 'ATIF-v1.8')
+    } finally {
+      await rm(out, { recursive: true, force: true })
+    }
   })
 
   it('refuses --no-auth with a non-loopback --host before starting a server', async () => {

@@ -1,6 +1,6 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
-import { rm } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -76,6 +76,71 @@ test('CD-S2, CD-S3: the before-compaction quick pick and a Shift-click on the ti
   await expect(compare.getByTestId('compare-tokens')).toContainText('1k → 900')
   await expect(page.getByTestId('compare-ring')).toHaveCount(1)
   await expect(page.getByTestId('inspector').locator('h2')).toContainText('Request')
+})
+
+test('a click on a subagent lane selects its request, and Shift-click there picks the comparison on that lane', async ({
+  page,
+  launch,
+}) => {
+  const file = join(ctx.root, 'compare-sub-lane.trace.json')
+  const source = { file: 'synthetic', offset: 0, length: 1, line: 1 }
+  const request = (id: string, inputTokens: number, agentId?: string) => ({
+    id,
+    kind: 'request',
+    ...(agentId ? { agentId } : {}),
+    payload: { usage: { inputTokens } },
+  })
+  const events = [
+    { id: 'p1', kind: 'user', payload: { text: 'start' } },
+    request('q1', 1000),
+    { id: 'spawn', kind: 'tool_call', payload: { callId: 'spawn', name: 'Task' } },
+    request('s1', 200, 'sub'),
+    request('s2', 500, 'sub'),
+    request('s3', 900, 'sub'),
+    request('q2', 1500),
+  ].map((event, seq) => ({ ...event, seq, ts: 1000 * (seq + 1), source: { ...source, line: seq + 1 } }))
+  await writeFile(
+    file,
+    JSON.stringify({
+      schema: 'estela',
+      agent: 'claude-code',
+      session: { id: 'compare-sub-lane' },
+      capabilities: ['subagents'],
+      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Worker' }],
+      events,
+      skipped: [],
+    }),
+  )
+  const center = async (bar: Locator) => {
+    const box = (await bar.boundingBox())!
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  }
+  const shiftClick = async (bar: Locator) => {
+    const at = await center(bar)
+    await page.keyboard.down('Shift')
+    await page.mouse.click(at.x, at.y)
+    await page.keyboard.up('Shift')
+  }
+  try {
+    await openWorkspace(page, launch, file)
+    const subBars = page.locator('g[data-lane=sub] rect[data-marker=subagent-request]')
+    await expect(subBars).toHaveCount(3)
+    const third = await center(subBars.nth(2))
+    await page.mouse.click(third.x, third.y)
+    const compare = await openCompare(page)
+    // The previous request on the subagent lane, not on the main lane.
+    await expect(compare.getByTestId('compare-tokens')).toContainText('500 → 900')
+
+    await shiftClick(subBars.first())
+    await expect(compare.getByTestId('compare-tokens')).toContainText('200 → 900')
+    await expect(page.getByTestId('compare-ring')).toHaveCount(1)
+
+    // Compare stays on one lane: Shift-click on the main lane selects that request instead.
+    await shiftClick(page.locator('rect[data-marker=request]').first())
+    await expect(compare.getByTestId('compare-tokens')).toContainText('1k → 1.5k')
+  } finally {
+    await rm(file, { force: true })
+  }
 })
 
 test('CD-S5: a prompt snapshot makes the system prompt comparable, a slot recorded later stays unavailable', async ({

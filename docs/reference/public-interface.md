@@ -26,7 +26,7 @@ Every command takes `-h` / `--help` and `-v` / `--version`. A session is a sessi
 - A session or option written before a command name (`estela --port 1 build x`) is rejected.
 - On the main command, a bare word that names a command is that command; a value with such a name is written `--host=build` or `./build`.
 - `--pick` needs an interactive terminal and cannot be combined with a session.
-- `--host <host>` preserves explicit loopback addresses (`127.0.0.1`, `::1`) in printed and opened URLs. `--no-auth` is rejected before any server starts when `--host` is not a loopback address (`localhost`, `127.*`, `::1`).
+- `--host <host>` preserves explicit loopback addresses (`127.0.0.1`, `::1`) in printed and opened URLs, and prints and opens `127.0.0.1` for `0.0.0.0` and `[::1]` for `::`. `--no-auth` is rejected before any server starts when `--host` is not a loopback address (`localhost`, `127.*`, `::1`).
 - `build --out-dir` accepts only a new directory, an empty directory, or a directory whose sole entry is an earlier Estela `index.html` report, and refuses `/`, the working directory, the home directory, symbolic links, and non-directories.
 - `export-atif` and `export-otlp` append `-2`, `-3`, … when the default filename already exists (including symbolic links), and refuse to write through a symbolic link passed to `--out`.
 
@@ -47,7 +47,7 @@ The failure kinds and their exit code are one table in `apps/cli/src/entry/failu
 
 | Variable | Effect | Test |
 |---|---|---|
-| `ESTELA_PATH` | The default session of every command; empty means none | none in the suites; the default is stated in the help text pinned by `routes.test.ts` |
+| `ESTELA_PATH` | The default session of every command; empty means none | `apps/cli/src/entry/app.test.ts`; the default is stated in the help text pinned by `routes.test.ts` |
 | `ESTELA_REDACT` | `0` turns redaction off for the local server and the ATIF and OTLP exports; reports and MCP results always redact | `write-export.test.ts`, `packages/server/test/agent-tools.test.ts` (S18) |
 | `NO_COLOR` | Plain output lines with no escape sequences (also when stdout is not a terminal) | `apps/cli/src/entry/ui/terminal.test.ts`, `cli-smoke.test.ts` |
 | `XDG_CACHE_HOME` | Where the session index lives (`$XDG_CACHE_HOME/rivus-estela/`) | `packages/runtime-node` index tests |
@@ -59,11 +59,11 @@ The default locations and home overrides in [Supported agents](../guide/supporte
 
 ### MCP tools
 
-Covered: the seven tool names and their input schemas (property names, types, ranges, defaults, and that unknown properties are rejected), as listed in the [MCP tools reference](mcp-tools.md#inputs); the 40,000-character bound; the `@e<n>` / `@l<n>` id forms; and that results and errors are always redacted. Tests: `packages/server/src/agent-tools/inputs.test.ts` (schemas and error texts), `packages/server/test/agent-tools.test.ts` (tool list, schemas, walk, hostile session), `apps/e2e/src/mcp.smoke.ts` (S17, S18 on the installed tarball), `apps/cli/test/cli-smoke.test.ts` (S10).
+Covered: the seven tool names and their input schemas (property names, types, ranges, defaults, and that unknown properties are rejected), as listed in the [MCP tools reference](mcp-tools.md#inputs); the 40,000-character bound; the `@e<n>` / `@l<n>` id forms; and that results and errors are always redacted. Tests: `packages/server/src/agent-tools/inputs.test.ts` (schemas and error texts), `packages/server/test/agent-tools.test.ts` (tool list, schemas, walk, hostile session), `apps/e2e/src/mcp.smoke.ts` (S17, S18, and the `--mcp` HTTP route on the installed tarball), `apps/cli/test/cli-smoke.test.ts` (S10).
 
 Result fields are documented in the [reference](mcp-tools.md#results) and will be covered from 1.0, after a review of the shapes with agent users; until then they may change in a minor release. Error texts are for people: Estela's part starts with `estela_<tool>: <field>:` for an invalid input, and DevFrame adds its own prefix.
 
-The HTTP route `/__estela/__mcp` exists only with `--mcp` and is covered as a route; how it is authorized will change (it has none beyond DevFrame's loopback and origin checks today).
+The HTTP route `/__estela/__mcp` exists only with `--mcp` and is covered as a route serving the same seven tools. It answers only a client connected over loopback that sends an `Origin` header with a loopback host name, whatever `--host` binds; the one-time code does not gate it, and how it is authorized may still change (issue #94).
 
 ### Report file
 
