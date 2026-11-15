@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-// Repository conventions for tracked files. See CONTRIBUTING.md#file-conventions.
+// Repository conventions for tracked files. Rules 1 and 2: CONTRIBUTING.md#file-conventions; rule 3: AGENTS.md (Tooling).
 // 1. Every file and directory name is kebab-case, except the names listed below.
 // 2. A code file under apps/, packages/, or scripts/ has at most 500 lines.
-// 3. No tracked file, documentation included, names the company npm mirror: installs use the public
-//    registry (`registry` in pnpm-workspace.yaml). The shared check's `forbid` would skip AGENTS.md,
-//    CONTRIBUTING.md, and SECURITY.md, so the scan is here.
+// 3. No tracked path or content, binary files included, names the company npm mirror. It runs here, not as a
+//    `forbid` line of the shared check, which skips AGENTS.md, CONTRIBUTING.md, and SECURITY.md; it reads the
+//    index, so the pre-commit hook checks what is being committed.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
 
 const MAX_LINES = 500
-/** The mirror's name, spelled as character classes so that this file does not match it. */
-const MIRROR = '[Bb][Nn][Pp][Mm]'
+/**
+ * The mirror's name in any case, not inside a longer run of letters and digits, which keeps chance hits in
+ * lockfile hashes rare; spelled as character classes so that this file does not match it. Valid as an
+ * ERE for git grep and in `RegExp`.
+ */
+const MIRROR = '(^|[^A-Za-z0-9])[Bb][Nn][Pp][Mm]([^A-Za-z0-9]|$)'
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** Names fixed by convention or by a platform. */
@@ -88,16 +92,25 @@ for (const path of files) {
   if (lines) {
     problems.add(lines)
   }
+  if (new RegExp(MIRROR).test(path)) {
+    problems.add(`${path}: the path names the company npm mirror`)
+  }
 }
 
-// git grep exits 1 when nothing matches; above 1 is an error, which must not pass.
-const mirror = spawnSync('git', ['grep', '-n', '-I', '-E', '-e', MIRROR], { encoding: 'utf8' })
+// git grep exits 1 when nothing matches; above 1 is an error, which must not pass. `LC_ALL=C` matches bytes:
+// in a UTF-8 locale a line with invalid UTF-8 (most binary files) matches nothing. `-z` separates the path
+// and the line number with NUL, and `-o` keeps each hit to the match; only `path:line` is printed.
+const mirror = spawnSync('git', ['grep', '--cached', '--no-color', '-z', '-a', '-n', '-o', '-E', '-e', MIRROR], {
+  encoding: 'utf8',
+  env: { ...process.env, LC_ALL: 'C' },
+})
 if (mirror.status === 0) {
-  for (const line of mirror.stdout.split('\n').filter(Boolean)) {
-    problems.add(`${line.slice(0, line.indexOf(':', line.indexOf(':') + 1))} names the company npm mirror`)
+  for (const record of mirror.stdout.split('\n').filter(Boolean)) {
+    const [path, line] = record.split('\0')
+    problems.add(`${path}:${line} names the company npm mirror`)
   }
 } else if (mirror.status !== 1) {
-  throw new Error(`git grep failed: ${mirror.stderr}`)
+  throw new Error(`git grep failed: ${mirror.error?.message ?? mirror.stderr}`)
 }
 
 if (problems.size) {
