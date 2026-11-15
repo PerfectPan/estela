@@ -291,8 +291,8 @@ describe('installed tarball', () => {
               m: 'anonymous:devframe:auth:request-code',
               a: [
                 {
-                  ua: 'Mozilla/5.0\nforged-ua\u001B[31m',
-                  origin: `http://127.0.0.1:${port}\n│ auth code  000000`,
+                  ua: 'Mozilla/5.0',
+                  origin: `http://127.0.0.1:${port}\u001B]52;c;ZXY=\u0007\n│ auth code  000000`,
                 },
               ],
             }),
@@ -309,7 +309,7 @@ describe('installed tarball', () => {
       )
       const bannerOut = server.output().stdout
       expect(bannerOut).not.toContain(`http://localhost:${port}`)
-      expect(bannerOut).not.toContain('\nforged-ua')
+      expect(bannerOut).not.toContain('\u001B]52')
       const forgedCodeLines = bannerOut.split('\n').filter(line => line.includes('000000') && !line.includes('origin'))
       expect(forgedCodeLines).toHaveLength(0)
     } finally {

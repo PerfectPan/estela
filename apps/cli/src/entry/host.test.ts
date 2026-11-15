@@ -23,6 +23,11 @@ describe('host predicates', () => {
     expect(canonicalizeHost('0:0:0:0:0:0:0:1')).toBe('::1')
     expect(canonicalizeHost('0000:0000:0000:0000:0000:0000:0000:0000')).toBe('::')
     expect(canonicalizeHost('LOCALHOST')).toBe('localhost')
+    expect(canonicalizeHost('evil.example@127.0.0.1')).toBe('evil.example@127.0.0.1')
+    expect(canonicalizeHost('127.0.0.1/x')).toBe('127.0.0.1/x')
+    expect(canonicalizeHost('127.0.0.1:9')).toBe('127.0.0.1:9')
+    expect(canonicalizeHost('0.0.0.0@localhost')).toBe('0.0.0.0@localhost')
+    expect(canonicalizeHost('localhost.')).toBe('localhost.')
   })
 
   it('distinguishes loopback hosts from wildcards and LAN hosts', () => {
@@ -39,6 +44,13 @@ describe('host predicates', () => {
     expect(isLoopbackHost('192.168.1.10')).toBe(false)
     expect(isLoopbackHost('example.com')).toBe(false)
     expect(isLoopbackHost('')).toBe(false)
+    expect(isLoopbackHost('evil.example@127.0.0.1')).toBe(false)
+    expect(isLoopbackHost('127.0.0.1/x')).toBe(false)
+    expect(isLoopbackHost('127.0.0.1:9')).toBe(false)
+    expect(isLoopbackHost('0.0.0.0@localhost')).toBe(false)
+    expect(isLoopbackHost('localhost.')).toBe(false)
+    expect(isLoopbackHost('::ffff:127.0.0.1')).toBe(false)
+    expect(isLoopbackHost('[::ffff:127.0.0.1]')).toBe(false)
 
     expect(isWildcardHost('0.0.0.0')).toBe(true)
     expect(isWildcardHost('::')).toBe(true)
@@ -91,6 +103,8 @@ describe('createServerOriginGate', () => {
     expect(localGate.registry.isAllowed('http://[::1]:7392')).toBe(true)
     expect(localGate.registry.isAllowed('http://localhost:3000')).toBe(false)
     expect(localGate.registry.isAllowed('http://evil.example:7392')).toBe(false)
+    expect(localGate.registry.isAllowed('http://localhost.:7392')).toBe(false)
+    expect(localGate.registry.isAllowed('http://[::ffff:127.0.0.1]:7392')).toBe(false)
 
     const v6Gate = createServerOriginGate('::1')
     v6Gate.setPort(7392)
@@ -119,6 +133,13 @@ describe('createServerOriginGate', () => {
     v6Wildcard.setPort(7392)
     expect(v6Wildcard.registry.isAllowed('http://10.0.0.12:7392')).toBe(true)
     expect(v6Wildcard.registry.isAllowed('http://rebind.attacker.test:7392')).toBe(false)
+
+    const failingWildcard = createServerOriginGate('0.0.0.0', () => {
+      throw new Error('EACCES')
+    })
+    failingWildcard.setPort(7392)
+    expect(failingWildcard.registry.isAllowed('http://localhost:7392')).toBe(true)
+    expect(failingWildcard.registry.isAllowed('http://192.168.1.50:7392')).toBe(false)
   })
 })
 
@@ -175,7 +196,26 @@ describe('secureDevframeDir', () => {
       const warnSym = vi.fn<(message: string) => void>()
       await expect(secureDevframeDir(symHome, warnSym)).resolves.toBeUndefined()
       expect(warnSym).toHaveBeenCalledTimes(1)
+      expect(warnSym.mock.calls[0]?.[0]).toContain('symbolic link')
       expect(statSync(symTarget).mode & 0o777).toBe(0o755)
+
+      const linkedRootHome = join(base, 'linked-root-home')
+      const linkedRootTarget = join(base, 'linked-root-target')
+      mkdirSync(linkedRootHome)
+      mkdirSync(linkedRootTarget)
+      symlinkSync(linkedRootTarget, join(linkedRootHome, '.estela'))
+      const warnLinkedRoot = vi.fn<(message: string) => void>()
+      await expect(secureDevframeDir(linkedRootHome, warnLinkedRoot)).resolves.toBeUndefined()
+      expect(warnLinkedRoot).not.toHaveBeenCalled()
+      expect(statSync(join(linkedRootTarget, 'devframe')).mode & 0o777).toBe(0o700)
+
+      const danglingHome = join(base, 'dangling-home')
+      mkdirSync(danglingHome)
+      symlinkSync(join(base, 'missing-target'), join(danglingHome, '.estela'))
+      const warnDangling = vi.fn<(message: string) => void>()
+      await expect(secureDevframeDir(danglingHome, warnDangling)).resolves.toBeUndefined()
+      expect(warnDangling).toHaveBeenCalledTimes(1)
+      expect(warnDangling.mock.calls[0]?.[0]).toContain('symbolic link')
 
       if (process.getuid?.() !== 0) {
         const roHome = join(base, 'ro-home')

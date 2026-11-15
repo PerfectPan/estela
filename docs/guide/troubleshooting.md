@@ -41,6 +41,8 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 
 The page lost its connection to the local server: the `estela` process stopped, or the computer slept. A loaded workspace stays readable. Start `estela` again and press Reload.
 
+If you started Estela with an explicit `--host` such as `127.0.0.1` or `[::1]`, open the exact URL printed in the terminal rather than `http://localhost:<port>/` — browser WebSocket and SSE connections from a mismatched origin host are rejected with HTTP 403.
+
 ## `--pick` fails
 
 `--pick` needs an interactive terminal and cannot be combined with a session path. "No sessions to pick." means no supported agent has sessions in the checked folders.

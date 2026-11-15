@@ -45,7 +45,7 @@ cd apps/cli
 pnpm run dev
 ```
 
-Open `http://localhost:7392/__estela/`.
+The CLI opens the browser with the one-time code, or open the `#devframe_otp=` link printed in the terminal.
 
 With no path the app opens the session browser over every registered agent. A positional path (or `ESTELA_PATH`) is loaded before the server listens and opens `#/s/<traceId>`. `--pick` lists the sessions in the terminal. `build` still defaults to `fixtures/demo.trace.json`; `mcp` without a path serves every session.
 

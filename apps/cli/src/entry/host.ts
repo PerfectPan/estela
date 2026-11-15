@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { chmod, lstat, mkdir } from 'node:fs/promises'
+import { chmod, lstat, mkdir, stat } from 'node:fs/promises'
 import { isIP, isIPv4 } from 'node:net'
 import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
@@ -31,8 +31,13 @@ export function canonicalizeHost(host: string): string {
     return ''
   }
   try {
-    const parsed = isIP(bare) === 6 ? new URL(`http://[${bare}]/`) : new URL(`http://${bare}/`)
-    return unbracketHost(parsed.hostname)
+    if (isIP(bare) === 6) {
+      return unbracketHost(new URL(`http://[${bare}]/`).hostname)
+    }
+    if (/[@/?#\\:\s]/.test(bare)) {
+      return bare
+    }
+    return unbracketHost(new URL(`http://${bare}/`).hostname)
   } catch {
     return bare
   }
@@ -84,8 +89,14 @@ export interface ServerOriginGate {
 }
 
 function defaultInterfaceAddresses(): string[] {
+  let ifaces: ReturnType<typeof networkInterfaces>
+  try {
+    ifaces = networkInterfaces()
+  } catch {
+    return []
+  }
   const addresses: string[] = []
-  for (const entries of Object.values(networkInterfaces())) {
+  for (const entries of Object.values(ifaces)) {
     if (!entries) {
       continue
     }
@@ -112,7 +123,13 @@ export function createServerOriginGate(host: string, localAddresses?: () => Iter
   let activePort: number | undefined
 
   const isLocalInterfaceIp = (originIp: string): boolean => {
-    for (const addr of readInterfaces()) {
+    let entries: Iterable<string>
+    try {
+      entries = readInterfaces()
+    } catch {
+      return false
+    }
+    for (const addr of entries) {
       const stripped = addr.split('%')[0] ?? ''
       if (stripped !== '' && canonicalizeHost(stripped) === originIp) {
         return true
@@ -183,7 +200,15 @@ export async function secureDevframeDir(home: string, warn?: (message: string) =
   const estelaRoot = join(home, '.estela')
   try {
     const estelaStats = await lstat(estelaRoot)
-    if (estelaStats.isSymbolicLink() || !estelaStats.isDirectory()) {
+    if (estelaStats.isSymbolicLink()) {
+      const resolvedStats = await stat(estelaRoot).catch(() => undefined)
+      if (!resolvedStats?.isDirectory()) {
+        warn?.(
+          '~/.estela is a symbolic link that does not point to a directory; skipping DevFrame storage permission hardening',
+        )
+        return
+      }
+    } else if (!estelaStats.isDirectory()) {
       warn?.('~/.estela is not a directory; skipping DevFrame storage permission hardening')
       return
     }
@@ -198,7 +223,11 @@ export async function secureDevframeDir(home: string, warn?: (message: string) =
   try {
     await mkdir(dir, { recursive: true, mode: 0o700 })
     const dirStats = await lstat(dir)
-    if (dirStats.isSymbolicLink() || !dirStats.isDirectory()) {
+    if (dirStats.isSymbolicLink()) {
+      warn?.('~/.estela/devframe is a symbolic link; skipping DevFrame storage permission hardening')
+      return
+    }
+    if (!dirStats.isDirectory()) {
       warn?.('~/.estela/devframe is not a directory; skipping DevFrame storage permission hardening')
       return
     }

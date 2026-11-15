@@ -74,6 +74,12 @@ export function resolveAuthBannerUrl(resolvedOrigin: string, host: string): stri
   }
 }
 
+/**
+ * Builds a lazy auth proxy over `createInteractiveAuth`. This indirection is required because
+ * `createInteractiveAuth` needs the post-`setup` `DevframeNodeContext` while `createDevServer`
+ * types `auth` as `boolean | DevframeAuthHandler` (not a context callback), and DevFrame runs
+ * `definition.setup` before accessing `auth.rpcFunctions` or handling requests.
+ */
 function createDevAuth(
   baseDefinition: DevframeDefinition,
   host: string,
