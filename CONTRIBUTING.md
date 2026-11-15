@@ -31,7 +31,7 @@ pnpm lint
 pnpm test
 pnpm typecheck
 pnpm build
-cd apps/cli && pnpm run dev --no-auth
+cd apps/cli && pnpm run dev
 ```
 
 The toolchain is Vite+ (`vp`): every workspace package lints with `vp lint` and tests with `vp test`, `apps/cli` builds with `vp pack` and `apps/web` with `vp build`, each from the package's one `vite.config.ts`. `tsc` stays the type check. The lint and format settings are the `lint` and `fmt` blocks of the root `vite.config.ts`; `vp lint` and `vp fmt` use the nearest config with such a block, and package configs have none.

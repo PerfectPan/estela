@@ -318,7 +318,7 @@ export const zhCN = {
     export: '导出报告',
     dialogTitle: '导出此会话的报告',
     dialogBody:
-      '报告是一个 index.html 文件，无需服务即可在浏览器中打开。报告已脱敏：主目录显示为 ~，已知的密钥格式会被替换。',
+      '报告是一个 index.html 文件，无需服务即可在浏览器中打开。报告已脱敏：主目录显示为 ~，已知前缀的 API 密钥和私钥块会被替换；密码、Bearer 令牌和其他机密不会被移除。',
     dialogKeeps: '会话文本和文件内容仍保留在报告中。分享前请先阅读。',
     dialogLimit: '报告包含此处显示的全部事件，以及前 {{ events }} 个事件或 {{ size }}（取较小者）的原始记录。',
     cancel: '取消',
@@ -328,7 +328,8 @@ export const zhCN = {
     writtenDetail: '包含 {{ total }} 个事件中 {{ included }} 个的原始记录。',
     failed: '无法写入报告：{{ reason }}',
     close: '关闭',
-    banner: '静态报告，已脱敏：主目录显示为 ~，已知的密钥格式已被替换。会话文本和文件内容仍保留。',
+    banner:
+      '静态报告，已脱敏：主目录显示为 ~，已知前缀的 API 密钥和私钥块已被替换，但并非所有机密都会被移除。会话文本和文件内容仍保留。',
     truncated: '仅包含前 {{ included }} 个事件（共 {{ total }} 个）的原始记录。',
     cappedNotice: '此报告中的长文本截短为 {{ count }} 个字符。已包含原始记录的事件在选中后显示完整文本。',
     notIncluded: '此报告未包含该事件的原始记录。',

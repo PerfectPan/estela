@@ -4,7 +4,6 @@ import type { Trace } from '@rivus/estela-schema'
 import { redactText } from '@rivus/agent-kit/redact'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
-import { createNodePlatform } from '@rivus/agent-kit/node'
 import { emitSessions } from '@rivus/estela-rpc'
 import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './discover.ts'
@@ -19,6 +18,7 @@ import {
   type Redactor,
 } from './rows.ts'
 import type { ShellPlatform } from '../sessions/load-session.ts'
+import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 import { errorMessage, parseReadFailure } from '../sessions/read-failure.ts'
 import { oneLine, traceIdOf } from '../sessions/session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
@@ -85,7 +85,7 @@ export class SessionCatalog {
   constructor(options: CatalogOptions = {}) {
     this.adapters = options.adapters
     this.adapterList = Object.values(this.adapters ?? builtinAdapters).filter(adapter => adapter !== undefined)
-    this.platform = options.platform ?? createNodePlatform()
+    this.platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
     const home = this.platform.home
     // Titles and prompts are session text: redacted like the workspace unless ESTELA_REDACT=0.
     this.redact = this.platform.env.ESTELA_REDACT === '0' ? text => text : text => redactText(text, { home })

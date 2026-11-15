@@ -6,8 +6,8 @@ import type {
   ReportTrace,
   TraceStore,
 } from '@rivus/estela-rpc'
-import { mkdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { lstat, mkdir, readdir, readFile, realpath } from 'node:fs/promises'
+import { join, parse, resolve } from 'node:path'
 import process from 'node:process'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { bindReportSource, buildReport } from '@rivus/estela-rpc'
@@ -41,6 +41,93 @@ function serialized<T>(run: () => Promise<T>): Promise<T> {
   return next
 }
 
+const REPORT_MARKER = '<script type="application/json" id="report-trace">'
+const MAX_EXISTING_REPORT_BYTES = 128 * 1024 * 1024
+const notFound = z.object({ code: z.literal('ENOENT') })
+
+/** Raised when `build --out-dir` targets a location or existing directory that must not be wiped. */
+export class ReportOutDirError extends Error {
+  readonly path: string
+
+  constructor(path: string, detail: string) {
+    super(detail)
+    this.name = 'ReportOutDirError'
+    this.path = path
+  }
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
+/**
+ * Ensures `build --out-dir` will not recursively delete arbitrary user data (`createBuild` calls
+ * `fs.rm(outDir, { recursive: true })`). Allows a non-existent path, an empty directory, or a
+ * directory whose sole entry is an earlier Estela report `index.html`, while always refusing `/`,
+ * the working directory, the home directory, symlinks, and non-directories.
+ */
+export async function checkReportOutDir(rawOutDir: string, options?: { cwd?: string; home?: string }): Promise<string> {
+  const outDir = resolve(rawOutDir)
+  const cwd = resolve(options?.cwd ?? process.cwd())
+  const home = resolve(options?.home ?? homeDir())
+  if (outDir === parse(outDir).root) {
+    throw new ReportOutDirError(outDir, 'refusing to write a report to the filesystem root')
+  }
+  if (outDir === cwd) {
+    throw new ReportOutDirError(outDir, 'refusing to overwrite the working directory')
+  }
+  if (outDir === home) {
+    throw new ReportOutDirError(outDir, 'refusing to overwrite the home directory')
+  }
+
+  let stat
+  try {
+    stat = await lstat(outDir)
+  } catch (error) {
+    if (z.safeParse(notFound, error).success) {
+      return outDir
+    }
+    throw error
+  }
+  if (stat.isSymbolicLink()) {
+    throw new ReportOutDirError(outDir, 'refusing to follow a symbolic link at --out-dir')
+  }
+  if (!stat.isDirectory()) {
+    throw new ReportOutDirError(outDir, 'path exists and is not a directory')
+  }
+
+  const realOut = await canonicalPath(outDir)
+  if (realOut === parse(realOut).root) {
+    throw new ReportOutDirError(outDir, 'refusing to write a report to the filesystem root')
+  }
+  if (realOut === (await canonicalPath(cwd))) {
+    throw new ReportOutDirError(outDir, 'refusing to overwrite the working directory')
+  }
+  if (realOut === (await canonicalPath(home))) {
+    throw new ReportOutDirError(outDir, 'refusing to overwrite the home directory')
+  }
+
+  const entries = await readdir(outDir)
+  if (entries.length === 0) {
+    return outDir
+  }
+  if (entries.length === 1 && entries[0] === 'index.html') {
+    const indexPath = join(outDir, 'index.html')
+    const indexStat = await lstat(indexPath)
+    if (!indexStat.isSymbolicLink() && indexStat.isFile() && indexStat.size <= MAX_EXISTING_REPORT_BYTES) {
+      const html = await readFile(indexPath, 'utf8')
+      if (html.includes(REPORT_MARKER)) {
+        return outDir
+      }
+    }
+  }
+  throw new ReportOutDirError(outDir, 'directory is not empty and is not an earlier Estela report')
+}
+
 /** DevFrame's static build of `definition` with `report-trace` bound to `report`, then `packForFile`. */
 async function buildSite(definition: DevframeDefinition, outDir: string, report: ReportTrace): Promise<void> {
   bindReportSource(async () => report)
@@ -49,7 +136,10 @@ async function buildSite(definition: DevframeDefinition, outDir: string, report:
 }
 
 export function writeReport(definition: DevframeDefinition, outDir: string, report: ReportTrace): Promise<void> {
-  return serialized(() => buildSite(definition, outDir, report))
+  return serialized(async () => {
+    const checked = await checkReportOutDir(outDir)
+    await buildSite(definition, checked, report)
+  })
 }
 
 function pad(value: number): string {

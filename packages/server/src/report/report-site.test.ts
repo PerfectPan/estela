@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { NAMESPACE } from '@rivus/estela-rpc'
@@ -33,5 +34,42 @@ describe('baked report-trace record', () => {
 
   it('takes a null output as an output', async () => {
     await expect(pack({ output: null })).rejects.toThrow('the web build has no module script or stylesheet')
+  })
+
+  it('injects a strict sha256 CSP, removes <base>, and escapes embedded script/comment closers', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'at-report-csp-'))
+    try {
+      await mkdir(join(outDir, '__rpc-dump'))
+      await mkdir(join(outDir, 'assets'))
+      const manifest = { [`${NAMESPACE}:report-trace`]: { fallback: '__rpc-dump/record.json' } }
+      await writeFile(join(outDir, '__rpc-dump/index.json'), JSON.stringify(manifest))
+      await writeFile(
+        join(outDir, '__rpc-dump/record.json'),
+        JSON.stringify({ output: { payload: '</script><!--<script>alert(1)</script>' } }),
+      )
+      const js = 'console.log("ok</script><!--")'
+      const expectedHash = createHash('sha256').update('console.log("ok<\\/script><\\!--")', 'utf8').digest('base64')
+      await writeFile(join(outDir, 'assets/index.js'), js)
+      await writeFile(join(outDir, 'assets/index.css'), 'body{color:#fff}')
+      await writeFile(
+        join(outDir, 'index.html'),
+        [
+          '<!doctype html><html><head>',
+          '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'" />',
+          '<base href="./" />',
+          '<link rel="stylesheet" crossorigin href="./assets/index.css">',
+          '</head><body><script type="module" crossorigin src="./assets/index.js"></script></body></html>',
+        ].join(''),
+      )
+      await packForFile(outDir)
+      const packed = await readFile(join(outDir, 'index.html'), 'utf8')
+      expect(packed).toContain(`script-src 'sha256-${expectedHash}'`)
+      expect(packed).toContain("connect-src 'none'")
+      expect(packed).toContain("base-uri 'none'")
+      expect(packed).not.toContain('<base ')
+      expect(packed).toContain('<\\/script><\\u0021--<script>')
+    } finally {
+      await rm(outDir, { recursive: true, force: true })
+    }
   })
 })

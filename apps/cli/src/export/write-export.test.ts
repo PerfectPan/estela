@@ -1,13 +1,14 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { readFile } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import process from 'node:process'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { describe, expect, it } from 'vite-plus/test'
 import type { Trace } from '@rivus/estela-schema'
-import { exportOf, writeExport } from './write-export.ts'
+import { ExportPathError, defaultExportPath, exportOf, writeExport } from './write-export.ts'
 import { loadSession } from '@rivus/estela-server'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -164,6 +165,52 @@ describe('export', () => {
       expect(span.spanId).toMatch(/^[0-9a-f]{16}$/)
       expect(typeof span.startTimeUnixNano).toBe('string')
       expect(span.kind).toBeTypeOf('number')
+    }
+  })
+
+  it('picks a fresh suffix when the default export path has a valid or dangling symlink', async () => {
+    const trace = await claudeLoad('plain/session.jsonl')
+    const dir = mkdtempSync(join(tmpdir(), 'at-export-sym-'))
+    const previousCwd = process.cwd()
+    try {
+      process.chdir(dir)
+      const victim = join(dir, 'victim.txt')
+      writeFileSync(victim, 'untouched', 'utf8')
+      const base = defaultExportPath(trace.session.id, 'atif')
+      const second = base.replace(/\.atif\.json$/, '-2.atif.json')
+      symlinkSync(victim, base)
+      symlinkSync(join(dir, 'missing-target.txt'), second)
+
+      await writeExport(trace, 'atif', undefined, true)
+      const third = base.replace(/\.atif\.json$/, '-3.atif.json')
+      expect(readFileSync(victim, 'utf8')).toBe('untouched')
+      expect((await lstat(base)).isSymbolicLink()).toBe(true)
+      expect((await lstat(second)).isSymbolicLink()).toBe(true)
+      expect(JSON.parse(readFileSync(third, 'utf8')).schema_version).toBe('ATIF-v1.8')
+    } finally {
+      process.chdir(previousCwd)
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses to overwrite a symlink passed via --out while overwriting regular files', async () => {
+    const trace = await claudeLoad('plain/session.jsonl')
+    const dir = mkdtempSync(join(tmpdir(), 'at-export-out-'))
+    try {
+      const victim = join(dir, 'victim.txt')
+      writeFileSync(victim, 'keep-me', 'utf8')
+      const symlinkOut = join(dir, 'out-link.json')
+      symlinkSync(victim, symlinkOut)
+
+      await expect(writeExport(trace, 'atif', symlinkOut, true)).rejects.toBeInstanceOf(ExportPathError)
+      expect(readFileSync(victim, 'utf8')).toBe('keep-me')
+
+      const regularOut = join(dir, 'regular.json')
+      writeFileSync(regularOut, 'old-content', 'utf8')
+      await writeExport(trace, 'otlp', regularOut, true)
+      expect(JSON.parse(readFileSync(regularOut, 'utf8')).resourceSpans).toBeDefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 })

@@ -2,12 +2,12 @@ import type { ResolvedSession, TraceStore } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import type { DevframeDefinition } from 'devframe'
-import { createNodePlatform } from '@rivus/agent-kit/node'
 import { bindReportExporter, bindSessionService, bindTraceStore } from '@rivus/estela-rpc'
 import { SessionCatalog } from '../catalog/session-catalog.ts'
 import { registerAgentTools } from '../agent-tools/register.ts'
 import { exportReport } from '../report/report.ts'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
+import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 import { sessionTargetLabel } from '../sessions/session-target.ts'
 import { createTraceStore } from '../store/trace-store.ts'
 import { defineEstela, type EstelaApp } from './definition.ts'
@@ -62,7 +62,7 @@ export interface EstelaServer {
  * The RPC bindings are module state in `@rivus/estela-rpc`, so one process serves one Estela server.
  */
 export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
-  const platform = options.platform ?? createNodePlatform()
+  const platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
   // Summaries wait until setup: the server listens before they compete with it.
   const catalog = options.catalog
     ? new SessionCatalog({ platform, noIndex: !options.catalog.index, deferSummaries: true })

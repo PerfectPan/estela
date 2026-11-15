@@ -78,4 +78,13 @@ describe('runCli', () => {
     expect(io.stdout()).toBe('')
     expect(io.stderr()).toMatch(/^Could not load \/nonexistent\/session\.jsonl: .+\nPass a canonical Estela JSON file/)
   })
+
+  it('refuses --no-auth with a non-loopback --host before starting a server', async () => {
+    for (const host of ['0.0.0.0', '::', '192.168.1.50']) {
+      const io = capture()
+      expect(await runCli(['--no-auth', '--host', host])).toBe(1)
+      expect(io.stdout()).toBe('')
+      expect(io.stderr()).toBe(`--no-auth cannot be used with a non-loopback --host\n${FIX}`)
+    }
+  })
 })

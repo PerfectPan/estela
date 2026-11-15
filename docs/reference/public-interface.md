@@ -26,6 +26,9 @@ Every command takes `-h` / `--help` and `-v` / `--version`. A session is a sessi
 - A session or option written before a command name (`estela --port 1 build x`) is rejected.
 - On the main command, a bare word that names a command is that command; a value with such a name is written `--host=build` or `./build`.
 - `--pick` needs an interactive terminal and cannot be combined with a session.
+- `--host <host>` preserves explicit loopback addresses (`127.0.0.1`, `::1`) in printed and opened URLs. `--no-auth` is rejected before any server starts when `--host` is not a loopback address (`localhost`, `127.*`, `::1`).
+- `build --out-dir` accepts only a new directory, an empty directory, or a directory whose sole entry is an earlier Estela `index.html` report, and refuses `/`, the working directory, the home directory, symbolic links, and non-directories.
+- `export-atif` and `export-otlp` append `-2`, `-3`, … when the default filename already exists (including symbolic links), and refuse to write through a symbolic link passed to `--out`.
 
 Tests that catch a change: `apps/cli/src/entry/routes.test.ts` (every route, option, default, and both help texts), `apps/cli/src/entry/app.test.ts` (usage failures, `--`, version line), and `apps/e2e/src/cli.smoke.ts` (`--help`, `--version`, an unknown flag on the installed tarball).
 
@@ -36,7 +39,7 @@ The wording and layout of `--help`, the progress lines, and error messages are f
 | Code | When |
 |---|---|
 | 0 | Success; `--help`; `--version` |
-| 1 | Every failure: a usage error, a session that cannot be loaded, built, or exported, a failed index start, no sessions to pick, a cancelled pick, a Node.js version below 24, and any unexpected error |
+| 1 | Every failure: a usage error, a session that cannot be loaded, built, or exported, a port or host listen failure, an unsafe output path refusal, a failed index start, no sessions to pick, a cancelled pick, a Node.js version below 24, and any unexpected error |
 
 The failure kinds and their exit code are one table in `apps/cli/src/entry/failure.ts`; a new kind without an entry fails the type check. `app.test.ts` and `cli.smoke.ts` assert exit 1.
 

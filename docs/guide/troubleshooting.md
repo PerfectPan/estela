@@ -8,7 +8,7 @@ The CLI checks the Node.js version before it loads anything else. Run `node --ve
 
 ## The port is in use
 
-Without `--port`, Estela uses 7392 or, when another program holds it, the next free port, and prints the URL it chose. With `--port <n>` it uses exactly that port and fails when the port is taken (`Failed to listen on localhost:<n>: … EADDRINUSE`). Pick another port, `--port 0` for any free one, or stop the other program.
+Without `--port`, Estela uses 7392 or, when another program holds it, the next free port, and prints the URL it chose. With `--port <n>` it uses exactly that port and fails when the port is taken (`Port <n> is already in use.`). Stop the process using port `<n>`, or pass `--port` with a free port (or omit `--port`).
 
 ## A session says "Could not read"
 
@@ -40,6 +40,8 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 ## "Lost the connection to the Estela server"
 
 The page lost its connection to the local server: the `estela` process stopped, or the computer slept. A loaded workspace stays readable. Start `estela` again and press Reload.
+
+If you started Estela with an explicit `--host` such as `127.0.0.1` or `[::1]`, open the exact URL printed in the terminal rather than `http://localhost:<port>/` — browser WebSocket and SSE connections from a mismatched origin host are rejected with HTTP 403.
 
 ## `--pick` fails
 

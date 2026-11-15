@@ -204,4 +204,24 @@ describe('DevFrame log lines', () => {
     stdout.write(Buffer.from(line))
     expect(seen[0]).toBe('[devframe] copying SPA from ~/app/web/dist -> /tmp/out\n')
   })
+
+  it('strips non-SGR escapes, C0/C1 controls, and bidi characters from [devframe] and auth banner TTY output while keeping SGR colors', () => {
+    const seen: string[] = []
+    stdout.isTTY = true
+    stdout.write = (chunk: string) => {
+      seen.push(chunk)
+      return true
+    }
+    installPlainFilter({ homeDir: home })
+    stdout.write(
+      `\u001b[36m[devframe]\u001b[39m \u001b]8;;https://evil\u0007click\u001b]8;;\u0007 \u001b[2K\u001bPbad\u001b\\\u001b_apc\u001b\\\u009b31m\u202E${home}/x\r\n`,
+    )
+    expect(seen[0]).toBe('\u001b[36m[devframe]\u001b[39m click ~/x\n')
+
+    const banner = Buffer.from(
+      '\n\u001b[33mauth code\u001b[0m  123456\nua  \u001b]52;c;bad\u0007\u001b^pm\u001b\\\u001bXsos\u001b\\\u202Eevil\r\nexpires at 10:00\n',
+    )
+    stdout.write(banner)
+    expect(seen[1]).toBe('\n\u001b[33mauth code\u001b[0m  123456\nua  evil\nexpires at 10:00\n')
+  })
 })

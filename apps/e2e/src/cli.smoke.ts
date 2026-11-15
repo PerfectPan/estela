@@ -1,9 +1,11 @@
 import { lookup } from 'node:dns/promises'
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { createServer as createHttpServer } from 'node:http'
 import { createServer, type Server as NetServer } from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, inject, it } from 'vite-plus/test'
+import * as z from 'zod/mini'
 import cliPackage from '../../cli/package.json' with { type: 'json' }
 import { openedUrls, openLogPath, readyUrl, run, smokeEnv, start, waitFor } from './cli-process.ts'
 
@@ -207,5 +209,199 @@ describe('installed tarball', () => {
     expect(await filesContaining(outDir, homedir())).toEqual([])
     // The report is one file that opens from disk.
     expect(await readdir(outDir)).toEqual(['index.html'])
+  })
+
+  it('#125: --port on an already-bound port exits cleanly with code 1 and no stack trace', async () => {
+    const holder = createServer()
+    await new Promise<void>((resolve, reject) => {
+      holder.once('error', reject)
+      holder.listen(0, '127.0.0.1', () => resolve())
+    })
+    const { port } = z.object({ port: z.number() }).parse(holder.address())
+    try {
+      const result = await run(
+        process.execPath,
+        [ctx.bin, '--host', '127.0.0.1', '--port', String(port), '--no-open'],
+        { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 'port-busy')) },
+      )
+      expect(result.code).toBe(1)
+      expect(result.stderr).toContain(`Port ${port} is already in use.`)
+      expect(`${result.stdout}${result.stderr}`).not.toContain('DF0052')
+      expect(`${result.stdout}${result.stderr}`).not.toContain('\n    at ')
+    } finally {
+      await new Promise<void>(resolve => holder.close(() => resolve()))
+    }
+  })
+
+  it('#126: --host 127.0.0.1 prints and opens http://127.0.0.1:<port> even when [::1] holds that port', async () => {
+    let v6Hits = 0
+    const v6Holder = createHttpServer((_req, res) => {
+      v6Hits += 1
+      res.writeHead(200)
+      res.end('wrong-server')
+    })
+    const v6Bound = await new Promise<boolean>(resolve => {
+      v6Holder.once('error', () => resolve(false))
+      v6Holder.listen(0, '::1', () => resolve(true))
+    })
+    let port: number
+    if (v6Bound) {
+      port = z.object({ port: z.number() }).parse(v6Holder.address()).port
+    } else {
+      const probe = createServer()
+      await new Promise<void>((resolve, reject) => {
+        probe.once('error', reject)
+        probe.listen(0, '127.0.0.1', () => resolve())
+      })
+      port = z.object({ port: z.number() }).parse(probe.address()).port
+      await new Promise<void>(resolve => probe.close(() => resolve()))
+    }
+
+    const log = openLogPath(ctx, 'host-v4-loopback')
+    const server = start(process.execPath, [ctx.bin, '--host', '127.0.0.1', '--port', String(port)], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, log),
+    })
+    const readyPattern = new RegExp(`Ready: http://127\\.0\\.0\\.1:${port}/__estela/#/`)
+    try {
+      await waitFor(
+        'the 127.0.0.1 Ready line and browser open',
+        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+      )
+      const stdout = server.output().stdout
+      expect(stdout).toContain(`http://127.0.0.1:${port}/__estela/#/`)
+      expect(stdout).not.toContain(`http://localhost:${port}`)
+      const opened = openedUrls(log)
+      expect(opened).toHaveLength(1)
+      expect(opened[0]).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`))
+
+      const res = await fetch(`http://127.0.0.1:${port}/__estela/`)
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain('Estela')
+      expect(v6Hits).toBe(0)
+
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/__estela/__ws`)
+        ws.addEventListener('error', () => reject(new Error('WebSocket connection failed')))
+        ws.addEventListener('open', () => {
+          ws.send(
+            JSON.stringify({
+              t: 'q',
+              i: 'banner-check',
+              m: 'anonymous:devframe:auth:request-code',
+              a: [
+                {
+                  ua: 'Mozilla/5.0',
+                  origin: `http://127.0.0.1:${port}\u001B]52;c;ZXY=\u0007\n│ auth code  000000`,
+                },
+              ],
+            }),
+          )
+        })
+        ws.addEventListener('message', () => {
+          ws.close()
+          resolve()
+        })
+      })
+
+      await waitFor('sanitized auth banner on stdout', () =>
+        server.output().stdout.includes(`http://127.0.0.1:${port}/__estela/#devframe_otp=`),
+      )
+      const bannerOut = server.output().stdout
+      expect(bannerOut).not.toContain(`http://localhost:${port}`)
+      expect(bannerOut).not.toContain('\u001B]52')
+      const forgedCodeLines = bannerOut.split('\n').filter(line => line.includes('000000') && !line.includes('origin'))
+      expect(forgedCodeLines).toHaveLength(0)
+    } finally {
+      await server.stop()
+      if (v6Bound) {
+        await new Promise<void>(resolve => v6Holder.close(() => resolve()))
+      }
+    }
+  })
+
+  it('#126 / M1: --host [::1] binds IPv6 loopback and prints and opens http://[::1]:<port>', async () => {
+    const v6Probe = createServer()
+    const v6Supported = await new Promise<boolean>(resolve => {
+      v6Probe.once('error', () => resolve(false))
+      v6Probe.listen(0, '::1', () => resolve(true))
+    })
+    if (!v6Supported) {
+      return
+    }
+    const port = z.object({ port: z.number() }).parse(v6Probe.address()).port
+    await new Promise<void>(resolve => v6Probe.close(() => resolve()))
+
+    const log = openLogPath(ctx, 'host-v6-loopback')
+    const server = start(process.execPath, [ctx.bin, '--host', '[::1]', '--port', String(port)], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, log),
+    })
+    const readyPattern = new RegExp(`Ready: http://\\[::1\\]:${port}/__estela/#/`)
+    try {
+      await waitFor(
+        'the [::1] Ready line and browser open',
+        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+      )
+      expect(server.output().stdout).toContain(`http://[::1]:${port}/__estela/#/`)
+      const opened = openedUrls(log)
+      expect(opened).toHaveLength(1)
+      expect(opened[0]).toMatch(new RegExp(`^http://\\[::1\\]:${port}/__estela/#devframe_otp=\\w+$`))
+
+      const res = await fetch(`http://[::1]:${port}/__estela/`)
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain('Estela')
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('refuses --no-auth with a non-loopback --host', async () => {
+    const result = await run(process.execPath, [ctx.bin, '--no-auth', '--host', '0.0.0.0'], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, openLogPath(ctx, 'no-auth-host')),
+    })
+    expect(result.code).toBe(1)
+    expect(result.stderr).toContain('--no-auth cannot be used with a non-loopback --host')
+  })
+
+  it('build --out-dir refuses non-empty directories while allowing rebuilds over an earlier report', async () => {
+    const nonEmptyDir = join(ctx.root, 'build-non-empty')
+    await mkdir(nonEmptyDir, { recursive: true })
+    const keepFile = join(nonEmptyDir, 'keep.txt')
+    await writeFile(keepFile, 'do-not-delete', 'utf8')
+
+    const refused = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', nonEmptyDir], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, openLogPath(ctx, 'build-nonempty')),
+    })
+    expect(refused.code).toBe(1)
+    expect(refused.stderr).toContain('Could not write build output:')
+    expect(await readFile(keepFile, 'utf8')).toBe('do-not-delete')
+
+    const reportDir = join(ctx.root, 'build-rebuild')
+    const first = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, openLogPath(ctx, 'build-first')),
+    })
+    expect(first.code, first.stderr).toBe(0)
+
+    const rebuild = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
+      cwd: ctx.installDir,
+      env: smokeEnv(ctx, openLogPath(ctx, 'build-second')),
+    })
+    expect(rebuild.code, rebuild.stderr).toBe(0)
+    expect(await readdir(reportDir)).toEqual(['index.html'])
+
+    const notDirChild = await run(
+      process.execPath,
+      [ctx.bin, 'build', ctx.claudePlain, '--out-dir', join(keepFile, 'nested')],
+      {
+        cwd: ctx.installDir,
+        env: smokeEnv(ctx, openLogPath(ctx, 'build-enotdir')),
+      },
+    )
+    expect(notDirChild.code).toBe(1)
+    expect(notDirChild.stderr).toContain('Could not write build output:')
   })
 })
