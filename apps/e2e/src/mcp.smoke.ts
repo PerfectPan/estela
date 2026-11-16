@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
-import { lanAddress, openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts'
+import { expectCleanOutput, lanAddress, openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts'
 import { buildFixtureHome } from './fixture-home.ts'
 import { repo } from './prepare-run.ts'
 
@@ -182,10 +182,7 @@ describe('mcp without a path: the session catalog', () => {
   })
 
   it('stdout carries only protocol and stderr no escape sequences', () => {
-    for (const line of client.lines()) {
-      expect(() => JSON.parse(line), line).not.toThrow()
-    }
-    expect(server.output().stderr).not.toContain('\u001B')
+    expectCleanOutput(client.lines(), server.output().stderr)
   })
 })
 

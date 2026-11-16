@@ -8,7 +8,7 @@ type Decompress = NonNullable<Platform['decompress']>
 type PlatformSqlite = NonNullable<Platform['sqlite']>
 
 /** Cap decompressed bytes across all frames of a compressed session file (e.g. `.jsonl.zst`). */
-export const MAX_DECOMPRESSED_BYTES = 512 * 1024 * 1024
+const MAX_DECOMPRESSED_BYTES = 512 * 1024 * 1024
 
 /** Cap canonical `.trace.json` files loaded wholly into memory, in megabytes. */
 export const MAX_CANONICAL_TRACE_MB = 256

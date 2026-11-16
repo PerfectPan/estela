@@ -120,7 +120,7 @@ function sanitizeTtyKeepSgr(text: string): string {
 }
 
 /** `~` for the home directory, only on lines that DevFrame logs. */
-export function devframeTilde(homeDir: string): (text: string) => string {
+function devframeTilde(homeDir: string): (text: string) => string {
   return text =>
     text.includes('[devframe]')
       ? text

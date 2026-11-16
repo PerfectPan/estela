@@ -1,5 +1,5 @@
 /** Full events kept by the inspector: a full output can be megabytes. */
-export const EVENT_CACHE_SIZE = 20
+const EVENT_CACHE_SIZE = 20
 
 /**
  * `load` behind a small LRU of `size` promises. A hit moves the entry to the newest end; a

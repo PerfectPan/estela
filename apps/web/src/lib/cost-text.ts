@@ -33,7 +33,7 @@ function reasonText(reason: UnpricedReason, models: readonly string[]): string {
 }
 
 /** Why requests are unpriced: one reason as it is, several with their counts. */
-export function unpricedText(total: CostTotal): string {
+function unpricedText(total: CostTotal): string {
   const present = UNPRICED_REASONS.filter(reason => total.unpriced[reason] > 0)
   if (present.length === 1) {
     return reasonText(present[0]!, total.unpricedModels)

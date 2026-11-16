@@ -50,7 +50,7 @@ const sourcePointerSchema = z.object({
  * Path of a value `toView` shortened: object keys as strings, array indexes as
  * numbers. `payload.$truncated` holds these for each shortened event.
  */
-export const truncatedPathSchema = z.array(z.union([z.string(), z.number()]))
+const truncatedPathSchema = z.array(z.union([z.string(), z.number()]))
 export type TruncatedPath = z.infer<typeof truncatedPathSchema>
 
 /** What a view trace (`toView`) adds to every payload. */
@@ -269,7 +269,7 @@ const traceSessionSchema = z.object({
  * One entry of `Trace.skipped`: a log record that became no event, named by file and line. The kit's `SkippedRecord`
  * carries a whole source pointer instead; a view trace merges the entries of one file and reason into one.
  */
-export const skippedEntrySchema = z.object({
+const skippedEntrySchema = z.object({
   line: z.number(),
   file: z.string(),
   reason: z.string(),
@@ -278,7 +278,7 @@ export const skippedEntrySchema = z.object({
 })
 export type SkippedEntry = z.infer<typeof skippedEntrySchema>
 
-export const viewInfoSchema = z.object({
+const viewInfoSchema = z.object({
   /** String cap used: 4,096 unless the view would exceed `budgetBytes`. */
   maxString: z.number(),
   /** Set by `fitView`: the byte budget the view was fitted to. */

@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { execFile } from 'node:child_process'
-import { rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
+import { writeTranscriptFixture } from './transcript-fixture.ts'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -99,18 +100,13 @@ test('a click on a subagent lane selects its request, and Shift-click there pick
     request('s3', 900, 'sub'),
     request('q2', 1500),
   ].map((event, seq) => ({ ...event, seq, ts: 1000 * (seq + 1), source: { ...source, line: seq + 1 } }))
-  await writeFile(
+  await writeTranscriptFixture({
     file,
-    JSON.stringify({
-      schema: 'estela',
-      agent: 'claude-code',
-      session: { id: 'compare-sub-lane' },
-      capabilities: ['subagents'],
-      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Worker' }],
-      events,
-      skipped: [],
-    }),
-  )
+    sessionId: 'compare-sub-lane',
+    capabilities: ['subagents'],
+    agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Worker' }],
+    events,
+  })
   const center = async (bar: Locator) => {
     const box = (await bar.boundingBox())!
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 }

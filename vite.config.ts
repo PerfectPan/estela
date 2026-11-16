@@ -66,6 +66,8 @@ export default {
       ...lint.rules,
       // Vitest's `expect(value, message)` takes a failure message.
       'vitest/valid-expect': ['error', { maxArgs: 2 }],
+      // The smoke suites assert through the shared `expectCleanOutput`; type-level tests assert through expectTypeOf.
+      'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', 'expectTypeOf', 'expectCleanOutput'] }],
     },
     overrides: [
       ...lint.overrides,

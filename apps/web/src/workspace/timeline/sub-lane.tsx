@@ -14,6 +14,25 @@ function barWidth(bar: Bar): number {
   return Math.min(7, 3 + bar.count)
 }
 
+/**
+ * The highlight ring around one bar: the compare pick is dashed, the selection solid. A plain function
+ * returning JSX keeps the rects in the same `<g>` the bars draw into.
+ */
+const ring = (bar: Bar, y: number, stroke: string, dashed?: boolean, testId?: string) => (
+  <rect
+    x={bar.x - 2.5}
+    y={y - 6.5}
+    width={barWidth(bar) + 5}
+    height="13"
+    rx="3"
+    fill="none"
+    stroke={stroke}
+    stroke-width="1.25"
+    stroke-dasharray={dashed ? '2 2' : undefined}
+    data-testid={testId}
+  />
+)
+
 export function SubLane(props: {
   draw: LaneDraw
   index: number
@@ -71,36 +90,8 @@ export function SubLane(props: {
           />
         )}
       </For>
-      <Show when={compared()}>
-        {bar => (
-          <rect
-            x={bar().x - 2.5}
-            y={y() - 6.5}
-            width={barWidth(bar()) + 5}
-            height="13"
-            rx="3"
-            fill="none"
-            stroke="var(--muted-foreground)"
-            stroke-width="1.25"
-            stroke-dasharray="2 2"
-            data-testid="compare-ring"
-          />
-        )}
-      </Show>
-      <Show when={selected()}>
-        {bar => (
-          <rect
-            x={bar().x - 2.5}
-            y={y() - 6.5}
-            width={barWidth(bar()) + 5}
-            height="13"
-            rx="3"
-            fill="none"
-            stroke="var(--foreground)"
-            stroke-width="1.5"
-          />
-        )}
-      </Show>
+      <Show when={compared()}>{bar => ring(bar(), y(), 'var(--muted-foreground)', true, 'compare-ring')}</Show>
+      <Show when={selected()}>{bar => ring(bar(), y(), 'var(--foreground)')}</Show>
       <Show when={props.draw.spawn}>
         {spawn => (
           <path

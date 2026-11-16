@@ -63,7 +63,7 @@ function snapshot(uuid: string, timestamp: string, withTools: boolean): string {
  * compaction (pre 3,500, post 400), and rise again. `prompts` are extra user prompts at the end.
  * With `snapshots`, prompt snapshots record the system prompt before the first request and the tool list after it.
  */
-export function risingSession(cwd: string, prompts: string[] = [], snapshots = false): string {
+function risingSession(cwd: string, prompts: string[] = [], snapshots = false): string {
   let clock = 0
   const at = () => new Date(Date.UTC(2026, 0, 1) + 1000 * clock++).toISOString()
   const user = (uuid: string, content: string) =>

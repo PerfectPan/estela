@@ -1,5 +1,5 @@
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
-import { fold, mainAgentId, projectLanes, projectRequests, projectTurns, summaryOf } from '@rivus/estela-kernel'
+import { fold, projectLanes, projectRequests, projectTurns, summaryOf } from '@rivus/estela-kernel'
 import {
   FIELD_CHARS,
   ITEM_IDS,
@@ -29,7 +29,7 @@ const NUMBERS = [
 ] as const
 type NumberName = (typeof NUMBERS)[number]
 
-export interface LaneItem {
+interface LaneItem {
   id: string
   parentId?: string
   title?: string
@@ -354,9 +354,4 @@ export function listRequests(
   const out: ListPage & { requests: RequestItem[] } = { ...base, requests: page.items }
   put(out, 'nextOffset', page.nextOffset)
   return out
-}
-
-/** The lane an event belongs to, as the tools show it. */
-export function laneOfEvent(trace: Trace, event: TraceEvent, ids: TraceIds): string {
-  return ids.lane(event.agentId ?? mainAgentId(trace))
 }

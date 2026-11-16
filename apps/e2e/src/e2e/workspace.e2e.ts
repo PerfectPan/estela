@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
-import { rm, writeFile } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
+import { writeTranscriptFixture } from './transcript-fixture.ts'
 import { join } from 'node:path'
 import { activePanel, ctx, expect, generateTrace, openWorkspace, test } from './harness.ts'
 
@@ -20,18 +21,13 @@ test('lane layout preserves selection, folds with mouse and keyboard, and retain
     { id: 'p2', kind: 'user', payload: { text: 'second' } },
     { id: 'h2', kind: 'hook', agentId: 'sub', payload: { type: 'hook_success' } },
   ].map((event, seq) => ({ ...event, seq, ts: 1000 * (seq + 1), source: { ...source, line: seq + 1 } }))
-  await writeFile(
+  await writeTranscriptFixture({
     file,
-    JSON.stringify({
-      schema: 'estela',
-      agent: 'claude-code',
-      session: { id: 'lane-ui' },
-      capabilities: ['subagents', 'hooks'],
-      agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Worker' }],
-      events,
-      skipped: [],
-    }),
-  )
+    sessionId: 'lane-ui',
+    capabilities: ['subagents', 'hooks'],
+    agents: [{ id: 'main' }, { id: 'sub', parentId: 'main', spawnEventId: 'spawn', title: 'Worker' }],
+    events,
+  })
   await openWorkspace(page, launch, file)
   const ledger = page.getByTestId('ledger')
   const spawn = ledger.locator('[data-row-type=subagent]').first()

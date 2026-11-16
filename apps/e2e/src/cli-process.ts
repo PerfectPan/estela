@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
+import { expect } from 'vite-plus/test'
 
 export interface RunResult {
   code: number
@@ -146,6 +147,14 @@ export async function waitFor(what: string, check: () => boolean, timeoutMs = 30
 export function readyUrl(text: string): { base: string; traceId: string } | undefined {
   const match = /(http:\/\/localhost:\d+\/__estela\/)#\/s\/([0-9a-f]+)/.exec(text)
   return match ? { base: match[1]!, traceId: match[2]! } : undefined
+}
+
+/** A smoke run's stdout is line-delimited JSON, and its stderr carries no ANSI escape. */
+export function expectCleanOutput(lines: readonly string[], stderr: string): void {
+  for (const line of lines) {
+    expect(() => JSON.parse(line), line).not.toThrow()
+  }
+  expect(stderr).not.toContain('\u001B')
 }
 
 /** A non-internal IPv4 address of this machine, when it has one: how another machine on the LAN reaches it. */
