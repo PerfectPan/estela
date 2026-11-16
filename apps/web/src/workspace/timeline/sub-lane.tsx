@@ -15,7 +15,6 @@ function barWidth(bar: Bar): number {
   return Math.min(7, 3 + bar.count)
 }
 
-
 export function SubLane(props: {
   draw: LaneDraw
   index: number
@@ -74,7 +73,16 @@ export function SubLane(props: {
         )}
       </For>
       <Show when={compared()}>
-        {bar => <Ring x={bar().x - 2.5} y={y() - 6.5} width={barWidth(bar()) + 5} stroke="var(--muted-foreground)" dashed data-testid="compare-ring" />}
+        {bar => (
+          <Ring
+            x={bar().x - 2.5}
+            y={y() - 6.5}
+            width={barWidth(bar()) + 5}
+            stroke="var(--muted-foreground)"
+            dashed
+            data-testid="compare-ring"
+          />
+        )}
       </Show>
       <Show when={selected()}>
         {bar => <Ring x={bar().x - 2.5} y={y() - 6.5} width={barWidth(bar()) + 5} stroke="var(--foreground)" />}
