@@ -20,6 +20,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Keeps HEAD^1 for the release intent check below.
+          fetch-depth: 2
       # Installs the pnpm from `packageManager` and a supported Node.js 26 release, restores the pnpm store cache
       # keyed on the lockfile, and runs `pnpm install --frozen-lockfile`.
       - uses: pnpm/setup@v3
@@ -42,6 +45,11 @@ jobs:
         uses: PerfectPan/gh-repo-checks@v1
         with:
           check: release-plan
+      # A pull request that changes docs/reference/public-interface.md must add a changeset that releases
+      # @rivus/estela. HEAD is GitHub's merge commit, so HEAD^1 to HEAD is the pull request's change.
+      - name: Release intent of public interface changes
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-release-intent.mjs HEAD^1
       - name: Conventional PR title
         if: github.event_name == 'pull_request'
         uses: PerfectPan/gh-repo-checks@v1

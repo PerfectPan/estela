@@ -7,6 +7,7 @@ import { homeDir } from '@rivus/estela-runtime-node'
 import { BASE_PATH, type OpenedSession, type SessionCatalog } from '@rivus/estela-server'
 import { createDevServer } from 'devframe/adapters/dev'
 import { createEstelaServer } from '../../server.ts'
+import { closeOnSignal } from '../close-on-signal.ts'
 import { CliError, isListenFailure, sanitizeInline } from '../failure.ts'
 import { createServerOriginGate, dialableOrigin, secureDevframeDir, unbracketHost } from '../host.ts'
 import { openBrowser } from '../open-browser.ts'
@@ -39,8 +40,9 @@ export interface BrowserPlan {
 }
 
 /**
- * The CLI opens the browser itself (because DevFrame rewrites `127.0.0.1` to `localhost` and
- * re-encodes `#/s/<traceId>` fragments when appending `#devframe_otp=`). Launches ride `?s=<traceId>`.
+ * The CLI opens the browser itself (because DevFrame opens `localhost` for `127.0.0.1` and the
+ * wildcard hosts, and re-encodes `#/s/<traceId>` fragments when appending `#devframe_otp=`).
+ * Launches ride `?s=<traceId>`.
  */
 export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>): BrowserPlan {
   return {
@@ -63,7 +65,7 @@ export function sanitizeAuthBannerInfo(info: AuthBannerInfo): AuthBannerInfo {
   }
 }
 
-/** Rewrites DevFrame's resolved origin to preserve explicit loopback hosts (`127.0.0.1`, `[::1]`) under `BASE_PATH`. */
+/** Rewrites DevFrame's resolved origin to the {@link dialableOrigin} of `host` under `BASE_PATH`. */
 export function resolveAuthBannerUrl(resolvedOrigin: string, host: string): string {
   try {
     const parsed = new URL(resolvedOrigin)
@@ -214,6 +216,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     redacts: input.redacts,
     log: sayStoreWarning,
   })
+  const stopClosingOnSignal = closeOnSignal(() => server.close())
   const catalog = server.catalog!
   if (catalog.indexUnavailable) {
     sayWarning(`Session index unavailable: ${catalog.indexUnavailable}; running without it`)
@@ -259,7 +262,8 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
           host: bindHost,
           // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
           port: input.port,
-          mcp: input.mcp === true,
+          // As on stdio: DevFrame's shared-state tool would expose the browser's session signal, which tells an agent nothing.
+          mcp: input.mcp === true ? { exposeSharedState: false } : false,
           auth: authSetup.auth,
           allowedOrigins: originGate.registry,
           openBrowser: false,
@@ -277,6 +281,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
       isListenFailure,
     )
   } catch (cause) {
+    stopClosingOnSignal()
     server.close()
     if (cause instanceof CliError) {
       throw cause

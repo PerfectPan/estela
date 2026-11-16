@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process'
 import type { SmokeContext } from './global-setup.ts'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { expect } from 'vite-plus/test'
@@ -154,4 +155,11 @@ export function expectCleanOutput(lines: readonly string[], stderr: string): voi
     expect(() => JSON.parse(line), line).not.toThrow()
   }
   expect(stderr).not.toContain('\u001B')
+}
+
+/** A non-internal IPv4 address of this machine, when it has one: how another machine on the LAN reaches it. */
+export function lanAddress(): string | undefined {
+  return Object.values(networkInterfaces())
+    .flat()
+    .find(entry => entry?.family === 'IPv4' && !entry.internal)?.address
 }

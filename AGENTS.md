@@ -45,6 +45,7 @@ Generic inspect DevTool for agent session logs. Not a harness. Not dsh Trajector
 ## Tooling
 
 - pnpm workspace. Workspace settings and the shared external versions (`catalog:`) live in the root `pnpm-workspace.yaml`; Changesets versioning lives in `.changeset/config.json`.
+- Installs use the public npm registry (`registry` in `pnpm-workspace.yaml`), not a mirror from `~/.npmrc`.
 - UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
 - The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each workspace package has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web`); `tsc` stays the type check. Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
 - Put unit tests next to the code they test (for TypeScript, `foo.test.ts` beside `foo.ts`; other languages follow their own convention). Integration tests, which cross modules, run a built artifact, or go through an external boundary such as HTTP or a database, live in the package's `test/` directory, with shared fixtures under `test/fixtures/`.
@@ -77,6 +78,7 @@ gh repo-checks pr-title "<title>"
 gh repo-checks pr-body pr-body.md
 pnpm install
 gh repo-checks release-plan
+node scripts/check-release-intent.mjs
 node scripts/format.mjs --check
 node scripts/lint-scripts.mjs
 pnpm lint

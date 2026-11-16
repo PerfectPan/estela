@@ -1,4 +1,4 @@
-import type { TimelineData } from './timeline-data.ts'
+import type { LaneDraw, TimelineData } from './timeline-data.ts'
 import type { TimeRange } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { translate as t } from '@/i18n/locale.ts'
@@ -90,13 +90,26 @@ export function Timeline(props: {
     return event.clientX - box.left
   }
 
+  function localY(event: PointerEvent): number {
+    const box = svg!.getBoundingClientRect()
+    return event.clientY - box.top
+  }
+
   function commit(next: TimeRange): void {
     props.onRange(isFullRange(next, scale()) ? undefined : next)
   }
 
-  function nearestRequest(x: number): string | undefined {
+  /** The lane drawn at `y`: the main lane above the subagent rows, else the row within half a lane step. */
+  function laneAt(y: number): LaneDraw | undefined {
+    if (subs().length === 0 || y < LAYOUT.firstLane - LAYOUT.laneStep / 2) {
+      return props.data.main
+    }
+    return subs()[Math.round((y - LAYOUT.firstLane) / LAYOUT.laneStep)]
+  }
+
+  function nearestRequest(lane: LaneDraw, x: number): string | undefined {
     let best: { id: string; gap: number } | undefined
-    for (const bar of props.data.main.bars) {
+    for (const bar of lane.bars) {
       const gap = Math.abs(xOf(scale(), bar.ts) - x)
       if (gap <= 4 && (!best || gap < best.gap)) {
         best = { id: bar.id, gap }
@@ -114,6 +127,7 @@ export function Timeline(props: {
       return
     }
     const startX = localX(event)
+    const lane = laneAt(localY(event))
     const shift = event.shiftKey
     const anchor = tsOf(scale(), startX)
     let moved = false
@@ -134,9 +148,9 @@ export function Timeline(props: {
         if (moved) {
           return
         }
-        const id = nearestRequest(startX)
-        // Compare only from a selected main-lane request: the bars are that lane's, and Compare stays on one lane.
-        const fromRequest = props.data.main.bars.some(bar => bar.id === props.selectedId)
+        const id = lane ? nearestRequest(lane, startX) : undefined
+        // Compare stays on one lane: only from a selected request on the lane that was clicked.
+        const fromRequest = lane?.bars.some(bar => bar.id === props.selectedId) === true
         if (id && shift && fromRequest && props.selectedId !== id) {
           props.onCompare(id)
         } else if (id) {
@@ -257,6 +271,8 @@ export function Timeline(props: {
                 draw={draw}
                 index={index()}
                 scale={scale()}
+                selectedId={props.selectedId}
+                compareId={props.compareId}
                 fit={(text, room) => fitMeasured(text, room, measureLabel)}
               />
             )}

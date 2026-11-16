@@ -2,6 +2,11 @@ packages:
   - apps/*
   - packages/*
 
+# Installs resolve from the public npm registry, as in CI, whatever default registry ~/.npmrc names (its
+# scoped @scope:registry entries and auth tokens still apply): the release-age check reads registry
+# metadata, and a lagging mirror fails it.
+registry: https://registry.npmjs.org/
+
 # Rush installed with autoInstallPeers false, and its comment warns against the invisible
 # heuristic; pnpm 8+ defaults to true, so this stays explicit.
 autoInstallPeers: false
@@ -28,7 +33,7 @@ allowBuilds:
 catalogMode: strict
 catalog:
   '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.8.0
-  '@rivus/agent-kit': 0.24.1
+  '@rivus/agent-kit': 0.25.0
   '@types/node': ^24.19.2
   devframe: 1.3.3
   es-toolkit: 1.53.2

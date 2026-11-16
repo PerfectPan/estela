@@ -1,19 +1,33 @@
 import type { LaneDraw } from './timeline-data.ts'
-import type { TimeScale } from '@/lib/timeline-scale.ts'
+import type { Bar, TimeScale } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo } from 'solid-js'
 import { escapeBidi } from '@/lib/preview.ts'
-import { bucketBars, xOf } from '@/lib/timeline-scale.ts'
+import { barHolding, bucketBars, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
+
+/** Requests closer than this many px share one bar. */
+const BAR_GAP = 5
+
+/** A bucket's bar is wider the more requests it holds. */
+function barWidth(bar: Bar): number {
+  return Math.min(7, 3 + bar.count)
+}
 
 export function SubLane(props: {
   draw: LaneDraw
   index: number
   scale: TimeScale
   fit: (text: string, width: number) => string
+  selectedId?: string
+  /** The request the selected one is compared with, drawn with a dashed ring. */
+  compareId?: string
 }) {
   const y = () => LAYOUT.firstLane + LAYOUT.laneStep * props.index
-  const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, 5))
+  const bars = createMemo(() => bucketBars(props.draw.bars, props.scale, BAR_GAP))
+  const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale, BAR_GAP)
+  const selected = createMemo(() => barOf(props.selectedId))
+  const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
   const title = () => escapeBidi(props.draw.lane.title ?? props.draw.lane.id)
   const label = () => props.fit(title(), props.scale.x0 - LAYOUT.labelX - 12)
   const span = () => {
@@ -49,13 +63,44 @@ export function SubLane(props: {
           <rect
             x={bar.x}
             y={y() - 4}
-            width={Math.min(7, 3 + bar.count)}
+            width={barWidth(bar)}
             height="8"
             rx="2"
             fill="var(--kind-subagent)"
+            data-marker="subagent-request"
           />
         )}
       </For>
+      <Show when={compared()}>
+        {bar => (
+          <rect
+            x={bar().x - 2.5}
+            y={y() - 6.5}
+            width={barWidth(bar()) + 5}
+            height="13"
+            rx="3"
+            fill="none"
+            stroke="var(--muted-foreground)"
+            stroke-width="1.25"
+            stroke-dasharray="2 2"
+            data-testid="compare-ring"
+          />
+        )}
+      </Show>
+      <Show when={selected()}>
+        {bar => (
+          <rect
+            x={bar().x - 2.5}
+            y={y() - 6.5}
+            width={barWidth(bar()) + 5}
+            height="13"
+            rx="3"
+            fill="none"
+            stroke="var(--foreground)"
+            stroke-width="1.5"
+          />
+        )}
+      </Show>
       <Show when={props.draw.spawn}>
         {spawn => (
           <path

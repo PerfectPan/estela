@@ -154,30 +154,66 @@ export interface Bar {
 }
 
 /**
+ * Each input with its x and the index of the bucket it falls in, in `inputs` order: a bucket takes
+ * every following input less than `minGap` px after the input that opened it.
+ */
+function* bucketed(
+  inputs: readonly BarInput[],
+  scale: TimeScale,
+  minGap: number,
+): Generator<{ input: BarInput; x: number; bucket: number }> {
+  let bucket = -1
+  let column = Number.NEGATIVE_INFINITY
+  for (const input of inputs) {
+    const x = xOf(scale, input.ts)
+    if (bucket < 0 || x - column >= minGap) {
+      bucket += 1
+      column = x
+    }
+    yield { input, x, bucket }
+  }
+}
+
+/**
  * One bar per request, or, when requests are closer than `minGap` px, one bar
  * per `minGap` column holding the largest recorded value. Keeps the SVG small
  * for sessions with thousands of requests.
  */
 export function bucketBars(inputs: readonly BarInput[], scale: TimeScale, minGap: number): Bar[] {
   const out: Bar[] = []
-  let column = Number.NEGATIVE_INFINITY
-  for (const input of inputs) {
-    const x = xOf(scale, input.ts)
-    const last = out.at(-1)
-    if (last && x - column < minGap) {
-      last.count += 1
-      if (input.tokens !== undefined && (last.tokens === undefined || input.tokens > last.tokens)) {
-        last.tokens = input.tokens
-        last.id = input.id
-      }
+  for (const { input, x, bucket } of bucketed(inputs, scale, minGap)) {
+    const bar = out[bucket]
+    if (!bar) {
+      out.push({ x, id: input.id, count: 1, ...(input.tokens !== undefined ? { tokens: input.tokens } : {}) })
       continue
     }
-    column = x
-    const bar: Bar = { x, id: input.id, count: 1 }
-    if (input.tokens !== undefined) {
+    bar.count += 1
+    if (input.tokens !== undefined && (bar.tokens === undefined || input.tokens > bar.tokens)) {
       bar.tokens = input.tokens
+      bar.id = input.id
     }
-    out.push(bar)
   }
   return out
+}
+
+/**
+ * The bar of `bars`, built by `bucketBars(inputs, scale, minGap)`, that holds request `id`: the
+ * bucket drawn for it, also when the bucket names another of its requests.
+ */
+export function barHolding(
+  bars: readonly Bar[],
+  inputs: readonly BarInput[],
+  id: string | undefined,
+  scale: TimeScale,
+  minGap: number,
+): Bar | undefined {
+  if (id === undefined) {
+    return undefined
+  }
+  for (const { input, bucket } of bucketed(inputs, scale, minGap)) {
+    if (input.id === id) {
+      return bars[bucket]
+    }
+  }
+  return undefined
 }

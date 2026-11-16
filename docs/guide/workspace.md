@@ -27,7 +27,7 @@ A number the agent cannot record shows "—" (see [Concepts](concepts.md#capabil
 
 One row per lane: the main agent first, then each subagent. Each request is a bar whose height is its recorded input tokens, so the bars show the context growing and dropping. A request without recorded usage is a hollow bar. Dots mark your prompts and tool calls, triangles mark failed tool calls, and a dashed vertical rule marks a compaction, labeled with the tokens before and after it when recorded.
 
-Drag across the timeline to select a time range; the ledger then shows only the events in it, and the header states the range and event count. The two range handles also move with the arrow keys (Shift for larger steps), Home, and End. Clicking a request bar selects that request. Shift-click on a main-lane bar picks it for [Compare](#compare).
+Drag across the timeline to select a time range; the ledger then shows only the events in it, and the header states the range and event count. The two range handles also move with the arrow keys (Shift for larger steps), Home, and End. Clicking a request bar, on the main lane or a subagent lane, selects that request. Shift-click on another bar of the selected request's lane picks it for [Compare](#compare); on another lane it selects that request instead.
 
 ## Ledger
 
@@ -54,7 +54,7 @@ Selecting an event opens it in the inspector. Its first line shows, for a reques
 
 Compare shows what changed in the model's context between two requests of the same lane. Select a request and open the Compare tab, or use "Compare with another request" in Model saw.
 
-The other request is, in order: the one you picked, while it is still another request of the same lane; else the previous request on the lane; for the first request of a lane, the next one. Pick another with the "Compared with" list (every other request of the lane with its input tokens), the "Previous request" and "Before the last compaction" shortcuts (the latter appears when a compaction precedes the selected request), or Shift-click on a main-lane bar of the timeline; the timeline then draws the compared request with a dashed ring. Requests on a subagent lane are picked from the list. The comparison always runs from the earlier request to the later one, and marks the selected one.
+The other request is, in order: the one you picked, while it is still another request of the same lane; else the previous request on the lane; for the first request of a lane, the next one. Pick another with the "Compared with" list (every other request of the lane with its input tokens), the "Previous request" and "Before the last compaction" shortcuts (the latter appears when a compaction precedes the selected request), or Shift-click on another bar of the same lane on the timeline; the timeline then draws the compared request with a dashed ring. The comparison always runs from the earlier request to the later one, and marks the selected one.
 
 The tab shows:
 
