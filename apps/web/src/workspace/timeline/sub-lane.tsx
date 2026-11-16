@@ -5,6 +5,7 @@ import { escapeBidi } from '@/lib/preview.ts'
 import { barHolding, bucketBars, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
+import { Ring } from './ring.tsx'
 
 /** Requests closer than this many px share one bar. */
 const BAR_GAP = 5
@@ -13,6 +14,7 @@ const BAR_GAP = 5
 function barWidth(bar: Bar): number {
   return Math.min(7, 3 + bar.count)
 }
+
 
 export function SubLane(props: {
   draw: LaneDraw
@@ -72,34 +74,10 @@ export function SubLane(props: {
         )}
       </For>
       <Show when={compared()}>
-        {bar => (
-          <rect
-            x={bar().x - 2.5}
-            y={y() - 6.5}
-            width={barWidth(bar()) + 5}
-            height="13"
-            rx="3"
-            fill="none"
-            stroke="var(--muted-foreground)"
-            stroke-width="1.25"
-            stroke-dasharray="2 2"
-            data-testid="compare-ring"
-          />
-        )}
+        {bar => <Ring x={bar().x - 2.5} y={y() - 6.5} width={barWidth(bar()) + 5} stroke="var(--muted-foreground)" dashed data-testid="compare-ring" />}
       </Show>
       <Show when={selected()}>
-        {bar => (
-          <rect
-            x={bar().x - 2.5}
-            y={y() - 6.5}
-            width={barWidth(bar()) + 5}
-            height="13"
-            rx="3"
-            fill="none"
-            stroke="var(--foreground)"
-            stroke-width="1.5"
-          />
-        )}
+        {bar => <Ring x={bar().x - 2.5} y={y() - 6.5} width={barWidth(bar()) + 5} stroke="var(--foreground)" />}
       </Show>
       <Show when={props.draw.spawn}>
         {spawn => (

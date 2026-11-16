@@ -1,6 +1,7 @@
 import type { TurnGroup } from '@/lib/ledger-model.ts'
 import { Show } from 'solid-js'
-import { ChevronDownIcon, ChevronRightIcon, EyeIcon } from '@/components/icons.tsx'
+import { EyeIcon } from '@/components/icons.tsx'
+import { CollapseChevron } from './collapse-chevron.tsx'
 import { locale, plural, translate as t } from '@/i18n/locale.ts'
 import { costBasisText, costShort } from '@/lib/cost-text.ts'
 import { formatDuration, formatNumber } from '@/lib/format.ts'
@@ -34,18 +35,7 @@ export function TurnHeader(props: {
   }
   return (
     <div class="flex h-full items-center gap-2.5 border-b border-border bg-secondary pr-4 pl-[18px]">
-      <button
-        type="button"
-        tabindex="-1"
-        class="grid size-[15px] shrink-0 place-items-center text-muted-foreground"
-        aria-hidden="true"
-        onClick={event => {
-          event.stopPropagation()
-          props.onToggle()
-        }}
-      >
-        {props.collapsed ? <ChevronRightIcon size={15} /> : <ChevronDownIcon size={15} />}
-      </button>
+      <CollapseChevron collapsed={props.collapsed} onToggle={props.onToggle} />
       <span class="min-w-[52px] shrink-0 text-[12.5px] font-semibold whitespace-nowrap text-foreground">
         {props.number === undefined ? t('ledger.beforePrompt') : t('ledger.turn', { index: props.number })}
       </span>
