@@ -5,7 +5,6 @@ import { escapeBidi } from '@/lib/preview.ts'
 import { barHolding, bucketBars, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
 import { FailedMarks } from './failed-marks.tsx'
-import { Ring } from './ring.tsx'
 
 /** Requests closer than this many px share one bar. */
 const BAR_GAP = 5
@@ -14,6 +13,25 @@ const BAR_GAP = 5
 function barWidth(bar: Bar): number {
   return Math.min(7, 3 + bar.count)
 }
+
+/**
+ * The highlight ring around one bar: the compare pick is dashed, the selection solid. A plain function
+ * returning JSX keeps the rects in the same `<g>` the bars draw into.
+ */
+const ring = (bar: Bar, y: number, stroke: string, dashed?: boolean, testId?: string) => (
+  <rect
+    x={bar.x - 2.5}
+    y={y - 6.5}
+    width={barWidth(bar) + 5}
+    height="13"
+    rx="3"
+    fill="none"
+    stroke={stroke}
+    stroke-width="1.25"
+    stroke-dasharray={dashed ? '2 2' : undefined}
+    data-testid={testId}
+  />
+)
 
 export function SubLane(props: {
   draw: LaneDraw
@@ -72,21 +90,8 @@ export function SubLane(props: {
           />
         )}
       </For>
-      <Show when={compared()}>
-        {bar => (
-          <Ring
-            x={bar().x - 2.5}
-            y={y() - 6.5}
-            width={barWidth(bar()) + 5}
-            stroke="var(--muted-foreground)"
-            dashed
-            data-testid="compare-ring"
-          />
-        )}
-      </Show>
-      <Show when={selected()}>
-        {bar => <Ring x={bar().x - 2.5} y={y() - 6.5} width={barWidth(bar()) + 5} stroke="var(--foreground)" />}
-      </Show>
+      <Show when={compared()}>{bar => ring(bar(), y(), 'var(--muted-foreground)', true, 'compare-ring')}</Show>
+      <Show when={selected()}>{bar => ring(bar(), y(), 'var(--foreground)')}</Show>
       <Show when={props.draw.spawn}>
         {spawn => (
           <path
