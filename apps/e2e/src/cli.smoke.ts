@@ -17,7 +17,7 @@ import {
   smokeEnv,
   start,
   waitFor,
-} from './cli-process.ts' 
+} from './cli-process.ts'
 
 const ctx = inject('smoke')
 

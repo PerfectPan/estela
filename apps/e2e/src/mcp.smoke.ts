@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
-import { expectCleanOutput, lanAddress, openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts' 
+import { expectCleanOutput, lanAddress, openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts'
 import { buildFixtureHome } from './fixture-home.ts'
 import { repo } from './prepare-run.ts'
 
