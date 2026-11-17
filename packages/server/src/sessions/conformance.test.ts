@@ -13,23 +13,26 @@ import {
 } from '@rivus/agent-kit/testing'
 import { afterAll, describe, expect, it } from 'vite-plus/test'
 import { loadSession } from './load-session.ts'
+import { toKitPath } from './session-target.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, '../../../..')
-const fixturesOf = (agent: string): string => join(repo, 'fixtures/sessions', agent, 'conformance')
+/** A path in the form the server hands the kit: the kit's conformance runner calls the adapters directly. */
+const kitJoin = (...parts: string[]): string => toKitPath(join(...parts))
+const fixturesOf = (agent: string): string => kitJoin(repo, 'fixtures/sessions', agent, 'conformance')
 const platform = createNodePlatform()
 
 /** Absolute paths for the session file and its side files. */
 function sessionsOf(root: string, sessions: ConformanceSession[]): ConformanceSession[] {
   return sessions.map(session => ({
     ...session,
-    path: join(root, session.path),
-    ...(session.files ? { files: session.files.map(file => join(root, file)) } : {}),
+    path: kitJoin(root, session.path),
+    ...(session.files ? { files: session.files.map(file => kitJoin(root, file)) } : {}),
     ...(session.recordKeys
       ? {
           recordKeys: session.recordKeys.map(key => {
             const at = key.indexOf('\0')
-            return `${join(root, key.slice(0, at))}${key.slice(at)}`
+            return `${kitJoin(root, key.slice(0, at))}${key.slice(at)}`
           }),
         }
       : {}),
@@ -150,7 +153,7 @@ function oversizedOf(agent: string): SessionAdapterFixtures['oversized'] {
   if (line === undefined) {
     return undefined
   }
-  const root = mkdtempSync(join(tmpdir(), `at-conformance-${agent}-`))
+  const root = toKitPath(mkdtempSync(join(tmpdir(), `at-conformance-${agent}-`)))
   overRoots.push(root)
   // The name each adapter's discover lists.
   const name =
@@ -163,7 +166,7 @@ function oversizedOf(agent: string): SessionAdapterFixtures['oversized'] {
           : agent === 'gemini-cli'
             ? 'session-over.jsonl'
             : 'session.jsonl'
-  const file = join(root, name)
+  const file = kitJoin(root, name)
   writeFileSync(file, oversizedSession(line))
   return { root, file }
 }

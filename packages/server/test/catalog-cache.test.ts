@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
 import { openSessionIndex } from '@rivus/estela-runtime-node'
@@ -244,10 +245,12 @@ describe('session catalog cache', () => {
       deferSummaries: true,
     })
     const row = (await redacted.listSessions()).rows[0]!
-    expect(row.title).toBe('Read ~/notes with [redacted]\nthen stop')
+    // Redaction keeps the separator after the home directory: `~\notes` on Windows.
+    const notes = join('~', 'notes')
+    expect(row.title).toBe(`Read ${notes} with [redacted]\nthen stop`)
     expect(row.firstPrompt).toBe(row.title)
     expect(JSON.stringify(await redacted.listSessions())).not.toContain(home)
-    expect(redacted.pickChoices()[0]?.label).toMatch(/^Read ~\/notes with \[redacted\] then stop · Fake · /)
+    expect(redacted.pickChoices()[0]?.label.startsWith(`Read ${notes} with [redacted] then stop · Fake · `)).toBe(true)
     const raw = new SessionCatalog({
       platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }),
       adapters: { fake: adapter },
@@ -272,28 +275,32 @@ describe('session catalog cache', () => {
     expect(row.lastActiveAt).toBeCloseTo((await stat(bad)).mtimeMs, 3)
   })
 
-  it('runs without the index when the cache directory is not writable', async () => {
-    const home = await tempHome()
-    await session(home, 'a.jsonl', 'Alpha')
-    const cache = join(home, 'cache')
-    await mkdir(cache)
-    await chmod(cache, 0o500)
-    try {
-      const catalog = new SessionCatalog({
-        platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
-        adapters: { fake: fakeAdapter(home, []) },
-      })
-      expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
-      expect(catalog.indexUnavailable).not.toContain(home)
-      expect(catalog.indexUnavailable).toContain('~/cache')
-      await catalog.whenIdle()
-      const listed = await catalog.listSessions({ query: 'Alp' })
-      expect(listed.rows[0]?.requests).toBe(1)
-      expect(listed.matches).toHaveLength(1)
-    } finally {
-      await chmod(cache, 0o700)
-    }
-  })
+  // chmod cannot make a directory read-only on Windows.
+  it.skipIf(process.platform === 'win32')(
+    'runs without the index when the cache directory is not writable',
+    async () => {
+      const home = await tempHome()
+      await session(home, 'a.jsonl', 'Alpha')
+      const cache = join(home, 'cache')
+      await mkdir(cache)
+      await chmod(cache, 0o500)
+      try {
+        const catalog = new SessionCatalog({
+          platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
+          adapters: { fake: fakeAdapter(home, []) },
+        })
+        expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
+        expect(catalog.indexUnavailable).not.toContain(home)
+        expect(catalog.indexUnavailable).toContain('~/cache')
+        await catalog.whenIdle()
+        const listed = await catalog.listSessions({ query: 'Alp' })
+        expect(listed.rows[0]?.requests).toBe(1)
+        expect(listed.matches).toHaveLength(1)
+      } finally {
+        await chmod(cache, 0o700)
+      }
+    },
+  )
 
   it('gives a file opened by path the same trace id as its list row', async () => {
     const home = await tempHome()

@@ -130,9 +130,10 @@ jobs:
           require-lockfile: true
       - name: Build Web once before the unit and smoke tests
         run: pnpm --filter @rivus/estela-web run build
-      # The unit suites do not depend on the CLI's Node.js, so they run once per system; --no-bail reports every package.
+      # The unit suites do not depend on the CLI's Node.js, so they run once per system. --no-bail and --no-sort
+      # report every package, including the dependents of one that failed.
       - if: matrix.node == '26'
-        run: pnpm -r --no-bail test
+        run: pnpm -r --no-bail --no-sort test
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
         run: pnpm run test:smoke

@@ -8,7 +8,7 @@ import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
 import { loadFailure } from '../sessions/read-failure.ts'
-import { projectName, traceIdOf, sessionTargetLabel } from '../sessions/session-target.ts'
+import { projectName, traceIdOf, sessionTargetLabel, toKitPath } from '../sessions/session-target.ts'
 import { sessionProviders } from '../sessions/adapters.ts'
 
 /** Server-side row. `path` never leaves the server; the browser gets `traceId`. */
@@ -88,10 +88,14 @@ export async function summarizeRow(
   adapters: SessionAdapters | undefined,
   target: SessionRef,
 ): Promise<SummarizeResult> {
-  const result = await summarizeSession(platform, target, {
-    ...(adapters ? { providers: sessionProviders(adapters) } : {}),
-    prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
-  })
+  const result = await summarizeSession(
+    platform,
+    { ...target, path: toKitPath(target.path) },
+    {
+      ...(adapters ? { providers: sessionProviders(adapters) } : {}),
+      prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
+    },
+  )
   if (!result.ok) {
     return { error: loadFailure(result.error, platform.home, sessionTargetLabel(target), target.path) }
   }
