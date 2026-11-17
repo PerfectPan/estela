@@ -391,6 +391,7 @@ describe('session catalog cache', () => {
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] },
     )
+    const holderExited = new Promise<void>(resolve => holder.once('exit', () => resolve()))
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     try {
       const started = performance.now()
@@ -412,6 +413,8 @@ describe('session catalog cache', () => {
       second.close()
     } finally {
       holder.kill()
+      // Windows keeps the holder's index files locked until it has exited, and the temp home goes after the test.
+      await holderExited
     }
   })
 
