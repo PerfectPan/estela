@@ -2,7 +2,7 @@
 
 A plan records the technical decisions and the detailed execution plan for one deliverable. The Spec says what behavior is required; the plan says how it is built and exactly what the implementer does, in order. Product work pairs a plan with one behavioral Spec. A technical refactor may use a plan alone.
 
-Each plan has a Chinese reading copy; see [Bilingual Specs And Plans](../../CONTRIBUTING.md#bilingual-specs-and-plans).
+Each plan has a Chinese reading copy; see [Bilingual Documentation](../../CONTRIBUTING.md#bilingual-documentation).
 
 There are no active plans. Delivered plans were retired after their lasting constraints moved into the [architecture overview](../architecture/overview.md), [`AGENTS.md`](../../AGENTS.md), the [public interface](../reference/public-interface.md), and the tests. Git history keeps the retired files.
 

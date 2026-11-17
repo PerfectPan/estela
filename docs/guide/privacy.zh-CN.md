@@ -1,8 +1,10 @@
 > 中文阅读版。以英文原文 docs/guide/privacy.md 为准。
 
+<!-- source-blob: 08101f9fedaec367dab67c3ee6a9cf2105d75846 -->
+
 # 隐私与脱敏
 
-Estela 在你的本机运行，不向任何地方发送数据。它只读取会话日志，从不写入。本页列出它保存的内容、脱敏移除的内容，以及不会移除的内容。
+Estela 在你的本机运行，不向任何地方发送数据。它读取会话日志，从不写入这些日志。本页列出它保存的内容、脱敏移除的内容，以及不会移除的内容。
 
 ## 留在本地的内容
 
@@ -37,8 +39,8 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 
 脱敏替换两类文本：
 
-- **你的主目录**在 Estela 识别的所有拼写形式下都会变为 `~`：普通路径、去掉前导 `/` 的形式、JSON 转义形式（`\/Users\/<name>`）、URL 编码形式、Claude Code 的短横线拼接目录名和 Grok 的 `%2F` 形式，以及 `~<name>`，不区分大小写，同时覆盖值和键。更长的名称（如 `/Users/<name>x` 或 `/Users/<name>.bak`）保留原样。在会话列表和 `--pick` 标签中，被截断在 80 或 500 个字符处的标题或首条提示词仍可能露出主目录路径的开头部分。
-- **具有已知前缀的 Token** 会变为 `[redacted]`：以 `sk-` 开头的密钥（OpenAI、Anthropic）、AWS 密钥 id（`AKIA`、`ASIA`）、GitHub 令牌（`ghp_`、`gho_`、`ghu_`、`ghs_`、`ghr_`、`github_pat_`）、Slack 令牌（`xoxa-`、`xoxb-`、`xoxp-`、`xoxr-`、`xoxs-`）、npm 令牌（`npm_`）以及 PEM 私钥块。
+- **你的主目录**在 Estela 识别的所有拼写形式下都会变为 `~`：普通路径、去掉前导 `/` 的形式、JSON 转义形式（`\/Users\/<name>`）、URL 编码形式、Claude Code 的短横线拼接目录名和 Grok 的 `%2F` 形式，以及 `~<name>`，不区分大小写，同时覆盖值和键。更长的名称（如 `/Users/<name>x` 或 `/Users/<name>.bak`）保留原样。在会话列表和 `--pick` 标签中，截断到 80 个字符的标题或截断到 500 个字符的首条提示词仍可能露出主目录路径的开头部分。
+- **具有已知前缀的令牌**会变为 `[redacted]`：以 `sk-` 开头的密钥（OpenAI、Anthropic）、AWS 密钥 id（`AKIA`、`ASIA`）、GitHub 令牌（`ghp_`、`gho_`、`ghu_`、`ghs_`、`ghr_`、`github_pat_`）、Slack 令牌（`xoxa-`、`xoxb-`、`xoxp-`、`xoxr-`、`xoxs-`）、npm 令牌（`npm_`）以及 PEM 私钥块。
 
 其余所有内容均原样保留：**脱敏只替换你的主目录、已知前缀的 API 密钥和 PEM 私钥块**，而任意密码、Bearer 令牌、会话正文和文件内容都会保留。**脱敏不会移除**的内容包括但不限于：AWS secret access key、`Authorization: Bearer …` 或 `Basic …` 的值、JWT、来自 `.env` 文件或 `env` 输出的 `PASSWORD=` 及其他 `KEY=value` 赋值、URL 中的凭据（`postgres://user:password@host`）、Stripe 密钥（`sk_live_`、`rk_live_`）、GitLab 令牌（`glpat-`）、Hugging Face 令牌（`hf_`）、Google API 密钥（`AIza…`）、Slack webhook URL，以及出现在主目录路径之外的你的用户名。如果代理在会话中运行了 `cat .env` 或 `env`，这些值就在其日志以及由日志生成的所有产物中。
 

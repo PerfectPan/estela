@@ -85,30 +85,18 @@ The execution plan tells the implementer exactly what to do: preconditions, a co
 
 Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make feature-specific technical decisions, but it cannot silently override current architecture. At completion, migrate lasting constraints into current-state docs and tests, then delete the completed Spec and plan in the final delivery PR. Keep unfinished scope visible.
 
-## Bilingual Specs And Plans
+## Bilingual Documentation
 
-Every active Spec and Plan has a Chinese reading copy beside it: `docs/specs/0001-foo.md` pairs with `docs/specs/0001-foo.zh-CN.md`, and `docs/plans/0001-foo.md` with `docs/plans/0001-foo.zh-CN.md`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking reviewers read the whole design.
-
-- The English file changes first; the Chinese copy follows in the same PR.
-- The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`
-- It keeps the English structure: the same headings at every level, the same scenario and decision IDs, the same table rows, and every code block and diagram copied unchanged.
-- It states the same content. It does not summarize, add, or settle an ambiguity the English leaves open.
-- Chinese prose uses plain statements and noun-phrase headings. Identifiers, paths, commands, and field names stay as written in English.
-- Templates and README files other than the root README have no Chinese copy; see [Bilingual README](#bilingual-readme).
-
-`node scripts/check-doc-translations.mjs` checks the pairing, the first line, heading counts per level, and code blocks. CI and the pre-commit hook run it. It cannot tell whether the prose says the same thing; reviewers check that.
-
-## Bilingual README
-
-The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is the source of truth for review and implementation.
+These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`, and every active Spec and Plan (`docs/specs/0001-foo.md` pairs with `docs/specs/0001-foo.zh-CN.md`). The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only: `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, the Spec and Plan READMEs and templates, the other READMEs (such as `apps/cli/README.md`), and the issue, PR, and MR templates.
 
 - The English file changes first; the Chinese copy follows in the same PR.
-- The Chinese copy starts with `> 中文阅读版。以英文原文 README.md 为准。`
-- It keeps the English structure: the same headings at every level, and every code block copied unchanged.
+- The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`, followed by a `<!-- source-blob: <hash> -->` line: the Git blob hash of the English file the copy was last checked against.
+- It keeps the English structure: the same headings at every level in the same order, the same scenario and decision IDs, the same table rows and columns, the same list items and links, and every code block and diagram copied unchanged.
+- A link to a document that has a Chinese copy points to the copy, and its anchor names the copy's Chinese heading; every other link stays as in English.
 - It states the same content. It does not summarize, add, or settle an ambiguity the English leaves open.
-- Chinese prose uses plain statements and noun-phrase headings. Identifiers, paths, commands, and field names stay as written in English.
+- Chinese prose uses plain statements and noun-phrase headings, full-width punctuation, and the terms of the UI glossary at the top of `apps/web/src/i18n/dictionary.zh-CN.ts`; a UI label is quoted as the Chinese UI shows it. Identifiers, paths, commands, field names, and product names stay as written in English.
 
-`node scripts/check-doc-translations.mjs` checks the README pair along with the Spec and Plan pairs.
+`node scripts/check-doc-translations.mjs` checks the pairing, the first line, headings, code blocks, tables, list items, links and anchors, and that no English file changed after its copy was recorded. CI and the pre-commit hook run it. When an English file changes, `git show <hash>` prints the text its copy last matched; carry the difference into the copy, then record it with `node scripts/check-doc-translations.mjs --write <English or Chinese path>...`. The check cannot tell whether the prose says the same thing; reviewers check that.
 
 ## Release Intent
 

@@ -55,8 +55,7 @@ Generic inspect DevTool for agent session logs. Not a harness. Not dsh Trajector
 - A PR that changes shipped files under `apps/` or `packages/` carries a changeset under `.changeset/`; rules in `CONTRIBUTING.md#release-intent`. Do not edit generated changelogs or add a hand-written root `CHANGELOG.md`.
 - Contribution workflow, Specs, and Plans live in `CONTRIBUTING.md`, `docs/specs/`, and `docs/plans/`. Do not copy the `technical-design-docs` skill into this repo.
 - File and directory names are kebab-case, and a code file has at most 500 lines; rules in `CONTRIBUTING.md#file-conventions`.
-- Every Spec and Plan ships with a `.zh-CN.md` reading copy in the same PR; rules in `CONTRIBUTING.md#bilingual-specs-and-plans`.
-- The root README ships with a `README.zh-CN.md` reading copy in the same PR; other READMEs and templates have none. Rules in `CONTRIBUTING.md#bilingual-readme`.
+- The root README, every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`, and every Spec and Plan ship with a `.zh-CN.md` reading copy updated in the same PR; every other document (`docs/README.md`, `docs/design/`, the other READMEs, and all templates) has none. Rules in `CONTRIBUTING.md#bilingual-documentation`.
 - Keep changes scoped to the task. Do not commit local config, credentials, generated logs, temporary workspaces, build artifacts, or machine-specific paths.
 
 ## Review Evidence

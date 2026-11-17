@@ -1,8 +1,10 @@
 > 中文阅读版。以英文原文 docs/guide/supported-agents.md 为准。
 
+<!-- source-blob: 2f3c65ac65cf0f6846504d8968a18550d722c499 -->
+
 # 支持的代理
 
-Estela 读取七个代理的日志。读取器位于 [`@rivus/agent-kit`](https://www.npmjs.com/package/@rivus/agent-kit) 0.24.1 中，已打包进 CLI。
+Estela 读取七个代理的日志。读取器位于 [`@rivus/agent-kit`](https://www.npmjs.com/package/@rivus/agent-kit) 0.25.0 中，已打包进 CLI。
 
 ## 会话位置
 

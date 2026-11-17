@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 docs/reference/export-formats.md 为准。
 
+<!-- source-blob: 60e079e2ce9b3985eb557ad267e1244b37c86f39 -->
+
 # 导出格式
 
 读者对象：使用其他工具读取 Estela 导出文件的人，或修改导出代码的人。本文档列出 `estela export-atif` 和 `estela export-otlp` 如何将会话映射到各自格式。对应代码为 `packages/kernel/src/export-atif.ts`、`export-atif-steps.ts` 和 `export-otlp.ts`；命令运行方式见[报告与导出](../guide/exports.zh-CN.md)。
@@ -57,7 +59,7 @@
 | 轮次时长 | 当前打开步骤的 `extra.estela.turnDurationMs` |
 | `hook`、`unknown` 及其他 `system` 事件 | 不生成步骤；列在当前打开步骤的 `extra.estela.hooks` 或 `extra.estela.unknown` 中 |
 | 被上下文压缩隐藏的事件 | 不生成步骤 |
-| 所在泳道上后续有上下文压缩的先前步骤 | `is_copied_context: true` |
+| 所在泳道上后续有上下文压缩的用户或代理步骤 | `is_copied_context: true` |
 | 每个步骤 | `extra.estela.eventIds`（规范事件 id；初始系统提示词步骤为空数组），分组时还包含 `extra.estela.requestId`。user 和 agent 步骤带有 `timestamp`（ISO 8601，取其首个事件的时间）；system 步骤（包括上下文压缩步骤）不含时间戳 |
 
 启动子代理的步骤会在 `observation.results[]` 中获得一项 `subagent_trajectory_ref: [{ trajectory_id: <lane id>, session_id }]`（当启动事件为工具调用时还带有该调用的 `source_call_id`）。没有任何可导出事件的子代理泳道会被省略，其引用也一并省略。

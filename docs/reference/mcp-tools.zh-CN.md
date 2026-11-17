@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 docs/reference/mcp-tools.md 为准。
 
+<!-- source-blob: 2622ad5af45d83548eb59a7b149313a86dfc9738 -->
+
 # MCP 工具参考
 
 读者对象：针对 `estela mcp` 编写 MCP 客户端的人，或修改工具的人。本页按照 `packages/server/src/agent-tools/` 中的代码定义（`inputs.ts`、`session-list.ts`、`trace-reads.ts`、`event-read.ts`、`bounds.ts`、`register.ts`），列出每个工具的输入 schema 和结果字段。服务器搭建方式见 [MCP 指南](../guide/mcp.zh-CN.md)；semver 覆盖范围见[公共接口](public-interface.zh-CN.md#mcp-工具)。
@@ -34,7 +36,7 @@
 | `estela_get_event` | `traceId`、`eventId`（必填，字符串 1–200）、`maxChars`（整数 256–20000）、`original`（布尔值） | | `maxChars` 2000，`original` false |
 | `estela_reconstruct` | `traceId`、`eventId`（必填，字符串 1–200） | | |
 
-`hasCompaction` 和 `hasFailedTools` 从不匹配代理不记录该计数的会话。当符合其他条件的会话尚未完成计数时，工具会先请求计算其计数并最多等待 5 秒；仍未完成计数的会话会被跳过并计入 `unsummarized`。
+`hasCompaction` 和 `hasFailedTools` 从不匹配代理不记录该计数的会话。当匹配的会话尚未完成计数时，工具会先请求计算其计数并最多等待 5 秒；仍未完成计数的会话会被跳过并计入 `unsummarized`。
 
 ## 结果
 
@@ -105,7 +107,7 @@
 | `estela_get_event` 中的字符串 | `maxChars`；若结果仍过大，`maxChars` 按 0.75 的比例逐级下调至 256，之后依次省略 `original` 和 `payload` |
 | `estela_reconstruct` 的 id 列表 | 每个列表保留最后 100 个 id，若结果仍超过上限则继续减半 |
 
-无论 `ESTELA_REDACT` 的取值如何，每个已记录的字符串都会先脱敏再由工具截断，因此工具自身的截断绝不会遗留主目录路径的一部分。会话标题和首条提示词是例外：它们到达工具时就已经在脱敏前被截断（分别为 80 和 500 个字符）。当它们末尾残留拼写为绝对路径、去掉前导 `/` 的路径或 JSON 转义路径的截断主目录路径时，工具会将其替换为 `~`；以其他形式拼写且在该处截断时仍可能露出用户名的开头部分（见[隐私与脱敏](../guide/privacy.zh-CN.md)）。
+无论 `ESTELA_REDACT` 的取值如何，每个已记录的字符串都会先脱敏再由工具截断，因此工具自身的截断绝不会遗留主目录路径的一部分。会话标题和首条提示词是例外：它们到达工具时就已经在脱敏前被截断（标题为 80 个字符，首条提示词为 500 个字符）。当它们末尾残留拼写为绝对路径、去掉前导 `/` 的路径或 JSON 转义路径的截断主目录路径时，工具会将其替换为 `~`；以其他形式拼写且在该处截断时仍可能露出用户名的开头部分（见[隐私与脱敏](../guide/privacy.zh-CN.md)）。
 
 ## 错误
 

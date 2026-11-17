@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 README.md 为准。
 
+<!-- source-blob: 70f6776a578532f6932fab5d6694271be6842d36 -->
+
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong>
 </p>
@@ -62,18 +64,18 @@ npx @rivus/estela
 | OpenCode | `~/.local/share/opencode/opencode.db` |
 | Pi | `~/.pi/agent/sessions/` |
 
-各代理的 home 覆盖变量都会生效。各代理日志记录的内容（系统提示词、工具定义、用量、子代理、上下文压缩）不同，见[支持的代理](docs/guide/supported-agents.zh-CN.md)。
+各代理的主目录覆盖变量都会生效。各代理日志记录的内容（系统提示词、工具定义、用量、子代理、上下文压缩）不同，见[支持的代理](docs/guide/supported-agents.zh-CN.md)。
 
 ## 隐私
 
-Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的 home 目录和部分 token 形式，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
+Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的主目录和部分令牌形式，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
 
 ## 文档
 
 - [用户指南](docs/guide/README.zh-CN.md)：入门、概念、工作区、报告与导出、MCP 工具、故障排查。
 - [公共接口](docs/reference/public-interface.zh-CN.md)：命令、选项、退出码、环境变量，以及 semver 覆盖的范围。
 - [导出格式](docs/reference/export-formats.zh-CN.md)：ATIF 和 OTLP 的映射。
-- [架构](docs/architecture/overview.zh-CN.md)、[开发设置](docs/development/setup.zh-CN.md)、[visual design](docs/design/README.md)、[contributing](CONTRIBUTING.md) 和 [security](SECURITY.md)。
+- [架构](docs/architecture/overview.zh-CN.md)、[开发设置](docs/development/setup.zh-CN.md)、[视觉设计](docs/design/README.md)、[贡献指南](CONTRIBUTING.md)和[安全策略](SECURITY.md)。
 
 ## 开发
 

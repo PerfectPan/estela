@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 docs/guide/getting-started.md 为准。
 
+<!-- source-blob: f8f35867a53fc9a5e7ce13eca5ee8ed592b7e325 -->
+
 # 入门
 
 ## 运行方式

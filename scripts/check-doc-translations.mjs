@@ -1,113 +1,23 @@
 #!/usr/bin/env node
-// Checks that every active Spec and Plan, and the root README, has a Chinese reading copy that
-// matches its structure. English is the source of truth.
-// See CONTRIBUTING.md#bilingual-specs-and-plans and CONTRIBUTING.md#bilingual-readme.
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+// Checks the Chinese reading copies against their English sources. English is the source of truth.
+// See CONTRIBUTING.md#bilingual-documentation. `--write <path>...` records the English text a checked copy matches.
 import process from 'node:process'
+// The workspace root installs no dependencies; root scripts use packages/schema's copy, as vite.config.ts does.
+import { runDocTranslations } from '../packages/schema/node_modules/@perfectpan/lint-config/doc-translations.js'
 
-const root = process.cwd()
-const dirs = ['docs/specs', 'docs/plans']
-const skip = new Set(['README.md', '0000-template.md'])
-const ZH = '.zh-CN.md'
-
-function banner(englishPath) {
-  return `> 中文阅读版。以英文原文 ${englishPath} 为准。`
-}
-
-/** Heading counts per level and fenced code blocks, ignoring headings inside fences. */
-function shape(text) {
-  const headings = [0, 0, 0, 0, 0, 0]
-  const fences = []
-  let fence = null
-  for (const line of text.split('\n')) {
-    const open = line.match(/^(`{3,}|~{3,})(.*)$/)
-    if (fence) {
-      if (open && open[1][0] === fence.marker[0] && open[1].length >= fence.marker.length && open[2].trim() === '') {
-        fences.push(fence.body.join('\n'))
-        fence = null
-      } else {
-        fence.body.push(line)
-      }
-      continue
-    }
-    if (open) {
-      fence = { marker: open[1], body: [`info:${open[2].trim()}`] }
-      continue
-    }
-    const h = line.match(/^(#{1,6})\s/)
-    if (h) {
-      headings[h[1].length - 1]++
-    }
-  }
-  return { headings, fences }
-}
-
-const problems = []
-let pairs = 0
-
-/** Checks one English file against its Chinese reading copy. */
-function checkPair(english, chinese) {
-  if (!existsSync(join(root, chinese))) {
-    problems.push(`${english}: missing Chinese reading copy ${chinese}`)
-    return
-  }
-  pairs++
-  const enText = readFileSync(join(root, english), 'utf8')
-  const zhText = readFileSync(join(root, chinese), 'utf8')
-  const first = zhText.split('\n').find(l => l.trim() !== '')
-  if (first !== banner(english)) {
-    problems.push(`${chinese}: first line must be: ${banner(english)}`)
-  }
-  const a = shape(enText)
-  const b = shape(zhText)
-  a.headings.forEach((count, i) => {
-    if (count !== b.headings[i]) {
-      problems.push(`${chinese}: ${b.headings[i]} level-${i + 1} headings, English has ${count}`)
-    }
-  })
-  if (a.fences.length !== b.fences.length) {
-    problems.push(`${chinese}: ${b.fences.length} code blocks, English has ${a.fences.length}`)
-  } else {
-    a.fences.forEach((body, i) => {
-      if (body !== b.fences[i]) {
-        problems.push(`${chinese}: code block ${i + 1} differs from English; code and diagrams are copied unchanged`)
-      }
-    })
-  }
-}
-
-for (const dir of dirs) {
-  const abs = join(root, dir)
-  if (!existsSync(abs)) {
-    continue
-  }
-  const names = readdirSync(abs).filter(n => n.endsWith('.md'))
-  for (const name of names) {
-    if (name.endsWith(ZH)) {
-      const english = name.slice(0, -ZH.length) + '.md'
-      if (!names.includes(english)) {
-        problems.push(`${dir}/${name}: no English source ${dir}/${english}`)
-      }
-      continue
-    }
-    if (skip.has(name)) {
-      continue
-    }
-    const en = `${dir}/${name}`
-    const zh = `${dir}/${name.slice(0, -3)}${ZH}`
-    checkPair(en, zh)
-  }
-}
-
-// The root README is the only README with a Chinese copy; see CONTRIBUTING.md#bilingual-readme.
-checkPair('README.md', `README${ZH}`)
-
-if (problems.length) {
-  console.error('check-doc-translations: failed')
-  for (const p of problems) {
-    console.error(`  - ${p}`)
-  }
-  process.exit(1)
-}
-console.log(`check-doc-translations: ok (${pairs} pair${pairs === 1 ? '' : 's'})`)
+process.exitCode = runDocTranslations({
+  sources: [
+    'README.md',
+    'docs/guide/*.md',
+    'docs/reference/*.md',
+    'docs/architecture/*.md',
+    'docs/development/*.md',
+    'docs/specs/*.md',
+    'docs/plans/*.md',
+  ],
+  translations: ['README.zh-CN.md', 'docs/**/*.zh-CN.md'],
+  exclude: ['docs/specs/README.md', 'docs/plans/README.md', 'docs/*/0000-template.md'],
+  translationOf: path => path.replace(/\.md$/, '.zh-CN.md'),
+  header: path => `> 中文阅读版。以英文原文 ${path} 为准。`,
+  stamp: true,
+})

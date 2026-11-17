@@ -35,7 +35,7 @@ A report is always redacted, whatever `ESTELA_REDACT` says, but redaction remove
 estela export-atif <session> --out trajectory.json
 ```
 
-Writes one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory and prints `Wrote <path>`. Without `--out` the file is `estela-<first 8 characters of the session id>.atif.json` in the working directory (adding `-2`, `-3`, … if that file or symlink already exists). With `--out`, Estela creates missing parent folders, overwrites an existing regular file, and refuses to write through a symbolic link (the same rules apply to `export-otlp`).
+Writes one [ATIF v1.8](https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md) trajectory and prints `Wrote <path>`. Without `--out` the file is `estela-<id>.atif.json` in the working directory, where `<id>` is the first 8 characters of the session id once everything but ASCII letters, digits, `_`, and `-` is removed (`session` when nothing is left), with `-2`, `-3`, … added if that file or symlink already exists. With `--out`, Estela creates missing parent folders, overwrites an existing regular file, and refuses to write through a symbolic link (the same rules apply to `export-otlp`).
 
 - One step per prompt, per model request with its reply and tool calls, and per compaction. Each step lists the Estela event ids it came from in `extra.estela.eventIds`.
 - Events a compaction removed produce no step; steps kept from before a compaction carry `is_copied_context: true`, and the compaction is a system step, with `extra.context_management` when the compaction records its trigger or token counts.
@@ -54,7 +54,7 @@ uv run --python 3.12 --with harbor python -m harbor.utils.trajectory_validator t
 estela export-otlp <session> --out session.otlp.json
 ```
 
-Writes one OTLP/JSON `ExportTraceServiceRequest` (default name `estela-<first 8 characters of the session id>.otlp.json`). The spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`: one `invoke_agent` span per agent lane, one `chat` span per model request with its usage and the messages the model saw, and one `execute_tool` span per tool call. Requests and tool calls a compaction later removed keep their spans; they are left out of the messages of the requests after the compaction. The OTLP export is experimental: the GenAI conventions have no release yet, so attribute names can change when Estela moves to a newer version. It carries no cost, because those conventions define no cost attribute.
+Writes one OTLP/JSON `ExportTraceServiceRequest` (default name `estela-<id>.otlp.json`, with `<id>` as for ATIF). The spans carry the OpenTelemetry GenAI attributes of `gen-ai-dev/1.42.0-dev`: one `invoke_agent` span per agent lane, one `chat` span per model request with its usage and the messages the model saw, and one `execute_tool` span per tool call. Requests and tool calls a compaction later removed keep their spans; they are left out of the messages of the requests after the compaction. The OTLP export is experimental: the GenAI conventions have no release yet, so attribute names can change when Estela moves to a newer version. It carries no cost, because those conventions define no cost attribute.
 
 Post the file to a backend yourself; Estela sends nothing. Langfuse accepts OTLP/JSON as it is:
 

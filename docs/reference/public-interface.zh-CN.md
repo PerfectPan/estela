@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 docs/reference/public-interface.md 为准。
 
+<!-- source-blob: 46e097e0cba16031975c9e541d338b8c384dd5b9 -->
+
 # 公共接口与兼容性
 
 读者对象：通过脚本调用 Estela 或将其接入其他工具的用户，以及决定版本升级幅度的维护者。本文档列出 `@rivus/estela` 的语义化版本控制（semver）覆盖范围、实验性部分以及不覆盖的部分。对已覆盖接口的改动必须在同一个 pull request 中同步更新本文档与[用户指南](../guide/README.zh-CN.md)。
@@ -51,7 +53,7 @@
 |---|---|---|
 | `ESTELA_PATH` | 所有命令的默认会话；为空字符串时视为未设置 | `apps/cli/src/entry/app.test.ts`；默认值写明于 `routes.test.ts` 固定的帮助文本中 |
 | `ESTELA_REDACT` | 设为 `0` 时关闭本地服务器及 ATIF 和 OTLP 导出的脱敏；报告和 MCP 结果始终脱敏 | `write-export.test.ts`、`packages/server/test/agent-tools.test.ts`（S18） |
-| `NO_COLOR` | 输出不含转义序列的纯文本行（即使 stdout 不是终端也是如此） | `apps/cli/src/entry/ui/terminal.test.ts`、`cli-smoke.test.ts` |
+| `NO_COLOR` | 输出不含转义序列的纯文本行（stdout 不是终端时也输出纯文本行） | `apps/cli/src/entry/ui/terminal.test.ts`、`cli-smoke.test.ts` |
 | `XDG_CACHE_HOME` | 会话索引的存放位置（`$XDG_CACHE_HOME/rivus-estela/`） | `packages/runtime-node` 索引测试 |
 | `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`DSH_HOME`、`GEMINI_CLI_HOME`、`GROK_HOME`、`XDG_DATA_HOME`、`PI_CODING_AGENT_DIR` | 各代理自身的主目录覆盖变量，按各代理的方式读取 | `@rivus/agent-kit` 中的会话读取器测试 |
 

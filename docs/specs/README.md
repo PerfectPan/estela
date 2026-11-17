@@ -2,7 +2,7 @@
 
 Active Specs define interactions, scope, failure behavior, compatibility, and acceptance scenarios. Pair each product Spec with a detailed Plan for the same deliverable. Split only for independently demonstrable outcomes.
 
-Each Spec has a Chinese reading copy; see [Bilingual Specs And Plans](../../CONTRIBUTING.md#bilingual-specs-and-plans).
+Each Spec has a Chinese reading copy; see [Bilingual Documentation](../../CONTRIBUTING.md#bilingual-documentation).
 
 There are no active Specs. Delivered Specs were retired after their behavior moved into the [user guide](../guide/README.md), the [public interface](../reference/public-interface.md), the [architecture overview](../architecture/overview.md), and the tests; the acceptance scenario IDs that tests still use are listed in [Development](../development/setup.md#acceptance-scenarios). Git history keeps the retired files.
 

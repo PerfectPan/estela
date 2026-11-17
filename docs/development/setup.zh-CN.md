@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
+<!-- source-blob: 543b585d6eea605bebded51fc0624e6e2e9cf8ba -->
+
 # 开发
 
 读者对象：在本地运行或测试查看器的开发者。
@@ -97,7 +99,7 @@ pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD
 | S2 | `estela <path>` 打开该会话的工作区 | smoke、e2e |
 | S3 | 主目录缺失的代理（没有 `~/.codex`）显示 0 个会话及检查过的路径；其他代理正常加载 | e2e |
 | S4 | 处于未知格式代次的文件被列为「无法读取」；其工作区显示代理、文件和行号 | e2e |
-| S5 | 请求柱条随上下文增长升高至标有压缩前后 Token 数的虚线上下文压缩标记处，并在之后回落 | e2e |
+| S5 | 请求柱条升高至标有压缩前后 Token 数的虚线上下文压缩标线处，并在其后变低 | e2e |
 | S6 | 拖动时间线范围框或在聚焦手柄时用方向键移动，可过滤事件列表并标明时间范围和事件数 | e2e |
 | S7 | 在上下文压缩后的首个请求处查看「模型所见」：各个槽位附带已记录的 Token 数，仅当该请求或之前存在提示词快照时才显示系统提示词和工具，并列出被移除的事件 | e2e |
 | S8 | 在包含 10,000 个事件的 trace 上滚动时，渲染的行数少于 100 且没有超过 200 ms 的长任务 | e2e |
@@ -157,7 +159,7 @@ pnpm run test:e2e
 ESTELA_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome instead
 ```
 
-S8 运行 `scripts/generate-trace.mjs`，S12 按路径运行 `packages/server/src/testsupport/large-session.ts`，两者均写入本次运行的临时目录并在之后删除输出；不会向仓库提交任何生成文件。`ESTELA_E2E_S12_BYTES` 可在本地快速试用时修改 S12 的大小；默认值（也是 CI 使用的值）为 350 MiB（367,001,600 字节）。`ESTELA_E2E_KEEP=1` 保留临时目录。设置了 `CI` 时，测试套件还会在测试失败时向 `apps/e2e/playwright-report/` 写出 HTML 报告并由 CI 作业上传。CI 仅在 `test` 作业中使用 Node.js `^26.13.1` 运行该套件。
+S8 运行 `scripts/generate-trace.mjs`，S12 按路径运行 `packages/server/src/testsupport/large-session.ts`，两者均写入本次运行的临时目录并在之后删除输出；不会向仓库提交任何生成文件。`ESTELA_E2E_S12_BYTES` 可在本地快速试用时修改 S12 的大小；默认值（也是 CI 使用的值）为 350 MiB（367,001,600 字节）。`ESTELA_E2E_KEEP=1` 保留临时目录。设置了 `CI` 时，测试套件还会向 `apps/e2e/playwright-report/` 写出 HTML 报告，测试失败时由 CI 作业上传。CI 仅在 `test` 作业中使用 Node.js `^26.13.1` 运行该套件。
 
 ## 在真实浏览器中检查
 
@@ -218,7 +220,7 @@ npx -y chrome-devtools-mcp@1.10.1 --headless --isolated --no-usage-statistics --
 
 通过 stdio 从 MCP 客户端驱动它。常用工具：`new_page`、`emulate`（`viewport: 1440x900x1`、`colorScheme`）、`take_screenshot`、`evaluate_script`、`list_console_messages`、`performance_start_trace`。传入 `--chromeArg=--lang=zh-CN --chromeArg=--accept-lang=zh-CN` 可切换至中文界面。也可以使用 Playwright（在仓库外的临时目录安装 `playwright-core` 并使用 `channel: 'chrome'`）；在 context 上设置 `viewport`、`colorScheme` 和 `locale` 即可。
 
-界面改动需检查的内容：
+工作区改动需检查的内容：
 
 - 在 1440 × 900 分辨率下截取深色与浅色、英文与 `zh-CN` 的 `#/s/<traceId>` 页面，并与相同尺寸的 `docs/design/session-workspace-{dark,light}.html` 对比。列出所有可见差异。
 - S5：在 Claude Code 上下文压缩夹具上，时间线存在一个 `[data-marker=compaction]`，其 `data-label` 为 `compacted  1k → 100`。

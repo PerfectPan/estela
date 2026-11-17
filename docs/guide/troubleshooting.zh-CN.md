@@ -1,5 +1,7 @@
 > 中文阅读版。以英文原文 docs/guide/troubleshooting.md 为准。
 
+<!-- source-blob: 4f2e5f1a0035371388cd4c8ab31eda4aab3d6cab -->
+
 # 故障排查
 
 对于每一种可预期的失败情况，Estela 都会打印原因以及一行修复建议，并以状态码 1 退出。`estela --help` 可查看所有选项。

@@ -55,7 +55,7 @@ A lane's events are read in order. A user event, a compaction, and a system even
 | a turn duration | `extra.estela.turnDurationMs` of the open step |
 | `hook`, `unknown`, other `system` events | no step; listed in the open step's `extra.estela.hooks` or `extra.estela.unknown` |
 | an event a compaction hid | no step |
-| a step before a later compaction on its lane | `is_copied_context: true` |
+| a user or agent step before a later compaction on its lane | `is_copied_context: true` |
 | every step | `extra.estela.eventIds` (the canonical event ids; empty for the initial system-prompt step), and `extra.estela.requestId` when grouped. User and agent steps carry `timestamp` (ISO 8601, their first event); system steps, compaction steps included, have none |
 
 A subagent's spawn step gets an `observation.results[]` entry with `subagent_trajectory_ref: [{ trajectory_id: <lane id>, session_id }]` (and the spawn call's `source_call_id` when the spawn event is a tool call). A subagent lane with no exportable events is left out, with its reference.
