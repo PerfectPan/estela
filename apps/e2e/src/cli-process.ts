@@ -61,6 +61,16 @@ export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, 
   }
 }
 
+/**
+ * Whether the fake opener sees the CLI's browser launches. On Windows DevFrame starts
+ * `cmd /c start`, which nothing on `PATH` can stand in for, so tests there pass {@link openArgs}
+ * and check the printed URL only.
+ */
+export const fakeOpener = process.platform !== 'win32'
+
+/** `--no-open` where the fake opener cannot catch the launch, so a test never starts a real browser. */
+export const openArgs: readonly string[] = fakeOpener ? [] : ['--no-open']
+
 /** URLs the fake opener recorded, in order. */
 export function openedUrls(openLog: string): string[] {
   if (!existsSync(openLog)) {
@@ -69,6 +79,11 @@ export function openedUrls(openLog: string): string[] {
   return readFileSync(openLog, 'utf8')
     .split('\n')
     .filter(line => line.length > 0)
+}
+
+/** The fake opener recorded a URL, or cannot record one on this system. */
+export function openSeen(openLog: string): boolean {
+  return !fakeOpener || openedUrls(openLog).length > 0
 }
 
 export function openLogPath(ctx: SmokeContext, name: string): string {

@@ -9,9 +9,12 @@ import * as z from 'zod/mini'
 import cliPackage from '../../cli/package.json' with { type: 'json' }
 import {
   expectCleanOutput,
+  fakeOpener,
   lanAddress,
+  openArgs,
   openedUrls,
   openLogPath,
+  openSeen,
   readyUrl,
   run,
   smokeEnv,
@@ -116,23 +119,25 @@ describe('installed tarball', () => {
 
   it("S2: a session path opens that session's workspace", async () => {
     const log = openLogPath(ctx, 's2')
-    const server = start(ctx.node, [ctx.bin, ctx.claudePlain, '--port', '0'], {
+    const server = start(ctx.node, [ctx.bin, ctx.claudePlain, '--port', '0', ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
     try {
       await waitFor(
         'the Ready line and the browser opener',
-        () => readyUrl(server.output().stdout) !== undefined && openedUrls(log).length > 0,
+        () => readyUrl(server.output().stdout) !== undefined && openSeen(log),
       )
       const ready = readyUrl(server.output().stdout)
       expect(server.output().stdout).toContain(`Ready: ${ready!.base}#/s/${ready!.traceId}`)
-      // The fragment carries DevFrame's one-time code, so the trace id rides `?s=`; the SPA moves it to `#/s/<traceId>`.
-      const [opened] = openedUrls(log)
-      expect(opened).toMatch(
-        new RegExp(`^${ready!.base.replaceAll('/', '\\/')}\\?s=${ready!.traceId}#devframe_otp=\\w+$`),
-      )
-      expect(openedUrls(log)).toHaveLength(1)
+      if (fakeOpener) {
+        // The fragment carries DevFrame's one-time code, so the trace id rides `?s=`; the SPA moves it to `#/s/<traceId>`.
+        const [opened] = openedUrls(log)
+        expect(opened).toMatch(
+          new RegExp(`^${ready!.base.replaceAll('/', '\\/')}\\?s=${ready!.traceId}#devframe_otp=\\w+$`),
+        )
+        expect(openedUrls(log)).toHaveLength(1)
+      }
       // The session index loads node:sqlite; `dist/bin.mjs` drops only its ExperimentalWarning.
       expect(server.output().stderr).not.toContain('ExperimentalWarning')
     } finally {
@@ -278,7 +283,7 @@ describe('installed tarball', () => {
     const { port } = held
 
     const log = openLogPath(ctx, 'host-v4-loopback')
-    const server = start(ctx.node, [ctx.bin, '--host', '127.0.0.1', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '127.0.0.1', '--port', String(port), ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -286,14 +291,16 @@ describe('installed tarball', () => {
     try {
       await waitFor(
         'the 127.0.0.1 Ready line and browser open',
-        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+        () => readyPattern.test(server.output().stdout) && openSeen(log),
       )
       const stdout = server.output().stdout
       expect(stdout).toContain(`http://127.0.0.1:${port}/__estela/#/`)
       expect(stdout).not.toContain(`http://localhost:${port}`)
-      const opened = openedUrls(log)
-      expect(opened).toHaveLength(1)
-      expect(opened[0]).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`))
+      if (fakeOpener) {
+        const opened = openedUrls(log)
+        expect(opened).toHaveLength(1)
+        expect(opened[0]).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`))
+      }
 
       const res = await fetch(`http://127.0.0.1:${port}/__estela/`)
       expect(res.status).toBe(200)
@@ -342,20 +349,21 @@ describe('installed tarball', () => {
     const held = await portHeldOnIpv6Loopback()
     const { port } = held
     const log = openLogPath(ctx, 'host-v4-wildcard')
-    const server = start(ctx.node, [ctx.bin, '--host', '0.0.0.0', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '0.0.0.0', '--port', String(port), ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
     try {
       await waitFor(
         'the 127.0.0.1 Ready line and browser open',
-        () =>
-          server.output().stdout.includes(`Ready: http://127.0.0.1:${port}/__estela/#/`) && openedUrls(log).length > 0,
+        () => server.output().stdout.includes(`Ready: http://127.0.0.1:${port}/__estela/#/`) && openSeen(log),
       )
       expect(server.output().stdout).not.toContain(`http://localhost:${port}`)
-      expect(openedUrls(log)).toEqual([
-        expect.stringMatching(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`)),
-      ])
+      if (fakeOpener) {
+        expect(openedUrls(log)).toEqual([
+          expect.stringMatching(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`)),
+        ])
+      }
       expect((await fetch(`http://127.0.0.1:${port}/__estela/`)).status).toBe(200)
       // The wildcard still serves the page on this machine's LAN address.
       const lan = lanAddress()
@@ -389,7 +397,7 @@ describe('installed tarball', () => {
     await new Promise<void>(resolve => v6Probe.close(() => resolve()))
 
     const log = openLogPath(ctx, 'host-v6-loopback')
-    const server = start(ctx.node, [ctx.bin, '--host', '[::1]', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '[::1]', '--port', String(port), ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -397,12 +405,14 @@ describe('installed tarball', () => {
     try {
       await waitFor(
         'the [::1] Ready line and browser open',
-        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+        () => readyPattern.test(server.output().stdout) && openSeen(log),
       )
       expect(server.output().stdout).toContain(`http://[::1]:${port}/__estela/#/`)
-      const opened = openedUrls(log)
-      expect(opened).toHaveLength(1)
-      expect(opened[0]).toMatch(new RegExp(`^http://\\[::1\\]:${port}/__estela/#devframe_otp=\\w+$`))
+      if (fakeOpener) {
+        const opened = openedUrls(log)
+        expect(opened).toHaveLength(1)
+        expect(opened[0]).toMatch(new RegExp(`^http://\\[::1\\]:${port}/__estela/#devframe_otp=\\w+$`))
+      }
 
       const res = await fetch(`http://[::1]:${port}/__estela/`)
       expect(res.status).toBe(200)
