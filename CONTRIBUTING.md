@@ -87,7 +87,7 @@ Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make
 
 ## Bilingual Documentation
 
-These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`, and every active Spec and Plan (`docs/specs/0001-foo.md` pairs with `docs/specs/0001-foo.zh-CN.md`). The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only: `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, the Spec and Plan READMEs and templates, the other READMEs (such as `apps/cli/README.md`), and the issue, PR, and MR templates.
+These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`, and every active Spec and Plan (`docs/specs/0001-foo.md` pairs with `docs/specs/0001-foo.zh-CN.md`). The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, the other READMEs (such as `apps/cli/README.md`), and every template.
 
 - The English file changes first; the Chinese copy follows in the same PR.
 - The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`, followed by a `<!-- source-blob: <hash> -->` line: the Git blob hash of the English file the copy was last checked against.
