@@ -139,6 +139,9 @@ The root `README.md` has one Chinese reading copy, `README.zh-CN.md`. English is
   Node upgrades remain deliberate: `engines`, `devEngines.runtime`, workflow runtime versions extracted from
   `pnpm/setup` (`github-actions` / `node-version`), and major `@types/node` updates are disabled.
   `@perfectpan/lint-config` stays disabled because it is a Git dependency whose upgrades need accompanying code fixes.
+  `rolldown` is disabled because its pin follows the vite-plus core (see [Pull Request Gates](#pull-request-gates)),
+  so the maintainer moves it in the vite-plus toolchain PR. That also stops OSV security PRs for it: only the
+  release audit (`--audit-level=high`) catches a rolldown advisory, and the fix arrives through a vite-plus upgrade.
 
   Lock-file maintenance runs on the first day of each month from 00:00 to 06:59 in Asia/Shanghai.
 
