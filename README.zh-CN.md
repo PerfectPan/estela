@@ -28,7 +28,7 @@
 npx @rivus/estela
 ```
 
-需要 Node.js 24 或更高版本。它列出本机 Agent 的会话，并在浏览器中打开。任何数据都不会离开本机。
+需要 Node.js 24 或更高版本，支持 macOS、Linux 和 Windows。它列出本机 Agent 的会话，并在浏览器中打开。任何数据都不会离开本机。
 
 ## 用途
 

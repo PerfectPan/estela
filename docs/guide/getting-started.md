@@ -2,7 +2,7 @@
 
 ## Run it
 
-Estela needs Node.js 24 or later. Run it without installing:
+Estela needs Node.js 24 or later and runs on macOS, Linux, and Windows. Run it without installing:
 
 ```sh
 npx @rivus/estela

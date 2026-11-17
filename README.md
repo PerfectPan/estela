@@ -26,7 +26,7 @@
 npx @rivus/estela
 ```
 
-Needs Node.js 24 or later. It lists the sessions of the agents on this machine and opens them in your browser. Nothing leaves your machine.
+Needs Node.js 24 or later, on macOS, Linux, or Windows. It lists the sessions of the agents on this machine and opens them in your browser. Nothing leaves your machine.
 
 ## Why
 
