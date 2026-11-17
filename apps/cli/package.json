@@ -1,7 +1,7 @@
 {
   "name": "@rivus/estela",
   "type": "module",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Local viewer for agent sessions: every request, what the model saw, and what it cost.",
   "homepage": "https://github.com/PerfectPan/estela",
   "repository": {
