@@ -2,6 +2,32 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.4.0
+
+### Minor Changes
+
+- [#133](https://github.com/PerfectPan/estela/pull/133) [`b59d076`](https://github.com/PerfectPan/estela/commit/b59d07641f32545217287620489ef42bb2e819e0) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Fix CLI port and loopback host handling and harden Estela against untrusted session content:
+  
+  - Exit cleanly with code 1 and a plain diagnostic when `--port` is already in use or listening fails ([#125](https://github.com/PerfectPan/estela/issues/125)).
+  - Preserve explicit loopback hosts such as `127.0.0.1` and `[::1]` in the printed and opened URLs instead of rewriting to `localhost` ([#126](https://github.com/PerfectPan/estela/issues/126)).
+  - Refuse `--no-auth` with non-loopback `--host` values, emit a startup warning when `--no-auth` is active, lock browser WebSocket/SSE `Origin` checks to the server's bound host and port (restricting wildcard binds to loopback and local interface IP literals), and restrict `~/.estela/devframe/` to mode `0700` on POSIX.
+  - Refuse to wipe `/`, cwd, home, symlinks, non-directories, or unrelated non-empty directories in `build --out-dir` (while still allowing rebuilds over an earlier Estela report).
+  - Use exclusive `-2`/`-3` suffix allocation for default ATIF/OTLP export filenames and refuse overwriting symbolic links passed to `--out`.
+  - Enforce strict Content Security Policy headers on dev pages and `file://` reports, bound Zstandard decompression (512 MiB) and canonical trace JSON reads (256 MiB), harden read-only SQLite pragmas, and strip non-SGR terminal escape sequences and bidi format characters from error messages, DevFrame logs, and auth banners.
+
+- [#140](https://github.com/PerfectPan/estela/pull/140) [`ab2c03e`](https://github.com/PerfectPan/estela/commit/ab2c03ec1608a4c8ab0d2ae8ab6500d95dd1d2e7) Thanks [@PerfectPan](https://github.com/PerfectPan)! - - With `--host 0.0.0.0` the printed and opened URLs use `http://127.0.0.1:<port>`, and with `--host ::` they use `http://[::1]:<port>`, instead of a `localhost` URL that another program on the other address family could answer ([#135](https://github.com/PerfectPan/estela/issues/135)).
+  - A click on a subagent lane of the timeline selects that lane's request, and Shift-click there picks the request to compare with; the lane draws the selected and compared requests with rings.
+  - The `--mcp` HTTP route serves only the seven Estela tools, as `estela mcp` does, without DevFrame's shared-state tool.
+  - Stopping the local server or `estela mcp` with Ctrl-C, SIGTERM, or a closed terminal first writes the finished session summaries to the index, so the next launch does not compute them again.
+
+### Patch Changes
+
+- [#144](https://github.com/PerfectPan/estela/pull/144) [`569b329`](https://github.com/PerfectPan/estela/commit/569b3297b31499835d6bce749430aba49ab66b4c) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Windows fixes found by running the test suites on Windows:
+  
+  - Session paths reach the session reader with `/` separators, so a Claude Code session opened by path shows its subagents, and a Codex rollout or a Grok session given by path is recognized. A session opened by path gets the same trace id as when it is picked from the session list, as long as the path is spelled with the same letter case. Trace ids of Windows sessions change once with this release: a saved `#/s/<id>` link from an earlier version no longer opens its session, and the session index computes those summaries again.
+  - `export-atif` and `export-otlp` without `--out` skip a default file name taken by a dangling symbolic link instead of writing to the link's target.
+  - When several `estela` processes open a broken session index at the same time, the one rebuilding it waits for the others to close the file instead of running without the index.
+
 ## 0.3.1
 
 ### Patch Changes
