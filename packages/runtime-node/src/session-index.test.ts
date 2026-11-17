@@ -409,6 +409,7 @@ describe('session index', () => {
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] },
     )
+    const holderExited = new Promise<void>(resolve => holder.once('exit', () => resolve()))
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     const started = performance.now()
     const index = openSessionIndex({ summaryVersion: 1, file })
@@ -420,6 +421,8 @@ describe('session index', () => {
     expect(performance.now() - started).toBeLessThan(1_000)
     index.close()
     holder.kill()
+    // Windows keeps the holder's -wal file locked until it has exited, and the temp directory goes after the test.
+    await holderExited
   })
 
   it('rebuilds a broken file once when several processes open it at the same time', async () => {

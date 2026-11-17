@@ -79,7 +79,10 @@ describe('installed tarball in a terminal', () => {
       const box = readyBox(screen)
       expect(new Set(box.map(line => Array.from(line).length)).size, box.join('\n')).toBe(1)
       expect(box[1]).toContain(`${ready!.base}#/s/${expected}`)
-      expect(screen).toContain(`\u001B]8;;${ready!.base}#/s/${expected}\u001B\\`)
+      // node-pty passes `name` as TERM on POSIX only; without TERM on Windows the CLI prints a plain URL.
+      if (process.platform !== 'win32') {
+        expect(screen).toContain(`\u001B]8;;${ready!.base}#/s/${expected}\u001B\\`)
+      }
       expect(visible().split(`${ready!.base}#/s/${expected}`)).toHaveLength(2)
     } finally {
       // node-pty rejects a signal name on Windows.
