@@ -86,7 +86,9 @@ test('build report neutralizes hostile session payloads, enforces strict SHA-256
 
   try {
     await writeFile(sessionPath, `${lines.join('\n')}\n`, 'utf8')
-    const env = smokeEnv({ home, cache, fakeBin: ctx.fakeBin }, join(dir, 'open.log'), { ESTELA_REDACT: '0' })
+    const env = smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, join(dir, 'open.log'), {
+      ESTELA_REDACT: '0',
+    })
     await exec(process.execPath, [ctx.bin, 'build', sessionPath, '--out-dir', outDir], { cwd: dir, env })
 
     const html = await readFile(join(outDir, 'index.html'), 'utf8')

@@ -18,8 +18,10 @@ export function toKitPath(path: string, platform: NodeJS.Platform = process.plat
  * The trace id of a session: an opaque hash of agent and path, plus the session id when the path
  * addresses one session inside a file that holds several (the `path#id` form). The catalog turns it
  * back into a target. URLs and the session index hold these ids, so the hashed input must stay exactly this.
- * The path is hashed in its {@link toKitPath} form: on Windows discovery yields the home directory's
- * `\` followed by the kit's `/`, and a path typed on the command line has `\` only.
+ * The path is hashed in its {@link toKitPath} form, which leaves POSIX paths as they are. On Windows
+ * discovery yields the home directory's `\` followed by the kit's `/`, and a path typed on the
+ * command line has `\` only; both hash as `/`. Letter case still counts: `c:\users` and `C:\Users`
+ * get two ids.
  */
 export function traceIdOf(target: { agent: string; path: string; sessionId?: string }): string {
   return createHash('sha256')

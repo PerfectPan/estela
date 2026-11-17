@@ -3,7 +3,7 @@ import type { SmokeContext } from './global-setup.ts'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import process from 'node:process'
 import { normalizeSpawnCommand } from 'tinyexec'
 import { expect } from 'vite-plus/test'
@@ -14,18 +14,23 @@ export interface RunResult {
   stderr: string
 }
 
-/** Where a CLI run lives: its `HOME`, its `XDG_CACHE_HOME`, and the directory with the fake opener. */
+/**
+ * Where a CLI run lives: its `HOME`, its `XDG_CACHE_HOME`, the directory with the fake opener, and
+ * the Node.js that runs the CLI, whose directory goes on `PATH` so `npx` and npm's bin shims use it too.
+ */
 export interface CliHome {
   home: string
   cache: string
   fakeBin: string
+  node: string
 }
 
 /**
  * The environment a user has: synthetic `HOME` (and `USERPROFILE`, which `os.homedir()` reads on
- * Windows), a cache dir inside the run, the fake opener first on `PATH`, no `NO_COLOR` /
- * `FORCE_COLOR` / `ESTELA_*` from the caller, no agent home overrides (they would point the tests
- * at real sessions), and no npm notices. `extra` goes on top (for example `ESTELA_REDACT=0`).
+ * Windows), a cache dir inside the run, the fake opener and then the CLI's Node.js first on
+ * `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `ESTELA_*` from the caller, no agent home overrides (they
+ * would point the tests at real sessions), and no npm notices. `extra` goes on top (for example
+ * `ESTELA_REDACT=0`).
  */
 export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
@@ -51,7 +56,7 @@ export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, 
     HOME: where.home,
     USERPROFILE: where.home,
     XDG_CACHE_HOME: where.cache,
-    [pathKey]: `${where.fakeBin}${delimiter}${env[pathKey] ?? ''}`,
+    [pathKey]: [where.fakeBin, dirname(where.node), env[pathKey] ?? ''].join(delimiter),
     ESTELA_SMOKE_OPEN_LOG: openLog,
     // A fresh HOME means a fresh npm update check; its notice would land in the output under test.
     npm_config_update_notifier: 'false',

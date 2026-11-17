@@ -87,9 +87,11 @@ export function isTransient(error: unknown): boolean {
 
 /**
  * Windows refuses to delete a file that another process has open (SQLite opens it without
- * `FILE_SHARE_DELETE`), so a rebuild's delete fails with EPERM or EBUSY while another opener still
- * holds the broken file; that opener lets go before its next try. On POSIX these codes are real
- * permission problems.
+ * `FILE_SHARE_DELETE`), so a rebuild's delete fails with EPERM or EBUSY while another process holds
+ * the broken file. A process in this open loop lets go before its next try; one that keeps the file
+ * open (an older Estela still running) holds it past `LOCK_WAIT_MS`, and the opener then runs
+ * without the index, as it would after a real permission error. Node reports a file in use as
+ * EPERM too, so EPERM cannot be left out. On POSIX these codes are real permission problems.
  */
 function isOpenElsewhere(error: unknown): boolean {
   return process.platform === 'win32' && z.safeParse(fileInUse, error).success

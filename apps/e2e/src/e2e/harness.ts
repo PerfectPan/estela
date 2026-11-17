@@ -108,7 +108,7 @@ export const test = base.extend<Fixtures>({
       const home = options.home ?? ctx.homes.main.home
       const server = start(process.execPath, [ctx.bin, ...(options.args ?? []), '--port', '0'], {
         cwd,
-        env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin }, openLog, options.env),
+        env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, openLog, options.env),
       })
       servers.push(server)
       const ready = () => READY.exec(server.output().stdout)

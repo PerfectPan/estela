@@ -326,6 +326,18 @@ describe('session index', () => {
     },
   )
 
+  // The disabled path on every system, Windows included: a file where the cache directory should be.
+  it('returns a disabled index with the reason when the cache directory cannot be created', async () => {
+    const blocker = join(await tempDir(), 'not-a-directory')
+    writeFileSync(blocker, '')
+    const index = openSessionIndex({ summaryVersion: 1, env: { XDG_CACHE_HOME: blocker }, homeDir: '/h/u' })
+    expect(index.enabled).toBe(false)
+    // The error code differs by system (ENOTDIR on macOS and Linux); a reason is what counts.
+    expect(index.unavailable).toMatch(/ENOTDIR|EEXIST|ENOENT|not a directory/i)
+    expect(index.search('x')).toBeUndefined()
+    index.close()
+  })
+
   it('lets several processes open a fresh cache at once', async () => {
     const dir = await tempDir()
     const file = join(dir, 'index.sqlite')

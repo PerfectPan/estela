@@ -103,7 +103,9 @@ describe('mcp without a path: the session catalog', () => {
     await mkdir(cache, { recursive: true })
     server = start(ctx.node, [ctx.bin, 'mcp'], {
       cwd: ctx.installDir,
-      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin }, openLogPath(ctx, 's17'), { ESTELA_REDACT: '0' }),
+      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, openLogPath(ctx, 's17'), {
+        ESTELA_REDACT: '0',
+      }),
       input: true,
     })
     client = mcpClient(server)
@@ -194,7 +196,7 @@ describe('mcp over HTTP from the dev server', () => {
     // The wildcard bind takes connections from the LAN; the route must still refuse them.
     const server = start(ctx.node, [ctx.bin, '--mcp', '--no-open', '--host', '0.0.0.0', '--port', '0'], {
       cwd: ctx.installDir,
-      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin }, openLogPath(ctx, 'mcp-http')),
+      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, openLogPath(ctx, 'mcp-http')),
     })
     try {
       const ready = /Ready: http:\/\/127\.0\.0\.1:(\d+)\/__estela\//

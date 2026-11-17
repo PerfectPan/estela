@@ -13,7 +13,7 @@ import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
-import { oneLine } from '../src/sessions/session-target.ts'
+import { oneLine, toKitPath } from '../src/sessions/session-target.ts'
 import { createTraceStore } from '../src/store/trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -193,7 +193,8 @@ describe('session catalog cache', () => {
     expect(listed.rows[0]?.pending).toBe(true)
     await current.whenIdle()
     expect((await current.listSessions()).rows[0]?.requests).toBe(1)
-    expect(loads).toEqual([path, path])
+    // `summarizeRow` hands the kit the `toKitPath` form of the discovered path.
+    expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     current.close()
   })
 
@@ -223,7 +224,8 @@ describe('session catalog cache', () => {
     await current.whenIdle()
     const done = await current.listSessions()
     expect(done.rows[0]?.requests).toBe(1)
-    expect(loads).toEqual([path, path])
+    // `summarizeRow` hands the kit the `toKitPath` form of the discovered path.
+    expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     // The recomputed prompts are searchable through the index.
     const found = await current.listSessions({ query: 'hello' })
     expect(found.matches).toEqual([done.rows[0]?.traceId])

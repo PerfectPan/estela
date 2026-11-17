@@ -45,6 +45,19 @@ export function defaultExportPath(sessionId: string, format: ExportFormat): stri
   return defaultExportCandidate(sessionId, format, 1)
 }
 
+/** Whether `path` names an entry, a dangling symbolic link included. */
+async function entryExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
+}
+
 async function writeDefaultUnique(
   sessionId: string,
   format: ExportFormat,
@@ -55,6 +68,11 @@ async function writeDefaultUnique(
   await mkdir(dirname(firstPath), { recursive: true })
   for (let attempt = 1; attempt <= MAX_DEFAULT_ATTEMPTS; attempt += 1) {
     const candidate = defaultExportCandidate(sessionId, format, attempt)
+    // Windows' `wx` (CREATE_NEW) follows a dangling symbolic link and creates its target; POSIX `wx`
+    // refuses any existing entry on its own. So an entry of any kind, a link included, is taken.
+    if (await entryExists(candidate)) {
+      continue
+    }
     try {
       const handle = await open(candidate, 'wx')
       try {

@@ -6,12 +6,14 @@ import { fold, projectLanes, reconstruct, summaryOf, toView } from '@rivus/estel
 import { describe, expect, it } from 'vite-plus/test'
 import { summarizeRow } from '../src/catalog/rows.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
+import { toKitPath } from '../src/sessions/session-target.ts'
 import { transcriptToTrace } from '../src/sessions/transcript-trace.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, '../../..')
+/** In the form the server hands the kit (`toKitPath`): `loadTranscript` below is the kit's own call. */
 const fixture = (agent: string, relative: string): string =>
-  join(repo, 'fixtures/sessions', agent, 'conformance', relative)
+  toKitPath(join(repo, 'fixtures/sessions', agent, 'conformance', relative))
 const platform = createNodePlatform()
 
 const claudeLoad = async (relative: string) =>

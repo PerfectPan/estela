@@ -160,7 +160,7 @@ describe('installed tarball', () => {
         holders.push(holder)
       }
     }
-    const server = start(ctx.node, [ctx.bin, ctx.claudePlain], {
+    const server = start(ctx.node, [ctx.bin, ctx.claudePlain, '--no-open'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'port-fallback')),
     })
