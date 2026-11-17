@@ -95,3 +95,44 @@ jobs:
             apps/e2e/playwright-report/
             apps/e2e/test-results/
           retention-days: 14
+
+  # The `test` job above is Linux on Node.js 26 with every check. This job runs the unit suites on macOS and Windows,
+  # and the smoke suite on the installed tarball on all three systems with Node.js 24 (the oldest release the CLI's
+  # `engines` allows) and 26. Budgets and the Playwright suite stay in `test`: their numbers are set on Linux runners.
+  platforms:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    name: ${{ matrix.os }}, Node.js ${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ['24', '26']
+        exclude:
+          - os: ubuntu-latest
+            node: '26'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      # Node.js 24 runs only the installed CLI, through ESTELA_SMOKE_NODE. The workspace toolchain needs ^26.13.1,
+      # which pnpm/setup installs next and puts ahead of this one on PATH.
+      - if: matrix.node == '24'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - if: matrix.node == '24'
+        shell: bash
+        run: echo "ESTELA_SMOKE_NODE=$(node -p process.execPath)" >> "$GITHUB_ENV"
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@^26.13.1
+          cache: true
+          require-lockfile: true
+      - name: Build Web once before the unit and smoke tests
+        run: pnpm --filter @rivus/estela-web run build
+      # The unit suites do not depend on the CLI's Node.js, so they run once per system.
+      - if: matrix.node == '26'
+        run: pnpm test
+      - name: CLI smoke on the installed tarball
+        working-directory: apps/e2e
+        run: pnpm run test:smoke

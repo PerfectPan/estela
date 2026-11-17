@@ -15,7 +15,7 @@ function readyBox(raw: string): string[] {
 
 /** The trace id the CLI gives a session path, read from its plain `Ready:` line. */
 async function traceIdOf(path: string): Promise<string> {
-  const server = start(process.execPath, [ctx.bin, path, '--no-open', '--port', '0'], {
+  const server = start(ctx.node, [ctx.bin, path, '--no-open', '--port', '0'], {
     cwd: ctx.installDir,
     env: smokeEnv(ctx, openLogPath(ctx, 's16-trace-id')),
   })
@@ -32,7 +32,7 @@ describe('installed tarball in a terminal', () => {
     const subagent = join(ctx.home, '.claude/projects/app-subagent/session.jsonl')
     const expected = await traceIdOf(subagent)
     const log = openLogPath(ctx, 's16')
-    const term = spawnPty(process.execPath, [ctx.bin, '--pick', '--port', '0'], {
+    const term = spawnPty(ctx.node, [ctx.bin, '--pick', '--port', '0'], {
       name: 'xterm-256color',
       cols: 120,
       rows: 40,

@@ -1,3 +1,6 @@
+# LF in every checkout, Windows included: fixtures are read back by byte offset, and the formatter expects LF.
+* text=auto eol=lf
+
 # The lockfile is generated from the manifests; resolve merge conflicts by running
 # `pnpm install`, not by hand.
 pnpm-lock.yaml               merge=text

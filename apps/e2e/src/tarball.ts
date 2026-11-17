@@ -1,21 +1,8 @@
-import { execFile } from 'node:child_process'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
-import { promisify } from 'node:util'
+import { x } from 'tinyexec'
 import * as z from 'zod/mini'
-
-const exec = promisify(execFile)
-
-const text = (value: unknown): string => (typeof value === 'string' ? value : '')
-
-/** `execFile` failures carry `stdout` and `stderr` as own properties on the thrown `Error`. */
-function execOutput(error: unknown): { stdout: string; stderr: string } {
-  if (!(error instanceof Error) || !('stdout' in error) || !('stderr' in error)) {
-    return { stdout: '', stderr: '' }
-  }
-  return { stdout: text(error.stdout), stderr: text(error.stderr) }
-}
 
 export interface Installed {
   tarball: string
@@ -25,34 +12,32 @@ export interface Installed {
   files: string[]
   /** Empty project the tarball is installed into. */
   installDir: string
-  /** `node_modules/.bin/estela` inside `installDir`. */
+  /**
+   * The installed CLI as a file `node` can run: `node_modules/.bin/estela` inside `installDir`,
+   * except on Windows, where npm links bins as `.cmd`, `.ps1`, and shell shims, so this is the
+   * package's own bin file there.
+   */
   bin: string
   /** The repository's npm registry, for npm and npx calls, which do not read `pnpm-workspace.yaml`. */
   registry: string
 }
 
 /**
- * Builds `@rivus/estela` and the workspace packages it depends on, so the tarball never
- * holds a stale bundle.
+ * Runs a package manager command and returns its stdout; a non-zero exit throws with the tail of
+ * both streams. tinyexec resolves Windows `.cmd` shims (npm, npx, a pnpm installed through npm),
+ * which `execFile` cannot start without a shell.
  */
-async function buildCli(repo: string): Promise<void> {
-  try {
-    await exec('pnpm', ['--filter', '@rivus/estela...', 'run', 'build'], {
-      cwd: repo,
-      // Vitest sets NODE_ENV=test; the published artifact must use the production build conditions.
-      env: { ...process.env, NODE_ENV: 'production' },
-      maxBuffer: 64 * 1024 * 1024,
-    })
-  } catch (error) {
-    const { stdout, stderr } = execOutput(error)
+async function sh(command: string, args: string[], options: { cwd: string; env?: NodeJS.ProcessEnv }): Promise<string> {
+  const result = await x(command, args, { nodeOptions: options, nodePath: false, throwOnError: false })
+  if (result.exitCode !== 0) {
     throw new Error(
-      `pnpm --filter '@rivus/estela...' run build failed:\n${stdout.slice(-4000)}${stderr.slice(-4000)}`,
-      {
-        cause: error,
-      },
+      `${command} ${args.join(' ')} exited with ${result.exitCode}:\n${result.stdout.slice(-4000)}${result.stderr.slice(-4000)}`,
     )
   }
+  return result.stdout
 }
+
+const installedManifest = z.object({ bin: z.object({ estela: z.string() }) })
 
 /**
  * Build, `pnpm pack` in `apps/cli`, then `npm install <tarball>` into an empty directory under
@@ -60,9 +45,14 @@ async function buildCli(repo: string): Promise<void> {
  * real versions, which `npm install` of the tarball (and a registry publish) requires.
  */
 export async function packAndInstall(root: string, repo: string): Promise<Installed> {
-  await buildCli(repo)
+  // Builds `@rivus/estela` and the workspace packages it depends on, so the tarball never holds a stale bundle.
+  await sh('pnpm', ['--filter', '@rivus/estela...', 'run', 'build'], {
+    cwd: repo,
+    // Vitest sets NODE_ENV=test; the published artifact must use the production build conditions.
+    env: { ...process.env, NODE_ENV: 'production' },
+  })
   const cliDir = join(repo, 'apps/cli')
-  const { stdout } = await exec('pnpm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
+  const stdout = await sh('pnpm', ['pack', '--json', '--pack-destination', root], { cwd: cliDir })
   const packed = z.parse(
     z.object({ filename: z.string(), files: z.array(z.object({ path: z.string() })) }),
     JSON.parse(stdout),
@@ -75,16 +65,21 @@ export async function packAndInstall(root: string, repo: string): Promise<Instal
   const installDir = join(root, 'install')
   await mkdir(installDir, { recursive: true })
   await writeFile(join(installDir, 'package.json'), `${JSON.stringify({ name: 'estela-smoke', private: true })}\n`)
-  const registry = (await exec('pnpm', ['config', 'get', 'registry'], { cwd: repo })).stdout.trim()
-  await exec('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', '--registry', registry, tarball], {
+  const registry = (await sh('pnpm', ['config', 'get', 'registry'], { cwd: repo })).trim()
+  await sh('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', '--registry', registry, tarball], {
     cwd: installDir,
   })
+  const packageDir = join(installDir, 'node_modules/@rivus/estela')
+  const manifest = z.parse(installedManifest, JSON.parse(await readFile(join(packageDir, 'package.json'), 'utf8')))
   return {
     tarball,
     tarballBytes: size,
     files: packed.files.map(file => file.path).toSorted(),
     installDir,
-    bin: join(installDir, 'node_modules/.bin/estela'),
+    bin:
+      process.platform === 'win32'
+        ? join(packageDir, manifest.bin.estela)
+        : join(installDir, 'node_modules/.bin/estela'),
     registry,
   }
 }

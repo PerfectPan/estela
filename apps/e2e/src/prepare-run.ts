@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { x } from 'tinyexec'
 import { packAndInstall } from './tarball.ts'
 
 export const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -13,9 +14,17 @@ export interface Run extends Installed {
   root: string
   /** Holds the fake `open` and `xdg-open`. */
   fakeBin: string
+  /**
+   * The Node.js that runs the installed CLI: `ESTELA_SMOKE_NODE` when set (CI points it at the
+   * oldest supported release), else the one running the tests.
+   */
+  node: string
 }
 
-/** Records each URL the CLI opens instead of starting a browser (`open` on macOS, `xdg-open` on Linux). */
+/**
+ * Records each URL the CLI opens instead of starting a browser (`open` on macOS, `xdg-open` on
+ * Linux). Windows has no stand-in: DevFrame starts `cmd /c start` there, which `PATH` cannot replace.
+ */
 const OPENER = '#!/bin/sh\nprintf \'%s\\n\' "$1" >> "$ESTELA_SMOKE_OPEN_LOG"\n'
 
 /**
@@ -43,10 +52,12 @@ export async function prepareRun<T>(
       await chmod(join(fakeBin, opener), 0o755)
     }
     const more = await extra(root)
+    const node = process.env.ESTELA_SMOKE_NODE ?? process.execPath
+    const nodeVersion = (await x(node, ['--version'], { throwOnError: true })).stdout.trim()
     process.stdout.write(
-      `node: ${process.version}\ntarball: ${installed.tarball} (${installed.tarballBytes} bytes, ${installed.files.length} files)\n`,
+      `node: ${nodeVersion} (${node}), tests on ${process.version}\ntarball: ${installed.tarball} (${installed.tarballBytes} bytes, ${installed.files.length} files)\n`,
     )
-    return { context: { root, fakeBin, ...installed, ...more }, cleanup }
+    return { context: { root, fakeBin, node, ...installed, ...more }, cleanup }
   } catch (error) {
     await cleanup()
     throw error

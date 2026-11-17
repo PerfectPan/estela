@@ -105,10 +105,10 @@ describe('installed tarball', () => {
 
   it('--version names the package version, and an unknown flag fails before any session is read', async () => {
     const env = smokeEnv(ctx, openLogPath(ctx, 'version'))
-    const version = await run(process.execPath, [ctx.bin, '--version'], { cwd: ctx.installDir, env })
+    const version = await run(ctx.node, [ctx.bin, '--version'], { cwd: ctx.installDir, env })
     expect(version.code).toBe(0)
     expect(version.stdout).toBe(`estela ${cliPackage.version}\n`)
-    const unknown = await run(process.execPath, [ctx.bin, '--bogus', ctx.claudePlain], { cwd: ctx.installDir, env })
+    const unknown = await run(ctx.node, [ctx.bin, '--bogus', ctx.claudePlain], { cwd: ctx.installDir, env })
     expect(unknown.code).toBe(1)
     expect(unknown.stdout).toBe('')
     expect(unknown.stderr).toBe('unexpected: `--bogus`\nRun estela --help for usage.\n')
@@ -116,7 +116,7 @@ describe('installed tarball', () => {
 
   it("S2: a session path opens that session's workspace", async () => {
     const log = openLogPath(ctx, 's2')
-    const server = start(process.execPath, [ctx.bin, ctx.claudePlain, '--port', '0'], {
+    const server = start(ctx.node, [ctx.bin, ctx.claudePlain, '--port', '0'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -155,7 +155,7 @@ describe('installed tarball', () => {
         holders.push(holder)
       }
     }
-    const server = start(process.execPath, [ctx.bin, ctx.claudePlain], {
+    const server = start(ctx.node, [ctx.bin, ctx.claudePlain], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'port-fallback')),
     })
@@ -173,7 +173,7 @@ describe('installed tarball', () => {
   })
 
   it('S10: mcp lists tools and reconstruct returns completeness', async () => {
-    const server = start(process.execPath, [ctx.bin, 'mcp', ctx.claudePlain], {
+    const server = start(ctx.node, [ctx.bin, 'mcp', ctx.claudePlain], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 's10')),
       input: true,
@@ -235,7 +235,7 @@ describe('installed tarball', () => {
   it('S15: build piped to a file writes plain lines and no home path', async () => {
     const outDir = join(ctx.root, 's15-report')
     // stdout is a pipe: like `> log.txt`, it is not a TTY.
-    const result = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', outDir], {
+    const result = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', outDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 's15')),
     })
@@ -260,11 +260,10 @@ describe('installed tarball', () => {
     })
     const port = portOf(holder)
     try {
-      const result = await run(
-        process.execPath,
-        [ctx.bin, '--host', '127.0.0.1', '--port', String(port), '--no-open'],
-        { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 'port-busy')) },
-      )
+      const result = await run(ctx.node, [ctx.bin, '--host', '127.0.0.1', '--port', String(port), '--no-open'], {
+        cwd: ctx.installDir,
+        env: smokeEnv(ctx, openLogPath(ctx, 'port-busy')),
+      })
       expect(result.code).toBe(1)
       expect(result.stderr).toContain(`Port ${port} is already in use.`)
       expect(`${result.stdout}${result.stderr}`).not.toContain('DF0052')
@@ -279,7 +278,7 @@ describe('installed tarball', () => {
     const { port } = held
 
     const log = openLogPath(ctx, 'host-v4-loopback')
-    const server = start(process.execPath, [ctx.bin, '--host', '127.0.0.1', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '127.0.0.1', '--port', String(port)], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -343,7 +342,7 @@ describe('installed tarball', () => {
     const held = await portHeldOnIpv6Loopback()
     const { port } = held
     const log = openLogPath(ctx, 'host-v4-wildcard')
-    const server = start(process.execPath, [ctx.bin, '--host', '0.0.0.0', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '0.0.0.0', '--port', String(port)], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -390,7 +389,7 @@ describe('installed tarball', () => {
     await new Promise<void>(resolve => v6Probe.close(() => resolve()))
 
     const log = openLogPath(ctx, 'host-v6-loopback')
-    const server = start(process.execPath, [ctx.bin, '--host', '[::1]', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '[::1]', '--port', String(port)], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -414,7 +413,7 @@ describe('installed tarball', () => {
   })
 
   it('refuses --no-auth with a non-loopback --host', async () => {
-    const result = await run(process.execPath, [ctx.bin, '--no-auth', '--host', '0.0.0.0'], {
+    const result = await run(ctx.node, [ctx.bin, '--no-auth', '--host', '0.0.0.0'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'no-auth-host')),
     })
@@ -428,7 +427,7 @@ describe('installed tarball', () => {
     const keepFile = join(nonEmptyDir, 'keep.txt')
     await writeFile(keepFile, 'do-not-delete', 'utf8')
 
-    const refused = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', nonEmptyDir], {
+    const refused = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', nonEmptyDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'build-nonempty')),
     })
@@ -437,13 +436,13 @@ describe('installed tarball', () => {
     expect(await readFile(keepFile, 'utf8')).toBe('do-not-delete')
 
     const reportDir = join(ctx.root, 'build-rebuild')
-    const first = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
+    const first = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'build-first')),
     })
     expect(first.code, first.stderr).toBe(0)
 
-    const rebuild = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
+    const rebuild = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'build-second')),
     })
@@ -451,7 +450,7 @@ describe('installed tarball', () => {
     expect(await readdir(reportDir)).toEqual(['index.html'])
 
     const notDirChild = await run(
-      process.execPath,
+      ctx.node,
       [ctx.bin, 'build', ctx.claudePlain, '--out-dir', join(keepFile, 'nested')],
       {
         cwd: ctx.installDir,

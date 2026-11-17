@@ -3,8 +3,9 @@ import type { SmokeContext } from './global-setup.ts'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import process from 'node:process'
+import { normalizeSpawnCommand } from 'tinyexec'
 import { expect } from 'vite-plus/test'
 
 export interface RunResult {
@@ -21,13 +22,15 @@ export interface CliHome {
 }
 
 /**
- * The environment a user has: synthetic `HOME`, a cache dir inside the run, the fake opener first
- * on `PATH`, no `NO_COLOR` / `FORCE_COLOR` / `ESTELA_*` from the caller, no agent home
- * overrides (they would point the tests at real sessions), and no npm notices.
- * `extra` goes on top (for example `ESTELA_REDACT=0`).
+ * The environment a user has: synthetic `HOME` (and `USERPROFILE`, which `os.homedir()` reads on
+ * Windows), a cache dir inside the run, the fake opener first on `PATH`, no `NO_COLOR` /
+ * `FORCE_COLOR` / `ESTELA_*` from the caller, no agent home overrides (they would point the tests
+ * at real sessions), and no npm notices. `extra` goes on top (for example `ESTELA_REDACT=0`).
  */
 export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
+  // Windows spells it `Path`; a second `PATH` key next to it would leave the winner to key order.
+  const pathKey = Object.keys(env).find(key => key.toUpperCase() === 'PATH') ?? 'PATH'
   for (const name of [
     'NO_COLOR',
     'FORCE_COLOR',
@@ -46,8 +49,9 @@ export function smokeEnv(where: CliHome, openLog: string, extra: Record<string, 
   return {
     ...env,
     HOME: where.home,
+    USERPROFILE: where.home,
     XDG_CACHE_HOME: where.cache,
-    PATH: `${where.fakeBin}:${process.env.PATH ?? ''}`,
+    [pathKey]: `${where.fakeBin}${delimiter}${env[pathKey] ?? ''}`,
     ESTELA_SMOKE_OPEN_LOG: openLog,
     // A fresh HOME means a fresh npm update check; its notice would land in the output under test.
     npm_config_update_notifier: 'false',
@@ -85,13 +89,23 @@ function collect(child: ChildProcess): () => { stdout: string; stderr: string } 
   return () => ({ stdout, stderr })
 }
 
+/**
+ * Runs `command` to its exit with exactly `options.env`. `normalizeSpawnCommand` turns a Windows
+ * `.cmd` shim such as `npx` into a `cmd.exe` call with escaped arguments and leaves other commands
+ * as they are; tinyexec's `x()` is not used here because it merges `process.env` back in.
+ */
 export function run(
   command: string,
   args: string[],
   options: { cwd: string; env: NodeJS.ProcessEnv },
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    const spawnable = normalizeSpawnCommand(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const child = spawn(spawnable.command, spawnable.args, spawnable.options)
     const out = collect(child)
     child.on('error', reject)
     child.on('close', code => resolve({ code: code ?? 1, ...out() }))

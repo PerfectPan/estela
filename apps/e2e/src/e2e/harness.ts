@@ -29,6 +29,7 @@ const e2eContext = z.object({
   repo: z.string(),
   root: z.string(),
   fakeBin: z.string(),
+  node: z.string(),
   tarball: z.string(),
   tarballBytes: z.number(),
   files: z.array(z.string()),
