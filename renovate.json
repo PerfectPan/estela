@@ -39,6 +39,11 @@
       "groupName": "vite-plus toolchain"
     },
     {
+      "description": "apps/web pins rolldown to the vite-plus core's bundledVersions.rolldown, so it moves only with a vite-plus upgrade; a standalone bump breaks the CLI build.",
+      "matchPackageNames": ["rolldown"],
+      "enabled": false
+    },
+    {
       "matchPackageNames": ["@rivus/agent-kit"],
       "groupName": "rivus agent-kit"
     },
