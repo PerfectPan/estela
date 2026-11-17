@@ -22,7 +22,11 @@ const config = {
     'apps/cli': {
       // The dual-mode launcher: `./cli.mjs` only exists next to it in dist after
       // `vp pack` (see bin.mjs), so the file is excluded from import analysis.
-      ignore: ['bin.mjs']
+      ignore: ['bin.mjs'],
+      // Build order, not an import: `vp pack` copies apps/web/dist into the
+      // package, so `pnpm --filter '@rivus/estela...' run build` (the smoke
+      // suite and the Publish check) must build the web app first.
+      ignoreDependencies: ['@rivus/estela-web']
     },
     'apps/e2e': {
       entry: ['src/demo/*.ts!']
