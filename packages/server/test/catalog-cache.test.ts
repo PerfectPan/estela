@@ -3,16 +3,17 @@ import type { Transcript } from '@rivus/agent-kit/transcript'
 import { ok } from '@rivus/agent-kit/catalog'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { spawn } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
 import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
-import { oneLine } from '../src/sessions/session-target.ts'
+import { oneLine, toKitPath } from '../src/sessions/session-target.ts'
 import { createTraceStore } from '../src/store/trace-store.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -192,7 +193,8 @@ describe('session catalog cache', () => {
     expect(listed.rows[0]?.pending).toBe(true)
     await current.whenIdle()
     expect((await current.listSessions()).rows[0]?.requests).toBe(1)
-    expect(loads).toEqual([path, path])
+    // `summarizeRow` hands the kit the `toKitPath` form of the discovered path.
+    expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     current.close()
   })
 
@@ -222,7 +224,8 @@ describe('session catalog cache', () => {
     await current.whenIdle()
     const done = await current.listSessions()
     expect(done.rows[0]?.requests).toBe(1)
-    expect(loads).toEqual([path, path])
+    // `summarizeRow` hands the kit the `toKitPath` form of the discovered path.
+    expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     // The recomputed prompts are searchable through the index.
     const found = await current.listSessions({ query: 'hello' })
     expect(found.matches).toEqual([done.rows[0]?.traceId])
@@ -244,10 +247,12 @@ describe('session catalog cache', () => {
       deferSummaries: true,
     })
     const row = (await redacted.listSessions()).rows[0]!
-    expect(row.title).toBe('Read ~/notes with [redacted]\nthen stop')
+    // Redaction keeps the separator after the home directory: `~\notes` on Windows.
+    const notes = join('~', 'notes')
+    expect(row.title).toBe(`Read ${notes} with [redacted]\nthen stop`)
     expect(row.firstPrompt).toBe(row.title)
     expect(JSON.stringify(await redacted.listSessions())).not.toContain(home)
-    expect(redacted.pickChoices()[0]?.label).toMatch(/^Read ~\/notes with \[redacted\] then stop · Fake · /)
+    expect(redacted.pickChoices()[0]?.label.startsWith(`Read ${notes} with [redacted] then stop · Fake · `)).toBe(true)
     const raw = new SessionCatalog({
       platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }),
       adapters: { fake: adapter },
@@ -272,27 +277,24 @@ describe('session catalog cache', () => {
     expect(row.lastActiveAt).toBeCloseTo((await stat(bad)).mtimeMs, 3)
   })
 
-  it('runs without the index when the cache directory is not writable', async () => {
+  // A file where the cache directory should be fails the index on every system; chmod cannot make
+  // a directory read-only on Windows.
+  it('runs without the index when the cache directory cannot be created', async () => {
     const home = await tempHome()
     await session(home, 'a.jsonl', 'Alpha')
     const cache = join(home, 'cache')
-    await mkdir(cache)
-    await chmod(cache, 0o500)
-    try {
-      const catalog = new SessionCatalog({
-        platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
-        adapters: { fake: fakeAdapter(home, []) },
-      })
-      expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
-      expect(catalog.indexUnavailable).not.toContain(home)
-      expect(catalog.indexUnavailable).toContain('~/cache')
-      await catalog.whenIdle()
-      const listed = await catalog.listSessions({ query: 'Alp' })
-      expect(listed.rows[0]?.requests).toBe(1)
-      expect(listed.matches).toHaveLength(1)
-    } finally {
-      await chmod(cache, 0o700)
-    }
+    await writeFile(cache, '')
+    const catalog = new SessionCatalog({
+      platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
+      adapters: { fake: fakeAdapter(home, []) },
+    })
+    expect(catalog.indexUnavailable).toMatch(/ENOTDIR|EEXIST|ENOENT|not a directory/i)
+    expect(catalog.indexUnavailable).not.toContain(home)
+    expect(catalog.indexUnavailable).toContain(join('~', 'cache'))
+    await catalog.whenIdle()
+    const listed = await catalog.listSessions({ query: 'Alp' })
+    expect(listed.rows[0]?.requests).toBe(1)
+    expect(listed.matches).toHaveLength(1)
   })
 
   it('gives a file opened by path the same trace id as its list row', async () => {
@@ -389,6 +391,7 @@ describe('session catalog cache', () => {
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] },
     )
+    const holderExited = new Promise<void>(resolve => holder.once('exit', () => resolve()))
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     try {
       const started = performance.now()
@@ -410,6 +413,8 @@ describe('session catalog cache', () => {
       second.close()
     } finally {
       holder.kill()
+      // Windows keeps the holder's index files locked until it has exited, and the temp home goes after the test.
+      await holderExited
     }
   })
 

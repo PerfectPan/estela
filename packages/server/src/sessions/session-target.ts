@@ -1,17 +1,33 @@
 import { createHash } from 'node:crypto'
 import { basename } from 'node:path'
+import process from 'node:process'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
+
+/**
+ * A session path as the kit reads it. The kit joins and splits session paths on `/` only (its
+ * Claude Code subagent directory, Codex rollout names, Grok session directories), so on Windows a
+ * path's `\` separators become `/`, which Node's fs also takes. Other systems keep the path as given.
+ * Every target the server hands the kit goes through this (`loadSession`, `summarizeRow`); the
+ * kit's own discovery already joins on `/`.
+ */
+export function toKitPath(path: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? path.replaceAll('\\', '/') : path
+}
 
 /**
  * The trace id of a session: an opaque hash of agent and path, plus the session id when the path
  * addresses one session inside a file that holds several (the `path#id` form). The catalog turns it
  * back into a target. URLs and the session index hold these ids, so the hashed input must stay exactly this.
+ * The path is hashed in its {@link toKitPath} form, which leaves POSIX paths as they are. On Windows
+ * discovery yields the home directory's `\` followed by the kit's `/`, and a path typed on the
+ * command line has `\` only; both hash as `/`. Letter case still counts: `c:\users` and `C:\Users`
+ * get two ids.
  */
 export function traceIdOf(target: { agent: string; path: string; sessionId?: string }): string {
   return createHash('sha256')
     .update(target.agent)
     .update('\0')
-    .update(target.path)
+    .update(toKitPath(target.path))
     .update('\0')
     .update(target.sessionId ?? '')
     .digest('hex')

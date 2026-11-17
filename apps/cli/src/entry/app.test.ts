@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import pkg from '../../package.json' with { type: 'json' }
@@ -29,6 +29,9 @@ function capture(): { stdout: () => string; stderr: () => string } {
 }
 
 const FIX = 'Run estela --help for usage.\n'
+
+/** A missing session in this system's absolute form, so its label reads the same before and after `resolve`. */
+const missing = (name: string): string => resolve('/nonexistent', name)
 
 describe('runCli', () => {
   it('prints the package version', async () => {
@@ -70,21 +73,23 @@ describe('runCli', () => {
 
   it('reads the one token after -- as the session and rejects a second', async () => {
     const io = capture()
-    expect(await runCli(['export-atif', '--', '/nonexistent/-weird.jsonl'])).toBe(1)
-    expect(io.stderr()).toContain('Could not export /nonexistent/-weird.jsonl: ')
-    expect(await runCli(['/nonexistent/a.jsonl', '--', '/nonexistent/b.jsonl'])).toBe(1)
-    expect(io.stderr()).toContain(`unexpected: \`/nonexistent/b.jsonl\`\n${FIX}`)
+    expect(await runCli(['export-atif', '--', missing('-weird.jsonl')])).toBe(1)
+    expect(io.stderr()).toContain(`Could not export ${missing('-weird.jsonl')}: `)
+    expect(await runCli([missing('a.jsonl'), '--', missing('b.jsonl')])).toBe(1)
+    expect(io.stderr()).toContain(`unexpected: \`${missing('b.jsonl')}\`\n${FIX}`)
   })
 
   it('keeps stdout free on an mcp failure: it carries only the protocol', async () => {
     const io = capture()
-    expect(await runCli(['mcp', '/nonexistent/session.jsonl'])).toBe(1)
+    expect(await runCli(['mcp', missing('session.jsonl')])).toBe(1)
     expect(io.stdout()).toBe('')
-    expect(io.stderr()).toMatch(/^Could not load \/nonexistent\/session\.jsonl: .+\nPass a canonical Estela JSON file/)
+    expect(io.stderr().startsWith(`Could not load ${missing('session.jsonl')}: `)).toBe(true)
+    expect(io.stderr()).toMatch(/: .+\nPass a canonical Estela JSON file/)
   })
 
   it('reads the session from ESTELA_PATH when the command line names none', async () => {
-    vi.stubEnv('ESTELA_PATH', '/nonexistent/from-env.jsonl')
+    const fromEnv = missing('from-env.jsonl')
+    vi.stubEnv('ESTELA_PATH', fromEnv)
     const out = await mkdtemp(join(tmpdir(), 'estela-path-'))
     try {
       const io = capture()
@@ -94,14 +99,14 @@ describe('runCli', () => {
       expect(await runCli(['export-atif', '--out', join(out, 'a.json')])).toBe(1)
       expect(await runCli(['export-otlp', '--out', join(out, 'o.json')])).toBe(1)
       for (const action of ['load', 'load', 'build', 'export', 'export']) {
-        expect(io.stderr()).toContain(`Could not ${action} /nonexistent/from-env.jsonl: `)
+        expect(io.stderr()).toContain(`Could not ${action} ${fromEnv}: `)
       }
-      expect(io.stderr().split('/nonexistent/from-env.jsonl: ')).toHaveLength(6)
+      expect(io.stderr().split(`${fromEnv}: `)).toHaveLength(6)
 
       // A session on the command line wins over ESTELA_PATH.
-      expect(await runCli(['export-atif', '/nonexistent/given.jsonl', '--out', join(out, 'g.json')])).toBe(1)
-      expect(io.stderr()).toContain('Could not export /nonexistent/given.jsonl: ')
-      expect(io.stderr().split('/nonexistent/from-env.jsonl: ')).toHaveLength(6)
+      expect(await runCli(['export-atif', missing('given.jsonl'), '--out', join(out, 'g.json')])).toBe(1)
+      expect(io.stderr()).toContain(`Could not export ${missing('given.jsonl')}: `)
+      expect(io.stderr().split(`${fromEnv}: `)).toHaveLength(6)
     } finally {
       await rm(out, { recursive: true, force: true })
     }

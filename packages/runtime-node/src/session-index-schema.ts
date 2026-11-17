@@ -1,5 +1,6 @@
 import { chmodSync, closeSync, existsSync, fchmodSync, mkdirSync, openSync, rmSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
+import process from 'node:process'
 import { DatabaseSync } from 'node:sqlite'
 import * as z from 'zod/mini'
 
@@ -47,6 +48,7 @@ class LayoutMismatch extends Error {}
 
 const sqliteError = z.object({ errcode: z.number() })
 const fileExists = z.object({ code: z.literal('EEXIST') })
+const fileInUse = z.object({ code: z.enum(['EPERM', 'EBUSY']) })
 const versionRow = z.object({ user_version: z.number() })
 const countRow = z.object({ n: z.number() })
 
@@ -81,6 +83,18 @@ export function isBusy(error: unknown): boolean {
 export function isTransient(error: unknown): boolean {
   const code = primaryCode(error)
   return code !== undefined && (BUSY_CODES.has(code) || code === IOERR_CODE)
+}
+
+/**
+ * Windows refuses to delete a file that another process has open (SQLite opens it without
+ * `FILE_SHARE_DELETE`), so a rebuild's delete fails with EPERM or EBUSY while another process holds
+ * the broken file. A process in this open loop lets go before its next try; one that keeps the file
+ * open (an older Estela still running) holds it past `LOCK_WAIT_MS`, and the opener then runs
+ * without the index, as it would after a real permission error. Node reports a file in use as
+ * EPERM too, so EPERM cannot be left out. On POSIX these codes are real permission problems.
+ */
+function isOpenElsewhere(error: unknown): boolean {
+  return process.platform === 'win32' && z.safeParse(fileInUse, error).success
 }
 
 /** 0 when the pragma returns no number: `prepare` then creates the schema in an empty file or rebuilds the file. */
@@ -225,8 +239,9 @@ function rebuildUnderLock(file: string, lock: string): DatabaseSync | undefined 
  * The schema is created inside `BEGIN IMMEDIATE`, so two processes opening a fresh cache at
  * once end with one schema. The file is rebuilt only when it is not a database, is corrupt, or
  * has another layout version, and only by the process holding `<file>.lock`; the
- * others wait for that lock to go and open again. A busy or I/O error from a concurrent rebuild
- * is retried until the open succeeds. Throws for anything else (for example EACCES),
+ * others wait for that lock to go and open again. A busy or I/O error from a concurrent rebuild,
+ * or a Windows delete refused while another process has the file open, is retried until the open
+ * succeeds. Throws for anything else (for example EACCES),
  * or after `LOCK_WAIT_MS`; the caller runs without the index.
  */
 export function openDatabase(file: string): DatabaseSync {
@@ -250,8 +265,9 @@ export function openDatabase(file: string): DatabaseSync {
           return rebuilt
         }
       } catch (error) {
-        // The rebuild itself hit a concurrent process (busy, or I/O from its delete): open again.
-        if (!isTransient(error)) {
+        // The rebuild itself hit a concurrent process (busy, I/O from its delete, or a Windows delete
+        // refused while another process has the file open): open again.
+        if (!isTransient(error) && !isOpenElsewhere(error)) {
           throw error
         }
         failure = error

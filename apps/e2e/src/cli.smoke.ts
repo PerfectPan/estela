@@ -9,9 +9,12 @@ import * as z from 'zod/mini'
 import cliPackage from '../../cli/package.json' with { type: 'json' }
 import {
   expectCleanOutput,
+  fakeOpener,
   lanAddress,
+  openArgs,
   openedUrls,
   openLogPath,
+  openSeen,
   readyUrl,
   run,
   smokeEnv,
@@ -105,10 +108,10 @@ describe('installed tarball', () => {
 
   it('--version names the package version, and an unknown flag fails before any session is read', async () => {
     const env = smokeEnv(ctx, openLogPath(ctx, 'version'))
-    const version = await run(process.execPath, [ctx.bin, '--version'], { cwd: ctx.installDir, env })
+    const version = await run(ctx.node, [ctx.bin, '--version'], { cwd: ctx.installDir, env })
     expect(version.code).toBe(0)
     expect(version.stdout).toBe(`estela ${cliPackage.version}\n`)
-    const unknown = await run(process.execPath, [ctx.bin, '--bogus', ctx.claudePlain], { cwd: ctx.installDir, env })
+    const unknown = await run(ctx.node, [ctx.bin, '--bogus', ctx.claudePlain], { cwd: ctx.installDir, env })
     expect(unknown.code).toBe(1)
     expect(unknown.stdout).toBe('')
     expect(unknown.stderr).toBe('unexpected: `--bogus`\nRun estela --help for usage.\n')
@@ -116,23 +119,25 @@ describe('installed tarball', () => {
 
   it("S2: a session path opens that session's workspace", async () => {
     const log = openLogPath(ctx, 's2')
-    const server = start(process.execPath, [ctx.bin, ctx.claudePlain, '--port', '0'], {
+    const server = start(ctx.node, [ctx.bin, ctx.claudePlain, '--port', '0', ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
     try {
       await waitFor(
         'the Ready line and the browser opener',
-        () => readyUrl(server.output().stdout) !== undefined && openedUrls(log).length > 0,
+        () => readyUrl(server.output().stdout) !== undefined && openSeen(log),
       )
       const ready = readyUrl(server.output().stdout)
       expect(server.output().stdout).toContain(`Ready: ${ready!.base}#/s/${ready!.traceId}`)
-      // The fragment carries DevFrame's one-time code, so the trace id rides `?s=`; the SPA moves it to `#/s/<traceId>`.
-      const [opened] = openedUrls(log)
-      expect(opened).toMatch(
-        new RegExp(`^${ready!.base.replaceAll('/', '\\/')}\\?s=${ready!.traceId}#devframe_otp=\\w+$`),
-      )
-      expect(openedUrls(log)).toHaveLength(1)
+      if (fakeOpener) {
+        // The fragment carries DevFrame's one-time code, so the trace id rides `?s=`; the SPA moves it to `#/s/<traceId>`.
+        const [opened] = openedUrls(log)
+        expect(opened).toMatch(
+          new RegExp(`^${ready!.base.replaceAll('/', '\\/')}\\?s=${ready!.traceId}#devframe_otp=\\w+$`),
+        )
+        expect(openedUrls(log)).toHaveLength(1)
+      }
       // The session index loads node:sqlite; `dist/bin.mjs` drops only its ExperimentalWarning.
       expect(server.output().stderr).not.toContain('ExperimentalWarning')
     } finally {
@@ -155,7 +160,7 @@ describe('installed tarball', () => {
         holders.push(holder)
       }
     }
-    const server = start(process.execPath, [ctx.bin, ctx.claudePlain], {
+    const server = start(ctx.node, [ctx.bin, ctx.claudePlain, '--no-open'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'port-fallback')),
     })
@@ -173,7 +178,7 @@ describe('installed tarball', () => {
   })
 
   it('S10: mcp lists tools and reconstruct returns completeness', async () => {
-    const server = start(process.execPath, [ctx.bin, 'mcp', ctx.claudePlain], {
+    const server = start(ctx.node, [ctx.bin, 'mcp', ctx.claudePlain], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 's10')),
       input: true,
@@ -235,7 +240,7 @@ describe('installed tarball', () => {
   it('S15: build piped to a file writes plain lines and no home path', async () => {
     const outDir = join(ctx.root, 's15-report')
     // stdout is a pipe: like `> log.txt`, it is not a TTY.
-    const result = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', outDir], {
+    const result = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', outDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 's15')),
     })
@@ -260,11 +265,10 @@ describe('installed tarball', () => {
     })
     const port = portOf(holder)
     try {
-      const result = await run(
-        process.execPath,
-        [ctx.bin, '--host', '127.0.0.1', '--port', String(port), '--no-open'],
-        { cwd: ctx.installDir, env: smokeEnv(ctx, openLogPath(ctx, 'port-busy')) },
-      )
+      const result = await run(ctx.node, [ctx.bin, '--host', '127.0.0.1', '--port', String(port), '--no-open'], {
+        cwd: ctx.installDir,
+        env: smokeEnv(ctx, openLogPath(ctx, 'port-busy')),
+      })
       expect(result.code).toBe(1)
       expect(result.stderr).toContain(`Port ${port} is already in use.`)
       expect(`${result.stdout}${result.stderr}`).not.toContain('DF0052')
@@ -279,7 +283,7 @@ describe('installed tarball', () => {
     const { port } = held
 
     const log = openLogPath(ctx, 'host-v4-loopback')
-    const server = start(process.execPath, [ctx.bin, '--host', '127.0.0.1', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '127.0.0.1', '--port', String(port), ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -287,14 +291,16 @@ describe('installed tarball', () => {
     try {
       await waitFor(
         'the 127.0.0.1 Ready line and browser open',
-        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+        () => readyPattern.test(server.output().stdout) && openSeen(log),
       )
       const stdout = server.output().stdout
       expect(stdout).toContain(`http://127.0.0.1:${port}/__estela/#/`)
       expect(stdout).not.toContain(`http://localhost:${port}`)
-      const opened = openedUrls(log)
-      expect(opened).toHaveLength(1)
-      expect(opened[0]).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`))
+      if (fakeOpener) {
+        const opened = openedUrls(log)
+        expect(opened).toHaveLength(1)
+        expect(opened[0]).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`))
+      }
 
       const res = await fetch(`http://127.0.0.1:${port}/__estela/`)
       expect(res.status).toBe(200)
@@ -343,20 +349,21 @@ describe('installed tarball', () => {
     const held = await portHeldOnIpv6Loopback()
     const { port } = held
     const log = openLogPath(ctx, 'host-v4-wildcard')
-    const server = start(process.execPath, [ctx.bin, '--host', '0.0.0.0', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '0.0.0.0', '--port', String(port), ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
     try {
       await waitFor(
         'the 127.0.0.1 Ready line and browser open',
-        () =>
-          server.output().stdout.includes(`Ready: http://127.0.0.1:${port}/__estela/#/`) && openedUrls(log).length > 0,
+        () => server.output().stdout.includes(`Ready: http://127.0.0.1:${port}/__estela/#/`) && openSeen(log),
       )
       expect(server.output().stdout).not.toContain(`http://localhost:${port}`)
-      expect(openedUrls(log)).toEqual([
-        expect.stringMatching(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`)),
-      ])
+      if (fakeOpener) {
+        expect(openedUrls(log)).toEqual([
+          expect.stringMatching(new RegExp(`^http://127\\.0\\.0\\.1:${port}/__estela/#devframe_otp=\\w+$`)),
+        ])
+      }
       expect((await fetch(`http://127.0.0.1:${port}/__estela/`)).status).toBe(200)
       // The wildcard still serves the page on this machine's LAN address.
       const lan = lanAddress()
@@ -390,7 +397,7 @@ describe('installed tarball', () => {
     await new Promise<void>(resolve => v6Probe.close(() => resolve()))
 
     const log = openLogPath(ctx, 'host-v6-loopback')
-    const server = start(process.execPath, [ctx.bin, '--host', '[::1]', '--port', String(port)], {
+    const server = start(ctx.node, [ctx.bin, '--host', '[::1]', '--port', String(port), ...openArgs], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, log),
     })
@@ -398,12 +405,14 @@ describe('installed tarball', () => {
     try {
       await waitFor(
         'the [::1] Ready line and browser open',
-        () => readyPattern.test(server.output().stdout) && openedUrls(log).length > 0,
+        () => readyPattern.test(server.output().stdout) && openSeen(log),
       )
       expect(server.output().stdout).toContain(`http://[::1]:${port}/__estela/#/`)
-      const opened = openedUrls(log)
-      expect(opened).toHaveLength(1)
-      expect(opened[0]).toMatch(new RegExp(`^http://\\[::1\\]:${port}/__estela/#devframe_otp=\\w+$`))
+      if (fakeOpener) {
+        const opened = openedUrls(log)
+        expect(opened).toHaveLength(1)
+        expect(opened[0]).toMatch(new RegExp(`^http://\\[::1\\]:${port}/__estela/#devframe_otp=\\w+$`))
+      }
 
       const res = await fetch(`http://[::1]:${port}/__estela/`)
       expect(res.status).toBe(200)
@@ -414,7 +423,7 @@ describe('installed tarball', () => {
   })
 
   it('refuses --no-auth with a non-loopback --host', async () => {
-    const result = await run(process.execPath, [ctx.bin, '--no-auth', '--host', '0.0.0.0'], {
+    const result = await run(ctx.node, [ctx.bin, '--no-auth', '--host', '0.0.0.0'], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'no-auth-host')),
     })
@@ -428,7 +437,7 @@ describe('installed tarball', () => {
     const keepFile = join(nonEmptyDir, 'keep.txt')
     await writeFile(keepFile, 'do-not-delete', 'utf8')
 
-    const refused = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', nonEmptyDir], {
+    const refused = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', nonEmptyDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'build-nonempty')),
     })
@@ -437,13 +446,13 @@ describe('installed tarball', () => {
     expect(await readFile(keepFile, 'utf8')).toBe('do-not-delete')
 
     const reportDir = join(ctx.root, 'build-rebuild')
-    const first = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
+    const first = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'build-first')),
     })
     expect(first.code, first.stderr).toBe(0)
 
-    const rebuild = await run(process.execPath, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
+    const rebuild = await run(ctx.node, [ctx.bin, 'build', ctx.claudePlain, '--out-dir', reportDir], {
       cwd: ctx.installDir,
       env: smokeEnv(ctx, openLogPath(ctx, 'build-second')),
     })
@@ -451,7 +460,7 @@ describe('installed tarball', () => {
     expect(await readdir(reportDir)).toEqual(['index.html'])
 
     const notDirChild = await run(
-      process.execPath,
+      ctx.node,
       [ctx.bin, 'build', ctx.claudePlain, '--out-dir', join(keepFile, 'nested')],
       {
         cwd: ctx.installDir,

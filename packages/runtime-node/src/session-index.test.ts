@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
@@ -14,6 +15,18 @@ const dirs: string[] = []
 afterEach(async () => {
   await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
+
+/**
+ * Windows has no POSIX permission bits: Node reports 0o666 for every file and directory, and the
+ * user profile's ACL is what keeps the index private there. Mode checks run on POSIX only.
+ */
+const posixModes = process.platform !== 'win32'
+
+function expectMode(path: string, mode: number): void {
+  if (posixModes) {
+    expect(statSync(path).mode & 0o777, path).toBe(mode)
+  }
+}
 
 async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'session-index-'))
@@ -62,9 +75,11 @@ function concurrentIndexWriter(file: string): string {
 
 describe('session index', () => {
   it('honors XDG_CACHE_HOME and otherwise uses ~/.cache', () => {
-    expect(sessionIndexFile({ XDG_CACHE_HOME: '/xdg' }, '/h/u')).toBe('/xdg/rivus-estela/index.sqlite')
-    expect(sessionIndexFile({ XDG_CACHE_HOME: '' }, '/h/u')).toBe('/h/u/.cache/rivus-estela/index.sqlite')
-    expect(sessionIndexFile({}, '/h/u')).toBe('/h/u/.cache/rivus-estela/index.sqlite')
+    expect(sessionIndexFile({ XDG_CACHE_HOME: '/xdg' }, '/h/u')).toBe(join('/xdg', 'rivus-estela', 'index.sqlite'))
+    expect(sessionIndexFile({ XDG_CACHE_HOME: '' }, '/h/u')).toBe(
+      join('/h/u', '.cache', 'rivus-estela', 'index.sqlite'),
+    )
+    expect(sessionIndexFile({}, '/h/u')).toBe(join('/h/u', '.cache', 'rivus-estela', 'index.sqlite'))
   })
 
   it('creates the file with mode 0600 and reopens the same summary', async () => {
@@ -76,7 +91,7 @@ describe('session index', () => {
     expect(index.get('a', 10, 1_000)?.inputTokens).toBe(118_400)
     expect(index.get('a', 11, 1_000)).toBeUndefined()
     index.close()
-    expect(statSync(file).mode & 0o777).toBe(0o600)
+    expectMode(file, 0o600)
 
     const again = openSessionIndex({ summaryVersion: 1, file })
     expect(again.get('a', 10, 1_000)?.requests).toBe(4)
@@ -144,7 +159,7 @@ describe('session index', () => {
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     expect(index.search('auth')).toEqual(['a'])
-    expect(statSync(file).mode & 0o777).toBe(0o600)
+    expectMode(file, 0o600)
     index.close()
   })
 
@@ -286,23 +301,41 @@ describe('session index', () => {
   it('creates the directory 0700 and the file 0600', async () => {
     const file = join(await tempDir(), 'cache', 'rivus-estela', 'index.sqlite')
     openSessionIndex({ summaryVersion: 1, file }).close()
-    expect(statSync(dirname(file)).mode & 0o777).toBe(0o700)
-    expect(statSync(file).mode & 0o777).toBe(0o600)
+    expect(statSync(dirname(file)).isDirectory()).toBe(true)
+    expect(statSync(file).isFile()).toBe(true)
+    expectMode(dirname(file), 0o700)
+    expectMode(file, 0o600)
   })
 
-  it('returns a disabled index with the reason when the cache directory is not writable', async () => {
-    const cache = join(await tempDir(), 'cache')
-    mkdirSync(cache)
-    chmodSync(cache, 0o500)
-    try {
-      const index = openSessionIndex({ summaryVersion: 1, env: { XDG_CACHE_HOME: cache }, homeDir: '/h/u' })
-      expect(index.enabled).toBe(false)
-      expect(index.unavailable).toMatch(/EACCES|permission/i)
-      expect(index.search('x')).toBeUndefined()
-      index.close()
-    } finally {
-      chmodSync(cache, 0o700)
-    }
+  // chmod cannot make a directory read-only on Windows.
+  it.skipIf(!posixModes)(
+    'returns a disabled index with the reason when the cache directory is not writable',
+    async () => {
+      const cache = join(await tempDir(), 'cache')
+      mkdirSync(cache)
+      chmodSync(cache, 0o500)
+      try {
+        const index = openSessionIndex({ summaryVersion: 1, env: { XDG_CACHE_HOME: cache }, homeDir: '/h/u' })
+        expect(index.enabled).toBe(false)
+        expect(index.unavailable).toMatch(/EACCES|permission/i)
+        expect(index.search('x')).toBeUndefined()
+        index.close()
+      } finally {
+        chmodSync(cache, 0o700)
+      }
+    },
+  )
+
+  // The disabled path on every system, Windows included: a file where the cache directory should be.
+  it('returns a disabled index with the reason when the cache directory cannot be created', async () => {
+    const blocker = join(await tempDir(), 'not-a-directory')
+    writeFileSync(blocker, '')
+    const index = openSessionIndex({ summaryVersion: 1, env: { XDG_CACHE_HOME: blocker }, homeDir: '/h/u' })
+    expect(index.enabled).toBe(false)
+    // The error code differs by system (ENOTDIR on macOS and Linux); a reason is what counts.
+    expect(index.unavailable).toMatch(/ENOTDIR|EEXIST|ENOENT|not a directory/i)
+    expect(index.search('x')).toBeUndefined()
+    index.close()
   })
 
   it('lets several processes open a fresh cache at once', async () => {
@@ -356,9 +389,9 @@ describe('session index', () => {
     const file = join(dir, 'index.sqlite')
     const index = openSessionIndex({ summaryVersion: 1, file })
     index.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
-    expect(statSync(dir).mode & 0o777).toBe(0o700)
+    expectMode(dir, 0o700)
     for (const suffix of ['', '-wal', '-shm']) {
-      expect({ suffix, mode: statSync(`${file}${suffix}`).mode & 0o777 }).toEqual({ suffix, mode: 0o600 })
+      expectMode(`${file}${suffix}`, 0o600)
     }
     const raw = new DatabaseSync(file)
     expect(raw.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
@@ -388,6 +421,7 @@ describe('session index', () => {
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] },
     )
+    const holderExited = new Promise<void>(resolve => holder.once('exit', () => resolve()))
     await new Promise<void>(resolve => holder.stdout.once('data', () => resolve()))
     const started = performance.now()
     const index = openSessionIndex({ summaryVersion: 1, file })
@@ -399,6 +433,8 @@ describe('session index', () => {
     expect(performance.now() - started).toBeLessThan(1_000)
     index.close()
     holder.kill()
+    // Windows keeps the holder's -wal file locked until it has exited, and the temp directory goes after the test.
+    await holderExited
   })
 
   it('rebuilds a broken file once when several processes open it at the same time', async () => {

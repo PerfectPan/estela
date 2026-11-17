@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, relative, resolve } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
@@ -24,13 +24,12 @@ export async function writeDemoTrace(out: string): Promise<{ events: number; req
     const session = writeDemoSession(projectDir, DEMO_CWD)
     const platform = createNodePlatform({ home, env: {} })
     const trace = await loadSession({ agent: 'claude-code', path: session.path }, { platform })
+    // `/` in the committed file on every system: `relative` writes Windows separators there.
+    const inProject = (file: string): string => `tinyshelf/${relative(projectDir, file).split(sep).join('/')}`
     for (const event of trace.events) {
-      event.source = { ...event.source, file: `tinyshelf/${relative(projectDir, event.source.file)}` }
+      event.source = { ...event.source, file: inProject(event.source.file) }
     }
-    const skipped = trace.skipped.map(entry => ({
-      ...entry,
-      file: `tinyshelf/${relative(projectDir, entry.file)}`,
-    }))
+    const skipped = trace.skipped.map(entry => ({ ...entry, file: inProject(entry.file) }))
     const text = JSON.stringify({ ...trace, skipped }, null, 1)
     if (text.includes(home)) {
       throw new Error('the demo trace still names the temp home')

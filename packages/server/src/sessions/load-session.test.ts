@@ -6,6 +6,7 @@ import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { SessionAdapter } from '@rivus/agent-kit/sessions'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { loadSession } from './load-session.ts'
+import { toKitPath } from './session-target.ts'
 import { MAX_CANONICAL_TRACE_BYTES } from './node-platform.ts'
 import { builtinAdapters } from './adapters.ts'
 import { createTraceStore } from '../store/trace-store.ts'
@@ -128,7 +129,7 @@ describe('loadSession', () => {
   it('throws the unknown-generation wording, which the web parses into agent, file, and line', async () => {
     const path = await unknownGeneration()
     await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
-      `claude-code: ${path}:1: unknown format generation`,
+      `claude-code: ${toKitPath(path)}:1: unknown format generation`,
     )
   })
 
@@ -176,7 +177,7 @@ describe('loadSession', () => {
       })}\n`,
     )
     await expect(loadSession({ path }, { platform: createNodePlatform({ home: '/u/me', env: {} }) })).rejects.toThrow(
-      `claude-code: ${path}:1: unknown format generation`,
+      `claude-code: ${toKitPath(path)}:1: unknown format generation`,
     )
   })
 
@@ -242,19 +243,21 @@ describe('loadSession', () => {
     const path = join(dir, 'huge.trace.json')
     await writeFile(path, canonicalHook({ type: 'hook_success', name: 'PreToolUse' }))
     const base = createNodePlatform({ home: dir, env: {} })
+    // `loadSession` reads the `toKitPath` form of the path.
+    const read = toKitPath(path)
     const wrapped = {
       ...base,
       fs: {
         ...base.fs,
         async stat(file: string, options?: { readonly followSymlinks?: boolean }) {
           const actual = await base.fs.stat(file, options)
-          if (file === path && actual) {
+          if (file === read && actual) {
             return { ...actual, size: MAX_CANONICAL_TRACE_BYTES + 1 }
           }
           return actual
         },
         read(file: string, range?: { readonly start: number; readonly end?: number }) {
-          if (file === path && range?.end === undefined) {
+          if (file === read && range?.end === undefined) {
             throw new Error('should not read the full oversized file')
           }
           return base.fs.read(file, range)

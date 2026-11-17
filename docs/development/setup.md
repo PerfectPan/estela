@@ -133,14 +133,14 @@ ATIF export ([export formats](../reference/export-formats.md)):
 
 ## CLI smoke on the installed tarball
 
-`apps/e2e` (`@rivus/estela-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. It covers `--help` (through `npx`), S2, S10, S17 and S18 (`mcp.smoke.ts`), S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.15` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/estela...' run build`, so the tarball never holds a stale bundle.
+`apps/e2e` (`@rivus/estela-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` (also set as `USERPROFILE`, which Windows reads) from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. Windows has no such stand-in, because DevFrame opens the browser there through `cmd /c start`; the tests that check the opened URL pass `--no-open` on Windows and check the printed URL only. It covers `--help` (through `npx`), S2, S10, S17 and S18 (`mcp.smoke.ts`), S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.18` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/estela...' run build`, so the tarball never holds a stale bundle.
 
 ```bash
 cd apps/e2e
 pnpm run test:smoke
 ```
 
-`TMPDIR` chooses where the temp directory goes. `ESTELA_SMOKE_KEEP=1` keeps it after the run. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Node.js `^26.13.1`.
+`TMPDIR` chooses where the temp directory goes. `ESTELA_SMOKE_KEEP=1` keeps it after the run. `ESTELA_SMOKE_NODE=<path to a node binary>` runs the installed CLI with that Node.js while the tests run on the workspace's. The install step needs the npm registry. The CLI runs with npm's update notifier, fund, and audit messages off, so its output is only its own. CI runs it in the `test` job on Linux with Node.js `^26.13.1`, and in the `platforms` job on Linux, macOS, and Windows with the CLI on Node.js 24 and 26.
 
 ## Browser end-to-end on the installed tarball
 
