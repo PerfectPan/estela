@@ -69,7 +69,9 @@ async function writeDefaultUnique(
   for (let attempt = 1; attempt <= MAX_DEFAULT_ATTEMPTS; attempt += 1) {
     const candidate = defaultExportCandidate(sessionId, format, attempt)
     // Windows' `wx` (CREATE_NEW) follows a dangling symbolic link and creates its target; POSIX `wx`
-    // refuses any existing entry on its own. So an entry of any kind, a link included, is taken.
+    // refuses any existing entry on its own. So an entry of any kind, a link included, is taken. On
+    // Windows a link created between this check and the open is still followed: that needs write
+    // access to the directory and the right to create symbolic links.
     if (await entryExists(candidate)) {
       continue
     }

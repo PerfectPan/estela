@@ -11,9 +11,9 @@ import { transcriptToTrace } from '../src/sessions/transcript-trace.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = join(here, '../../..')
-/** In the form the server hands the kit (`toKitPath`): `loadTranscript` below is the kit's own call. */
+/** This system's spelling (`\\` on Windows), so `loadSession` and `summarizeRow` turn it into the kit's form. */
 const fixture = (agent: string, relative: string): string =>
-  toKitPath(join(repo, 'fixtures/sessions', agent, 'conformance', relative))
+  join(repo, 'fixtures/sessions', agent, 'conformance', relative)
 const platform = createNodePlatform()
 
 const claudeLoad = async (relative: string) =>
@@ -52,7 +52,8 @@ describe('catalog summary equals the workspace header summary', () => {
   for (const [agent, relative] of FIXTURES) {
     it(`${agent} ${relative}`, async () => {
       const path = fixture(agent, relative)
-      const loaded = await loadTranscript(platform, { agent, path })
+      // The kit's own call: it gets the path in the form the server hands it.
+      const loaded = await loadTranscript(platform, { agent, path: toKitPath(path) })
       if (!loaded.ok) {
         throw new Error(`${path}: ${loaded.error._tag}`)
       }

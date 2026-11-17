@@ -106,7 +106,7 @@ export const test = base.extend<Fixtures>({
       await mkdir(cache, { recursive: true })
       const openLog = join(cwd, 'opened.log')
       const home = options.home ?? ctx.homes.main.home
-      const server = start(process.execPath, [ctx.bin, ...(options.args ?? []), '--port', '0'], {
+      const server = start(ctx.node, [ctx.bin, ...(options.args ?? []), '--port', '0'], {
         cwd,
         env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, openLog, options.env),
       })

@@ -3,7 +3,7 @@ import type { Transcript } from '@rivus/agent-kit/transcript'
 import { ok } from '@rivus/agent-kit/catalog'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { spawn } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -277,32 +277,25 @@ describe('session catalog cache', () => {
     expect(row.lastActiveAt).toBeCloseTo((await stat(bad)).mtimeMs, 3)
   })
 
-  // chmod cannot make a directory read-only on Windows.
-  it.skipIf(process.platform === 'win32')(
-    'runs without the index when the cache directory is not writable',
-    async () => {
-      const home = await tempHome()
-      await session(home, 'a.jsonl', 'Alpha')
-      const cache = join(home, 'cache')
-      await mkdir(cache)
-      await chmod(cache, 0o500)
-      try {
-        const catalog = new SessionCatalog({
-          platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
-          adapters: { fake: fakeAdapter(home, []) },
-        })
-        expect(catalog.indexUnavailable).toMatch(/EACCES|permission/i)
-        expect(catalog.indexUnavailable).not.toContain(home)
-        expect(catalog.indexUnavailable).toContain('~/cache')
-        await catalog.whenIdle()
-        const listed = await catalog.listSessions({ query: 'Alp' })
-        expect(listed.rows[0]?.requests).toBe(1)
-        expect(listed.matches).toHaveLength(1)
-      } finally {
-        await chmod(cache, 0o700)
-      }
-    },
-  )
+  // A file where the cache directory should be fails the index on every system; chmod cannot make
+  // a directory read-only on Windows.
+  it('runs without the index when the cache directory cannot be created', async () => {
+    const home = await tempHome()
+    await session(home, 'a.jsonl', 'Alpha')
+    const cache = join(home, 'cache')
+    await writeFile(cache, '')
+    const catalog = new SessionCatalog({
+      platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
+      adapters: { fake: fakeAdapter(home, []) },
+    })
+    expect(catalog.indexUnavailable).toMatch(/ENOTDIR|EEXIST|ENOENT|not a directory/i)
+    expect(catalog.indexUnavailable).not.toContain(home)
+    expect(catalog.indexUnavailable).toContain(join('~', 'cache'))
+    await catalog.whenIdle()
+    const listed = await catalog.listSessions({ query: 'Alp' })
+    expect(listed.rows[0]?.requests).toBe(1)
+    expect(listed.matches).toHaveLength(1)
+  })
 
   it('gives a file opened by path the same trace id as its list row', async () => {
     const home = await tempHome()
