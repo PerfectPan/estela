@@ -6,7 +6,7 @@ import { parse, printErrors } from '@bomb.sh/router'
 import { homeDir } from '@rivus/estela-runtime-node'
 import pkg from '../../package.json' with { type: 'json' }
 import { demoFixturePath } from '../paths.ts'
-import { parseSessionTarget } from '@rivus/estela-server'
+import { parseSessionTarget, toKitPath } from '@rivus/estela-server'
 import type { ExportFormat } from '../export/write-export.ts'
 import { runBuild, type BuildInput } from './commands/build.ts'
 import { runDev, type DevInput } from './commands/dev.ts'
@@ -26,10 +26,10 @@ function usage(detail: string): CliError {
   return new CliError({ kind: 'usage', detail })
 }
 
-/** The target of a session given on the command line (`path` or `path#sessionId`), its path made absolute. */
+/** The target of a session given on the command line (`path` or `path#sessionId`), its path made absolute in the kit's form. */
 function commandLineTarget(input: string): SessionTarget {
   const target = parseSessionTarget(input)
-  return { ...target, path: resolve(target.path) }
+  return { ...target, path: toKitPath(resolve(target.path)) }
 }
 
 /** An empty ESTELA_PATH names no session. */

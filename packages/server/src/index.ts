@@ -9,4 +9,4 @@ export type { AgentProgress, SessionCatalog } from './catalog/session-catalog.ts
 export { checkReportOutDir, reportOf, ReportOutDirError, writeReport } from './report/report.ts'
 export { loadSession, type ShellPlatform } from './sessions/load-session.ts'
 export { errorMessage } from './sessions/read-failure.ts'
-export { oneLine, parseSessionTarget, sessionTargetLabel } from './sessions/session-target.ts'
+export { oneLine, parseSessionTarget, sessionTargetLabel, toKitPath } from './sessions/session-target.ts'

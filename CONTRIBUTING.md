@@ -260,7 +260,7 @@ CI listens for PRs being opened, reopened, updated with new commits (`synchroniz
 The `test` job runs for non-Draft PRs, including ordinary and Renovate PRs opened directly as Ready. New commits
 on a Ready PR run CI automatically; they no longer require another Draft-to-Ready transition. Keep work in Draft
 until local checks are finished. When a Draft PR event starts this workflow, its `test` job is skipped. GitHub
-reports that skipped job as successful, but the skipped status is not validation evidence. Mark the PR Ready and confirm that the actual `test` job ran
+reports that skipped job as successful, but the skipped status is not validation evidence. Mark the PR Ready and confirm that the actual `test` and `platforms` jobs ran
 and passed for its current head and merge result before merging. Release PRs still return to Draft on every
 version update and wait for a maintainer to mark them Ready.
 
@@ -278,7 +278,11 @@ The tarball smoke step then builds `@rivus/estela` with `vp pack` (`pnpm --filte
 runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
 a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. The budgets step
 (`node scripts/check-budgets.mjs`) then runs on that build and writes its measured-vs-budget table to the job summary;
-the budgets and their reasons live in `scripts/budgets/budgets.mjs`. Dependency installation uses
+the budgets and their reasons live in `scripts/budgets/budgets.mjs`. The `platforms` job runs beside `test` on the same
+events: the unit suites on macOS and Windows, and the smoke suite on Linux, macOS, and Windows with the installed CLI on
+Node.js 24 (through `ESTELA_SMOKE_NODE`) and 26. The budgets and the Playwright suite run in `test` only, because their
+numbers are set on Linux runners. Text files check out with LF on every system (`.gitattributes`), because fixtures are
+read back by byte offset. Dependency installation uses
 `pnpm install --frozen-lockfile` with the committed lockfile; refresh the lockfile with `pnpm install` when dependency
 inputs change. pnpm rejects versions published
 less than a day ago (`minimumReleaseAge` in `pnpm-workspace.yaml`), so pick versions at least a day old when upgrading.
