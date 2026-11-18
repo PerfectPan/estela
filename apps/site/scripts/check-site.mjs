@@ -42,13 +42,21 @@ function listPrerenderedDocsUrls() {
 
 async function checkColdDocsLoads({ chrome, origin, errors, badResponses, setJsDelayMs }) {
   const runs = [
-    ...Array.from({ length: 20 }, () => ({ lang: 'zh-CN', h1: '入门' })),
-    ...Array.from({ length: 4 }, () => ({ lang: 'en', h1: 'Getting started' })),
+    ...Array.from({ length: 20 }, () => ({
+      lang: 'zh-CN',
+      path: 'docs/guide/getting-started/',
+      h1: '入门',
+    })),
+    ...Array.from({ length: 20 }, () => ({
+      lang: 'en',
+      path: 'docs/guide/privacy/',
+      h1: 'Privacy and redaction',
+    })),
   ]
   setJsDelayMs(25)
   try {
     for (let i = 0; i < runs.length; i += 1) {
-      const { lang, h1 } = runs[i]
+      const { lang, path: docPath, h1 } = runs[i]
       const page = await chrome.openIsolatedPage()
       try {
         await page.cdp.send('Page.enable')
@@ -75,16 +83,18 @@ async function checkColdDocsLoads({ chrome, origin, errors, badResponses, setJsD
         await page.cdp.send('Page.addScriptToEvaluateOnNewDocument', {
           source: `localStorage.setItem('estela-lang', ${JSON.stringify(lang)});`,
         })
-        await page.cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/getting-started/` })
+        await page.cdp.send('Page.navigate', { url: `${origin}${base}${docPath}` })
         await waitFor(
           () =>
             evaluate(
               page.cdp,
-              `document.querySelector('[data-docs] h1')?.textContent?.trim() === ${JSON.stringify(h1)}`,
+              `document.readyState === 'complete' && !document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === ${JSON.stringify(h1)}`,
             ),
           `cold load ${i + 1}/${runs.length} (${lang} -> ${h1})`,
           5_000,
         )
+        // Allow post-hydration MDX chunk resolution and layout effects to settle so recoverable errors surface.
+        await new Promise(resolve => setTimeout(resolve, 300))
       } finally {
         await page.close()
       }

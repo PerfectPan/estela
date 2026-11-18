@@ -3,7 +3,7 @@ import { notFound } from '@tanstack/react-router'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import type { Locale } from '@/i18n/locale.ts'
 import { useLanguage } from '@/hooks/use-language.ts'
-import { getLoadedDoc, loadDoc } from './doc-loader.ts'
+import { isDocLoaded, loadDoc } from './doc-loader.ts'
 import { DocsArticle } from './docs-article.tsx'
 import { englishFallback } from './docs-fallback.ts'
 import { slugsFromSplat } from './docs-path.ts'
@@ -24,7 +24,7 @@ export function DocsScreen({ splat }: { splat?: string }) {
   // Keep the currently visible locale (both sidebar and article) mounted until the target locale's MDX module
   // finishes loading, so a slow chunk never blanks the article or strands a dehydrated <Suspense> transition.
   const sameRoute = settled.splatKey === splatKey
-  const targetLoaded = getLoadedDoc(targetPage.path)
+  const targetLoaded = isDocLoaded(targetPage.path)
   const activeLang = sameRoute && settled.lang !== lang && !targetLoaded ? settled.lang : lang
   const page = source.getPage(slugs, activeLang)
   if (!page) {
@@ -33,11 +33,16 @@ export function DocsScreen({ splat }: { splat?: string }) {
 
   useEffect(() => {
     let cancelled = false
-    void loadDoc(targetPage.path).then(() => {
-      if (!cancelled && (settled.splatKey !== splatKey || settled.lang !== lang)) {
-        setSettled({ splatKey, lang })
-      }
-    })
+    void loadDoc(targetPage.path).then(
+      () => {
+        if (!cancelled && (settled.splatKey !== splatKey || settled.lang !== lang)) {
+          setSettled({ splatKey, lang })
+        }
+      },
+      () => {
+        // Rejection evicts the entry in doc-loader; keep the settled locale visible instead of blanking.
+      },
+    )
     return () => {
       cancelled = true
     }

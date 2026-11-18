@@ -3,12 +3,12 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import type { Locale } from '@/i18n/locale.ts'
-import { getLoadedDoc, loadDoc } from './doc-loader.ts'
 import { useDocumentReady } from '@/hooks/use-document-ready.ts'
 import { useHashScroll } from '@/hooks/use-hash-scroll.ts'
 import { DOCS_PENDING_CLASS } from '@/i18n/lang-preference.ts'
 import { dictionaryOf } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva.ts'
+import { loadDoc } from './doc-loader.ts'
 import { docs } from './source.ts'
 
 // The TOC marks the current section with its track segment alone, without Fumadocs' travelling dot.
@@ -20,7 +20,7 @@ export function DocsArticle({ path, fallback, lang }: { path: string; fallback: 
     throw new Error(`unknown page: ${path}`)
   }
 
-  const loaded = getLoadedDoc(path) ?? use(loadDoc(path))
+  const loaded = use(loadDoc(path))
   const MDX = loaded.body
   const t = dictionaryOf(lang)
 
