@@ -1,0 +1,235 @@
+@import "tailwindcss";
+@import "@fontsource/instrument-sans/latin-400.css";
+@import "@fontsource/instrument-sans/latin-500.css";
+@import "@fontsource/instrument-sans/latin-600.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+@import "fumadocs-ui/css/lib/default-colors.css";
+@import "fumadocs-ui/css/preset.css";
+
+@theme inline {
+  --font-sans: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-kind-request: var(--kind-request);
+  --color-kind-user: var(--kind-user);
+  --color-kind-reasoning: var(--kind-reasoning);
+  --color-kind-tool: var(--kind-tool);
+  --color-kind-subagent: var(--kind-subagent);
+  --color-lane-link: var(--lane-link);
+}
+
+/* The product's tokens (docs/design/README.md, the same values as apps/web/src/styles.css). Light on :root, dark on
+   .dark so Fumadocs' next-themes class strategy drives both landing and docs. */
+:root {
+  --radius: 0.5rem;
+  --background: #fbfaf8;
+  --secondary: #f4f3f0;
+  --muted: #ffffff;
+  --accent: #efeeea;
+  --border: #e6e4df;
+  --input: #d9d7d1;
+  --foreground: #17191c;
+  --muted-foreground: #555b62;
+  --subtle-foreground: #858b92;
+  --destructive: #c93a32;
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+  --kind-request: #347ec4;
+  --kind-user: #418e47;
+  --kind-reasoning: #9c5eaa;
+  --kind-tool: #b0660c;
+  --kind-subagent: #009284;
+  --ring: color-mix(in srgb, var(--kind-request) 50%, transparent);
+  --agent-claude-code: #c15f3c;
+  --agent-codex: var(--foreground);
+  --agent-dsh: #3355e6;
+  --agent-grok: #5a6169;
+  --agent-gemini-cli: #286599;
+  --agent-opencode: #5f6b76;
+  --agent-pi: #6653c7;
+  --hatch: #c9c6bf;
+  --hatch-edge: #b4b1aa;
+  --lane-link: #00796d;
+  /* Hero glow behind the scene: the request hue, faint. */
+  --glow: color-mix(in srgb, var(--kind-request) 12%, transparent);
+  --color-fd-overlay: rgba(13, 16, 19, 0.2);
+  color-scheme: light;
+}
+
+.dark {
+  --background: #0d1013;
+  --secondary: #111519;
+  --muted: #171c21;
+  --accent: #1b2127;
+  --border: #222930;
+  --input: #2b333b;
+  --foreground: #e6e9ec;
+  --muted-foreground: #a3acb5;
+  --subtle-foreground: #6d7780;
+  --destructive: #e5534b;
+  --primary: var(--foreground);
+  --primary-foreground: var(--background);
+  --secondary-foreground: var(--foreground);
+  --accent-foreground: var(--foreground);
+  --kind-request: #4d97de;
+  --kind-user: #5aa75e;
+  --kind-reasoning: #b576c3;
+  --kind-tool: #ca7e31;
+  --kind-subagent: #00ab9d;
+  --ring: color-mix(in srgb, var(--kind-request) 55%, transparent);
+  --agent-claude-code: #d97757;
+  --agent-codex: var(--foreground);
+  --agent-dsh: #6b85ff;
+  --agent-grok: var(--muted-foreground);
+  --agent-gemini-cli: #4796e3;
+  --agent-opencode: #9aa4ae;
+  --agent-pi: #8b7cf6;
+  --hatch: #3a434c;
+  --hatch-edge: #4a545e;
+  --lane-link: #7ecfc6;
+  --glow: color-mix(in srgb, var(--kind-request) 16%, transparent);
+  --color-fd-overlay: rgba(13, 16, 19, 0.55);
+  color-scheme: dark;
+}
+
+/* Point Fumadocs UI tokens at the product palette after default-colors.css in both themes. */
+:root,
+.dark {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-muted: var(--muted);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-popover: var(--muted);
+  --color-fd-popover-foreground: var(--foreground);
+  --color-fd-card: var(--secondary);
+  --color-fd-card-foreground: var(--foreground);
+  --color-fd-border: var(--border);
+  --color-fd-primary: var(--primary);
+  --color-fd-primary-foreground: var(--primary-foreground);
+  --color-fd-secondary: var(--secondary);
+  --color-fd-secondary-foreground: var(--secondary-foreground);
+  --color-fd-accent: var(--accent);
+  --color-fd-accent-foreground: var(--accent-foreground);
+  --color-fd-ring: var(--ring);
+}
+
+/* Hide prerendered English docs while Chinese docs load after boot. */
+html.estela-docs-pending [data-docs] {
+  opacity: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--kind-request) 30%, transparent);
+}
+
+/* Section eyebrows: uppercase with tracking in English only, as in the product; Chinese keeps normal case. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+:lang(en) .eyebrow {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.display {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+:lang(zh-CN) .display {
+  letter-spacing: -0.01em;
+  line-height: 1.12;
+}
+
+/* The Chinese headline is two phrases, one per line, sized so the first fits the hero column. */
+:lang(zh-CN) .display-zh-size {
+  font-size: clamp(30px, 4.4vw, 54px);
+}
+
+:lang(zh-CN) .display-tail {
+  display: block;
+}
+
+.section-title {
+  font-size: clamp(28px, 3.4vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+:lang(zh-CN) .section-title {
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+/* A slot the agent does not record: hatched, never filled with an estimate (the product's `.hatched`). */
+.hatched {
+  background: repeating-linear-gradient(135deg, var(--hatch) 0 3px, transparent 3px 6px);
+  box-shadow: inset 0 0 0 1px var(--hatch-edge);
+}
+
+/* The faint time-axis grid behind the hero. */
+.axis-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) 45%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 65% 45%, #000 20%, transparent 75%);
+}
+
+.scene-fade {
+  transition: opacity 900ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .scene-fade {
+    transition: none;
+  }
+}
