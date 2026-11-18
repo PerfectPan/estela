@@ -1,4 +1,4 @@
-// The workspace root installs no dependencies (see vite.config.ts), so the shared
+// The workspace root does not install lint-config (see vite.config.ts), so the shared
 // Knip policy is imported from packages/schema's node_modules — the same copy the
 // root lint/format config uses. The knip and jscpd binaries and their scripts live
 // in @rivus/estela-schema for the same reason, and run with the workspace root as

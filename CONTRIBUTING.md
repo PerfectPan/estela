@@ -31,6 +31,7 @@ pnpm lint
 pnpm test
 pnpm typecheck
 pnpm --filter @rivus/estela-schema run duplicates
+pnpm --filter @rivus/estela-schema run knip
 pnpm build
 cd apps/cli && pnpm run dev
 ```
@@ -287,6 +288,11 @@ where any reported clone fails the run (the threshold is 0). The scan roots and 
 `packages/schema/package.json`: it skips `*.test.ts` unit tests but scans the e2e and smoke specs.
 `pnpm --filter @rivus/estela-schema run duplicates:audit` writes a broader report, which also covers test files and
 near-identical code, to the git-ignored `tmp/duplicates-audit/` and fails nothing.
+
+It then runs `pnpm --filter @rivus/estela-schema run knip`: Knip with lint-config's shared policy, where any issue Knip
+reports fails the run, such as an unused file, export, type, or dependency, an unlisted dependency, an unresolved
+import, or a configuration or tag hint. This is the default analysis, not `--production`: a use in a test counts, and a
+package's `exports` entries are not checked. The entries, project files, and ignores live in `knip.ts`.
 
 `pnpm/setup@v3` caches the pnpm content-addressed store, keyed by the lockfile's content hash. Every run still
 executes `pnpm install --frozen-lockfile` and the checks. Installed workspace links, build outputs, credentials and
