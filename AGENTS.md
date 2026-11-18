@@ -83,6 +83,7 @@ node scripts/lint-scripts.mjs
 pnpm lint
 pnpm test
 pnpm typecheck
+pnpm --filter @rivus/estela-schema run duplicates
 pnpm build
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs

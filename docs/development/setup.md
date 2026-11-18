@@ -24,6 +24,7 @@ node scripts/format.mjs --check
 pnpm lint
 pnpm test
 pnpm typecheck
+pnpm --filter @rivus/estela-schema run duplicates
 pnpm build
 node scripts/check-budgets.mjs
 ```

@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: 543b585d6eea605bebded51fc0624e6e2e9cf8ba -->
+<!-- source-blob: dfb9b7601ac9f948bdf14e34daee501fefdf8127 -->
 
 # 开发
 
@@ -28,6 +28,7 @@ node scripts/format.mjs --check
 pnpm lint
 pnpm test
 pnpm typecheck
+pnpm --filter @rivus/estela-schema run duplicates
 pnpm build
 node scripts/check-budgets.mjs
 ```
