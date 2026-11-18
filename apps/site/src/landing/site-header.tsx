@@ -1,6 +1,6 @@
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
 import type { Locale } from '@/i18n/locale.ts'
-import { GithubIcon } from '@/components/icons/index.ts'
+import { GithubIcon } from '@/components/icons.tsx'
 import { buttonVariants } from '@/components/ui/button.tsx'
 import { REPOSITORY } from '@/content/links.ts'
 import { LanguageSwitch } from './language-switch.tsx'

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
-import { CheckIcon, CopyIcon } from '@/components/icons/index.ts'
+import { CheckIcon, CopyIcon } from '@/components/icons.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { INSTALL_COMMAND } from '@/content/links.ts'
 

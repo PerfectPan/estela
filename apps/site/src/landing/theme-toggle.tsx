@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { useTheme } from 'fumadocs-ui/provider/base'
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
-import { MoonIcon, SunIcon } from '@/components/icons/index.ts'
+import { MoonIcon, SunIcon } from '@/components/icons.tsx'
 import { Button } from '@/components/ui/button.tsx'
 
 const noop = () => () => {}

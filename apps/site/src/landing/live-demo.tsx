@@ -1,5 +1,5 @@
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
-import { ExternalIcon } from '@/components/icons/index.ts'
+import { ExternalIcon } from '@/components/icons.tsx'
 import { buttonVariants } from '@/components/ui/button.tsx'
 import { SectionHeading } from './section-heading.tsx'
 

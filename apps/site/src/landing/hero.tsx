@@ -1,6 +1,6 @@
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
 import type { Locale } from '@/i18n/locale.ts'
-import { ArrowRightIcon, GithubIcon } from '@/components/icons/index.ts'
+import { ArrowRightIcon, GithubIcon } from '@/components/icons.tsx'
 import { buttonVariants } from '@/components/ui/button.tsx'
 import { REPOSITORY } from '@/content/links.ts'
 import { WakeScene } from '@/scene/wake-scene.tsx'

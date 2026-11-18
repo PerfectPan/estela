@@ -1,7 +1,0 @@
-export { ArrowRightIcon } from './arrow-right-icon.tsx'
-export { CheckIcon } from './check-icon.tsx'
-export { CopyIcon } from './copy-icon.tsx'
-export { ExternalIcon } from './external-icon.tsx'
-export { GithubIcon } from './github-icon.tsx'
-export { MoonIcon } from './moon-icon.tsx'
-export { SunIcon } from './sun-icon.tsx'

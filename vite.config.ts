@@ -117,7 +117,7 @@ export default {
       {
         // One Icon base and the stroke icons built on it: a component family, which lint-config's
         // README exempts from one component per file (like a shadcn/ui file).
-        files: ['apps/web/src/components/icons.tsx'],
+        files: ['apps/web/src/components/icons.tsx', 'apps/site/src/components/icons.tsx'],
         plugins: ['react'],
         rules: { 'react/no-multi-comp': 'off' },
       },

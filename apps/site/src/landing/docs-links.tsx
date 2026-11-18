@@ -1,6 +1,6 @@
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
 import type { Locale } from '@/i18n/locale.ts'
-import { ArrowRightIcon } from '@/components/icons/index.ts'
+import { ArrowRightIcon } from '@/components/icons.tsx'
 import { DOC_LINKS } from '@/content/links.ts'
 import { InstallCommand } from './install-command.tsx'
 import { SectionHeading } from './section-heading.tsx'
