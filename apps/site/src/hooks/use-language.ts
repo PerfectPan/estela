@@ -45,10 +45,9 @@ export function useLanguageState({
     if (resolved === 'en') {
       document.documentElement.classList.remove(pendingClass)
     }
-    // Keep the currently visible article mounted while the target locale's MDX chunk loads instead of blanking Suspense.
-    startTransition(() => {
-      setLangState(resolved)
-    })
+    // Urgent initial update avoids React 19 dropping a transition sent into a dehydrated <Suspense> boundary;
+    // DocsScreen keeps the English article mounted until the Chinese MDX chunk finishes loading.
+    setLangState(resolved)
     const timeout = window.setTimeout(() => document.documentElement.classList.remove(pendingClass), pendingTimeout)
     return () => window.clearTimeout(timeout)
   }, [resolve, storageKey, pendingClass, pendingTimeout])

@@ -56,7 +56,8 @@ function resolveStaticFile(distDir, base, pathname) {
 export function startStaticServer(distDir, base) {
   const requested = []
   const outOfBase = []
-  const server = http.createServer((req, res) => {
+  let maxJsDelayMs = 0
+  const server = http.createServer(async (req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname
     requested.push(pathname)
     if (base !== '/' && !pathname.startsWith(base)) {
@@ -70,6 +71,9 @@ export function startStaticServer(distDir, base) {
       return
     }
     const ext = path.extname(file)
+    if (ext === '.js' && maxJsDelayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * maxJsDelayMs)))
+    }
     res.writeHead(200, { 'content-type': MIME[ext] ?? 'application/octet-stream' })
     res.end(readFileSync(file))
   })
@@ -79,16 +83,49 @@ export function startStaticServer(distDir, base) {
       if (!addr || typeof addr === 'string') {
         throw new Error('unexpected server address')
       }
-      resolve({ server, origin: `http://127.0.0.1:${addr.port}`, requested, outOfBase })
+      resolve({
+        server,
+        origin: `http://127.0.0.1:${addr.port}`,
+        requested,
+        outOfBase,
+        setJsDelayMs(ms) {
+          maxJsDelayMs = ms
+        },
+      })
     })
   })
 }
 
-async function stopChrome(child, userDataDir, ws) {
-  try {
-    ws?.close()
-  } catch {
-    // Ignore close errors during teardown.
+function openWebSocket(url) {
+  const ws = new WebSocket(url)
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timed out opening CDP WebSocket')), 15_000)
+    ws.addEventListener(
+      'open',
+      () => {
+        clearTimeout(timer)
+        resolve(ws)
+      },
+      { once: true },
+    )
+    ws.addEventListener(
+      'error',
+      () => {
+        clearTimeout(timer)
+        reject(new Error('failed to open CDP WebSocket'))
+      },
+      { once: true },
+    )
+  })
+}
+
+async function stopChrome(child, userDataDir, ...sockets) {
+  for (const sock of sockets) {
+    try {
+      sock?.close()
+    } catch {
+      // Ignore close errors during teardown.
+    }
   }
   if (child && child.exitCode === null && child.signalCode === null) {
     child.kill('SIGTERM')
@@ -108,76 +145,6 @@ async function stopChrome(child, userDataDir, ws) {
     })
   }
   rmSync(userDataDir, { recursive: true, force: true })
-}
-
-/** Launches headless Chrome with a temporary user profile and cleans up on failure or `close()`. */
-export async function launchChrome() {
-  const chromePath = findChrome()
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'estela-site-check-'))
-  const args = [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--window-size=1280,800',
-    '--no-first-run',
-    '--no-default-browser-check',
-    `--user-data-dir=${userDataDir}`,
-  ]
-  if (process.platform === 'linux') {
-    args.push('--no-sandbox', '--disable-dev-shm-usage')
-  }
-  args.push('about:blank')
-  const child = spawn(chromePath, args, { stdio: ['ignore', 'ignore', 'pipe'] })
-  let ws
-  try {
-    const wsUrl = await new Promise((resolve, reject) => {
-      let stderr = ''
-      const timer = setTimeout(() => {
-        reject(new Error(`timed out waiting for Chrome DevTools:\n${stderr}`))
-      }, 15_000)
-      child.stderr.on('data', chunk => {
-        stderr += chunk.toString()
-        const match = /DevTools listening on (ws:\/\/\S+)/.exec(stderr)
-        if (match) {
-          clearTimeout(timer)
-          resolve(match[1])
-        }
-      })
-      child.once('exit', code => {
-        clearTimeout(timer)
-        reject(new Error(`Chrome exited (${code}):\n${stderr}`))
-      })
-    })
-    const baseUrl = wsUrl.replace(/^ws:/, 'http:').replace(/\/devtools\/browser\/.*$/, '')
-    const targets = await (await fetch(`${baseUrl}/json/list`)).json()
-    const pageTarget = targets.find(t => t.type === 'page')
-    if (!pageTarget?.webSocketDebuggerUrl) {
-      throw new Error('missing page target from Chrome DevTools')
-    }
-    ws = new WebSocket(pageTarget.webSocketDebuggerUrl)
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('timed out opening CDP WebSocket')), 15_000)
-      ws.addEventListener(
-        'open',
-        () => {
-          clearTimeout(timer)
-          resolve()
-        },
-        { once: true },
-      )
-      ws.addEventListener(
-        'error',
-        () => {
-          clearTimeout(timer)
-          reject(new Error('failed to open CDP WebSocket'))
-        },
-        { once: true },
-      )
-    })
-    return { ws, close: () => stopChrome(child, userDataDir, ws) }
-  } catch (error) {
-    await stopChrome(child, userDataDir, ws)
-    throw error
-  }
 }
 
 /** CDP client over an open WebSocket with per-call timeouts and close/error rejection. */
@@ -233,6 +200,82 @@ export function createCdp(ws) {
       set.add(fn)
       listeners.set(method, set)
     },
+  }
+}
+
+/** Launches headless Chrome with a temporary user profile and cleans up on failure or `close()`. */
+export async function launchChrome() {
+  const chromePath = findChrome()
+  const userDataDir = mkdtempSync(path.join(tmpdir(), 'estela-site-check-'))
+  const args = [
+    '--headless=new',
+    '--remote-debugging-port=0',
+    '--window-size=1280,800',
+    '--no-first-run',
+    '--no-default-browser-check',
+    `--user-data-dir=${userDataDir}`,
+  ]
+  if (process.platform === 'linux') {
+    args.push('--no-sandbox', '--disable-dev-shm-usage')
+  }
+  args.push('about:blank')
+  const child = spawn(chromePath, args, { stdio: ['ignore', 'ignore', 'pipe'] })
+  let ws
+  let browserWs
+  try {
+    const wsUrl = await new Promise((resolve, reject) => {
+      let stderr = ''
+      const timer = setTimeout(() => {
+        reject(new Error(`timed out waiting for Chrome DevTools:\n${stderr}`))
+      }, 15_000)
+      child.stderr.on('data', chunk => {
+        stderr += chunk.toString()
+        const match = /DevTools listening on (ws:\/\/\S+)/.exec(stderr)
+        if (match) {
+          clearTimeout(timer)
+          resolve(match[1])
+        }
+      })
+      child.once('exit', code => {
+        clearTimeout(timer)
+        reject(new Error(`Chrome exited (${code}):\n${stderr}`))
+      })
+    })
+    const baseUrl = wsUrl.replace(/^ws:/, 'http:').replace(/\/devtools\/browser\/.*$/, '')
+    const targets = await (await fetch(`${baseUrl}/json/list`)).json()
+    const pageTarget = targets.find(t => t.type === 'page')
+    if (!pageTarget?.webSocketDebuggerUrl) {
+      throw new Error('missing page target from Chrome DevTools')
+    }
+    ws = await openWebSocket(pageTarget.webSocketDebuggerUrl)
+    browserWs = await openWebSocket(wsUrl)
+    const browserCdp = createCdp(browserWs)
+    const wsBase = baseUrl.replace(/^http/, 'ws')
+    const openIsolatedPage = async () => {
+      const { browserContextId } = await browserCdp.send('Target.createBrowserContext')
+      try {
+        const { targetId } = await browserCdp.send('Target.createTarget', { url: 'about:blank', browserContextId })
+        const pageWs = await openWebSocket(`${wsBase}/devtools/page/${targetId}`)
+        return {
+          cdp: createCdp(pageWs),
+          async close() {
+            try {
+              pageWs.close()
+            } catch {
+              // Ignore close errors during teardown.
+            }
+            await browserCdp.send('Target.disposeBrowserContext', { browserContextId })
+          },
+        }
+      } catch (error) {
+        await browserCdp.send('Target.disposeBrowserContext', { browserContextId })
+        throw error
+      }
+    }
+    return { ws, openIsolatedPage, close: () => stopChrome(child, userDataDir, ws, browserWs) }
+  } catch (error) {
+    await stopChrome(child, userDataDir, ws, browserWs)
+    throw error
   }
 }
 
