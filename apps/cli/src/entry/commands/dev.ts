@@ -32,7 +32,7 @@ export interface DevInput {
 }
 
 /** Whether the CLI opens the browser once the server is ready, and whether DevFrame's one-time-code gate stays on. */
-export interface BrowserPlan {
+interface BrowserPlan {
   /** The CLI opens the dialable origin (and `?s=<traceId>` when launched or picked), unless `--no-open`. */
   cliOpens: boolean
   /** `false` turns the gate off; `undefined` keeps the auth handler on. */
@@ -43,6 +43,7 @@ export interface BrowserPlan {
  * The CLI opens the browser itself (because DevFrame opens `localhost` for `127.0.0.1` and the
  * wildcard hosts, and re-encodes `#/s/<traceId>` fragments when appending `#devframe_otp=`).
  * Launches ride `?s=<traceId>`.
+ * @internal
  */
 export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>): BrowserPlan {
   return {
@@ -51,7 +52,10 @@ export function browserPlan(input: Pick<DevInput, 'open' | 'auth'>): BrowserPlan
   }
 }
 
-/** Strips ANSI SGR, non-SGR escapes, newlines, controls, and bidi characters from requester banner metadata. */
+/**
+ * Strips ANSI SGR, non-SGR escapes, newlines, controls, and bidi characters from requester banner metadata.
+ * @internal
+ */
 export function sanitizeAuthBannerInfo(info: AuthBannerInfo): AuthBannerInfo {
   if (!info.requester) {
     return info
@@ -65,7 +69,10 @@ export function sanitizeAuthBannerInfo(info: AuthBannerInfo): AuthBannerInfo {
   }
 }
 
-/** Rewrites DevFrame's resolved origin to the {@link dialableOrigin} of `host` under `BASE_PATH`. */
+/**
+ * Rewrites DevFrame's resolved origin to the {@link dialableOrigin} of `host` under `BASE_PATH`.
+ * @internal
+ */
 export function resolveAuthBannerUrl(resolvedOrigin: string, host: string): string {
   try {
     const parsed = new URL(resolvedOrigin)
@@ -164,6 +171,7 @@ async function indexSessions(catalog: SessionCatalog): Promise<void> {
  * DevFrame's `diagnostics.DF0052(...)` prints its library-facing fix text via `console.warn`
  * before throwing; hold `[DF0052]` warnings until listening settles so a listen failure shows
  * only Estela's `CliError` message, while flushing held warnings if startup fails another way.
+ * @internal
  */
 export async function withoutListenDiagnostic<T>(
   run: (onListening: () => void) => Promise<T>,

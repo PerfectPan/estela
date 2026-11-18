@@ -44,6 +44,7 @@ export function summaryOf(summary: SessionSummary): SessionSummary {
   return out
 }
 
+/** @internal */
 export function downsample(values: number[], max = 120): number[] {
   if (values.length <= max) {
     return values.slice()

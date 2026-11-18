@@ -24,7 +24,10 @@ export function unbracketHost(host: string): string {
   return trimmed
 }
 
-/** Canonicalizes hostnames and IPv4/IPv6 literals (e.g. expanded IPv6 -> compressed form) without outer brackets. */
+/**
+ * Canonicalizes hostnames and IPv4/IPv6 literals (e.g. expanded IPv6 -> compressed form) without outer brackets.
+ * @internal
+ */
 export function canonicalizeHost(host: string): string {
   const bare = unbracketHost(host)
   if (bare === '') {
@@ -43,7 +46,10 @@ export function canonicalizeHost(host: string): string {
   }
 }
 
-/** True for wildcard bind hosts (`0.0.0.0`, `::`, and expanded IPv6 zero). */
+/**
+ * True for wildcard bind hosts (`0.0.0.0`, `::`, and expanded IPv6 zero).
+ * @internal
+ */
 export function isWildcardHost(host: string): boolean {
   const canon = canonicalizeHost(host)
   return canon === '0.0.0.0' || canon === '::'

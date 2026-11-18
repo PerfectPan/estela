@@ -35,12 +35,18 @@ function defaultExportCandidate(sessionId: string, format: ExportFormat, attempt
   return resolve(process.cwd(), `estela-${short}${suffix}.${format}.json`)
 }
 
-/** The projection of one export command: ATIF v1.8 or OTLP/JSON. */
+/**
+ * The projection of one export command: ATIF v1.8 or OTLP/JSON.
+ * @internal
+ */
 export function exportOf(trace: Trace, format: ExportFormat): unknown {
   return format === 'atif' ? toAtif(trace, { pricing: snapshotPricing() }) : toOtlp(trace)
 }
 
-/** `estela-<session id prefix>.atif.json` / `.otlp.json` in the working directory. */
+/**
+ * `estela-<session id prefix>.atif.json` / `.otlp.json` in the working directory.
+ * @internal
+ */
 export function defaultExportPath(sessionId: string, format: ExportFormat): string {
   return defaultExportCandidate(sessionId, format, 1)
 }

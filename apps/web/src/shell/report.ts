@@ -23,6 +23,7 @@ const sessionSummarySchema = z.object({
  * The baked JSON as `buildReport` writes it. The `satisfies` checks one direction, that what the schema accepts is a
  * `ReportTrace`; `report.test.ts` checks the other, that every `ReportTrace` passes, so a field the kit's
  * `SessionSummary` widens or a language rpc's `ReportLocale` adds fails the type check, not the report page at load.
+ * @internal
  */
 export const reportTraceSchema = z.object({
   trace: traceSchema,
@@ -41,7 +42,10 @@ function assertReportTrace(value: unknown): asserts value is ReportTrace {
   }
 }
 
-/** The `report-trace` JSON as a `ReportTrace`, or a `TypeError` naming the first field that does not match. */
+/**
+ * The `report-trace` JSON as a `ReportTrace`, or a `TypeError` naming the first field that does not match.
+ * @internal
+ */
 export function parseReportTrace(text: string): ReportTrace {
   const value: unknown = JSON.parse(text)
   assertReportTrace(value)

@@ -196,6 +196,7 @@ const unknownPayloadSchema = z.looseObject({
  * `payloads.test.ts` checks the other direction, that every payload of that type passes, so a declared field the kit
  * widens fails there. A new optional kit field passes both, and the loose object keeps it. The mapped type also holds
  * its keys to the kit's `TranscriptEventKind`, so a kind the kit adds or drops fails to compile here.
+ * @internal
  */
 export const payloadSchemas = {
   user: messagePayloadSchema,
