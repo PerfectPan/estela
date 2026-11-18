@@ -185,7 +185,111 @@ async function main() {
       assert(canonical === `https://perfectpan.github.io${expectedPath}`, `bad canonical at ${urlPath}: ${canonical}`)
     }
 
-    // Translated page opened directly with estela-lang=zh-CN shows Chinese H1 and scrolls to Chinese hash.
+    // With a hash in the URL, scrolling away and switching languages (en -> zh-CN -> en) preserves scrollY.
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/#the-session-index` })
+    await assertHeadingInViewport(cdp, 'the-session-index', 'direct English')
+    const privacyScrollY = await evaluate(
+      cdp,
+      `(() => { const y = Math.min(2300, document.documentElement.scrollHeight - window.innerHeight); window.scrollTo(0, y); return y; })()`,
+    )
+    await waitFor(() => evaluate(cdp, `Math.abs(window.scrollY - ${privacyScrollY}) < 20`), 'scroll away on privacy')
+    await click(cdp, 'button[lang="zh-CN"]')
+    await waitFor(
+      () => evaluate(cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`),
+      'privacy zh-CN H1 after switch',
+    )
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const afterZhY = await evaluate(cdp, `window.scrollY`)
+    assert(
+      Math.abs(afterZhY - privacyScrollY) < 40,
+      `switching to zh-CN jumped scroll from ${privacyScrollY} to ${afterZhY}`,
+    )
+    await click(cdp, 'button[lang="en"]')
+    await waitFor(
+      () => evaluate(cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === 'Privacy and redaction'`),
+      'privacy en H1 after switch back',
+    )
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const afterEnY = await evaluate(cdp, `window.scrollY`)
+    assert(
+      Math.abs(afterEnY - privacyScrollY) < 40,
+      `switching back to en jumped scroll from ${privacyScrollY} to ${afterEnY}`,
+    )
+
+    // Reloading a hash URL after scrolling away restores the scrolled position instead of jumping to the anchor.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await cdp.send('Page.reload')
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `document.readyState === 'complete' && document.querySelector('[data-docs] h1')?.textContent?.trim() === 'Privacy and redaction'`,
+        ),
+      'privacy reload',
+    )
+    await new Promise(resolve => setTimeout(resolve, 150))
+    const afterReloadY = await evaluate(cdp, `window.scrollY`)
+    assert(
+      Math.abs(afterReloadY - privacyScrollY) < 80,
+      `reload on hash URL jumped from ${privacyScrollY} to ${afterReloadY}`,
+    )
+
+    // A shared-id hash page (export-formats/#atif) keeps scrollY across a language switch.
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/reference/export-formats/#atif` })
+    await assertHeadingInViewport(cdp, 'atif', 'direct English #atif')
+    const atifScrollY = await evaluate(
+      cdp,
+      `(() => { const y = Math.min(2300, document.documentElement.scrollHeight - window.innerHeight); window.scrollTo(0, y); return y; })()`,
+    )
+    await waitFor(
+      () => evaluate(cdp, `Math.abs(window.scrollY - ${atifScrollY}) < 20`),
+      'scroll away on export-formats',
+    )
+    await click(cdp, 'button[lang="zh-CN"]')
+    await waitFor(
+      () => evaluate(cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === '导出格式'`),
+      'export-formats zh-CN H1',
+    )
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const afterSharedSwitchY = await evaluate(cdp, `window.scrollY`)
+    assert(
+      Math.abs(afterSharedSwitchY - atifScrollY) < 40,
+      `shared-id switch to zh-CN jumped scroll from ${atifScrollY} to ${afterSharedSwitchY}`,
+    )
+
+    // Clicking a TOC anchor, scrolling away, and switching languages does not jump back to the TOC target.
+    await evaluate(cdp, `localStorage.setItem('estela-lang', 'en')`)
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/` })
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `document.readyState === 'complete' && Boolean(document.querySelector('a[href="#what-a-report-still-contains"]'))`,
+        ),
+      'privacy TOC',
+    )
+    await click(cdp, 'a[href="#what-a-report-still-contains"]')
+    await waitFor(
+      () => evaluate(cdp, `location.hash === '#what-a-report-still-contains' && window.scrollY > 300`),
+      'TOC scroll',
+    )
+    await evaluate(cdp, `window.scrollTo(0, 300)`)
+    await waitFor(() => evaluate(cdp, `Math.abs(window.scrollY - 300) < 20`), 'scroll to 300 after TOC')
+    await click(cdp, 'button[lang="zh-CN"]')
+    await waitFor(
+      () => evaluate(cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`),
+      'privacy zh-CN after TOC',
+    )
+    await click(cdp, 'button[lang="en"]')
+    await waitFor(
+      () => evaluate(cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === 'Privacy and redaction'`),
+      'privacy en after TOC',
+    )
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const afterTocSwitchY = await evaluate(cdp, `window.scrollY`)
+    assert(Math.abs(afterTocSwitchY - 300) < 40, `TOC language switch jumped scroll from 300 to ${afterTocSwitchY}`)
+
+    // Translated page opened directly with estela-lang=zh-CN shows Chinese H1 and scrolls to Chinese or shared hashes.
     await evaluate(cdp, `localStorage.setItem('estela-lang', 'zh-CN')`)
     await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/concepts/` })
     await waitFor(
@@ -196,6 +300,38 @@ async function main() {
         ),
       'Chinese concepts H1',
     )
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/reference/export-formats/#atif` })
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '导出格式'`,
+        ),
+      'direct Chinese export-formats H1',
+    )
+    await assertHeadingInViewport(cdp, 'atif', 'direct Chinese #atif')
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/getting-started/` })
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '入门'`,
+        ),
+      'Chinese getting-started H1',
+    )
+    await evaluate(
+      cdp,
+      `[...document.querySelectorAll('[data-docs] a')].find(a => decodeURIComponent(a.getAttribute('href') ?? '').endsWith('privacy/#会话索引'))?.click()`,
+    )
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `location.pathname === ${JSON.stringify(`${base}docs/guide/privacy/`)} && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'Chinese cross-page privacy navigation',
+    )
+    await assertHeadingInViewport(cdp, '会话索引', 'cross-page Chinese')
     await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/#会话索引` })
     await waitFor(
       () =>

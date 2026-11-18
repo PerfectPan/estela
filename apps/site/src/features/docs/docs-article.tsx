@@ -24,7 +24,7 @@ export function DocsArticle({ path, fallback, lang }: { path: string; fallback: 
   const t = dictionaryOf(lang)
 
   useDocumentReady(path, lang === 'zh-CN', DOCS_PENDING_CLASS)
-  useHashScroll(path, lang)
+  useHashScroll(path, lang === 'zh-CN')
 
   return (
     <DocsPage
