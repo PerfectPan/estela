@@ -149,6 +149,9 @@ export function createWakeRenderer(options: WakeRendererOptions): { dispose: () 
     return undefined
   }
   const gl = renderer.gl
+  if (gl.isContextLost()) {
+    return undefined
+  }
   gl.clearColor(0, 0, 0, 0)
   const onContextLost = () => options.onLost()
   canvas.addEventListener('webglcontextlost', onContextLost)
@@ -247,6 +250,9 @@ export function createWakeRenderer(options: WakeRendererOptions): { dispose: () 
 
   const draw = (now: number) => {
     frame = 0
+    if (gl.isContextLost()) {
+      return
+    }
     if (!start) {
       start = now
     }

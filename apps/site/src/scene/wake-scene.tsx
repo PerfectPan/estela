@@ -98,6 +98,7 @@ export function WakeScene({ locale, t, className }: { locale: Locale; t: Diction
         )}
       />
       <canvas
+        key={active ? 'active' : 'idle'}
         ref={canvasRef}
         className={cx('scene-fade absolute inset-0 size-full', live ? 'opacity-100' : 'opacity-0')}
         aria-hidden="true"
