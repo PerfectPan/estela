@@ -3,7 +3,13 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { assert, click, createCdp, evaluate, launchChrome, startStaticServer, waitFor } from './check-site-cdp.mjs'
-import { checkColdDocsLoads, checkZhSpaNavigation } from './check-site-cold.mjs'
+import {
+  checkColdDocsLoads,
+  checkZhAnchorThrottled,
+  checkZhDelayedJsNeverBlank,
+  checkZhReloadReducedMotion,
+  checkZhSpaNavigation,
+} from './check-site-cold.mjs'
 
 const siteRoot = fileURLToPath(new URL('..', import.meta.url))
 const distDir = path.join(siteRoot, 'dist/client')
@@ -373,6 +379,11 @@ async function main() {
 
     // Chinese readers keep docs visible across SPA forward, back, forward, and landing -> docs navigations.
     await checkZhSpaNavigation({ chrome, origin, base, errors, badResponses })
+
+    // Chinese readers keep scroll on reduced-motion reload, land on anchors under throttled networks, and never see an empty article under 1.5 s JS delay.
+    await checkZhReloadReducedMotion({ chrome, origin, base, errors, badResponses })
+    await checkZhAnchorThrottled({ chrome, origin, base, errors, badResponses })
+    await checkZhDelayedJsNeverBlank({ chrome, origin, base, errors, badResponses, setJsDelayMs })
 
     // Repeated isolated cold loads on docs never get stranded on the English prerender when zh-CN is active.
     await checkColdDocsLoads({ chrome, origin, base, errors, badResponses, setJsDelayMs })

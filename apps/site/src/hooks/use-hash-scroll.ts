@@ -3,10 +3,10 @@ import { useElementScrollRestoration, useRouterState } from '@tanstack/react-rou
 import { DOCS_PENDING_CLASS } from '@/i18n/lang-preference.ts'
 
 /**
- * Scrolls the target heading into view once per resolved history entry after lazy MDX commits,
- * deferring while `estela-docs-pending` hides the English prerender and yielding to any saved router position.
+ * Scrolls the target heading into view once per resolved history entry after the body commits in the reader's
+ * locale, deferring while `estela-docs-pending` hides the English prerender and restoring any saved router position.
  */
-export function useHashScroll(path: string, zhCommitted: boolean): void {
+export function useHashScroll(path: string, inTargetLang: boolean): void {
   // Read `resolvedLocation` (like router-core's scroll restoration) so an in-flight navigation never consumes the new entry key on the previous page's DOM.
   const entryKey = useRouterState({
     select: state => {
@@ -23,14 +23,17 @@ export function useHashScroll(path: string, zhCommitted: boolean): void {
     if (scrolledKeyRef.current === entryKey) {
       return
     }
+    if (!inTargetLang) {
+      return
+    }
     if (document.documentElement.classList.contains(DOCS_PENDING_CLASS)) {
       return
     }
+    scrolledKeyRef.current = entryKey
     if (savedPosition) {
-      scrolledKeyRef.current = entryKey
+      window.scrollTo({ left: savedPosition.scrollX, top: savedPosition.scrollY, behavior: 'instant' })
       return
     }
-    scrolledKeyRef.current = entryKey
     if (window.location.hash.length <= 1) {
       return
     }
@@ -41,5 +44,5 @@ export function useHashScroll(path: string, zhCommitted: boolean): void {
       return
     }
     document.getElementById(id)?.scrollIntoView()
-  }, [entryKey, path, zhCommitted, savedPosition])
+  }, [entryKey, path, inTargetLang, savedPosition])
 }

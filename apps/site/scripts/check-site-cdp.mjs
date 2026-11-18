@@ -57,6 +57,7 @@ export function startStaticServer(distDir, base) {
   const requested = []
   const outOfBase = []
   let maxJsDelayMs = 0
+  let minJsDelayMs = 0
   const server = http.createServer(async (req, res) => {
     const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname
     requested.push(pathname)
@@ -72,7 +73,8 @@ export function startStaticServer(distDir, base) {
     }
     const ext = path.extname(file)
     if (ext === '.js' && maxJsDelayMs > 0) {
-      await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * maxJsDelayMs)))
+      const span = Math.max(0, maxJsDelayMs - minJsDelayMs)
+      await new Promise(resolve => setTimeout(resolve, minJsDelayMs + Math.floor(Math.random() * span)))
     }
     res.writeHead(200, { 'content-type': MIME[ext] ?? 'application/octet-stream' })
     res.end(readFileSync(file))
@@ -88,8 +90,9 @@ export function startStaticServer(distDir, base) {
         origin: `http://127.0.0.1:${addr.port}`,
         requested,
         outOfBase,
-        setJsDelayMs(ms) {
-          maxJsDelayMs = ms
+        setJsDelayMs(maxMs, minMs = 0) {
+          maxJsDelayMs = maxMs
+          minJsDelayMs = minMs
         },
       })
     })

@@ -139,3 +139,148 @@ export async function checkColdDocsLoads({ chrome, origin, base, errors, badResp
     setJsDelayMs(0)
   }
 }
+
+/** Verifies a Chinese reload keeps `scrollY` under `prefers-reduced-motion: reduce`. */
+export async function checkZhReloadReducedMotion({ chrome, origin, base, errors, badResponses }) {
+  const page = await openIsolatedTrackedPage({
+    chrome,
+    prefix: 'zh-reload-rm',
+    lang: 'zh-CN',
+    errors,
+    badResponses,
+  })
+  try {
+    await page.cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    })
+    await page.cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/` })
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'zh reload reduced-motion initial load',
+    )
+    const beforeScrollY = await evaluate(
+      page.cdp,
+      `(() => { const y = Math.min(1500, document.documentElement.scrollHeight - window.innerHeight); window.scrollTo(0, y); return y; })()`,
+    )
+    await waitFor(
+      () => evaluate(page.cdp, `Math.abs(window.scrollY - ${beforeScrollY}) < 20`),
+      'zh reload reduced-motion scroll setup',
+    )
+    await new Promise(resolve => setTimeout(resolve, 400))
+    await page.cdp.send('Page.reload')
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `document.readyState === 'complete' && !document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'zh reload reduced-motion reload settle',
+    )
+    await new Promise(resolve => setTimeout(resolve, 600))
+    const afterScrollY = await evaluate(page.cdp, `Math.round(window.scrollY)`)
+    assert(
+      Math.abs(afterScrollY - beforeScrollY) < 80,
+      `zh reload with reduced motion jumped scroll from ${beforeScrollY} to ${afterScrollY}`,
+    )
+  } finally {
+    await page.close()
+  }
+}
+
+/** Verifies a Chinese hash URL lands on its heading under throttled network conditions (900 ms RTT / 1.6 Mbps). */
+export async function checkZhAnchorThrottled({ chrome, origin, base, errors, badResponses }) {
+  const page = await openIsolatedTrackedPage({
+    chrome,
+    prefix: 'zh-anchor-throttled',
+    lang: 'zh-CN',
+    disableCache: true,
+    errors,
+    badResponses,
+  })
+  try {
+    await page.cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    })
+    await page.cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 900,
+      downloadThroughput: (1600 * 1024) / 8,
+      uploadThroughput: (1600 * 1024) / 8,
+    })
+    await page.cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/#会话索引` })
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'zh throttled anchor Chinese H1',
+      30_000,
+    )
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `(() => { const el = document.getElementById('会话索引'); if (!el) return false; const top = el.getBoundingClientRect().top; return window.scrollY > 0 && top >= 0 && top < window.innerHeight; })()`,
+        ),
+      'zh throttled anchor #会话索引 inside viewport',
+      5_000,
+    )
+  } finally {
+    await page.close()
+  }
+}
+
+/** Verifies a cold Chinese load under a 1.5 s JS delay never exposes an empty article once docs become visible. */
+export async function checkZhDelayedJsNeverBlank({ chrome, origin, base, errors, badResponses, setJsDelayMs }) {
+  const page = await openIsolatedTrackedPage({
+    chrome,
+    prefix: 'zh-delayed-js',
+    lang: 'zh-CN',
+    disableCache: true,
+    errors,
+    badResponses,
+  })
+  setJsDelayMs(1500, 1500)
+  try {
+    await page.cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        window.__blankSample = null;
+        const checkBlank = () => {
+          const docs = document.querySelector('[data-docs]');
+          const pending = document.documentElement.classList.contains('estela-docs-pending');
+          const article = document.getElementById('nd-page');
+          if (docs && !pending && !article && !window.__blankSample) {
+            window.__blankSample = {
+              pending,
+              h1: document.querySelector('[data-docs] h1')?.textContent?.trim() ?? null,
+              height: document.documentElement.scrollHeight,
+            };
+          }
+        };
+        new MutationObserver(checkBlank).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+        const tick = () => { checkBlank(); requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+      `,
+    })
+    await page.cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/` })
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'zh delayed JS Chinese H1',
+      15_000,
+    )
+    const blank = await evaluate(page.cdp, `window.__blankSample`)
+    assert(blank === null, `zh delayed JS exposed empty article while visible: ${JSON.stringify(blank)}`)
+  } finally {
+    setJsDelayMs(0)
+    await page.close()
+  }
+}

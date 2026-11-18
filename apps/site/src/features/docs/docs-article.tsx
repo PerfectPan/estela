@@ -14,7 +14,23 @@ import { docs } from './source.ts'
 // The TOC marks the current section with its track segment alone, without Fumadocs' travelling dot.
 const TOC_LIST = { thumbBox: false }
 
-export function DocsArticle({ path, fallback, lang }: { path: string; fallback: boolean; lang: Locale }) {
+export function DocsArticle({
+  path,
+  fallback,
+  lang,
+  inTargetLang,
+  targetLang,
+  loadError,
+  onRetry,
+}: {
+  path: string
+  fallback: boolean
+  lang: Locale
+  inTargetLang: boolean
+  targetLang: Locale
+  loadError: boolean
+  onRetry: () => void
+}) {
   const page = docs.getPage(path)
   if (!page) {
     throw new Error(`unknown page: ${path}`)
@@ -23,9 +39,10 @@ export function DocsArticle({ path, fallback, lang }: { path: string; fallback: 
   const loaded = use(loadDoc(path))
   const MDX = loaded.body
   const t = dictionaryOf(lang)
+  const errorDict = dictionaryOf(targetLang)
 
   useDocumentReady(path, lang === 'zh-CN', DOCS_PENDING_CLASS)
-  useHashScroll(path, lang === 'zh-CN')
+  useHashScroll(path, inTargetLang)
 
   return (
     <DocsPage
@@ -48,6 +65,14 @@ export function DocsArticle({ path, fallback, lang }: { path: string; fallback: 
           lang === 'zh-CN' && '[line-break:strict]',
         )}
       >
+        {loadError ? (
+          <Callout>
+            <span>{errorDict.docsSidebar.loadErrorNotice}</span>{' '}
+            <button type="button" onClick={onRetry} className="cursor-pointer font-medium underline underline-offset-4">
+              {errorDict.docsSidebar.retry}
+            </button>
+          </Callout>
+        ) : null}
         {fallback ? <Callout>{t.docsSidebar.fallbackNotice}</Callout> : null}
         <MDX components={defaultMdxComponents} />
       </DocsBody>

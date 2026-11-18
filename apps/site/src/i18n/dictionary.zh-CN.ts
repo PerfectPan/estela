@@ -163,6 +163,8 @@ export const zhCN = {
     reference: '参考文档',
     design: '视觉设计',
     fallbackNotice: '此页尚无中文译本，以下为英文原文。',
+    loadErrorNotice: '此页中文版本未能加载。',
+    retry: '重试',
   },
   footer: {
     wake: 'Estela 是西班牙语，指船驶过水面后留下的航迹。会话日志是 Agent 运行后留下的痕迹，Estela 读的就是它。',

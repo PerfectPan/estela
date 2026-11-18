@@ -177,6 +177,8 @@ export const en = {
     reference: 'Reference',
     design: 'Visual design',
     fallbackNotice: 'This page has no Chinese translation yet; the English original follows.',
+    loadErrorNotice: 'Could not load the Chinese version of this page.',
+    retry: 'Retry',
   },
   footer: {
     wake: 'Estela is Spanish for a wake: the trail a ship leaves on the water. A session log is the trail an agent leaves behind, and Estela reads it.',
