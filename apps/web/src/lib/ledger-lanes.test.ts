@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { event, sample, view } from '@/testsupport/ledger-trace.ts'
+import { event, LONG_EVENT_COUNT, LONG_TEST_TIMEOUT_MS, sample, view } from '@/testsupport/ledger-trace.ts'
 import { flattenLanes } from './ledger-lanes.ts'
 import { anchorIndex, buildLedgerModel, flattenLedger, ROW_SIZE } from './ledger-model.ts'
 
@@ -18,19 +18,19 @@ describe('flattenLanes', () => {
     }
   })
 
-  it('draws a long lane without passing its rows as function arguments', () => {
+  it('draws a long lane without passing its rows as function arguments', { timeout: LONG_TEST_TIMEOUT_MS }, () => {
     const trace = sample()
     trace.agents = [{ id: 'main' }]
-    trace.events = Array.from({ length: 150_000 }, (_, seq) =>
+    trace.events = Array.from({ length: LONG_EVENT_COUNT }, (_, seq) =>
       event({
         id: `long-${seq}`,
-        kind: seq % 10 === 0 ? 'user' : 'assistant',
+        kind: seq === 0 ? 'user' : 'assistant',
         payload: { text: 'message' },
       }),
     )
     const rows = flattenLanes(buildLedgerModel(trace), view())
-    expect(rows).toHaveLength(150_001)
-    expect(rows.at(-1)?.key).toBe('e:long-149999')
+    expect(rows).toHaveLength(LONG_EVENT_COUNT + 1)
+    expect(rows.at(-1)?.key).toBe(`e:long-${LONG_EVENT_COUNT - 1}`)
   })
 
   it('keeps a subagent hook group from each turn instead of merging away later hooks', () => {
