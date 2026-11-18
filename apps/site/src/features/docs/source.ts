@@ -2,6 +2,7 @@ import type { VirtualFile } from 'fumadocs-core/source'
 import { loader, update } from 'fumadocs-core/source'
 import { pageSchema } from 'fumadocs-core/source/schema'
 import { defineDocs } from 'fumadocs-mdx/macro'
+import { dictionaryOf } from '@/i18n/locale.ts'
 import { docsI18n } from '@/i18n/translations.ts'
 import { extractDocTitle } from './doc-title.ts'
 import { docsUrl } from './docs-path.ts'
@@ -20,65 +21,39 @@ export const docs = defineDocs({
   },
 })
 
+const enDict = dictionaryOf('en')
+const zhDict = dictionaryOf('zh-CN')
+
+const ROOT_PAGES = ['guide', 'reference', 'architecture/overview', 'design/README', '...']
+const GUIDE_PAGES = [
+  'README',
+  'getting-started',
+  'concepts',
+  'workspace',
+  'supported-agents',
+  'exports',
+  'mcp',
+  'privacy',
+  'troubleshooting',
+  '...',
+]
+const REFERENCE_PAGES = ['public-interface', 'mcp-tools', 'export-formats', '...']
+
+function metaPairs(prefix: string, pages: string[], titles?: Record<'en' | 'zh-CN', string>): VirtualFile[] {
+  return (['en', 'zh-CN'] as const).map(locale => ({
+    type: 'meta',
+    path: locale === 'en' ? `${prefix}meta.json` : `${prefix}meta.zh-CN.json`,
+    data: titles ? { title: titles[locale], defaultOpen: true, pages } : { pages },
+  }))
+}
+
 const META_FILES: VirtualFile[] = [
-  {
-    type: 'meta',
-    path: 'meta.json',
-    data: { pages: ['guide', 'reference', 'architecture/overview', 'design/README'] },
-  },
-  {
-    type: 'meta',
-    path: 'meta.zh-CN.json',
-    data: { pages: ['guide', 'reference', 'architecture/overview', 'design/README'] },
-  },
-  {
-    type: 'meta',
-    path: 'guide/meta.json',
-    data: {
-      title: 'Guide',
-      defaultOpen: true,
-      pages: [
-        'README',
-        'getting-started',
-        'concepts',
-        'workspace',
-        'supported-agents',
-        'exports',
-        'mcp',
-        'privacy',
-        'troubleshooting',
-      ],
-    },
-  },
-  {
-    type: 'meta',
-    path: 'guide/meta.zh-CN.json',
-    data: {
-      title: '用户指南',
-      defaultOpen: true,
-      pages: [
-        'README',
-        'getting-started',
-        'concepts',
-        'workspace',
-        'supported-agents',
-        'exports',
-        'mcp',
-        'privacy',
-        'troubleshooting',
-      ],
-    },
-  },
-  {
-    type: 'meta',
-    path: 'reference/meta.json',
-    data: { title: 'Reference', defaultOpen: true, pages: ['public-interface', 'mcp-tools', 'export-formats'] },
-  },
-  {
-    type: 'meta',
-    path: 'reference/meta.zh-CN.json',
-    data: { title: '参考文档', defaultOpen: true, pages: ['public-interface', 'mcp-tools', 'export-formats'] },
-  },
+  ...metaPairs('', ROOT_PAGES),
+  ...metaPairs('guide/', GUIDE_PAGES, { en: enDict.docsSidebar.guide, 'zh-CN': zhDict.docsSidebar.guide }),
+  ...metaPairs('reference/', REFERENCE_PAGES, {
+    en: enDict.docsSidebar.reference,
+    'zh-CN': zhDict.docsSidebar.reference,
+  }),
 ]
 
 export const source = loader({
@@ -90,8 +65,9 @@ export const source = loader({
     transformers: [
       {
         file(node) {
-          if (node.url === '/docs/design') {
-            return { ...node, name: this.locale === 'zh-CN' ? '视觉设计' : 'Visual design' }
+          if (node.url === '/docs/design' || node.url === '/docs/design/') {
+            const locale = this.locale === 'zh-CN' ? 'zh-CN' : 'en'
+            return { ...node, name: dictionaryOf(locale).docsSidebar.design }
           }
           return node
         },

@@ -40,7 +40,7 @@ function docSiteUrl(repoPath: string): string {
   const withoutDocs = repoPath.slice('docs/'.length)
   const withoutExt = withoutDocs.replace(/(?:\.zh-CN)?\.md$/, '')
   const slugPath = withoutExt.endsWith('/README') ? withoutExt.slice(0, -'/README'.length) : withoutExt
-  return `/docs/${slugPath}`
+  return `/docs/${slugPath}/`
 }
 
 /**
@@ -128,6 +128,10 @@ function setStringAttr(attributes: MdxJsxFlowElement['attributes'], name: string
   }
 }
 
+function isHtmlComment(value: string): boolean {
+  return /^<!--[\s\S]*-->$/.test(value.trim())
+}
+
 /**
  * Runs before Fumadocs' `remarkHeading` and `remarkImage`: removes the top-level `# ` heading (already rendered
  * by `DocsTitle`), rewrites relative links, and turns raw `<img>` HTML into mdast image nodes so Vite bundles them.
@@ -148,10 +152,17 @@ export function remarkDocsPre() {
         return
       }
       if (node.type === 'html' && index !== undefined && parent) {
+        if (isHtmlComment(node.value)) {
+          return
+        }
         const imgNode = parseImgHtml(node.value)
         if (imgNode) {
           replaceHtmlWithImage(parent, index, imgNode)
+          return
         }
+        const line = node.position?.start.line
+        const location = line !== undefined ? `${docFilePath}:${line}` : docFilePath
+        throw new Error(`unexpected raw HTML in ${location}: ${node.value.trim()}`)
       }
     })
   }

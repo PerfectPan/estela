@@ -158,6 +158,12 @@ export const zhCN = {
       { id: 'contributing', label: '贡献指南', body: '工作流、变更门禁和发布意图。' },
     ],
   },
+  docsSidebar: {
+    guide: '用户指南',
+    reference: '参考文档',
+    design: '视觉设计',
+    fallbackNotice: '此页尚无中文译本，以下为英文原文。',
+  },
   footer: {
     wake: 'Estela 是西班牙语，指船驶过水面后留下的航迹。会话日志是 Agent 运行后留下的痕迹，Estela 读的就是它。',
     license: 'GPL-3.0-only',

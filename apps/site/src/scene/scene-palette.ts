@@ -1,6 +1,6 @@
 import type { Role } from './wake-instances.ts'
 
-export type Rgb = [number, number, number]
+type Rgb = [number, number, number]
 
 export interface ScenePalette {
   roles: Record<Role, Rgb>
@@ -9,7 +9,7 @@ export interface ScenePalette {
 }
 
 /** `#rrggbb` → 0..1 channels. The tokens in styles.css are all six-digit hex; anything else falls back to gray. */
-export function hexToRgb(value: string): Rgb {
+function hexToRgb(value: string): Rgb {
   const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(value.trim())
   if (!match) {
     return [0.5, 0.5, 0.5]

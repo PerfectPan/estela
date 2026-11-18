@@ -4,7 +4,9 @@ import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layo
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import type { Locale } from '@/i18n/locale.ts'
 import { useDocumentReady } from '@/hooks/use-document-ready.ts'
+import { useHashScroll } from '@/hooks/use-hash-scroll.ts'
 import { DOCS_PENDING_CLASS } from '@/i18n/lang-preference.ts'
+import { dictionaryOf } from '@/i18n/locale.ts'
 import { cx } from '@/lib/cva.ts'
 import { docs } from './source.ts'
 
@@ -19,8 +21,10 @@ export function DocsArticle({ path, fallback, lang }: { path: string; fallback: 
 
   const loaded = use(page.load())
   const MDX = page.body
+  const t = dictionaryOf(lang)
 
   useDocumentReady(path, lang === 'zh-CN', DOCS_PENDING_CLASS)
+  useHashScroll(path, lang)
 
   return (
     <DocsPage
@@ -43,7 +47,7 @@ export function DocsArticle({ path, fallback, lang }: { path: string; fallback: 
           lang === 'zh-CN' && '[line-break:strict]',
         )}
       >
-        {fallback ? <Callout>此页尚无中文译本，以下为英文原文。</Callout> : null}
+        {fallback ? <Callout>{t.docsSidebar.fallbackNotice}</Callout> : null}
         <MDX components={defaultMdxComponents} />
       </DocsBody>
     </DocsPage>

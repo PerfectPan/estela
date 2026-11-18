@@ -31,6 +31,7 @@ export function CopyIcon(props: IconProps) {
   )
 }
 
+/* jscpd:ignore-start -- apps/site imports no workspace code by design; these SVG icon paths stay duplicated from apps/web/src/components/icons.tsx. */
 export function CheckIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -46,6 +47,7 @@ export function ArrowRightIcon(props: IconProps) {
     </Icon>
   )
 }
+/* jscpd:ignore-end */
 
 export function ExternalIcon(props: IconProps) {
   return (

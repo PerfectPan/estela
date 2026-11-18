@@ -35,9 +35,9 @@ export interface WakeLayout {
   duration: number
 }
 
-export const STEP = 0.5
-export const BAR = 0.3
-export const MAX_HEIGHT = 7
+const STEP = 0.5
+const BAR = 0.3
+const MAX_HEIGHT = 7
 /** Distance of the first subagent lane from the main lane, and between lanes, toward the camera. */
 const LANE_GAP = 1.5
 const GROW_START = 0.2

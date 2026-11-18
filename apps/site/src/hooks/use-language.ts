@@ -1,4 +1,4 @@
-import { createContext, use, useCallback, useLayoutEffect, useState } from 'react'
+import { createContext, startTransition, use, useCallback, useLayoutEffect, useState } from 'react'
 import type { Locale } from '@/i18n/locale.ts'
 
 interface LanguageValue {
@@ -45,7 +45,10 @@ export function useLanguageState({
     if (resolved === 'en') {
       document.documentElement.classList.remove(pendingClass)
     }
-    setLangState(resolved)
+    // Keep the currently visible article mounted while the target locale's MDX chunk loads instead of blanking Suspense.
+    startTransition(() => {
+      setLangState(resolved)
+    })
     const timeout = window.setTimeout(() => document.documentElement.classList.remove(pendingClass), pendingTimeout)
     return () => window.clearTimeout(timeout)
   }, [resolve, storageKey, pendingClass, pendingTimeout])
@@ -61,7 +64,9 @@ export function useLanguageState({
       }
       document.documentElement.lang = next
       document.documentElement.classList.remove(pendingClass)
-      setLangState(next)
+      startTransition(() => {
+        setLangState(next)
+      })
       requestAnimationFrame(() => {
         window.scrollTo(x, y)
       })

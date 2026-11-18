@@ -172,6 +172,12 @@ export const en = {
       { id: 'contributing', label: 'Contributing', body: 'Workflow, change gates, and release intent.' },
     ],
   },
+  docsSidebar: {
+    guide: 'Guide',
+    reference: 'Reference',
+    design: 'Visual design',
+    fallbackNotice: 'This page has no Chinese translation yet; the English original follows.',
+  },
   footer: {
     wake: 'Estela is Spanish for a wake: the trail a ship leaves on the water. A session log is the trail an agent leaves behind, and Estela reads it.',
     license: 'GPL-3.0-only',

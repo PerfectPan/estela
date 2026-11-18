@@ -50,7 +50,7 @@ export default defineConfig({
         // /demo/ is the CLI's report, written after this build by scripts/build-demo.mjs; it is not a route.
         filter: ({ path }) => !/\/demo\/?$/.test(path),
       },
-      pages: [{ path: '/' }, { path: '/docs' }],
+      pages: [{ path: '/' }, { path: '/docs/' }, { path: '/docs/guide/' }],
     }),
     react(),
   ],

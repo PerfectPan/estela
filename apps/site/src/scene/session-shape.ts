@@ -3,7 +3,7 @@
  * product's encoding (docs/design/README.md): one bar per request whose height is its input tokens, a compaction
  * that cuts the context, and one lane per subagent. The numbers are sample data, not a recorded session.
  */
-export interface RequestBar {
+interface RequestBar {
   /** Position on the session's time axis, 0 at the first request. */
   step: number
   /** Input tokens of the request. */
@@ -12,7 +12,7 @@ export interface RequestBar {
   shadowed: boolean
 }
 
-export interface SubagentLane {
+interface SubagentLane {
   /** Main-lane step that spawned the subagent. */
   spawnStep: number
   bars: RequestBar[]

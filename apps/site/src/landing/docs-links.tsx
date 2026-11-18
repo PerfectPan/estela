@@ -51,7 +51,7 @@ export function DocsLinks({
             return (
               <li key={link.id}>
                 {splat ? (
-                  <Link to="/docs/$" params={{ _splat: splat }} className={cardClass}>
+                  <Link to="/docs/$/" params={{ _splat: splat }} className={cardClass}>
                     {content}
                   </Link>
                 ) : (

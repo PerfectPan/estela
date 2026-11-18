@@ -9,16 +9,16 @@ import { remarkDocsPre, rewriteDocLink } from './remark-docs.ts'
 describe('rewriteDocLink', () => {
   it('rewrites links to included docs (including .zh-CN.md and README) to site URLs with hashes', () => {
     expect(rewriteDocLink('concepts.md#model-saw', '/repo/docs/guide/getting-started.md')).toBe(
-      '/docs/guide/concepts#model-saw',
+      '/docs/guide/concepts/#model-saw',
     )
     expect(rewriteDocLink('../reference/mcp-tools.zh-CN.md#错误', '/repo/docs/guide/mcp.zh-CN.md')).toBe(
-      '/docs/reference/mcp-tools#错误',
+      '/docs/reference/mcp-tools/#错误',
     )
-    expect(rewriteDocLink('../guide/README.md', '/repo/docs/reference/public-interface.md')).toBe('/docs/guide')
+    expect(rewriteDocLink('../guide/README.md', '/repo/docs/reference/public-interface.md')).toBe('/docs/guide/')
     expect(rewriteDocLink('../guide/README.zh-CN.md', '/repo/docs/reference/public-interface.zh-CN.md')).toBe(
-      '/docs/guide',
+      '/docs/guide/',
     )
-    expect(rewriteDocLink('../design/README.md#tokens', '/repo/docs/guide/workspace.md')).toBe('/docs/design#tokens')
+    expect(rewriteDocLink('../design/README.md#tokens', '/repo/docs/guide/workspace.md')).toBe('/docs/design/#tokens')
   })
 
   it('rewrites non-included relative repository links to GitHub blob URLs', () => {
@@ -107,6 +107,33 @@ describe('remarkDocsPre', () => {
       alt: 'Estela logo',
       data: { estelaImgAttrs: { width: '128', height: '128' } },
     })
+  })
+
+  it('ignores HTML comments and throws with file and line on unexpected raw HTML', () => {
+    const tree: Root = {
+      type: 'root',
+      children: [{ type: 'html', value: '<!-- source-blob: abc -->' }],
+    }
+    expect(() => remarkDocsPre()(tree, { path: '/repo/docs/guide/workspace.md' })).not.toThrow()
+
+    const badTree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'html',
+              value: '<reason>',
+              position: { start: { line: 77, column: 1 }, end: { line: 77, column: 9 } },
+            },
+          ],
+        },
+      ],
+    }
+    expect(() => remarkDocsPre()(badTree, { path: '/repo/docs/guide/workspace.md' })).toThrow(
+      '/repo/docs/guide/workspace.md:77: <reason>',
+    )
   })
 
   it('throws when no file path is passed to the remark transform', () => {

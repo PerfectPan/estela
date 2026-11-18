@@ -40,3 +40,19 @@ it('falls back to navigator.language when storage has no valid locale', () => {
   expect(documentElement.lang).toBe('zh-CN')
   expect(classes.has(DOCS_PENDING_CLASS)).toBe(true)
 })
+
+it('still falls back to navigator.language when localStorage access throws', () => {
+  const classes = new Set<string>()
+  const documentElement = { lang: 'en', classList: { add: (value: string) => classes.add(value) } }
+  runInNewContext(languageBootScript(), {
+    document: { documentElement },
+    localStorage: {
+      getItem: () => {
+        throw new Error('storage blocked')
+      },
+    },
+    navigator: { language: 'zh-CN' },
+  })
+  expect(documentElement.lang).toBe('zh-CN')
+  expect(classes.has(DOCS_PENDING_CLASS)).toBe(true)
+})

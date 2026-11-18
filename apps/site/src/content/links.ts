@@ -11,9 +11,6 @@ const blob = (path: string) => `${REPOSITORY}/blob/main/${path}`
 /** Docs the page links to, by the `id` of `docs.links` in the dictionaries. */
 export const DOC_LINKS: Record<string, Record<Locale, string>> = {
   readme: { en: blob('README.md'), 'zh-CN': blob('README.zh-CN.md') },
-  guide: { en: blob('docs/guide/README.md'), 'zh-CN': blob('docs/guide/README.md') },
-  architecture: { en: blob('docs/architecture/overview.md'), 'zh-CN': blob('docs/architecture/overview.md') },
-  design: { en: blob('docs/design/README.md'), 'zh-CN': blob('docs/design/README.md') },
   contributing: { en: blob('CONTRIBUTING.md'), 'zh-CN': blob('CONTRIBUTING.md') },
 }
 

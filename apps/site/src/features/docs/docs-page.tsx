@@ -2,25 +2,12 @@ import { Suspense } from 'react'
 import { notFound } from '@tanstack/react-router'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { useLanguage } from '@/hooks/use-language.ts'
-import type { DocsPageMeta } from './docs-head.ts'
 import { englishFallback } from './docs-fallback.ts'
 import { slugsFromSplat } from './docs-path.ts'
 import { DocsArticle } from './docs-article.tsx'
 import { DocsSidebarFooter } from './docs-sidebar-footer.tsx'
 import { baseOptions } from './layout-shared.ts'
 import { source } from './source.ts'
-
-/** Loads the English page metadata used for static `<head>` tags, throwing `notFound` for unknown slugs. */
-export function docsPageMeta(slugs: readonly string[], canonicalPath: string): DocsPageMeta {
-  const page = source.getPage([...slugs], 'en')
-  if (!page?.data.title) {
-    throw notFound()
-  }
-  return {
-    title: page.data.title,
-    canonicalPath,
-  }
-}
 
 export function DocsScreen({ splat }: { splat?: string }) {
   const { lang } = useLanguage()

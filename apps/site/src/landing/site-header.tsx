@@ -40,7 +40,7 @@ export function SiteHeader({ locale, t }: { locale: Locale; t: Dictionary }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <Link to="/docs" className={buttonVariants({ variant: 'ghost' })}>
+          <Link to="/docs/$/" params={{ _splat: 'guide' }} className={buttonVariants({ variant: 'ghost' })}>
             {t.nav.docs}
           </Link>
           <a

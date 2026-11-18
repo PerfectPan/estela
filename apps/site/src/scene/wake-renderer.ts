@@ -6,7 +6,7 @@ import type { Anchor, Instance, WakeLayout } from './wake-instances.ts'
 import { readPalette } from './scene-palette.ts'
 import { GROW_SECONDS } from './wake-instances.ts'
 
-export interface ScreenPoint {
+interface ScreenPoint {
   x: number
   y: number
 }

@@ -1,10 +1,8 @@
-import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
-import http from 'node:http'
-import { tmpdir } from 'node:os'
+import { existsSync, globSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { assert, click, createCdp, evaluate, launchChrome, startStaticServer, waitFor } from './check-site-cdp.mjs'
 
 const siteRoot = fileURLToPath(new URL('..', import.meta.url))
 const distDir = path.join(siteRoot, 'dist/client')
@@ -15,239 +13,42 @@ function normalizeBase(value) {
 }
 
 const base = normalizeBase(process.env.ESTELA_SITE_BASE ?? '/estela/')
+const canonicalRoot = `https://perfectpan.github.io${base}`
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.mjs': 'application/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-  '.woff2': 'font/woff2',
-}
-
-function findChrome() {
-  const candidates = [
-    process.env.CHROME,
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ].filter(Boolean)
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return candidate
-    }
-  }
-  throw new Error('Chrome binary not found; set CHROME to the executable path')
-}
-
-function resolveStaticFile(pathname) {
-  if (base !== '/' && !pathname.startsWith(base)) {
-    return null
-  }
-  const rel = pathname.slice(base.length).replace(/\/+$/, '')
-  const candidate = path.resolve(distDir, rel)
-  if (!candidate.startsWith(distDir)) {
-    return null
-  }
-  if (existsSync(candidate) && statSync(candidate).isFile()) {
-    return candidate
-  }
-  const indexFile = path.join(candidate, 'index.html')
-  if (existsSync(indexFile) && statSync(indexFile).isFile()) {
-    return indexFile
-  }
-  return null
-}
-
-function startServer() {
-  const requested = []
-  const outOfBase = []
-  const server = http.createServer((req, res) => {
-    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname
-    requested.push(pathname)
-    if (base !== '/' && !pathname.startsWith(base)) {
-      outOfBase.push(pathname)
-      res.writeHead(404).end('outside base path')
-      return
-    }
-    const file = resolveStaticFile(pathname)
-    if (!file) {
-      res.writeHead(404).end('not found')
-      return
-    }
-    const ext = path.extname(file)
-    res.writeHead(200, { 'content-type': MIME[ext] ?? 'application/octet-stream' })
-    res.end(readFileSync(file))
-  })
-  return new Promise(resolve => {
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address()
-      if (!addr || typeof addr === 'string') {
-        throw new Error('unexpected server address')
-      }
-      resolve({ server, origin: `http://127.0.0.1:${addr.port}`, requested, outOfBase })
-    })
-  })
-}
-
-async function launchChrome() {
-  const chromePath = findChrome()
-  const userDataDir = mkdtempSync(path.join(tmpdir(), 'estela-site-check-'))
-  const args = [
-    '--headless=new',
-    '--remote-debugging-port=0',
-    '--window-size=1280,800',
-    '--no-first-run',
-    '--no-default-browser-check',
-    `--user-data-dir=${userDataDir}`,
-  ]
-  if (process.platform === 'linux') {
-    args.push('--no-sandbox', '--disable-dev-shm-usage')
-  }
-  args.push('about:blank')
-  const child = spawn(chromePath, args, { stdio: ['ignore', 'ignore', 'pipe'] })
-  const wsUrl = await new Promise((resolve, reject) => {
-    let stderr = ''
-    const timer = setTimeout(() => {
-      reject(new Error(`timed out waiting for Chrome DevTools:\n${stderr}`))
-    }, 15_000)
-    child.stderr.on('data', chunk => {
-      stderr += chunk.toString()
-      const match = /DevTools listening on (ws:\/\/\S+)/.exec(stderr)
-      if (match) {
-        clearTimeout(timer)
-        resolve(match[1])
-      }
-    })
-    child.on('exit', code => {
-      clearTimeout(timer)
-      reject(new Error(`Chrome exited (${code}):\n${stderr}`))
-    })
-  })
-  const baseUrl = wsUrl.replace(/^ws:/, 'http:').replace(/\/devtools\/browser\/.*$/, '')
-  const targets = await (await fetch(`${baseUrl}/json/list`)).json()
-  const pageTarget = targets.find(t => t.type === 'page')
-  if (!pageTarget?.webSocketDebuggerUrl) {
-    throw new Error('missing page target from Chrome DevTools')
-  }
-  const ws = new WebSocket(pageTarget.webSocketDebuggerUrl)
-  await new Promise((resolve, reject) => {
-    ws.addEventListener('open', resolve, { once: true })
-    ws.addEventListener('error', reject, { once: true })
-  })
-  return {
-    ws,
-    close: async () => {
-      ws.close()
-      child.kill('SIGTERM')
-      await new Promise(resolve => {
-        child.once('exit', resolve)
-        setTimeout(resolve, 1500)
-      })
-      rmSync(userDataDir, { recursive: true, force: true })
-    },
-  }
-}
-
-function createCdp(ws) {
-  let seq = 0
-  const pending = new Map()
-  const listeners = new Map()
-  ws.addEventListener('message', event => {
-    const msg = JSON.parse(String(event.data))
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id)
-      pending.delete(msg.id)
-      if (msg.error) {
-        reject(new Error(msg.error.message))
-      } else {
-        resolve(msg.result)
-      }
-      return
-    }
-    if (msg.method && listeners.has(msg.method)) {
-      for (const fn of listeners.get(msg.method)) {
-        fn(msg.params)
-      }
-    }
-  })
-  return {
-    send(method, params = {}) {
-      const id = (seq += 1)
-      return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject })
-        ws.send(JSON.stringify({ id, method, params }))
-      })
-    },
-    on(method, fn) {
-      const set = listeners.get(method) ?? new Set()
-      set.add(fn)
-      listeners.set(method, set)
-    },
-  }
-}
-
-async function waitFor(fn, label, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs
-  let lastError
-  while (Date.now() < deadline) {
-    try {
-      const result = await fn()
-      if (result) {
-        return result
-      }
-    } catch (error) {
-      lastError = error
-    }
-    await new Promise(resolve => setTimeout(resolve, 50))
-  }
-  throw new Error(`timed out waiting for ${label}${lastError ? `: ${lastError.message}` : ''}`)
-}
-
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message)
-  }
-}
-
-async function evaluate(cdp, expression) {
-  const res = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
-  if (res.exceptionDetails) {
-    throw new Error(res.exceptionDetails.exception?.description ?? 'Runtime.evaluate failed')
-  }
-  return res.result.value
-}
-
-async function click(cdp, selector) {
+async function assertHeadingInViewport(cdp, id, label) {
   await waitFor(
     () =>
       evaluate(
         cdp,
         `(() => {
-          const el = [...document.querySelectorAll(${JSON.stringify(selector)})].find(
-            n => n.offsetParent !== null && getComputedStyle(n).visibility !== 'hidden' && !n.closest('[aria-hidden="true"]'),
-          );
+          const el = document.getElementById(${JSON.stringify(id)});
           if (!el) return false;
-          el.click();
-          return true;
+          const top = el.getBoundingClientRect().top;
+          return window.scrollY > 0 && top >= 0 && top < window.innerHeight;
         })()`,
       ),
-    `visible ${selector}`,
+    `${label} heading #${id} inside viewport`,
+    5_000,
   )
+}
+
+function listPrerenderedDocsUrls() {
+  const docsHtml = globSync('docs/**/index.html', { cwd: distDir })
+    .map(file => file.replaceAll('\\', '/'))
+    .sort()
+  assert(docsHtml.length > 0, 'no prerendered docs/**/index.html files found')
+  return docsHtml.map(file => `${base}${file.slice(0, -'index.html'.length)}`)
 }
 
 async function main() {
   assert(existsSync(path.join(distDir, 'index.html')), 'dist/client/index.html missing; run build first')
-  const { server, origin, requested, outOfBase } = await startServer()
-  const chrome = await launchChrome()
+  const { server, origin, requested, outOfBase } = await startStaticServer(distDir, base)
+  let chrome
   const errors = []
   const badResponses = []
 
   try {
+    chrome = await launchChrome()
     const cdp = createCdp(chrome.ws)
     await cdp.send('Page.enable')
     await cdp.send('Runtime.enable')
@@ -304,78 +105,120 @@ async function main() {
     await click(cdp, 'button[lang="en"]')
     await waitFor(() => evaluate(cdp, `document.documentElement.lang === 'en'`), 'switch back to en')
 
-    // Click into /docs, then navigate guide and reference pages by clicking sidebar links.
-    await click(cdp, `header a[href="${base}docs"]`)
+    // Clicking Docs goes to /docs/guide/ with User Guide marked active in the sidebar.
+    await click(cdp, `header a[href="${base}docs/guide/"]`)
     await waitFor(
       () =>
         evaluate(
           cdp,
-          `location.pathname.startsWith(${JSON.stringify(`${base}docs`)}) && Boolean(document.querySelector('[data-docs] h1')?.textContent)`,
+          `location.pathname === ${JSON.stringify(`${base}docs/guide/`)} && Boolean(document.querySelector('[data-docs] h1')?.textContent)`,
         ),
-      '/docs page',
-    )
-    const docsTitle = await evaluate(cdp, `document.title`)
-    assert(
-      typeof docsTitle === 'string' && docsTitle.trim().length > 0 && docsTitle.endsWith(' · Estela'),
-      `bad docs title: ${docsTitle}`,
-    )
-    const docsCanonical = await evaluate(cdp, `document.querySelector('link[rel="canonical"]')?.getAttribute('href')`)
-    assert(
-      docsCanonical === `https://perfectpan.github.io${base}docs/guide`,
-      `unexpected /docs canonical: ${docsCanonical}`,
-    )
-
-    await click(cdp, `a[href="${base}docs/guide/getting-started"]`)
-    await waitFor(
-      () =>
-        evaluate(
-          cdp,
-          `location.pathname === ${JSON.stringify(`${base}docs/guide/getting-started`)} && Boolean(document.querySelector('[data-docs] h1')?.textContent)`,
-        ),
-      'getting-started docs page',
-    )
-    const guideTitle = await evaluate(cdp, `document.title`)
-    assert(
-      typeof guideTitle === 'string' && guideTitle.trim().length > 0 && guideTitle.endsWith(' · Estela'),
-      `bad guide title: ${guideTitle}`,
-    )
-
-    await click(cdp, `a[href="${base}docs/reference/public-interface"]`)
-    await waitFor(
-      () =>
-        evaluate(
-          cdp,
-          `location.pathname === ${JSON.stringify(`${base}docs/reference/public-interface`)} && Boolean(document.querySelector('[data-docs] h1')?.textContent)`,
-        ),
-      'public-interface docs page',
-    )
-    assert(
-      await evaluate(cdp, `Boolean(document.querySelector('a[href="${base}docs/architecture/overview"]'))`),
-      'top-level architecture/overview link missing in sidebar',
-    )
-
-    // In-place language toggle on a docs page keeps the same URL and shows the Chinese fallback on design/.
-    await click(cdp, 'button[lang="zh-CN"]')
-    await waitFor(() => evaluate(cdp, `document.documentElement.lang === 'zh-CN'`), 'docs zh-CN switch')
-    assert(
-      (await evaluate(cdp, `location.pathname`)) === `${base}docs/reference/public-interface`,
-      'docs language switch changed pathname',
-    )
-    await click(cdp, `a[href="${base}docs/design"]`)
-    await waitFor(
-      () =>
-        evaluate(
-          cdp,
-          `location.pathname === ${JSON.stringify(`${base}docs/design`)} && document.body.textContent.includes('此页尚无中文译本')`,
-        ),
-      'design fallback notice in zh-CN',
+      '/docs/guide/ page',
     )
     assert(
       await evaluate(
         cdp,
-        `[...document.querySelectorAll('[data-docs] img')].every(img => img.complete && img.naturalWidth > 0)`,
+        `document.querySelector('a[href="${base}docs/guide/"]')?.getAttribute('data-active') === 'true'`,
       ),
-      'design page image failed to load',
+      'User Guide item not marked active on /docs/guide/',
+    )
+    assert(
+      (await evaluate(cdp, `document.querySelector('link[rel="canonical"]')?.getAttribute('href')`))
+        === `${canonicalRoot}docs/guide/`,
+      'unexpected /docs/guide/ canonical',
+    )
+
+    // Cross-page anchor navigation from getting-started to privacy#the-session-index lands on the heading.
+    await click(cdp, `a[href="${base}docs/guide/getting-started/"]`)
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `location.pathname === ${JSON.stringify(`${base}docs/guide/getting-started/`)} && Boolean(document.querySelector('[data-docs] a[href$="privacy/#the-session-index"]'))`,
+        ),
+      'getting-started anchor link',
+    )
+    await click(cdp, `[data-docs] a[href="${base}docs/guide/privacy/#the-session-index"]`)
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `location.pathname === ${JSON.stringify(`${base}docs/guide/privacy/`)} && location.hash === '#the-session-index'`,
+        ),
+      'privacy#the-session-index navigation',
+    )
+    await assertHeadingInViewport(cdp, 'the-session-index', 'cross-page English')
+
+    // Sidebar reference navigation and top-level architecture item.
+    await click(cdp, `a[href="${base}docs/reference/public-interface/"]`)
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `location.pathname === ${JSON.stringify(`${base}docs/reference/public-interface/`)} && Boolean(document.querySelector('[data-docs] h1')?.textContent)`,
+        ),
+      'public-interface docs page',
+    )
+    assert(
+      await evaluate(cdp, `Boolean(document.querySelector('a[href="${base}docs/architecture/overview/"]'))`),
+      'top-level architecture/overview link missing in sidebar',
+    )
+
+    // Direct open of every prerendered docs/**/index.html page asserts title, h1, canonical slash, and no errors.
+    for (const urlPath of listPrerenderedDocsUrls()) {
+      await cdp.send('Page.navigate', { url: `${origin}${urlPath}` })
+      const expectedPath = urlPath === `${base}docs/` ? `${base}docs/guide/` : urlPath
+      await waitFor(
+        () =>
+          evaluate(
+            cdp,
+            `document.readyState === 'complete' && location.pathname === ${JSON.stringify(expectedPath)} && Boolean(document.querySelector('[data-docs] h1')?.textContent?.trim())`,
+          ),
+        `direct open ${urlPath}`,
+      )
+      const title = await evaluate(cdp, `document.title`)
+      assert(
+        typeof title === 'string' && title.trim().length > 0 && title.endsWith(' · Estela'),
+        `bad title at ${urlPath}: ${title}`,
+      )
+      const canonical = await evaluate(cdp, `document.querySelector('link[rel="canonical"]')?.getAttribute('href')`)
+      assert(canonical === `https://perfectpan.github.io${expectedPath}`, `bad canonical at ${urlPath}: ${canonical}`)
+    }
+
+    // Translated page opened directly with estela-lang=zh-CN shows Chinese H1 and scrolls to Chinese hash.
+    await evaluate(cdp, `localStorage.setItem('estela-lang', 'zh-CN')`)
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/concepts/` })
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '概念'`,
+        ),
+      'Chinese concepts H1',
+    )
+    await cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/#会话索引` })
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `!document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'direct Chinese privacy page',
+    )
+    await assertHeadingInViewport(cdp, '会话索引', 'direct Chinese')
+
+    // Design page waits for at least one image to load and shows the Chinese fallback notice.
+    await click(cdp, `a[href="${base}docs/design/"]`)
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `(() => {
+            const imgs = [...document.querySelectorAll('[data-docs] img')];
+            return location.pathname === ${JSON.stringify(`${base}docs/design/`)} && imgs.length > 0 && imgs.every(i => i.complete && i.naturalWidth > 0) && document.body.textContent.includes('此页尚无中文译本');
+          })()`,
+        ),
+      'design page image and fallback notice',
     )
 
     // Both static search indexes must exist under the site base path.
@@ -397,7 +240,7 @@ async function main() {
     assert(errors.length === 0, `console/page errors:\n${errors.join('\n')}`)
     console.log(`check-site passed (${requested.length} static requests under ${base})`)
   } finally {
-    await chrome.close()
+    await chrome?.close()
     server.close()
   }
 }

@@ -74,7 +74,7 @@ Where it appears: the session total in the header (with the cache hit rate), per
 The rules:
 
 - A request is priced when it records input and output tokens, names a model, and that model has a price. When an agent splits one request's usage by model, every part must meet the same rule.
-- Otherwise the request is unpriced, with the first reason that applies: no usage recorded; input or output tokens not recorded; no model recorded; no price for the named model. It shows "Cost unavailable: <reason>", never $0 and never an estimate.
+- Otherwise the request is unpriced, with the first reason that applies: no usage recorded; input or output tokens not recorded; no model recorded; no price for the named model. It shows "Cost unavailable: `<reason>`", never $0 and never an estimate.
 - A request that records 0 input and 0 output tokens costs $0, whatever its model.
 - A turn, lane, or session total adds the priced requests and says how many it leaves out: "1 of 4 requests unpriced", or "$0.07 · 1 unpriced" where space is short. When nothing is priced it shows the reasons and their counts.
 - The cache hit rate is cache-read tokens over input tokens, across the requests that record both.

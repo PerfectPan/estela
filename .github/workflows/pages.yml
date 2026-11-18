@@ -1,18 +1,28 @@
 name: Pages
 
-# Manual only until the repository is public and Pages is enabled with "GitHub Actions" as the source. Then add a
-# trigger (for example `push` to main with a `paths` filter on apps/site/** and docs/**).
+# Pull requests are built and checked by CI's `Build and verify the docs site` step, so this workflow only runs on
+# `main` pushes and manual dispatches.
 on:
+  push:
+    branches: [main]
+    paths:
+      - apps/site/**
+      - docs/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/pages.yml
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -44,11 +54,16 @@ jobs:
 
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       pages: write
       id-token: write
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+      queue: max
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
