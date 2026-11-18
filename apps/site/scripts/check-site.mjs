@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { assert, click, createCdp, evaluate, launchChrome, startStaticServer, waitFor } from './check-site-cdp.mjs'
+import { checkColdDocsLoads, checkZhSpaNavigation } from './check-site-cold.mjs'
 
 const siteRoot = fileURLToPath(new URL('..', import.meta.url))
 const distDir = path.join(siteRoot, 'dist/client')
@@ -38,70 +39,6 @@ function listPrerenderedDocsUrls() {
     .sort()
   assert(docsHtml.length > 0, 'no prerendered docs/**/index.html files found')
   return docsHtml.map(file => `${base}${file.slice(0, -'index.html'.length)}`)
-}
-
-async function checkColdDocsLoads({ chrome, origin, errors, badResponses, setJsDelayMs }) {
-  const runs = [
-    ...Array.from({ length: 20 }, () => ({
-      lang: 'zh-CN',
-      path: 'docs/guide/getting-started/',
-      h1: '入门',
-    })),
-    ...Array.from({ length: 20 }, () => ({
-      lang: 'en',
-      path: 'docs/guide/privacy/',
-      h1: 'Privacy and redaction',
-    })),
-  ]
-  setJsDelayMs(25)
-  try {
-    for (let i = 0; i < runs.length; i += 1) {
-      const { lang, path: docPath, h1 } = runs[i]
-      const page = await chrome.openIsolatedPage()
-      try {
-        await page.cdp.send('Page.enable')
-        await page.cdp.send('Runtime.enable')
-        await page.cdp.send('Network.enable')
-        await page.cdp.send('Network.setCacheDisabled', { cacheDisabled: true })
-        page.cdp.on('Runtime.consoleAPICalled', p => {
-          if (p.type === 'error') {
-            errors.push(
-              `cold[${i}:${lang}] console.error: ${p.args.map(a => a.value ?? a.description ?? '').join(' ')}`,
-            )
-          }
-        })
-        page.cdp.on('Runtime.exceptionThrown', p => {
-          errors.push(
-            `cold[${i}:${lang}] uncaught: ${p.exceptionDetails.exception?.description ?? p.exceptionDetails.text}`,
-          )
-        })
-        page.cdp.on('Network.responseReceived', p => {
-          if (p.response.status >= 400 && !p.response.url.includes('/favicon.ico')) {
-            badResponses.push(`cold[${i}:${lang}] ${p.response.status} ${p.response.url}`)
-          }
-        })
-        await page.cdp.send('Page.addScriptToEvaluateOnNewDocument', {
-          source: `localStorage.setItem('estela-lang', ${JSON.stringify(lang)});`,
-        })
-        await page.cdp.send('Page.navigate', { url: `${origin}${base}${docPath}` })
-        await waitFor(
-          () =>
-            evaluate(
-              page.cdp,
-              `document.readyState === 'complete' && !document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === ${JSON.stringify(h1)}`,
-            ),
-          `cold load ${i + 1}/${runs.length} (${lang} -> ${h1})`,
-          5_000,
-        )
-        // Allow post-hydration MDX chunk resolution and layout effects to settle so recoverable errors surface.
-        await new Promise(resolve => setTimeout(resolve, 300))
-      } finally {
-        await page.close()
-      }
-    }
-  } finally {
-    setJsDelayMs(0)
-  }
 }
 
 async function main() {
@@ -434,8 +371,11 @@ async function main() {
     await cdp.send('Page.navigate', { url: `${origin}${base}demo/` })
     await waitFor(() => evaluate(cdp, `Boolean(document.querySelector('#report-trace'))`), 'demo report trace script')
 
+    // Chinese readers keep docs visible across SPA forward, back, forward, and landing -> docs navigations.
+    await checkZhSpaNavigation({ chrome, origin, base, errors, badResponses })
+
     // Repeated isolated cold loads on docs never get stranded on the English prerender when zh-CN is active.
-    await checkColdDocsLoads({ chrome, origin, errors, badResponses, setJsDelayMs })
+    await checkColdDocsLoads({ chrome, origin, base, errors, badResponses, setJsDelayMs })
 
     assert(outOfBase.length === 0, `requests left base path ${base}: ${outOfBase.join(', ')}`)
     assert(!requested.some(p => /\/zh(?:\/|$)/.test(p)), `unexpected /zh request: ${requested.join(', ')}`)

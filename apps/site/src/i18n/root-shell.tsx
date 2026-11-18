@@ -1,8 +1,9 @@
-import { HeadContent, Outlet, Scripts } from '@tanstack/react-router'
+import { HeadContent, Outlet, ScriptOnce, Scripts } from '@tanstack/react-router'
 import { i18nProvider } from 'fumadocs-ui/i18n'
 import { RootProvider } from 'fumadocs-ui/provider/tanstack'
 import { LanguageProvider, useLanguageState } from '@/hooks/use-language.ts'
 import { DOCS_PENDING_CLASS, DOCS_PENDING_TIMEOUT_MS, LANG_STORAGE_KEY, languageFrom } from './lang-preference.ts'
+import { languageBootScript } from './language-boot-script.ts'
 import { translations } from './translations.ts'
 
 export function RootShell() {
@@ -23,6 +24,7 @@ export function RootShell() {
     <html lang={lang} suppressHydrationWarning>
       <head>
         <HeadContent />
+        <ScriptOnce>{languageBootScript()}</ScriptOnce>
       </head>
       <body>
         <LanguageProvider value={{ lang, setLang }}>
