@@ -61,7 +61,8 @@ const nodeBuiltins = [
 export default {
   lint: {
     ...lint,
-    ignorePatterns: ['**/dist/**', '**/node_modules/**'],
+    // `*.gen.ts`: TanStack Router's generated route tree; `.source/**`: Fumadocs MDX generated collections (`apps/site`).
+    ignorePatterns: ['**/dist/**', '**/node_modules/**', '**/*.gen.ts', '**/.source/**'],
     rules: {
       ...lint.rules,
       // Vitest's `expect(value, message)` takes a failure message.
@@ -143,6 +144,15 @@ export default {
     bracketSpacing: true,
     experimentalOperatorPosition: 'start',
     embeddedLanguageFormatting: 'off',
-    ignorePatterns: ['**/fixtures/**', 'docs/**', '**/*.md', '**/*.json', '**/*.html', '**/*.css'],
+    ignorePatterns: [
+      '**/fixtures/**',
+      'docs/**',
+      '**/*.md',
+      '**/*.json',
+      '**/*.html',
+      '**/*.css',
+      '**/*.gen.ts',
+      '**/.source/**',
+    ],
   },
 }

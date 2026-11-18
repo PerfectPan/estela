@@ -25,6 +25,8 @@ const ALLOW = {
   '@rivus/estela-web': [KIT, ...CORE],
   // Tests the packed tarball from outside; it depends on no workspace package.
   '@rivus/estela-e2e': [],
+  // The site runs the built CLI to write its live demo report; it imports no workspace code.
+  '@rivus/estela-site': ['@rivus/estela'],
   [RPC]: [KIT, KERNEL, SCHEMA],
   [RUNTIME_NODE]: [KIT, KERNEL, SCHEMA],
   [KERNEL]: [KIT, SCHEMA],

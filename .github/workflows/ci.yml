@@ -80,6 +80,14 @@ jobs:
       - name: Performance and size budgets
         timeout-minutes: 5
         run: node scripts/check-budgets.mjs
+      # The smoke step above built the CLI; the site prerenders its pages, writes static search indexes, runs the
+      # CLI for /demo/, and checks navigation under the project base path in headless Chrome.
+      - name: Build and verify the docs site
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: |
+          pnpm --filter @rivus/estela-site run build
+          pnpm --filter @rivus/estela-site run check
       - name: Install Chromium for Playwright
         working-directory: apps/e2e
         run: npx playwright install --with-deps chromium

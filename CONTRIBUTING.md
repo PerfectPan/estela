@@ -100,7 +100,7 @@ These documents have a Chinese reading copy beside them, named with `.zh-CN.md` 
 
 ## Release Intent
 
-`@rivus/estela` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/estela`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect bundled dependencies. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package. Changes limited to root release-tool dependencies need no release changeset.
+`@rivus/estela` is the only published package, and it bundles every other workspace package. A PR that changes what it ships carries a changeset under `.changeset/` naming `@rivus/estela`. "What it ships" is any file under `apps/` or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect bundled dependencies. An edit that only touches a bundled private package needs the changeset on the CLI package too: the version bump and the changelog line ride on the published package. Changes limited to root release-tool dependencies need no release changeset. `apps/site` (the landing and docs site) is not bundled into the CLI, so a change limited to it needs no release changeset either.
 
 - Create the file with `pnpm exec changeset --patch @rivus/estela --message "<text>"` (use `--minor` or `--major` for another bump), or run `pnpm exec changeset` interactively. Rename the generated random file name to a kebab-case slug.
 - The bump type follows semver for users of the CLI: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` on the public CLI records an internal change without a release or changelog line; native versioning consumes it even when no version changes. `pnpm exec changeset --empty` is also valid, but an empty marker alone leaves the workflow in `none` mode until a release changeset is added.
@@ -225,7 +225,7 @@ The project is licensed under GPL-3.0-only (`LICENSE`). Distributing the softwar
 
 `node scripts/check-conventions.mjs` checks every tracked file. CI and the pre-commit hook run it.
 
-The shared lint config adds three file rules: kebab-case names, at most 1000 lines, and one component per `.tsx` file (`react/no-multi-comp`, tests excluded). `check-conventions.mjs` stays, because its names and 500-line limit are stricter. A component used by one parent still gets its own file next to that parent. `apps/web/src/components/icons.tsx` is exempt in the root `vite.config.ts`: it is one family of stroke icons on a shared `Icon` base.
+The shared lint config adds three file rules: kebab-case names, at most 1000 lines, and one component per `.tsx` file (`react/no-multi-comp`, tests excluded). `check-conventions.mjs` stays, because its names and 500-line limit are stricter. A component used by one parent still gets its own file next to that parent. `apps/web/src/components/icons.tsx` and `apps/site/src/components/icons.tsx` are exempt in the root `vite.config.ts`: each is one family of stroke icons on a shared `Icon` base.
 
 ## Repository Architecture
 

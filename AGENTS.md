@@ -8,6 +8,7 @@ Generic inspect DevTool for agent session logs. Not a harness. Not dsh Trajector
 |---|---|---|---|
 | `apps/cli` | `@rivus/estela` | The published command line: the command routes (`@bomb.sh/router`), terminal output, exit codes and the failure map, browser opening, the ATIF and OTLP exports, the package name, version, and web build it hands the server factory (`src/server.ts`), starts the DevFrame dev and MCP servers from the factory's definition, embeds the web build, `vp pack` bundle (`dist/bin.mjs`, `dist/cli.mjs`, `dist/web/`) | every package; web's build output |
 | `apps/e2e` | `@rivus/estela-e2e` | Private. CLI smoke (`test:smoke`) and Playwright (`test:e2e`) suites on the packed tarball, synthetic fixture homes | nothing at runtime; test tooling only |
+| `apps/site` | `@rivus/estela-site` | Private. The landing page and bilingual docs site: React + TanStack Start + Fumadocs prerendered to static HTML for GitHub Pages (`vp build`, base path `ESTELA_SITE_BASE`, default `/estela/`), single-URL English and Chinese views (`localStorage['estela-lang']`), per-locale static search indexes (`dist/client/api/search.{en,zh-CN}.json`), the lazy WebGL hero scene and its SVG fallback, and the live demo (`scripts/build-demo.mjs` runs the built CLI's `build` into `dist/client/demo/`). Not shipped in the npm package | the CLI's build output only (devDependency); no workspace code |
 | `apps/web` | `@rivus/estela-web` | Solid SPA: session browser, workspace, report mode, tokens, dictionaries | `rpc` (types), `kernel`, `schema`, `@rivus/agent-kit` (types) |
 | `packages/server` | `@rivus/estela-server` | The server composition: `createEstelaServer` returns the DevFrame definition whose `setup` builds and binds the services, session reading through `@rivus/agent-kit` (runtime), the session catalog (discover, summaries, trace id → target map that resolves TraceStore trace ids), the TraceStore over Node reads, the report writer (`build` and `export-report` → one `index.html`), the MCP agent tools (`src/agent-tools/`) | `rpc`, `kernel`, `schema`, `runtime-node`, `@rivus/agent-kit` |
 | `packages/rpc` | `@rivus/estela-rpc` | RPC contracts (`list-sessions`, `load-trace`, `get-trace-view`, `get-event`, `reconstruct`, `export-report`, and `report-trace` in build mode only), `buildReport`, server handlers, and the TraceStore (trace id resolution, in-flight loads, last 3 traces) over injected reads (`SessionFs`), resolver, and session service | `kernel`, `schema`, `@rivus/agent-kit` (types) |
@@ -40,14 +41,14 @@ Generic inspect DevTool for agent session logs. Not a harness. Not dsh Trajector
 - URLs carry opaque trace ids (a hash of agent and path, plus the session id for the `path#id` form), never paths.
 - A change to a surface listed in [`docs/reference/public-interface.md`](docs/reference/public-interface.md) (commands, flags, exit codes, environment variables, MCP tool names and input schemas, the report file, the ATIF mapping; MCP result fields are documented in `docs/reference/mcp-tools.md` and covered from 1.0) updates that document, `docs/reference/`, and the user guide (`docs/guide/`) in the same PR, with a changeset of the matching bump.
 - Names from before the rename (`agent-trace`, `AGENT_TRACE_*`) are not read anywhere; they stay only in the released `apps/cli/CHANGELOG.md` entries, `.changeset/ledger.yaml`, the `v0.1.0` tag, and links recorded before the rename.
-- UI strings go through `apps/web/src/i18n/` (`dictionary.en.ts` is the type source, `dictionary.zh-CN.ts` satisfies it). Session content never does.
+- UI strings go through `apps/web/src/i18n/` (`dictionary.en.ts` is the type source, `dictionary.zh-CN.ts` satisfies it). Session content never does. The site keeps its own dictionaries in `apps/site/src/i18n/` the same way; every product claim there comes from the root README, and docs pages come from `docs/` at the single URL tree `/docs/...`.
 
 ## Tooling
 
 - pnpm workspace. Workspace settings and the shared external versions (`catalog:`) live in the root `pnpm-workspace.yaml`; Changesets versioning lives in `.changeset/config.json`.
 - Installs use the public npm registry (`registry` in `pnpm-workspace.yaml`), not a mirror from `~/.npmrc`.
-- UI: Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`). Not React shadcn.
-- The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each workspace package has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web`); `tsc` stays the type check. Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
+- UI: `apps/web` uses Solid + Tailwind v4 + shadcn-solid (`@kobalte/core`), not React shadcn. `apps/site` uses React + TanStack Start + Fumadocs + Tailwind v4.
+- The toolchain is Vite+ (`vite-plus`, CLI `vp`). Each workspace package has one `vite.config.ts` for `vp test` and its build (`vp pack` in `apps/cli`, `vp build` in `apps/web` and `apps/site`); `tsc` stays the type check. `apps/site`'s generated files (`src/route-tree.gen.ts`, committed so `tsc` runs before a build, and `.source/` from `fumadocs-mdx`) are ignored for lint and format (`**/*.gen.ts`, `**/.source/**`). Test files import from `vite-plus/test`, not `vitest`. A `vite-plus` upgrade moves other pinned versions with it; rules in `CONTRIBUTING.md#pull-request-gates`.
 - Put unit tests next to the code they test (for TypeScript, `foo.test.ts` beside `foo.ts`; other languages follow their own convention). Integration tests, which cross modules, run a built artifact, or go through an external boundary such as HTTP or a database, live in the package's `test/` directory, with shared fixtures under `test/fixtures/`.
 - Lint and format settings live only in the `lint` and `fmt` blocks of the root `vite.config.ts`, built on `@perfectpan/lint-config/vite-plus`; a project's `vite.config.ts` has neither block, so `vp lint` and `vp fmt` find the root one.
 - Lint is oxlint through `vp lint`: `pnpm -r lint` per package, and `node scripts/lint-scripts.mjs` for the root `scripts/` and `vite.config.ts`. `curly: all` is on: every `if`, `else`, `for`, `while`, and `do` body is a braced block.
@@ -88,6 +89,9 @@ node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
 node scripts/check-budgets.mjs
 cd apps/cli && pnpm run dev
+cd apps/site && pnpm run dev
+pnpm --filter '@rivus/estela-site...' run build
+pnpm --filter @rivus/estela-site run check
 cd apps/e2e && pnpm run test:smoke
 cd apps/e2e && pnpm run test:e2e
 ```
