@@ -52,7 +52,10 @@ const fileInUse = z.object({ code: z.enum(['EPERM', 'EBUSY']) })
 const versionRow = z.object({ user_version: z.number() })
 const countRow = z.object({ n: z.number() })
 
-/** The SQLite result code node:sqlite sets on its errors (extended codes included); `undefined` for other errors. */
+/**
+ * The SQLite result code node:sqlite sets on its errors (extended codes included); `undefined` for other errors.
+ * @internal
+ */
 export function sqliteErrcode(error: unknown): number | undefined {
   return z.safeParse(sqliteError, error).data?.errcode
 }
@@ -63,12 +66,16 @@ function primaryCode(error: unknown): number | undefined {
   return code === undefined ? undefined : code & 0xff
 }
 
+/** @internal */
 export function isBroken(error: unknown): boolean {
   const code = primaryCode(error)
   return code !== undefined && BROKEN_CODES.has(code)
 }
 
-/** Another process holds the write lock or is recovering the database (hot journal, WAL): wait and retry. */
+/**
+ * Another process holds the write lock or is recovering the database (hot journal, WAL): wait and retry.
+ * @internal
+ */
 export function isBusy(error: unknown): boolean {
   const code = primaryCode(error)
   return code !== undefined && BUSY_CODES.has(code)
@@ -81,8 +88,7 @@ export function isBusy(error: unknown): boolean {
  * index.
  */
 export function isTransient(error: unknown): boolean {
-  const code = primaryCode(error)
-  return code !== undefined && (BUSY_CODES.has(code) || code === IOERR_CODE)
+  return isBusy(error) || primaryCode(error) === IOERR_CODE
 }
 
 /**

@@ -53,7 +53,10 @@ export function layoutLabels(rules: readonly { x: number; width: number }[], rig
   return slots
 }
 
-/** Top and height of the label row above the plot (the boxes sit at y 4–22). */
+/**
+ * Top and height of the label row above the plot (the boxes sit at y 4–22).
+ * @internal
+ */
 export const LABEL_ROW = { y: 4, height: 18 } as const
 
 /**

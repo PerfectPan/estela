@@ -68,8 +68,10 @@ jobs:
       # Fails on any clone jscpd reports (lint-config's zero-threshold profile). The scan roots and ignores live in the
       # script in packages/schema/package.json.
       - run: pnpm --filter @rivus/estela-schema run duplicates
-      # Knip with lint-config's shared policy; the entries and ignores live in knip.ts.
+      # Knip with lint-config's shared policy, in the default and the production analysis; the entries,
+      # project files, and ignores live in knip.ts.
       - run: pnpm --filter @rivus/estela-schema run knip
+      - run: pnpm --filter @rivus/estela-schema run knip:production
       - run: node scripts/check-browser-bundle.mjs
       - name: Build Web once before CLI smoke tests
         run: pnpm --filter @rivus/estela-web run build

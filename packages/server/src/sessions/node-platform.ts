@@ -42,6 +42,7 @@ function startsFrame(bytes: Uint8Array): boolean {
  * Decodes concatenated zstd frames while bounding total decompressed output to `maxBytes`.
  * Mirrors `@rivus/agent-kit/node`'s trailing non-frame suffix break so appended plain bytes do not fail.
  * Stopgap until `@rivus/agent-kit` enforces a decompression output cap natively (#123).
+ * @internal
  */
 export function decompressZstdBounded(bytes: Uint8Array, maxBytes = MAX_DECOMPRESSED_BYTES): Uint8Array {
   const chunks: Uint8Array[] = []

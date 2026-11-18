@@ -10,6 +10,7 @@ const LINE_SLACK = 16 * 1024
 /**
  * Where a block that should end near `at` ends: after the next newline within `LINE_SLACK`,
  * else at `at` itself, moved back one unit if that would split a surrogate pair.
+ * @internal
  */
 export function cutAt(text: string, at: number): number {
   if (at >= text.length) {

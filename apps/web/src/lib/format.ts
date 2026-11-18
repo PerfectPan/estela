@@ -79,6 +79,7 @@ function formatWeekday(ts: number, locale: string): string {
   return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(ts)
 }
 
+/** @internal */
 export function formatDate(ts: number, locale: string, now = Date.now()): string {
   const sameYear = new Date(ts).getFullYear() === new Date(now).getFullYear()
   return new Intl.DateTimeFormat(
