@@ -152,6 +152,7 @@ export const zhCN = {
     links: [
       { id: 'readme', label: 'README', body: '它是什么、一条命令，以及支持的 Agent。' },
       { id: 'guide', label: '用户指南', body: '概念、工作区、导出、MCP、隐私和排障。' },
+      { id: 'reference', label: '参考文档', body: '公共接口、MCP 工具与导出格式。' },
       { id: 'architecture', label: '架构', body: '当前行为和系统结构。' },
       { id: 'design', label: '视觉设计', body: '页面、设计令牌和编码规则。' },
       { id: 'contributing', label: '贡献指南', body: '工作流、变更门禁和发布意图。' },

@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import type { Dictionary } from '@/i18n/dictionary.en.ts'
 import type { Locale } from '@/i18n/locale.ts'
 import { GithubIcon } from '@/components/icons.tsx'
@@ -13,7 +14,6 @@ export function SiteHeader({ locale, t }: { locale: Locale; t: Dictionary }) {
     { href: '#demo', label: t.nav.demo },
     { href: '#agents', label: t.nav.agents },
     { href: '#privacy', label: t.nav.privacy },
-    { href: '#docs', label: t.nav.docs },
   ]
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/75 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
@@ -40,6 +40,9 @@ export function SiteHeader({ locale, t }: { locale: Locale; t: Dictionary }) {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <Link to="/docs" className={buttonVariants({ variant: 'ghost' })}>
+            {t.nav.docs}
+          </Link>
           <a
             href={REPOSITORY}
             className={buttonVariants({ variant: 'ghost', className: 'hidden sm:inline-flex' })}

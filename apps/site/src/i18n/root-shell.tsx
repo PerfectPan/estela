@@ -33,7 +33,12 @@ export function RootShell() {
               enableSystem: true,
             }}
             i18n={{ ...i18nProvider(translations, lang), onLocaleChange }}
-            search={{ enabled: false }}
+            search={{
+              options: {
+                type: 'static',
+                api: `${import.meta.env.BASE_URL}api/search.${lang}.json`,
+              },
+            }}
           >
             <Outlet />
           </RootProvider>

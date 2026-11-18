@@ -166,6 +166,7 @@ export const en = {
         label: 'User guide',
         body: 'Concepts, the workspace, exports, MCP, privacy, and troubleshooting.',
       },
+      { id: 'reference', label: 'Reference', body: 'Public interface, MCP tools, and export formats.' },
       { id: 'architecture', label: 'Architecture', body: 'Current behavior and the shape of the system.' },
       { id: 'design', label: 'Visual design', body: 'Screens, tokens, and the encoding rules.' },
       { id: 'contributing', label: 'Contributing', body: 'Workflow, change gates, and release intent.' },
