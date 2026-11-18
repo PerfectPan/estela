@@ -2,15 +2,15 @@ import { SITE_ORIGIN } from '@/content/links.ts'
 import { dictionaryOf } from '@/i18n/locale.ts'
 
 /** Absolute URL of a page or file under the site base; Open Graph and canonical links need the origin. */
-function absolute(path: string): string {
+export function absoluteSiteUrl(path: string): string {
   return new URL(path.replace(/^\//, ''), `${SITE_ORIGIN}${import.meta.env.BASE_URL}`).href
 }
 
 /** Title, description, canonical link, and the Open Graph and Twitter cards of the landing page. */
 export function pageHead() {
   const t = dictionaryOf('en')
-  const url = absolute('/')
-  const image = absolute('/og-image.png')
+  const url = absoluteSiteUrl('/')
+  const image = absoluteSiteUrl('/og-image.png')
   return {
     meta: [
       { title: t.meta.title },

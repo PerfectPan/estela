@@ -1,20 +1,21 @@
 import path from 'node:path'
+import type { Image, Parents, Root } from 'mdast'
+import type { MdxJsxFlowElement } from 'mdast-util-mdx-jsx'
+import { visit } from 'unist-util-visit'
 
 const REPOSITORY_BLOB = 'https://github.com/PerfectPan/estela/blob/main'
+// Keep paired with the literal `docs.docs.files` globs in `source.ts`.
 const INCLUDED_DOC = /^docs\/(?:guide|reference|architecture)\/[^/]+(?:\.zh-CN)?\.md$/
 
-interface MdastNode {
-  type: string
-  depth?: number
-  url?: string
-  alt?: string
-  value?: string
-  name?: string
-  attributes?: { type: string; name: string; value: string }[]
-  data?: {
-    estelaImgAttrs?: { width?: string; height?: string }
+interface EstelaImgAttrs {
+  width?: string
+  height?: string
+}
+
+declare module 'mdast' {
+  interface Data {
+    estelaImgAttrs?: EstelaImgAttrs
   }
-  children?: MdastNode[]
 }
 
 function toRepoDocPath(filePath: string): string {
@@ -30,6 +31,7 @@ function toRepoDocPath(filePath: string): string {
   return `docs/${normalized.replace(/^\/+/, '')}`
 }
 
+// Paired with `docs.docs.files` in `source.ts`.
 function isIncludedDoc(repoPath: string): boolean {
   return repoPath === 'docs/design/README.md' || INCLUDED_DOC.test(repoPath)
 }
@@ -71,7 +73,7 @@ function readAttr(tag: string, name: string): string | undefined {
   return match?.[1]
 }
 
-function parseImgHtml(value: string): MdastNode | undefined {
+function parseImgHtml(value: string): Image | undefined {
   const trimmed = value.trim()
   if (!/^<img\b[^>]*>$/i.test(trimmed)) {
     return undefined
@@ -93,14 +95,36 @@ function parseImgHtml(value: string): MdastNode | undefined {
   }
 }
 
-function walkNodes(node: MdastNode, visit: (child: MdastNode, index: number, parent: MdastNode) => void): void {
-  if (!node.children) {
+function replaceHtmlWithImage(parent: Parents, index: number, imgNode: Image): void {
+  // Narrowing of a known mdast Parents union so image vs block-paragraph placement stays type-safe without casts.
+  if (
+    parent.type === 'root'
+    || parent.type === 'paragraph'
+    || parent.type === 'heading'
+    || parent.type === 'tableCell'
+    || parent.type === 'emphasis'
+    || parent.type === 'strong'
+    || parent.type === 'delete'
+    || parent.type === 'link'
+    || parent.type === 'linkReference'
+    || parent.type === 'mdxJsxTextElement'
+  ) {
+    parent.children[index] = imgNode
     return
   }
-  for (let i = 0; i < node.children.length; i += 1) {
-    const child = node.children[i]!
-    visit(child, i, node)
-    walkNodes(child, visit)
+  if (
+    parent.type === 'blockquote'
+    || parent.type === 'listItem'
+    || parent.type === 'footnoteDefinition'
+    || parent.type === 'mdxJsxFlowElement'
+  ) {
+    parent.children[index] = { type: 'paragraph', children: [imgNode] }
+  }
+}
+
+function setStringAttr(attributes: MdxJsxFlowElement['attributes'], name: string, value: string): void {
+  if (!attributes.some(attr => attr.type === 'mdxJsxAttribute' && attr.name === name)) {
+    attributes.push({ type: 'mdxJsxAttribute', name, value })
   }
 }
 
@@ -109,23 +133,24 @@ function walkNodes(node: MdastNode, visit: (child: MdastNode, index: number, par
  * by `DocsTitle`), rewrites relative links, and turns raw `<img>` HTML into mdast image nodes so Vite bundles them.
  */
 export function remarkDocsPre() {
-  return (tree: MdastNode, file: { path?: string }) => {
-    if (tree.children) {
-      const firstH1 = tree.children.findIndex(child => child.type === 'heading' && child.depth === 1)
-      if (firstH1 !== -1) {
-        tree.children.splice(firstH1, 1)
-      }
+  return (tree: Root, file: { path?: string }) => {
+    if (!file.path) {
+      throw new Error('remarkDocsPre expected a file path to resolve relative links')
     }
-    const docFilePath = file.path ?? 'docs/guide/README.md'
-    walkNodes(tree, (node, index, parent) => {
-      if (node.type === 'link' && typeof node.url === 'string') {
+    const docFilePath = file.path
+    const firstH1 = tree.children.findIndex(child => child.type === 'heading' && child.depth === 1)
+    if (firstH1 !== -1) {
+      tree.children.splice(firstH1, 1)
+    }
+    visit(tree, (node, index, parent) => {
+      if (node.type === 'link') {
         node.url = rewriteDocLink(node.url, docFilePath)
         return
       }
-      if (node.type === 'html' && typeof node.value === 'string' && parent.children) {
+      if (node.type === 'html' && index !== undefined && parent) {
         const imgNode = parseImgHtml(node.value)
         if (imgNode) {
-          parent.children[index] = imgNode
+          replaceHtmlWithImage(parent, index, imgNode)
         }
       }
     })
@@ -134,18 +159,17 @@ export function remarkDocsPre() {
 
 /** Runs after `remarkImage` to restore `width` and `height` attributes on converted `<img>` elements. */
 export function remarkDocsPost() {
-  return (tree: MdastNode) => {
-    walkNodes(tree, node => {
-      if (node.type !== 'mdxJsxFlowElement' || node.name !== 'img' || !node.data?.estelaImgAttrs) {
+  return (tree: Root) => {
+    visit(tree, 'mdxJsxFlowElement', node => {
+      if (node.name !== 'img' || !node.data?.estelaImgAttrs) {
         return
       }
       const { width, height } = node.data.estelaImgAttrs
-      node.attributes ??= []
       if (width) {
-        node.attributes.push({ type: 'mdxJsxAttribute', name: 'width', value: width })
+        setStringAttr(node.attributes, 'width', width)
       }
       if (height) {
-        node.attributes.push({ type: 'mdxJsxAttribute', name: 'height', value: height })
+        setStringAttr(node.attributes, 'height', height)
       }
     })
   }

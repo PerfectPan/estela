@@ -10,6 +10,7 @@ import { readmeSlugs } from './readme-slugs.ts'
 export const docs = defineDocs({
   dir: '../../docs',
   docs: {
+    // Keep this literal list paired with `INCLUDED_DOC` and `isIncludedDoc` in `remark-docs.ts`.
     files: ['guide/*.md', 'reference/*.md', 'architecture/*.md', 'design/README.md'],
     async: true,
     schema: ({ path, source }) =>
@@ -20,8 +21,16 @@ export const docs = defineDocs({
 })
 
 const META_FILES: VirtualFile[] = [
-  { type: 'meta', path: 'meta.json', data: { pages: ['guide', 'reference', 'architecture', 'design/README'] } },
-  { type: 'meta', path: 'meta.zh-CN.json', data: { pages: ['guide', 'reference', 'architecture', 'design/README'] } },
+  {
+    type: 'meta',
+    path: 'meta.json',
+    data: { pages: ['guide', 'reference', 'architecture/overview', 'design/README'] },
+  },
+  {
+    type: 'meta',
+    path: 'meta.zh-CN.json',
+    data: { pages: ['guide', 'reference', 'architecture/overview', 'design/README'] },
+  },
   {
     type: 'meta',
     path: 'guide/meta.json',
@@ -69,16 +78,6 @@ const META_FILES: VirtualFile[] = [
     type: 'meta',
     path: 'reference/meta.zh-CN.json',
     data: { title: '参考文档', defaultOpen: true, pages: ['public-interface', 'mcp-tools', 'export-formats'] },
-  },
-  {
-    type: 'meta',
-    path: 'architecture/meta.json',
-    data: { title: 'Architecture', defaultOpen: true, pages: ['overview'] },
-  },
-  {
-    type: 'meta',
-    path: 'architecture/meta.zh-CN.json',
-    data: { title: '架构', defaultOpen: true, pages: ['overview'] },
   },
 ]
 

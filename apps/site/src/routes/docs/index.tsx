@@ -1,6 +1,6 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
-import { DocsScreen } from '@/features/docs/docs-page.tsx'
-import { source } from '@/features/docs/source.ts'
+import { createFileRoute } from '@tanstack/react-router'
+import { docsHead } from '@/features/docs/docs-head.ts'
+import { DocsScreen, docsPageMeta } from '@/features/docs/docs-page.tsx'
 
 function DocsIndex() {
   return <DocsScreen splat="guide" />
@@ -8,9 +8,7 @@ function DocsIndex() {
 
 export const Route = createFileRoute('/docs/')({
   component: DocsIndex,
-  loader: () => {
-    if (!source.getPage(['guide'], 'en')) {
-      throw notFound()
-    }
-  },
+  // `/docs` renders the guide landing page, so its canonical points at `/docs/guide`.
+  loader: () => docsPageMeta(['guide'], '/docs/guide'),
+  head: ({ loaderData }) => docsHead(loaderData),
 })

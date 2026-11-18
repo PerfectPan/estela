@@ -1,18 +1,18 @@
-/** Narrow Fumadocs' `export()` result to the per-locale map from `localeMap`. */
+import * as z from 'zod/mini'
+
+// `createFromSource(...).export()` is typed as `Promise<unknown>`; parse the shape once at this boundary.
+const i18nSearchExportSchema = z.object({
+  type: z.literal('i18n'),
+  data: z.record(z.string(), z.unknown()),
+})
+
+/** Parses Fumadocs' `export()` result as the per-locale map produced by `localeMap`. */
 export function i18nSearchData(value: unknown): Record<string, unknown> {
-  // A build-time guard, not a runtime shape reader: throws the mismatched export's kind instead of a schema issue list.
-  if (
-    typeof value !== 'object'
-    || value === null
-    || !('type' in value)
-    || value.type !== 'i18n'
-    || !('data' in value)
-    || typeof value.data !== 'object'
-    || value.data === null
-    || Array.isArray(value.data)
-  ) {
-    const kind = typeof value === 'object' && value !== null && 'type' in value ? String(value.type) : typeof value
-    throw new Error(`expected per-language search export, got ${kind}`)
+  const parsed = z.safeParse(i18nSearchExportSchema, value)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    const detail = issue ? `${issue.path.join('.') || 'value'}: ${issue.message}` : 'invalid input'
+    throw new Error(`expected per-language search export (${detail})`)
   }
-  return value.data as Record<string, unknown>
+  return parsed.data.data
 }

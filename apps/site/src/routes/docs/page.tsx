@@ -1,7 +1,7 @@
-import { createFileRoute, notFound, useParams } from '@tanstack/react-router'
-import { DocsScreen } from '@/features/docs/docs-page.tsx'
-import { slugsFromSplat } from '@/features/docs/docs-path.ts'
-import { source } from '@/features/docs/source.ts'
+import { createFileRoute, useParams } from '@tanstack/react-router'
+import { docsHead } from '@/features/docs/docs-head.ts'
+import { DocsScreen, docsPageMeta } from '@/features/docs/docs-page.tsx'
+import { docsUrl, slugsFromSplat } from '@/features/docs/docs-path.ts'
 
 function DocsPage() {
   const { _splat } = useParams({ from: '/docs/$' })
@@ -11,8 +11,8 @@ function DocsPage() {
 export const Route = createFileRoute('/docs/$')({
   component: DocsPage,
   loader: ({ params }) => {
-    if (!source.getPage(slugsFromSplat(params._splat), 'en')) {
-      throw notFound()
-    }
+    const slugs = slugsFromSplat(params._splat)
+    return docsPageMeta(slugs, docsUrl(slugs))
   },
+  head: ({ loaderData }) => docsHead(loaderData),
 })
