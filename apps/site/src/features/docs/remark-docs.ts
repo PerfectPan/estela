@@ -46,6 +46,7 @@ function docSiteUrl(repoPath: string): string {
 /**
  * Rewrites a markdown link target from a doc under `docs/` to its site URL when the target is an included doc,
  * or to its `github.com/PerfectPan/estela/blob/main/...` URL otherwise. Absolute URLs and `#anchors` stay.
+ * @internal
  */
 export function rewriteDocLink(href: string, docFilePath: string): string {
   if (href === '' || href.startsWith('#') || href.startsWith('//') || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)) {

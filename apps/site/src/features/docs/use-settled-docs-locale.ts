@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Locale } from '@/i18n/locale.ts'
 import { isDocLoaded, loadDoc } from './doc-loader.ts'
 
-export interface SettledDocsState {
+interface SettledDocsState {
   readonly splatKey: string
   readonly lang: Locale
 }
@@ -12,6 +12,7 @@ export interface SettledDocsState {
  * switches to `lang` on cross-page navigation, when `lang` matches the settled locale, or when
  * the target MDX chunk is already loaded; otherwise keeps `settled.lang` mounted so slow or
  * failed chunks never blank the article.
+ * @internal
  */
 export function resolveActiveLocale({
   settled,
@@ -33,7 +34,10 @@ export function resolveActiveLocale({
   return settled.lang
 }
 
-/** Returns a new settled record only when route or locale changed, preserving reference stability. */
+/**
+ * Returns a new settled record only when route or locale changed, preserving reference stability.
+ * @internal
+ */
 export function reconcileSettledState(current: SettledDocsState, next: SettledDocsState): SettledDocsState {
   if (current.splatKey === next.splatKey && current.lang === next.lang) {
     return current
@@ -45,6 +49,7 @@ export function reconcileSettledState(current: SettledDocsState, next: SettledDo
  * Decides how to handle a rejected MDX load: first failure surfaces the inline error notice for
  * `targetPath`; a failure on an explicit retry reloads the page so Chromium clears any cached
  * failed dynamic `import()` entry in the document's module map.
+ * @internal
  */
 export function resolveLoadFailureAction(
   retrying: boolean,

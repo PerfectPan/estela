@@ -4,11 +4,14 @@ import { docs } from './source.ts'
 type LoadedDoc = Awaited<ReturnType<NonNullable<ReturnType<typeof docs.getPage>>['load']>>
 
 /** Promise carrying React 19's settled thenable fields (`status`, `value`, `reason`) for synchronous `use()`. */
-export type TrackedDocPromise = Promise<LoadedDoc> & ReactPromise<LoadedDoc>
+type TrackedDocPromise = Promise<LoadedDoc> & ReactPromise<LoadedDoc>
 
 const defaultIsSsr = () => import.meta.env.SSR
 
-/** Builds a tracked-promise doc loader so client swaps stay cached while SSR skips caching to keep Suspense intact. */
+/**
+ * Builds a tracked-promise doc loader so client swaps stay cached while SSR skips caching to keep Suspense intact.
+ * @internal
+ */
 export function createDocLoader(isSsr: () => boolean = defaultIsSsr) {
   const docPromises = new Map<string, TrackedDocPromise>()
 

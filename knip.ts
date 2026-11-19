@@ -54,7 +54,18 @@ const config = {
       ignore: ['src/route-tree.gen.ts'],
       // Build order, not an import: scripts/build-demo.mjs invokes the built CLI before packaging dist/client/demo/.
       ignoreDependencies: ['@rivus/estela'],
-      entry: ['src/routes/**/*.tsx']
+      // Knip's Fumadocs plugin registers `source.config.{js,ts,mjs}` as a non-production entry, and
+      // production mode drops a user entry that matches a plugin's non-production entry even when
+      // listed as `source.config.ts!`. Dropping its other entry (`content/**/*.mdx`) loses nothing:
+      // this workspace has no top-level `content/` and no `.mdx`, because `src/features/docs/source.ts` reads
+      // `.md` files from `../../docs` through `defineDocs`.
+      fumadocs: { entry: [] },
+      // Production code is the static site built into dist/client: the prerendered routes,
+      // `source.config.ts` with its remark plugin, and `src/client.tsx` / `src/router.tsx` (which
+      // come in as production entries through Knip's TanStack Router plugin).
+      entry: ['src/routes/**/*.tsx!', 'source.config.ts!'],
+      // scripts/ holds build-time packaging helpers (whose output ships, not their code) and headless Chrome checks.
+      project: projectWithout(['scripts'], ['css'])
     },
     'apps/web': {
       // shadcn/ui keeps a curated component set; entries so unused exports stay allowed there.
