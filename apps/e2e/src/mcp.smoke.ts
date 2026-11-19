@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises'
+import { request as httpRequest } from 'node:http'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
@@ -188,43 +189,82 @@ describe('mcp without a path: the session catalog', () => {
 })
 
 describe('mcp over HTTP from the dev server', () => {
-  it('serves the tools at /__estela/__mcp with --mcp, to a loopback peer with a loopback Origin only', async () => {
-    const home = join(ctx.root, 'mcp-http-home')
+  /** `estela --mcp` on a fresh fixture home, once its Ready line is out. */
+  async function startWithMcp(name: string, extra: Record<string, string> = {}) {
+    const home = join(ctx.root, `${name}-home`)
     await buildFixtureHome(home, repo)
-    const cache = join(ctx.root, 'mcp-http-cache')
+    const cache = join(ctx.root, `${name}-cache`)
     await mkdir(cache, { recursive: true })
-    // The wildcard bind takes connections from the LAN; the route must still refuse them.
-    const server = start(ctx.node, [ctx.bin, '--mcp', '--no-open', '--host', '0.0.0.0', '--port', '0'], {
+    const server = start(ctx.node, [ctx.bin, '--mcp', '--no-open', '--port', '0'], {
       cwd: ctx.installDir,
-      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, openLogPath(ctx, 'mcp-http')),
+      env: smokeEnv({ home, cache, fakeBin: ctx.fakeBin, node: ctx.node }, openLogPath(ctx, name), extra),
     })
-    try {
-      const ready = /Ready: http:\/\/127\.0\.0\.1:(\d+)\/__estela\//
-      await waitFor('the Ready line', () => ready.test(server.output().stdout))
-      const port = Number(ready.exec(server.output().stdout)![1])
-      const post = (host: string, origin: string | undefined, method: string, params: unknown) =>
-        fetch(`http://${host}:${port}/__estela/__mcp`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            accept: 'application/json, text/event-stream',
-            ...(origin === undefined ? {} : { origin }),
-          },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-        })
-      /** The JSON-RPC result in a reply, which comes as one server-sent event. */
-      const resultOf = async (response: Response): Promise<unknown> => {
-        const data = (await response.text()).split('\n').find(line => line.startsWith('data: '))!
-        const message = z.parse(reply, JSON.parse(data.slice('data: '.length)))
-        expect(message.error).toBeUndefined()
-        return message.result
-      }
+    const ready = /Ready: http:\/\/localhost:(\d+)\/__estela\//
+    await waitFor('the Ready line', () => ready.test(server.output().stdout))
+    return { server, port: Number(ready.exec(server.output().stdout)![1]) }
+  }
 
-      const loopback = `http://127.0.0.1:${port}`
-      const listed = await post('127.0.0.1', loopback, 'tools/list', {})
-      expect(listed.status).toBe(200)
-      expect(z.parse(toolList, await resultOf(listed)).tools).toHaveLength(7)
-      const called = await post('127.0.0.1', loopback, 'tools/call', {
+  /** One JSON-RPC call to the route, with the given `Origin` and bearer token (either may be left out). */
+  function post(port: number, origin: string | undefined, token: string | undefined, method: string, params: unknown) {
+    return fetch(`http://localhost:${port}/__estela/__mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        ...(origin === undefined ? {} : { origin }),
+        ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    })
+  }
+
+  /** The JSON-RPC result in a reply, which comes as one server-sent event. */
+  async function resultOf(response: Response): Promise<unknown> {
+    const data = (await response.text()).split('\n').find(line => line.startsWith('data: '))!
+    const message = z.parse(reply, JSON.parse(data.slice('data: '.length)))
+    expect(message.error).toBeUndefined()
+    return message.result
+  }
+
+  /** The status of a GET with this Host header and token and no Origin, as a page reached through DNS rebinding sends. */
+  function getWithHost(port: number, host: string, token: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const sent = httpRequest(
+        {
+          hostname: 'localhost',
+          port,
+          path: '/__estela/__mcp',
+          method: 'GET',
+          headers: { host, authorization: `Bearer ${token}` },
+        },
+        response => {
+          response.resume()
+          resolve(response.statusCode ?? 0)
+        },
+      )
+      sent.on('error', reject)
+      sent.end()
+    })
+  }
+
+  /** `tools/list` with this token and no Origin, as a command-line MCP client sends it, lists the seven tools. */
+  async function expectSevenTools(port: number, token: string): Promise<void> {
+    const listed = await post(port, undefined, token, 'tools/list', {})
+    expect(listed.status).toBe(200)
+    expect(z.parse(toolList, await resultOf(listed)).tools).toHaveLength(7)
+  }
+
+  it('serves the tools at /__estela/__mcp with --mcp to a client with the token it printed', async () => {
+    const { server, port } = await startWithMcp('mcp-http')
+    try {
+      const stdout = server.output().stdout
+      expect(stdout).toContain(`MCP: http://localhost:${port}/__estela/__mcp`)
+      const token = /MCP header: Authorization: Bearer (\S+)/.exec(stdout)![1]!
+      // 32 random bytes in base64url.
+      expect(token).toMatch(/^[\w-]{43}$/)
+
+      await expectSevenTools(port, token)
+      const called = await post(port, undefined, token, 'tools/call', {
         name: 'estela_list_sessions',
         arguments: { agent: 'claude-code' },
       })
@@ -232,13 +272,55 @@ describe('mcp over HTTP from the dev server', () => {
       expect(result.isError, result.content[0]!.text).not.toBe(true)
       expect(z.parse(sessions, JSON.parse(result.content[0]!.text)).total).toBeGreaterThan(0)
 
-      // No Origin, another origin, or a peer on another address: refused before any tool runs.
-      expect((await post('127.0.0.1', undefined, 'tools/list', {})).status).toBe(403)
-      expect((await post('127.0.0.1', 'http://evil.example', 'tools/list', {})).status).toBe(403)
+      // No token, another token, or a web page's Origin even with the token: 401 before any tool runs.
+      expect((await post(port, undefined, undefined, 'tools/list', {})).status).toBe(401)
+      expect((await post(port, undefined, `${token}x`, 'tools/list', {})).status).toBe(401)
+      expect((await post(port, 'http://evil.example', token, 'tools/list', {})).status).toBe(401)
+      expect((await post(port, `http://localhost:${port}`, token, 'tools/list', {})).status).toBe(200)
+      // A page reached through DNS rebinding sends its own host name: 401 even with the token, so it cannot try tokens.
+      expect(await getWithHost(port, `rebound.example:${port}`, token)).toBe(401)
+      // Nor can a page from another origin send the token at all: the route answers no CORS preflight.
+      const preflight = await fetch(`http://localhost:${port}/__estela/__mcp`, {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://evil.example',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization, content-type',
+        },
+      })
+      expect(preflight.status).toBe(401)
+      expect(preflight.headers.get('access-control-allow-origin')).toBeNull()
+      expect(preflight.headers.get('access-control-allow-headers')).toBeNull()
+      // --mcp binds loopback only, so another machine cannot connect at all.
       const lan = lanAddress()
       if (lan) {
-        expect((await post(lan, loopback, 'tools/list', {})).status).toBe(403)
+        await expect(fetch(`http://${lan}:${port}/__estela/__mcp`, { method: 'POST' })).rejects.toThrow('fetch failed')
       }
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('takes the token from ESTELA_MCP_TOKEN without printing it', async () => {
+    const token = 'smoke-token-from-the-environment'
+    const { server, port } = await startWithMcp('mcp-http-env', { ESTELA_MCP_TOKEN: token })
+    try {
+      const stdout = server.output().stdout
+      expect(stdout).toContain('MCP header: Authorization: Bearer $ESTELA_MCP_TOKEN')
+      expect(stdout).not.toContain(token)
+      await expectSevenTools(port, token)
+      expect((await post(port, undefined, 'another-token', 'tools/list', {})).status).toBe(401)
+    } finally {
+      await server.stop()
+    }
+  })
+
+  it('makes and prints a token when ESTELA_MCP_TOKEN is empty', async () => {
+    const { server, port } = await startWithMcp('mcp-http-empty', { ESTELA_MCP_TOKEN: '' })
+    try {
+      const token = /MCP header: Authorization: Bearer (\S+)/.exec(server.output().stdout)![1]!
+      expect(token).toMatch(/^[\w-]{43}$/)
+      await expectSevenTools(port, token)
     } finally {
       await server.stop()
     }

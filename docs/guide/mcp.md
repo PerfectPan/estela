@@ -81,6 +81,22 @@ The causes and their texts are listed in the [reference](../reference/mcp-tools.
 
 ## Over HTTP from the local server
 
-`estela --mcp` also serves the same seven tools over HTTP at `/__estela/__mcp` on the local server. The one-time code that protects the browser page does not protect this route; DevFrame's checks do: a request must come from this machine over a loopback address and carry an `Origin` header whose host is a loopback name (`localhost`, a `*.localhost` name, a `127.x.x.x` address, or `[::1]`, on any port). A request without `Origin`, with another origin, or from another machine gets HTTP 403, also when `--host 0.0.0.0` lets other machines reach the page, and a web page cannot call the route because it answers no CORS preflight. The checks cannot tell which user on this machine is calling: any process of any user can read every session through the route, including users who cannot read your session files. The route is off by default for that reason; do not turn it on on a machine you share with other users. Use the stdio server unless you need HTTP.
+`estela --mcp` also serves the same seven tools over HTTP at `/__estela/__mcp` on the local server. The one-time code that protects the browser page does not protect this route; a bearer token does. At startup Estela prints the route and the header a client sends:
+
+```text
+MCP: http://localhost:7392/__estela/__mcp
+MCP header: Authorization: Bearer <token>
+```
+
+The token is `ESTELA_MCP_TOKEN` when that variable is set and not empty, and then the header line names the variable instead of printing it; it must be visible ASCII characters without spaces, or Estela refuses to start. Otherwise Estela makes a new token at each launch. To keep one client configuration working across restarts, set `ESTELA_MCP_TOKEN` once (for example to the output of `openssl rand -hex 32`) in the environment both commands below run in, and fix the port, since the default moves to the next free port when 7392 is taken. For Claude Code:
+
+```bash
+estela --mcp --port 7392
+claude mcp add --transport http estela http://localhost:7392/__estela/__mcp --header "Authorization: Bearer $ESTELA_MCP_TOKEN"
+```
+
+With `ESTELA_MCP_TOKEN` unset where `claude mcp add` runs, the stored header has no token and every request fails.
+
+A request without the token, or with another one, gets HTTP 401 before any tool runs. Command-line MCP clients send no `Origin` header, and the route accepts that. Whatever token it carries, a request gets HTTP 401 when its `Host` header is not a loopback address, as a page reached through DNS rebinding sends, or when its `Origin` is not a loopback address, as a browser sends with every POST. A cross-origin request from a page either carries `Origin` or cannot carry `Authorization`, so no web page can use the route or try tokens on it. `--mcp` is refused with a `--host` that is not a loopback address, so no other machine can connect to the route. Anyone who has the token can read every session through it, so keep the token private. On a machine you share with other users, use the token Estela makes at each launch rather than a fixed `ESTELA_MCP_TOKEN` in a client's configuration: while Estela is not running, another user can listen on its port and receive the header a client sends when it connects, and a launch's token is useless once that launch ends. Use the stdio server unless you need HTTP.
 
 The server keeps the last 3 loaded sessions in memory, so an agent that walks through many sessions makes Estela load them again.

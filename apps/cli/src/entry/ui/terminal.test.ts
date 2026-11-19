@@ -1,7 +1,7 @@
 import { Writable } from 'node:stream'
 import { stripVTControlCharacters } from 'node:util'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
-import { installPlainFilter, sayReady } from './terminal.ts'
+import { installPlainFilter, sayMcpRoute, sayReady } from './terminal.ts'
 import { startSessionIndex } from './index-progress.ts'
 
 const stdout = process.stdout as NodeJS.WriteStream & { columns: number | undefined }
@@ -78,6 +78,25 @@ describe('sayReady', () => {
     const raw = chunks.join('')
     expect(raw).not.toContain('\u001b]8;;')
     expect(stripVTControlCharacters(raw).split(url)).toHaveLength(2)
+  })
+})
+
+describe('sayMcpRoute', () => {
+  const url = 'http://localhost:7392/__estela/__mcp'
+
+  it('prints the route and the header with a token made for this launch', () => {
+    const chunks = capture(120)
+    process.env.NO_COLOR = '1'
+    sayMcpRoute(url, 'made-token')
+    expect(chunks.join('')).toBe(`MCP: ${url}\nMCP header: Authorization: Bearer made-token\n`)
+  })
+
+  it('names ESTELA_MCP_TOKEN instead of echoing a token the user set', () => {
+    const chunks = capture(120)
+    sayMcpRoute(url, undefined)
+    const visible = stripVTControlCharacters(chunks.join(''))
+    expect(visible).toContain(`MCP: ${url}`)
+    expect(visible).toContain('MCP header: Authorization: Bearer $ESTELA_MCP_TOKEN')
   })
 })
 

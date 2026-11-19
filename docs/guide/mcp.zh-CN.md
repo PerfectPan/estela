@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/mcp.md 为准。
 
-<!-- source-blob: cff4d0f5a0f3609938f78525a4035ef30c449f89 -->
+<!-- source-blob: a1af56c74da6d35c5ec6403c9d269971bbf0522d -->
 
 # MCP 工具
 
@@ -85,6 +85,22 @@ Error invoking "estela_list_sessions": Error: estela_list_sessions: limit: expec
 
 ## 通过本地服务器的 HTTP 路由
 
-`estela --mcp` 还会通过本地服务器的 HTTP 路径 `/__estela/__mcp` 提供相同的七个工具。保护浏览器页面的一次性验证码不保护该路由；由 DevFrame 的检查负责保护：请求必须通过回环地址来自本机，且携带主机为回环名称的 `Origin` 请求头（`localhost`、`*.localhost` 名称、`127.x.x.x` 地址或 `[::1]`，任意端口）。不带 `Origin`、使用其他来源或来自其他主机的请求均会收到 HTTP 403，即使 `--host 0.0.0.0` 允许其他机器访问页面也是如此；网页也无法调用该路由，因为它不响应 CORS 预检请求。这些检查无法区分本机上的不同用户：同一台机器上任意用户的任意进程都可以通过该路由读取所有会话，包括本来无权读取你会话文件的用户。因此该路由默认关闭；切勿在与他人共用的机器上开启。除非确需 HTTP，请使用 stdio 服务器。
+`estela --mcp` 还会通过本地服务器的 HTTP 路径 `/__estela/__mcp` 提供相同的七个工具。保护浏览器页面的一次性验证码不保护该路由；由 bearer 令牌保护。启动时，Estela 会打印该路由以及客户端要发送的请求头：
+
+```text
+MCP: http://localhost:7392/__estela/__mcp
+MCP header: Authorization: Bearer <token>
+```
+
+设置了 `ESTELA_MCP_TOKEN` 且不为空时，令牌就是它，这时请求头那一行只写出变量名，不打印令牌本身；它必须由不含空格的可见 ASCII 字符组成，否则 Estela 拒绝启动。否则 Estela 每次启动都会生成新的令牌。想让同一份客户端配置在重启后继续可用，就在下面两条命令运行的环境里设置一次 `ESTELA_MCP_TOKEN`（例如设为 `openssl rand -hex 32` 的输出），并固定端口，因为 7392 被占用时默认端口会顺延到下一个空闲端口。以 Claude Code 为例：
+
+```bash
+estela --mcp --port 7392
+claude mcp add --transport http estela http://localhost:7392/__estela/__mcp --header "Authorization: Bearer $ESTELA_MCP_TOKEN"
+```
+
+运行 `claude mcp add` 的环境里如果没有设置 `ESTELA_MCP_TOKEN`，保存下来的请求头里就没有令牌，之后每个请求都会失败。
+
+不带令牌或令牌不对的请求在任何工具运行之前就会收到 HTTP 401。命令行 MCP 客户端不发送 `Origin` 请求头，该路由接受这种请求。无论带什么令牌，以下请求都会收到 HTTP 401：`Host` 请求头不是回环地址的请求（通过 DNS rebinding 访问的页面发出的就是这种），以及 `Origin` 不是回环地址的请求（浏览器的每个 POST 都会带上 `Origin`）。网页发出的跨源请求要么带有 `Origin`，要么无法携带 `Authorization`，因此任何网页都无法使用该路由，也无法在它上面试探令牌。`--host` 不是回环地址时会拒绝 `--mcp`，因此其他机器无法连接该路由。持有令牌的任何人都能通过它读取所有会话，请妥善保管令牌。在与其他用户共用的机器上，请使用 Estela 每次启动生成的令牌，不要把固定的 `ESTELA_MCP_TOKEN` 写进客户端配置：Estela 没有运行时，其他用户可以监听它的端口，收到客户端连接时发送的请求头，而每次启动的令牌在那次运行结束后就失效了。除非确需 HTTP，请使用 stdio 服务器。
 
 服务器在内存中保留最近加载的 3 个会话，因此如果代理连续遍历多个会话，Estela 会重新加载它们。
