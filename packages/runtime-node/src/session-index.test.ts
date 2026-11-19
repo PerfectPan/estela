@@ -405,6 +405,11 @@ describe('session index', () => {
     const seed = openSessionIndex({ summaryVersion: 1, file })
     seed.putSummaries([summary({ traceId: 'a', path: '/logs/a.jsonl' })])
     seed.close()
+    const lockHoldMs = 3_000
+    // `toThrow(/locked/)` proves nothing waited for the release; staying below `lockHoldMs` catches
+    // waits that end sooner (such as a raised busy timeout) without pinning the busy timeout's value.
+    // The 500 ms margin covers pipe and event delay after the holder starts its timer.
+    const maxElapsedMs = lockHoldMs - 500
     const holder = spawn(
       process.execPath,
       [
@@ -416,7 +421,7 @@ describe('session index', () => {
       db.exec('BEGIN EXCLUSIVE')
       db.exec("UPDATE sessions SET title = 'held' WHERE trace_id = 'a'")
       process.stdout.write('locked\\n')
-      setTimeout(() => { db.exec('ROLLBACK'); db.close() }, 3000)
+      setTimeout(() => { db.exec('ROLLBACK'); db.close() }, ${lockHoldMs})
     `,
       ],
       { stdio: ['ignore', 'pipe', 'inherit'] },
@@ -430,7 +435,7 @@ describe('session index', () => {
     expect(index.rows()).toHaveLength(1)
     expect(index.get('a', 10, 1_000)?.turns).toBe(2)
     expect(() => index.putSummaries([summary({ traceId: 'b', path: '/logs/b.jsonl' })])).toThrow(/locked/)
-    expect(performance.now() - started).toBeLessThan(1_000)
+    expect(performance.now() - started).toBeLessThan(maxElapsedMs)
     index.close()
     holder.kill()
     // Windows keeps the holder's -wal file locked until it has exited, and the temp directory goes after the test.
