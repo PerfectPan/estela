@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { stripVTControlCharacters } from 'node:util'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import type { DevframeDefinition } from 'devframe'
@@ -10,9 +11,10 @@ import { createEstelaServer } from '../../server.ts'
 import { closeOnSignal } from '../close-on-signal.ts'
 import { CliError, isListenFailure, sanitizeInline } from '../failure.ts'
 import { createServerOriginGate, dialableOrigin, secureDevframeDir, unbracketHost } from '../host.ts'
+import { mcpAuthorization } from '../mcp-authorization.ts'
 import { openBrowser } from '../open-browser.ts'
 import { sayIndexFromCache, startSessionIndex } from '../ui/index-progress.ts'
-import { pickSession, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
+import { pickSession, sayMcpRoute, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
 
 export interface DevInput {
   /** The session given on the command line or in ESTELA_PATH; `label` is how the user wrote it. */
@@ -24,8 +26,12 @@ export interface DevInput {
   /** `undefined` opens the browser, as `true` does; only `--no-open` keeps it closed. */
   open: boolean | undefined
   auth: boolean
-  /** Only `true` mounts DevFrame's MCP route: it serves every session's content and the one-time code does not gate it. */
-  mcp: boolean | undefined
+  /**
+   * Set only with `--mcp`, which the command line allows on a loopback host only: DevFrame's MCP route over HTTP. It
+   * serves every session's content, the one-time code does not gate it, and a request needs
+   * `Authorization: Bearer <token>`. `token` is ESTELA_MCP_TOKEN, or `undefined` to make one for this launch.
+   */
+  mcp: { token: string | undefined } | undefined
   index: boolean
   /** `false` only with ESTELA_REDACT=0. */
   redacts: boolean
@@ -258,6 +264,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     if (plan.auth !== false) {
       await secureDevframeDir(homeDir(), sayWarning)
     }
+    const mcpToken = input.mcp === undefined ? undefined : (input.mcp.token ?? randomBytes(32).toString('base64url'))
     const originGate = createServerOriginGate(input.host)
     const bindHost = unbracketHost(input.host)
     const authSetup: { definition: DevframeDefinition; auth: false | DevframeAuthHandler } =
@@ -271,7 +278,12 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
           // Left undefined so DevFrame picks the port: it retries the next one only when no port is fixed.
           port: input.port,
           // As on stdio: DevFrame's shared-state tool would expose the browser's session signal, which tells an agent nothing.
-          mcp: input.mcp === true ? { exposeSharedState: false } : false,
+          // DevFrame's Origin gate refuses a request without Origin, which every command-line MCP client sends, so it
+          // is off; `mcpAuthorization` checks the Origin a browser sends and the token.
+          mcp:
+            mcpToken === undefined
+              ? false
+              : { exposeSharedState: false, authorization: mcpAuthorization(mcpToken), allowedOrigins: false },
           auth: authSetup.auth,
           allowedOrigins: originGate.registry,
           openBrowser: false,
@@ -280,6 +292,10 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
             originGate.setPort(port)
             const dialable = dialableOrigin(input.host, port, origin)
             const base = `${dialable.replace(/\/$/, '')}${BASE_PATH}`
+            if (mcpToken !== undefined) {
+              // A token from ESTELA_MCP_TOKEN is the user's own, so it is not echoed.
+              sayMcpRoute(`${base}__mcp`, input.mcp?.token === undefined ? mcpToken : undefined)
+            }
             sayReady(readyTraceId ? `${base}#/s/${readyTraceId}` : `${base}#/`)
             if (plan.cliOpens) {
               await openBrowser(base, readyTraceId, input.auth)

@@ -58,7 +58,7 @@ export function cliRoutes(packageVersion: string) {
     toggle(
       name('mcp'),
       description(
-        'Also serve the MCP tools over HTTP at /__estela/__mcp; not gated by the one-time code (default: off)',
+        'Also serve the MCP tools over HTTP at /__estela/__mcp, gated by the bearer token printed at startup or ESTELA_MCP_TOKEN (default: off)',
       ),
       schema(tristate),
     ),

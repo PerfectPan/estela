@@ -37,6 +37,18 @@ function sessionFromEnv(): string | undefined {
   return process.env.ESTELA_PATH || undefined
 }
 
+/**
+ * The `--mcp` route's bearer token; unset or empty leaves the dev server to make one per launch. DevFrame matches
+ * `Bearer <token>` with no whitespace inside, and a client cannot send other than visible ASCII in a header.
+ */
+function mcpTokenFromEnv(): string | undefined {
+  const token = process.env.ESTELA_MCP_TOKEN || undefined
+  if (token !== undefined && !/^[\x21-\x7e]+$/.test(token)) {
+    throw usage('ESTELA_MCP_TOKEN must be visible ASCII characters without spaces')
+  }
+  return token
+}
+
 /** Session text leaves the process redacted unless ESTELA_REDACT=0; reports always redact. */
 function redactsFromEnv(): boolean {
   return process.env.ESTELA_REDACT !== '0'
@@ -98,6 +110,10 @@ function commandOf(intent: Execute): () => Promise<void> {
       if (!auth && !isLoopbackHost(host)) {
         throw usage('--no-auth cannot be used with a non-loopback --host')
       }
+      // DevFrame refuses a peer on another address only while the route has no token, so the bind keeps it local.
+      if (model.mcp === true && !isLoopbackHost(host)) {
+        throw usage('--mcp cannot be used with a non-loopback --host')
+      }
       const launch = pick ? undefined : (session ?? sessionFromEnv())
       const input: DevInput = {
         launch: launch === undefined ? undefined : { target: commandLineTarget(launch), label: launch },
@@ -106,7 +122,7 @@ function commandOf(intent: Execute): () => Promise<void> {
         host,
         open: model.open,
         auth,
-        mcp: model.mcp,
+        mcp: model.mcp === true ? { token: mcpTokenFromEnv() } : undefined,
         index: model.index !== false,
         redacts: redactsFromEnv(),
       }

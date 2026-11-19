@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/public-interface.md 为准。
 
-<!-- source-blob: 46e097e0cba16031975c9e541d338b8c384dd5b9 -->
+<!-- source-blob: 9f2196fb8ccb5a604ac54e437412f02d75c82e5b -->
 
 # 公共接口与兼容性
 
@@ -30,7 +30,7 @@
 - 写在命令名之前的会话参数或选项（`estela --port 1 build x`）会被拒绝。
 - 在主命令下，与命令同名的裸词会被识别为该命令；使用此类名称的参数值需写作 `--host=build` 或 `./build`。
 - `--pick` 需要交互式终端，且不能与会话参数同时使用。
-- `--host <host>` 会在打印和打开的 URL 中保留显式的回环地址（`127.0.0.1`、`::1`），并在传入 `0.0.0.0` 时打印和打开 `127.0.0.1`、传入 `::` 时打印和打开 `[::1]`。当 `--host` 不是回环地址（`localhost`、`127.*`、`::1`）时，`--no-auth` 会在服务器启动前被拒绝。
+- `--host <host>` 会在打印和打开的 URL 中保留显式的回环地址（`127.0.0.1`、`::1`），并在传入 `0.0.0.0` 时打印和打开 `127.0.0.1`、传入 `::` 时打印和打开 `[::1]`。当 `--host` 不是回环地址（`localhost`、`127.*`、`::1`）时，`--no-auth` 和 `--mcp` 会在服务器启动前被拒绝。
 - `build --out-dir` 只接受新目录、空目录，或仅包含先前 Estela 报告 `index.html` 的目录，并拒绝 `/`、工作目录、主目录、符号链接和非目录路径。
 - 当默认文件名已存在（包括符号链接）时，`export-atif` 和 `export-otlp` 会追加 `-2`、`-3` 等后缀，并拒绝通过传入 `--out` 的符号链接写入。
 
@@ -52,6 +52,7 @@
 | 变量 | 作用 | 测试 |
 |---|---|---|
 | `ESTELA_PATH` | 所有命令的默认会话；为空字符串时视为未设置 | `apps/cli/src/entry/app.test.ts`；默认值写明于 `routes.test.ts` 固定的帮助文本中 |
+| `ESTELA_MCP_TOKEN` | `--mcp` 路由要求的 bearer 令牌；未设置或为空时，开发服务器每次启动生成一个并打印出来。使用 `--mcp` 时，不是不含空格的可见 ASCII 字符的值属于用法错误 | `apps/cli/src/entry/app.test.ts`、`apps/cli/src/entry/ui/terminal.test.ts`、`apps/e2e/src/mcp.smoke.ts` |
 | `ESTELA_REDACT` | 设为 `0` 时关闭本地服务器及 ATIF 和 OTLP 导出的脱敏；报告和 MCP 结果始终脱敏 | `write-export.test.ts`、`packages/server/test/agent-tools.test.ts`（S18） |
 | `NO_COLOR` | 输出不含转义序列的纯文本行（stdout 不是终端时也输出纯文本行） | `apps/cli/src/entry/ui/terminal.test.ts`、`cli-smoke.test.ts` |
 | `XDG_CACHE_HOME` | 会话索引的存放位置（`$XDG_CACHE_HOME/rivus-estela/`） | `packages/runtime-node` 索引测试 |
@@ -67,7 +68,7 @@
 
 结果字段已记录在[参考文档](mcp-tools.zh-CN.md#结果)中，并将在与代理用户评审字段结构后，从 1.0 起纳入覆盖范围；在此之前它们可能在 minor 版本中变更。错误文本面向人工阅读：输入无效时 Estela 部分以 `estela_<tool>: <field>:` 开头，DevFrame 会添加其自身前缀。
 
-HTTP 路由 `/__estela/__mcp` 仅在使用 `--mcp` 时存在，并作为提供相同七个工具的路由纳入覆盖范围。无论 `--host` 绑定什么地址，它只响应通过回环连接并发送带有回环主机名 `Origin` 请求头的客户端；一次性验证码不保护该路由，其授权方式仍可能变化（issue #94）。
+HTTP 路由 `/__estela/__mcp` 仅在使用 `--mcp` 时存在（`--mcp` 要求回环地址的 `--host`），并作为提供相同七个工具的路由纳入覆盖范围。请求需要 `Authorization: Bearer <token>`，令牌来自 `ESTELA_MCP_TOKEN` 或启动时打印的那个，`Host` 为回环地址，并且不带 `Origin` 请求头或带回环地址的 `Origin`（否则 HTTP 401）；该路由不响应 CORS 预检，一次性验证码也不保护该路由。启动时打印的 `MCP: <url>` 和 `MCP header: Authorization: Bearer <token>` 两行（用户自己设置的令牌显示为 `$ESTELA_MCP_TOKEN`）纳入覆盖范围。测试：`apps/e2e/src/mcp.smoke.ts`。
 
 ### 报告文件
 

@@ -26,7 +26,7 @@ Every command takes `-h` / `--help` and `-v` / `--version`. A session is a sessi
 - A session or option written before a command name (`estela --port 1 build x`) is rejected.
 - On the main command, a bare word that names a command is that command; a value with such a name is written `--host=build` or `./build`.
 - `--pick` needs an interactive terminal and cannot be combined with a session.
-- `--host <host>` preserves explicit loopback addresses (`127.0.0.1`, `::1`) in printed and opened URLs, and prints and opens `127.0.0.1` for `0.0.0.0` and `[::1]` for `::`. `--no-auth` is rejected before any server starts when `--host` is not a loopback address (`localhost`, `127.*`, `::1`).
+- `--host <host>` preserves explicit loopback addresses (`127.0.0.1`, `::1`) in printed and opened URLs, and prints and opens `127.0.0.1` for `0.0.0.0` and `[::1]` for `::`. `--no-auth` and `--mcp` are rejected before any server starts when `--host` is not a loopback address (`localhost`, `127.*`, `::1`).
 - `build --out-dir` accepts only a new directory, an empty directory, or a directory whose sole entry is an earlier Estela `index.html` report, and refuses `/`, the working directory, the home directory, symbolic links, and non-directories.
 - `export-atif` and `export-otlp` append `-2`, `-3`, … when the default filename already exists (including symbolic links), and refuse to write through a symbolic link passed to `--out`.
 
@@ -48,6 +48,7 @@ The failure kinds and their exit code are one table in `apps/cli/src/entry/failu
 | Variable | Effect | Test |
 |---|---|---|
 | `ESTELA_PATH` | The default session of every command; empty means none | `apps/cli/src/entry/app.test.ts`; the default is stated in the help text pinned by `routes.test.ts` |
+| `ESTELA_MCP_TOKEN` | The bearer token the `--mcp` route requires; unset or empty, the dev server makes one per launch and prints it. Another value than visible ASCII without spaces is a usage error with `--mcp` | `apps/cli/src/entry/app.test.ts`, `apps/cli/src/entry/ui/terminal.test.ts`, `apps/e2e/src/mcp.smoke.ts` |
 | `ESTELA_REDACT` | `0` turns redaction off for the local server and the ATIF and OTLP exports; reports and MCP results always redact | `write-export.test.ts`, `packages/server/test/agent-tools.test.ts` (S18) |
 | `NO_COLOR` | Plain output lines with no escape sequences (also when stdout is not a terminal) | `apps/cli/src/entry/ui/terminal.test.ts`, `cli-smoke.test.ts` |
 | `XDG_CACHE_HOME` | Where the session index lives (`$XDG_CACHE_HOME/rivus-estela/`) | `packages/runtime-node` index tests |
@@ -63,7 +64,7 @@ Covered: the seven tool names and their input schemas (property names, types, ra
 
 Result fields are documented in the [reference](mcp-tools.md#results) and will be covered from 1.0, after a review of the shapes with agent users; until then they may change in a minor release. Error texts are for people: Estela's part starts with `estela_<tool>: <field>:` for an invalid input, and DevFrame adds its own prefix.
 
-The HTTP route `/__estela/__mcp` exists only with `--mcp` and is covered as a route serving the same seven tools. It answers only a client connected over loopback that sends an `Origin` header with a loopback host name, whatever `--host` binds; the one-time code does not gate it, and how it is authorized may still change (issue #94).
+The HTTP route `/__estela/__mcp` exists only with `--mcp`, which needs a loopback `--host`, and is covered as a route serving the same seven tools. A request needs `Authorization: Bearer <token>` with the token from `ESTELA_MCP_TOKEN` or the one printed at startup, a loopback `Host`, and either no `Origin` header or a loopback one (HTTP 401 otherwise); the route answers no CORS preflight, and the one-time code does not gate it. The startup lines `MCP: <url>` and `MCP header: Authorization: Bearer <token>` (`$ESTELA_MCP_TOKEN` in place of a token the user set) are covered. Test: `apps/e2e/src/mcp.smoke.ts`.
 
 ### Report file
 

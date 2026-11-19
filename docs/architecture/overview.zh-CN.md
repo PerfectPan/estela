@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 1617d07ec66078e1fefacf9d311904f6579f2733 -->
+<!-- source-blob: f2934b90bf31f9116a7d7a0d15db0e40cc5529fc -->
 
 # 架构
 
@@ -96,7 +96,7 @@ one session (build <path>, or export-report on the dev server)
 
 ## MCP 代理工具
 
-`packages/server/src/agent-tools/` 包含 [MCP 工具参考](../reference/mcp-tools.zh-CN.md)中列出输入、结果、大小上限和错误的各个工具：`estela_list_sessions`、`estela_search_sessions`、`estela_session_summary`、`estela_list_turns`、`estela_list_requests`、`estela_get_event` 和 `estela_reconstruct`。`registerAgentTools` 在定义的 `setup` 中将它们以 `estela:<name>` 的 id 注册到 DevFrame 的 agent host（列表和搜索工具仅在存在会话目录时注册）；DevFrame 的 MCP 适配器会以 `estela_<name>` 的名称通过 stdio（`estela mcp`）以及仅在启用 `--mcp` 时通过开发服务器的 HTTP `/__estela/__mcp` 提供服务。该路由具有 DevFrame 的检查（回环 `Origin` 请求头和回环对端地址），但不受一次性验证码保护，因为 MCP 客户端无法回答验证码。这些检查无法区分本机上的不同用户，因此在共享机器上其他用户可以通过该路由读取所有会话；该路由默认关闭，且针对它的身份校验（DevFrame 的 Bearer 令牌 `authorization` 选项）仍在 issue #94 中待定。`estela mcp` 和该 HTTP 路由都会关闭 DevFrame 的共享状态工具。
+`packages/server/src/agent-tools/` 包含 [MCP 工具参考](../reference/mcp-tools.zh-CN.md)中列出输入、结果、大小上限和错误的各个工具：`estela_list_sessions`、`estela_search_sessions`、`estela_session_summary`、`estela_list_turns`、`estela_list_requests`、`estela_get_event` 和 `estela_reconstruct`。`registerAgentTools` 在定义的 `setup` 中将它们以 `estela:<name>` 的 id 注册到 DevFrame 的 agent host（列表和搜索工具仅在存在会话目录时注册）；DevFrame 的 MCP 适配器会以 `estela_<name>` 的名称通过 stdio（`estela mcp`）以及仅在启用 `--mcp` 时通过开发服务器的 HTTP `/__estela/__mcp` 提供服务。该路由以 bearer 令牌（DevFrame 的 `authorization` 选项：`ESTELA_MCP_TOKEN`，或由 CLI 每次启动生成并打印）代替一次性验证码，因为 MCP 客户端无法回答验证码。DevFrame 自带的 `Origin` 检查是关闭的，因为它会拒绝不带 `Origin` 的请求，而命令行客户端不发送 `Origin`；CLI 的 `authorization` 回调（`apps/cli/src/entry/mcp-authorization.ts`）会拒绝非回环地址的 `Host`（DNS rebinding）或 `Origin`（网页发出的每个 POST；不带 `Origin` 的跨源请求无法携带 `Authorization`），然后比对令牌。DevFrame 只在路由没有令牌时检查对端地址，因此 CLI 改为在 `--host` 不是回环地址时拒绝 `--mcp`；该路由默认关闭。`estela mcp` 和该 HTTP 路由都会关闭 DevFrame 的共享状态工具。
 
 这些工具读取浏览器所读取的同一套数据：会话目录行（使用始终脱敏规则调用 `listSessions`，并传入 `first` 以便摘要标记过滤尚不能检查的行，最多等待 5 秒），以及 TraceStore 中已加载的 trace（通过 `TraceStore.withTrace` 获取自身持有引用），再经过内核投影、`get-event` 和 `reconstruct` 处理。它们不做任何估算。在工具边界、底层服务之后，无论 `ESTELA_REDACT` 的取值如何，每条结果和错误消息都会使用 kit 的 `redact` 和平台主目录进行脱敏，并序列化为紧凑 JSON 文本返回（DevFrame 若收到对象会进行格式化缩进）。每次结果最多 40,000 个字符：列表通过 `offset` / `limit` 分页，并在超限前通过 `nextOffset` 提前结束；已记录的字符串先脱敏再截断（若先截断可能将主目录开头留在文本中），目录也在截短提示词前先脱敏；kit 自身会在任何脱敏前先截断标题和首条提示词，因此对于这两个字段，在 kit 改为先脱敏再截断之前，`trimCutHome` 会把末尾残缺的主目录路径替换为 `~`；被截断的列表字符串会记在 `truncated` 中；`estela_get_event` 在脱敏后用内核的 `capStrings` 截断字符串，并按 0.75 步长下调上限至 256，之后依次省略 `original` 和 `payload`；`estela_reconstruct` 对每个列表保留最后 100 个 id 并附带总数。
 
