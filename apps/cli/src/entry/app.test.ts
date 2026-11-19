@@ -132,4 +132,23 @@ describe('runCli', () => {
       expect(io.stderr()).toBe(`--no-auth cannot be used with a non-loopback --host\n${FIX}`)
     }
   })
+
+  it('refuses an ESTELA_MCP_TOKEN with spaces or non-ASCII characters before starting a server', async () => {
+    for (const token of ['two words', ' padded', 'tökén']) {
+      vi.stubEnv('ESTELA_MCP_TOKEN', token)
+      const io = capture()
+      expect(await runCli(['--mcp'])).toBe(1)
+      expect(io.stdout()).toBe('')
+      expect(io.stderr()).toBe(`ESTELA_MCP_TOKEN must be visible ASCII characters without spaces\n${FIX}`)
+    }
+  })
+
+  it('refuses --mcp with a non-loopback --host before starting a server', async () => {
+    for (const host of ['0.0.0.0', '::', '192.168.1.50']) {
+      const io = capture()
+      expect(await runCli(['--mcp', '--host', host])).toBe(1)
+      expect(io.stdout()).toBe('')
+      expect(io.stderr()).toBe(`--mcp cannot be used with a non-loopback --host\n${FIX}`)
+    }
+  })
 })

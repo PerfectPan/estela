@@ -58,7 +58,10 @@ const STEPS = [
   24 * HOUR,
 ]
 
-/** The smallest round step that gives at most `maxTicks` intervals. */
+/**
+ * The smallest round step that gives at most `maxTicks` intervals.
+ * @internal
+ */
 export function niceStep(durationMs: number, maxTicks: number): number {
   for (const step of STEPS) {
     if (durationMs / step <= maxTicks) {

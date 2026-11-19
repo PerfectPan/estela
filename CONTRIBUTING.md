@@ -30,6 +30,9 @@ node scripts/lint-scripts.mjs
 pnpm lint
 pnpm test
 pnpm typecheck
+pnpm --filter @rivus/estela-schema run duplicates
+pnpm --filter @rivus/estela-schema run knip
+pnpm --filter @rivus/estela-schema run knip:production
 pnpm build
 cd apps/cli && pnpm run dev
 ```
@@ -280,6 +283,19 @@ less than a day ago (`minimumReleaseAge` in `pnpm-workspace.yaml`), so pick vers
 A `vite-plus` upgrade also moves the catalog's `vite` entry (the vite-plus-core override) to the same version, and
 `apps/web`'s `rolldown` devDependency to that core's `bundledVersions.rolldown`; the CLI build fails while the
 `rolldown` pin differs.
+
+The `test` job also runs `pnpm --filter @rivus/estela-schema run duplicates`: jscpd with lint-config's gate profile,
+where any reported clone fails the run (the threshold is 0). The scan roots and ignores live in the script in
+`packages/schema/package.json`: it skips `*.test.ts` unit tests but scans the e2e and smoke specs.
+`pnpm --filter @rivus/estela-schema run duplicates:audit` writes a broader report, which also covers test files and
+near-identical code, to the git-ignored `tmp/duplicates-audit/` and fails nothing.
+
+It then runs `pnpm --filter @rivus/estela-schema run knip` and `run knip:production`: Knip with lint-config's shared
+policy, where any issue Knip reports fails the run, such as an unused file, export, type, or dependency, an unlisted
+dependency, an unresolved import, or a configuration or tag hint. The default analysis counts a use in a test; the
+production analysis follows only production entries, so a file or export that only tests reach fails it. Neither checks
+a package's `exports` entries. The entries, project files, ignores, what the production analysis leaves out, and when an
+export carries `@internal` live in `knip.ts`.
 
 `pnpm/setup@v3` caches the pnpm content-addressed store, keyed by the lockfile's content hash. Every run still
 executes `pnpm install --frozen-lockfile` and the checks. Installed workspace links, build outputs, credentials and

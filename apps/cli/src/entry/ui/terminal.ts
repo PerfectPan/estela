@@ -308,6 +308,16 @@ export function sayReady(url: string): void {
   }
 }
 
+/** The `--mcp` route and the header its clients send; `token` is `undefined` when it came from ESTELA_MCP_TOKEN. */
+export function sayMcpRoute(url: string, token: string | undefined): void {
+  const header = `Authorization: Bearer ${token ?? '$ESTELA_MCP_TOKEN'}`
+  if (isPlainOutput()) {
+    process.stdout.write(`MCP: ${url}\nMCP header: ${header}\n`)
+    return
+  }
+  log.info(`MCP: ${url}\nMCP header: ${header}`)
+}
+
 /** One warning line; the run continues. */
 export function sayWarning(text: string): void {
   if (isPlainOutput()) {

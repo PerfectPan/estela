@@ -1,15 +1,29 @@
-// The workspace root installs no dependencies (see vite.config.ts), so the shared
+// The workspace root does not install lint-config (see vite.config.ts), so the shared
 // Knip policy is imported from packages/schema's node_modules — the same copy the
 // root lint/format config uses. The knip and jscpd binaries and their scripts live
 // in @rivus/estela-schema for the same reason, and run with the workspace root as
 // the working directory so the pnpm catalog resolves.
 import { knip } from './packages/schema/node_modules/@perfectpan/lint-config/knip.js';
 
+// Knip's default project glob, minus directories that hold no production code (test support, build
+// scripts), which only the production analysis (`knip --production`) leaves out: a `!dir/**!`
+// pattern applies in production mode only. A workspace that sets `project` loses the extensions its
+// compilers add, so `extraExtensions` restores them (apps/web's Tailwind reads .css); a compiler
+// added to one of these workspaces needs its extension here too.
+const projectWithout = (nonProduction: string[], extraExtensions: string[] = []) => [
+  `**/*.{${['js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'mts', 'cts', ...extraExtensions].join(',')}}!`,
+  ...nonProduction.map(dir => `!${dir}/**!`)
+];
+
 // Package entry points resolve from package.json bin/exports; apps/e2e runs
 // Playwright specs and keeps its ad-hoc demo recorders as entries.
-// Configuration and tag hints fail the run.
+// Configuration and tag hints fail the run. An export that production code uses only
+// inside its own file and that tests import carries `@internal`, which the production
+// analysis skips.
 const config = {
   ...knip,
+  // The private suites that test the packed CLI ship nothing, so the production analysis skips them.
+  ignoreWorkspaces: ['apps/e2e!'],
   // Every workspace package declares @perfectpan/lint-config at the same catalog
   // version per the repository convention: its rules load through the root
   // vite.config.ts when each package runs `vp lint`, which Knip cannot see.
@@ -23,6 +37,10 @@ const config = {
       // The dual-mode launcher: `./cli.mjs` only exists next to it in dist after
       // `vp pack` (see bin.mjs), so the file is excluded from import analysis.
       ignore: ['bin.mjs'],
+      // bin.mjs, ignored above, imports the version check at runtime; src/main.ts is Knip's default entry.
+      entry: ['src/main.ts!', 'src/node-version.mjs!'],
+      // The notices generator runs from vite.config.ts at pack time; its output ships, its code does not.
+      project: projectWithout(['scripts']),
       // Build order, not an import: `vp pack` copies apps/web/dist into the
       // package, so `pnpm --filter '@rivus/estela...' run build` (the smoke
       // suite and the Publish check) must build the web app first.
@@ -43,13 +61,14 @@ const config = {
       entry: ['src/components/ui/**/*.tsx!'],
       // vite/client types resolve through the vite-plus core alias, and rolldown
       // pins the bundler version the Vite build uses.
-      ignoreDependencies: ['vite', 'rolldown']
+      ignoreDependencies: ['vite', 'rolldown'],
+      project: projectWithout(['src/testsupport'], ['css'])
     },
     'packages/runtime-node': {},
     'packages/kernel': {},
-    'packages/rpc': {},
+    'packages/rpc': { project: projectWithout(['testing']) },
     'packages/schema': {},
-    'packages/server': {}
+    'packages/server': { project: projectWithout(['src/testsupport']) }
   }
 };
 

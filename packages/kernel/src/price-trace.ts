@@ -225,6 +225,7 @@ function addShares(into: CostShares, add: CostShares): void {
  * One request event priced at the table's prices. A request is priced only when every part of it is: its model
  * has a price and it records input and output tokens; otherwise it is unpriced with the first reason that
  * applies. A request that records 0 input and 0 output tokens costs 0 whatever its model, since nothing is billed.
+ * @internal
  */
 export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: Pricing): RequestCost {
   const laneId = laneOf(event, mainAgentId(trace))
@@ -284,7 +285,10 @@ export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: P
   return shares === undefined ? { ...base, kind: 'priced', usd } : { ...base, kind: 'priced', usd, shares }
 }
 
-/** Totals of some request costs: priced sum, unpriced counts by reason, shares, and the cache hit rate. */
+/**
+ * Totals of some request costs: priced sum, unpriced counts by reason, shares, and the cache hit rate.
+ * @internal
+ */
 export function sumCosts(costs: Iterable<RequestCost>): CostTotal {
   const total: CostTotal = {
     requests: 0,

@@ -11,6 +11,7 @@
     "duplicates": "cd ../.. && jscpd --config packages/schema/node_modules/@perfectpan/lint-config/jscpd.json packages apps --ignore '**/node_modules/**,**/dist/**,**/coverage/**,**/.vite/**,**/*.json,**/*.test.ts' --format 'typescript,tsx'",
     "duplicates:audit": "cd ../.. && jscpd --config packages/schema/node_modules/@perfectpan/lint-config/jscpd-audit.json packages apps --absolute --output tmp/duplicates-audit --ignore '**/node_modules/**,**/dist/**,**/coverage/**,**/.vite/**,**/*.json' --format 'typescript,tsx'",
     "knip": "cd ../.. && knip",
+    "knip:production": "cd ../.. && knip --production",
     "lint": "vp lint src vite.config.ts 2>&1",
     "test": "vp test 2>&1",
     "typecheck": "tsc --noEmit"

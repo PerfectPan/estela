@@ -9,6 +9,17 @@ type EventInput = Partial<Omit<TraceEvent, 'kind' | 'payload'>> & { id: string }
     [K in TranscriptEventKind]: { kind: K; payload: TraceEventPayloads[K] }
   }[TranscriptEventKind]
 
+/**
+ * Events in the long turn and lane tests: more rows than fit as spread arguments on Node's default
+ * stack (about 124,000 with Node 26's default `--stack-size`), so code that passes the rows to a
+ * function as `...rows` throws a RangeError there. One turn holds them all, so a spread per turn
+ * fails too.
+ */
+export const LONG_EVENT_COUNT = 150_000
+
+/** Building that many rows takes seconds on a busy CI runner, past Vitest's default 5 s. */
+export const LONG_TEST_TIMEOUT_MS = 30_000
+
 let seq = 0
 /** The next event: `seq` and `ts` (one second a step) count up from the last `sample()`. */
 export function event(input: EventInput): TraceEvent {
