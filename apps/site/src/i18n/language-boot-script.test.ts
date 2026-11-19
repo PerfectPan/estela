@@ -1,6 +1,6 @@
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vite-plus/test'
-import { DOCS_PENDING_CLASS, LANG_STORAGE_KEY } from './lang-preference.ts'
+import { DOCS_BOOT_TIMEOUT_MS, DOCS_PENDING_CLASS, LANG_STORAGE_KEY } from './lang-preference.ts'
 import { languageBootScript } from './language-boot-script.ts'
 
 // Catches mismatches between the inline head script and languageFrom, or URL mutation during boot.
@@ -55,4 +55,27 @@ it('still falls back to navigator.language when localStorage access throws', () 
   })
   expect(documentElement.lang).toBe('zh-CN')
   expect(classes.has(DOCS_PENDING_CLASS)).toBe(true)
+})
+
+it('schedules a 3 s boot cap that clears the pending class if React has not hydrated yet', () => {
+  const classes = new Set<string>()
+  const scheduled: Array<{ fn: () => void; ms: number }> = []
+  const documentElement = {
+    lang: 'en',
+    classList: {
+      add: (value: string) => classes.add(value),
+      remove: (value: string) => classes.delete(value),
+    },
+  }
+  runInNewContext(languageBootScript(), {
+    document: { documentElement },
+    localStorage: { getItem: () => 'zh-CN' },
+    navigator: { language: 'en-US' },
+    setTimeout: (fn: () => void, ms: number) => scheduled.push({ fn, ms }),
+  })
+  expect(classes.has(DOCS_PENDING_CLASS)).toBe(true)
+  expect(scheduled).toHaveLength(1)
+  expect(scheduled[0]?.ms).toBe(DOCS_BOOT_TIMEOUT_MS)
+  scheduled[0]?.fn()
+  expect(classes.has(DOCS_PENDING_CLASS)).toBe(false)
 })

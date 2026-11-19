@@ -3,6 +3,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page'
 import defaultMdxComponents from 'fumadocs-ui/mdx'
 import type { Locale } from '@/i18n/locale.ts'
+import { buttonVariants } from '@/components/ui/button.tsx'
 import { useDocumentReady } from '@/hooks/use-document-ready.ts'
 import { useHashScroll } from '@/hooks/use-hash-scroll.ts'
 import { DOCS_PENDING_CLASS } from '@/i18n/lang-preference.ts'
@@ -18,7 +19,6 @@ export function DocsArticle({
   path,
   fallback,
   lang,
-  inTargetLang,
   targetLang,
   loadError,
   onRetry,
@@ -26,7 +26,6 @@ export function DocsArticle({
   path: string
   fallback: boolean
   lang: Locale
-  inTargetLang: boolean
   targetLang: Locale
   loadError: boolean
   onRetry: () => void
@@ -42,7 +41,7 @@ export function DocsArticle({
   const errorDict = dictionaryOf(targetLang)
 
   useDocumentReady(path, lang === 'zh-CN', DOCS_PENDING_CLASS)
-  useHashScroll(path, inTargetLang)
+  useHashScroll(path, lang)
 
   return (
     <DocsPage
@@ -68,7 +67,11 @@ export function DocsArticle({
         {loadError ? (
           <Callout>
             <span>{errorDict.docsSidebar.loadErrorNotice}</span>{' '}
-            <button type="button" onClick={onRetry} className="cursor-pointer font-medium underline underline-offset-4">
+            <button
+              type="button"
+              onClick={onRetry}
+              className={buttonVariants({ variant: 'outline', className: 'ms-2 h-7 px-2.5 text-xs' })}
+            >
               {errorDict.docsSidebar.retry}
             </button>
           </Callout>

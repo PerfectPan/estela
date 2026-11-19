@@ -47,7 +47,6 @@ export function DocsScreen({ splat }: { splat?: string }) {
             path={page.path}
             fallback={englishFallback(activeLang, page.path)}
             lang={activeLang}
-            inTargetLang={activeLang === lang}
             targetLang={lang}
             loadError={loadError}
             onRetry={retry}

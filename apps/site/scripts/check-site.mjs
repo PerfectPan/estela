@@ -5,10 +5,12 @@ import { fileURLToPath } from 'node:url'
 import { assert, click, createCdp, evaluate, launchChrome, startStaticServer, waitFor } from './check-site-cdp.mjs'
 import {
   checkColdDocsLoads,
+  checkIndexHtmlNormalization,
   checkZhAnchorThrottled,
   checkZhDelayedJsNeverBlank,
   checkZhReloadReducedMotion,
   checkZhSpaNavigation,
+  checkZhSwitchAndBack,
 } from './check-site-cold.mjs'
 
 const siteRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -384,6 +386,8 @@ async function main() {
     await checkZhReloadReducedMotion({ chrome, origin, base, errors, badResponses })
     await checkZhAnchorThrottled({ chrome, origin, base, errors, badResponses })
     await checkZhDelayedJsNeverBlank({ chrome, origin, base, errors, badResponses, setJsDelayMs })
+    await checkZhSwitchAndBack({ chrome, origin, base, errors, badResponses })
+    await checkIndexHtmlNormalization({ chrome, origin, base, errors, badResponses })
 
     // Repeated isolated cold loads on docs never get stranded on the English prerender when zh-CN is active.
     await checkColdDocsLoads({ chrome, origin, base, errors, badResponses, setJsDelayMs })

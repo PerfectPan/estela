@@ -171,6 +171,20 @@ export async function checkZhReloadReducedMotion({ chrome, origin, base, errors,
       'zh reload reduced-motion scroll setup',
     )
     await new Promise(resolve => setTimeout(resolve, 400))
+    await page.cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        window.__ndPageRemoved = 0;
+        new MutationObserver(records => {
+          for (const record of records) {
+            for (const node of record.removedNodes) {
+              if (node.nodeType === 1 && (node.id === 'nd-page' || node.querySelector?.('#nd-page'))) {
+                window.__ndPageRemoved += 1;
+              }
+            }
+          }
+        }).observe(document, { subtree: true, childList: true });
+      `,
+    })
     await page.cdp.send('Page.reload')
     await waitFor(
       () =>
@@ -181,6 +195,8 @@ export async function checkZhReloadReducedMotion({ chrome, origin, base, errors,
       'zh reload reduced-motion reload settle',
     )
     await new Promise(resolve => setTimeout(resolve, 600))
+    const removed = await evaluate(page.cdp, `window.__ndPageRemoved`)
+    assert(removed === 0, `zh reload deleted prerendered #nd-page (${removed} time(s))`)
     const afterScrollY = await evaluate(page.cdp, `Math.round(window.scrollY)`)
     assert(
       Math.abs(afterScrollY - beforeScrollY) < 80,
@@ -281,6 +297,104 @@ export async function checkZhDelayedJsNeverBlank({ chrome, origin, base, errors,
     assert(blank === null, `zh delayed JS exposed empty article while visible: ${JSON.stringify(blank)}`)
   } finally {
     setJsDelayMs(0)
+    await page.close()
+  }
+}
+
+/** Verifies N3: English reader scrolls `privacy/`, navigates to `concepts/`, switches to zh-CN, and goes back with scroll intact. */
+export async function checkZhSwitchAndBack({ chrome, origin, base, errors, badResponses }) {
+  const page = await openIsolatedTrackedPage({
+    chrome,
+    prefix: 'zh-n3-back',
+    lang: 'en',
+    errors,
+    badResponses,
+  })
+  try {
+    await page.cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    })
+    await page.cdp.send('Page.navigate', { url: `${origin}${base}docs/guide/privacy/` })
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `document.readyState === 'complete' && document.querySelector('[data-docs] h1')?.textContent?.trim() === 'Privacy and redaction'`,
+        ),
+      'N3 initial English privacy',
+    )
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const savedScrollY = await evaluate(
+      page.cdp,
+      `(() => { const y = Math.min(1500, document.documentElement.scrollHeight - window.innerHeight); window.scrollTo(0, y); return y; })()`,
+    )
+    await waitFor(() => evaluate(page.cdp, `Math.abs(window.scrollY - ${savedScrollY}) < 20`), 'N3 scroll setup')
+    await new Promise(resolve => setTimeout(resolve, 400))
+
+    await click(page.cdp, `#nd-sidebar a[href="${base}docs/guide/concepts/"]`)
+    await waitFor(
+      () => evaluate(page.cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === 'Concepts'`),
+      'N3 English concepts',
+    )
+    await new Promise(resolve => setTimeout(resolve, 300))
+    await click(page.cdp, 'button[lang="zh-CN"]')
+    await waitFor(
+      () => evaluate(page.cdp, `document.querySelector('[data-docs] h1')?.textContent?.trim() === '概念'`),
+      'N3 zh-CN concepts',
+    )
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    await evaluate(page.cdp, `history.back()`)
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `location.pathname === ${JSON.stringify(`${base}docs/guide/privacy/`)} && !document.documentElement.classList.contains('estela-docs-pending') && document.querySelector('[data-docs] h1')?.textContent?.trim() === '隐私与脱敏'`,
+        ),
+      'N3 back to zh-CN privacy',
+    )
+    await waitFor(
+      () => evaluate(page.cdp, `Math.abs(window.scrollY - ${savedScrollY}) < 80`),
+      'N3 back scroll restore',
+      2_000,
+    )
+  } finally {
+    await page.close()
+  }
+}
+
+/** Verifies an explicit `.../index.html` URL normalizes to its directory URL before hydration and preserves search/hash. */
+export async function checkIndexHtmlNormalization({ chrome, origin, base, errors, badResponses }) {
+  const page = await openIsolatedTrackedPage({
+    chrome,
+    prefix: 'index-html-url',
+    lang: 'en',
+    errors,
+    badResponses,
+  })
+  try {
+    await page.cdp.send('Page.navigate', {
+      url: `${origin}${base}docs/guide/privacy/index.html?view=1#the-session-index`,
+    })
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `location.pathname === ${JSON.stringify(`${base}docs/guide/privacy/`)} && location.search === '?view=1' && location.hash === '#the-session-index' && document.querySelector('[data-docs] h1')?.textContent?.trim() === 'Privacy and redaction'`,
+        ),
+      'index.html normalization to directory URL',
+      5_000,
+    )
+    await waitFor(
+      () =>
+        evaluate(
+          page.cdp,
+          `(() => { const el = document.getElementById('the-session-index'); if (!el) return false; const top = el.getBoundingClientRect().top; return window.scrollY > 0 && top >= 0 && top < window.innerHeight; })()`,
+        ),
+      'index.html hash heading in viewport',
+      5_000,
+    )
+  } finally {
     await page.close()
   }
 }

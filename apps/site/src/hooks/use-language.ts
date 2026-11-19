@@ -45,8 +45,8 @@ export function useLanguageState({
     if (resolved === 'en') {
       document.documentElement.classList.remove(pendingClass)
     }
-    // Docs routes preload the active page's MDX modules before hydrateRoot, so this urgent update commits cleanly;
-    // the safety timer below only clears the pending class if a load fails.
+    // Chinese docs await their MDX preload before hydrateRoot so this urgent update commits cleanly;
+    // for failed Chinese loads, the 800 ms post-hydration timer clears the pending class to show English.
     setLangState(resolved)
     const timeout = window.setTimeout(() => document.documentElement.classList.remove(pendingClass), pendingTimeout)
     return () => window.clearTimeout(timeout)

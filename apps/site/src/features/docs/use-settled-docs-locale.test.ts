@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { reconcileSettledState, resolveActiveLocale } from './use-settled-docs-locale.ts'
+import { reconcileSettledState, resolveActiveLocale, resolveLoadFailureAction } from './use-settled-docs-locale.ts'
 
 describe('resolveActiveLocale', () => {
   it('holds the settled locale on same-route language switches until the target chunk is loaded', () => {
@@ -59,5 +59,21 @@ describe('reconcileSettledState', () => {
     const nextRoute = { splatKey: 'guide/concepts', lang: 'en' as const }
     expect(reconcileSettledState(current, nextLocale)).toBe(nextLocale)
     expect(reconcileSettledState(current, nextRoute)).toBe(nextRoute)
+  })
+})
+
+describe('resolveLoadFailureAction', () => {
+  it('surfaces the inline error notice for the failed path on an initial load failure', () => {
+    expect(resolveLoadFailureAction(false, 'guide/privacy.zh-CN.md')).toEqual({
+      action: 'show-error',
+      failedPath: 'guide/privacy.zh-CN.md',
+    })
+  })
+
+  it('reloads the document when an explicit retry fails again (cached module-map error or stale deploy)', () => {
+    expect(resolveLoadFailureAction(true, 'guide/privacy.zh-CN.md')).toEqual({
+      action: 'reload',
+      failedPath: null,
+    })
   })
 })

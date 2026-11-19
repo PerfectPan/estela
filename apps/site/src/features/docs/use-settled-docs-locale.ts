@@ -41,8 +41,19 @@ export function reconcileSettledState(current: SettledDocsState, next: SettledDo
   return next
 }
 
-const defaultReload = () => {
-  window.location.reload()
+/**
+ * Decides how to handle a rejected MDX load: first failure surfaces the inline error notice for
+ * `targetPath`; a failure on an explicit retry reloads the page so Chromium clears any cached
+ * failed dynamic `import()` entry in the document's module map.
+ */
+export function resolveLoadFailureAction(
+  retrying: boolean,
+  targetPath: string,
+): { action: 'reload'; failedPath: null } | { action: 'show-error'; failedPath: string } {
+  if (retrying) {
+    return { action: 'reload', failedPath: null }
+  }
+  return { action: 'show-error', failedPath: targetPath }
 }
 
 /**
@@ -53,16 +64,10 @@ export function useSettledDocsLocale({
   splatKey,
   lang,
   targetPath,
-  isLoaded = isDocLoaded,
-  load = loadDoc,
-  reload = defaultReload,
 }: {
   splatKey: string
   lang: Locale
   targetPath: string
-  isLoaded?: (path: string) => boolean
-  load?: (path: string) => Promise<unknown>
-  reload?: () => void
 }): { activeLang: Locale; loadError: boolean; retry: () => void } {
   const [settled, setSettled] = useState<SettledDocsState>({ splatKey, lang })
   const [failedPath, setFailedPath] = useState<string | null>(null)
@@ -73,12 +78,12 @@ export function useSettledDocsLocale({
     settled,
     splatKey,
     lang,
-    targetLoaded: isLoaded(targetPath),
+    targetLoaded: isDocLoaded(targetPath),
   })
 
   useEffect(() => {
     let cancelled = false
-    void load(targetPath).then(
+    void loadDoc(targetPath).then(
       () => {
         if (cancelled) {
           return
@@ -92,19 +97,19 @@ export function useSettledDocsLocale({
           return
         }
         console.error(`Failed to load doc module ${targetPath}:`, error)
-        if (retryingRef.current) {
-          retryingRef.current = false
-          // Chromium's ES module map caches failed dynamic `import()` URLs per document; reloading clears it.
-          reload()
+        const outcome = resolveLoadFailureAction(retryingRef.current, targetPath)
+        retryingRef.current = false
+        if (outcome.action === 'reload') {
+          window.location.reload()
           return
         }
-        setFailedPath(targetPath)
+        setFailedPath(outcome.failedPath)
       },
     )
     return () => {
       cancelled = true
     }
-  }, [targetPath, splatKey, lang, retryCount, load, reload])
+  }, [targetPath, splatKey, lang, retryCount])
 
   const retry = useCallback(() => {
     retryingRef.current = true
