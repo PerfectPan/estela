@@ -317,6 +317,7 @@ export async function evaluate(cdp, expression) {
   return res.result.value
 }
 
+/** Clicks the first visible matching element, waiting for React hydration on non-link controls. */
 export async function click(cdp, selector) {
   await waitFor(
     () =>
@@ -327,6 +328,15 @@ export async function click(cdp, selector) {
             n => n.offsetParent !== null && getComputedStyle(n).visibility !== 'hidden' && !n.closest('[aria-hidden="true"]'),
           );
           if (!el) return false;
+          // React attaches __reactContainer$ (committed once current.child !== null) on document and __reactProps$ on hydrated nodes;
+          // wait for both on buttons so pre-hydration clicks are not dropped, while leaving <a href> links unblocked.
+          const isNativeLink = el.tagName === 'A' && el.hasAttribute('href');
+          if (!isNativeLink) {
+            const rootKey = Object.keys(document).find(k => k.startsWith('__reactContainer$'));
+            const rootCommitted = Boolean(rootKey && document[rootKey]?.stateNode?.current?.child);
+            const hasReactProps = Object.keys(el).some(k => k.startsWith('__reactProps$'));
+            if (!rootCommitted || !hasReactProps) return false;
+          }
           el.click();
           return true;
         })()`,

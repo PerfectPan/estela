@@ -94,7 +94,7 @@ async function main() {
       () =>
         evaluate(
           cdp,
-          `document.documentElement.lang === 'zh-CN' && getComputedStyle(document.querySelector('[data-lang="zh-CN"]')).visibility === 'visible'`,
+          `document.documentElement.lang === 'zh-CN' && document.querySelector('[data-lang="zh-CN"]')?.getAttribute('aria-hidden') === 'false' && getComputedStyle(document.querySelector('[data-lang="zh-CN"]')).visibility === 'visible'`,
         ),
       'zh-CN landing',
     )
@@ -112,7 +112,14 @@ async function main() {
       'persisted zh-CN after reload',
     )
     await click(cdp, 'button[lang="en"]')
-    await waitFor(() => evaluate(cdp, `document.documentElement.lang === 'en'`), 'switch back to en')
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `document.documentElement.lang === 'en' && document.querySelector('[data-lang="en"]')?.getAttribute('aria-hidden') === 'false'`,
+        ),
+      'switch back to en',
+    )
 
     // Clicking Docs goes to /docs/guide/ with User Guide marked active in the sidebar.
     await click(cdp, `header a[href="${base}docs/guide/"]`)
