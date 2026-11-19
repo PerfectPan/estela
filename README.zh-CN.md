@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 README.md 为准。
 
-<!-- source-blob: 70f6776a578532f6932fab5d6694271be6842d36 -->
+<!-- source-blob: 68657251f73d04b5b16f9e0695c09ca051c2cb88 -->
 
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong>
@@ -14,6 +14,10 @@
 
 <p align="center">
   <strong>代理会话的本地查看器：每个请求、模型看到的内容，以及花费。</strong>
+</p>
+
+<p align="center">
+  <a href="https://perfectpan.github.io/estela/">网站</a> · <a href="https://perfectpan.github.io/estela/docs/guide/">文档</a>
 </p>
 
 <p align="center">
