@@ -1,0 +1,72 @@
+name: Pages
+
+# Pull requests are built and checked by CI's `Build and verify the docs site` step, so this workflow only runs on
+# `main` pushes and manual dispatches.
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/site/**
+      - docs/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # Project sites on GitHub Pages are served under /<repository>/.
+      ESTELA_SITE_BASE: /${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@^26.13.1
+          cache: true
+          require-lockfile: true
+      # Builds the CLI the demo needs, prerenders the landing and docs pages, writes static search indexes, and
+      # writes the demo report into dist/client/demo/.
+      - name: Build the landing and docs site
+        run: pnpm --filter '@rivus/estela-site...' run build
+      - name: Check static site navigation
+        env:
+          CHROME: /usr/bin/google-chrome
+        run: pnpm --filter @rivus/estela-site run check
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/site/dist/client
+          retention-days: 3
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+      queue: max
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

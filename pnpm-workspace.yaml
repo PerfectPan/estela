@@ -25,6 +25,9 @@ minimumReleaseAgeExclude:
 allowBuilds:
   # apps/e2e uses node-pty's prebuilt binaries; its install script would fall back to node-gyp.
   node-pty: false
+  # apps/site: fumadocs-mdx bundles source.config.ts with esbuild. Its platform binary arrives as an optional
+  # dependency, so the postinstall, which only re-checks that binary, does not need to run.
+  esbuild: false
 
 # Versions shared by two or more workspace packages live here; catalogMode keeps `pnpm add`
 # on them instead of writing a second range. It is not Rush's ensureConsistentVersions: a
@@ -32,11 +35,17 @@ allowBuilds:
 # without an error. Nothing checks that automatically; reviewers do.
 catalogMode: strict
 catalog:
+  '@fontsource/instrument-sans': 5.3.0
+  '@fontsource/jetbrains-mono': 5.3.0
   '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.9.1
   '@rivus/agent-kit': 0.25.0
+  '@tailwindcss/vite': ^4.3.5
   '@types/node': ^24.19.2
+  cva: 1.0.0-beta.12
   devframe: 1.3.3
   es-toolkit: 1.53.2
+  tailwind-merge: ^3.7.0
+  tailwindcss: ^4.3.5
   typescript: ^7.0.2
   # Vite+ supplies Vite: every `vite` in the graph (the web plugins' peer included) resolves to
   # the core that vite-plus ships, so the catalog's `vite` must stay at the `vite-plus` version

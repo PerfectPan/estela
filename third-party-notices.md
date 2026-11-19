@@ -5,7 +5,7 @@ Estela is licensed under GPL-3.0-only; see [LICENSE](LICENSE). The files listed 
 ## shadcn-solid
 
 - Source: <https://github.com/hngngn/shadcn-solid>, `apps/docs/src/registry/ui/`
-- Files: `apps/web/src/components/ui/badge.tsx`, `apps/web/src/components/ui/button.tsx`
+- Files: `apps/web/src/components/ui/badge.tsx`, `apps/web/src/components/ui/button.tsx`, `apps/site/src/components/ui/button.tsx`
 - License: MIT
 
 ```text

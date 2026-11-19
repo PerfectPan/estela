@@ -62,7 +62,8 @@ const nodeBuiltins = [
 export default {
   lint: {
     ...lint,
-    ignorePatterns: ['**/dist/**', '**/node_modules/**'],
+    // `*.gen.ts`: TanStack Router's generated route tree; `.source/**`: Fumadocs MDX generated collections (`apps/site`).
+    ignorePatterns: ['**/dist/**', '**/node_modules/**', '**/*.gen.ts', '**/.source/**'],
     rules: {
       ...lint.rules,
       // Vitest's `expect(value, message)` takes a failure message.
@@ -118,7 +119,7 @@ export default {
       {
         // One Icon base and the stroke icons built on it: a component family, which lint-config's
         // README exempts from one component per file (like a shadcn/ui file).
-        files: ['apps/web/src/components/icons.tsx'],
+        files: ['apps/web/src/components/icons.tsx', 'apps/site/src/components/icons.tsx'],
         plugins: ['react'],
         rules: { 'react/no-multi-comp': 'off' },
       },
@@ -144,6 +145,15 @@ export default {
     bracketSpacing: true,
     experimentalOperatorPosition: 'start',
     embeddedLanguageFormatting: 'off',
-    ignorePatterns: ['**/fixtures/**', 'docs/**', '**/*.md', '**/*.json', '**/*.html', '**/*.css'],
+    ignorePatterns: [
+      '**/fixtures/**',
+      'docs/**',
+      '**/*.md',
+      '**/*.json',
+      '**/*.html',
+      '**/*.css',
+      '**/*.gen.ts',
+      '**/.source/**',
+    ],
   },
 }
