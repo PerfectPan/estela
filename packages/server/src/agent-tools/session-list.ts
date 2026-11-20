@@ -132,8 +132,7 @@ function itemOf(row: SessionListRow, redaction: Redaction): SessionItem {
     if (value === undefined) {
       return undefined
     }
-    // The kit cut titles and first prompts before anything redacted them.
-    const cut = shown(value, max, redaction, field === 'title' || field === 'firstPrompt')
+    const cut = shown(value, max, redaction)
     if (cut.cut) {
       truncated.push([field])
     }

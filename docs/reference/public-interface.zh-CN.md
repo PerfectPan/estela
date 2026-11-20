@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/public-interface.md 为准。
 
-<!-- source-blob: 9f2196fb8ccb5a604ac54e437412f02d75c82e5b -->
+<!-- source-blob: 1d417a44ab65129b98f50fd6a2a02a9803c56ea5 -->
 
 # 公共接口与兼容性
 
@@ -56,7 +56,7 @@
 | `ESTELA_REDACT` | 设为 `0` 时关闭本地服务器及 ATIF 和 OTLP 导出的脱敏；报告和 MCP 结果始终脱敏 | `write-export.test.ts`、`packages/server/test/agent-tools.test.ts`（S18） |
 | `NO_COLOR` | 输出不含转义序列的纯文本行（stdout 不是终端时也输出纯文本行） | `apps/cli/src/entry/ui/terminal.test.ts`、`cli-smoke.test.ts` |
 | `XDG_CACHE_HOME` | 会话索引的存放位置（`$XDG_CACHE_HOME/rivus-estela/`） | `packages/runtime-node` 索引测试 |
-| `CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`DSH_HOME`、`GEMINI_CLI_HOME`、`GROK_HOME`、`XDG_DATA_HOME`、`PI_CODING_AGENT_DIR` | 各代理自身的主目录覆盖变量，按各代理的方式读取 | `@rivus/agent-kit` 中的会话读取器测试 |
+| `ANTIGRAVITY_GEMINI_DIR`、`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`DSH_HOME`、`DIMCODE_HOME`、`GEMINI_CLI_HOME`、`GROK_HOME`、`KIMI_CODE_HOME`、`XDG_DATA_HOME`、`PI_CODING_AGENT_DIR`、`QODER_CONFIG_DIR`、`ZCODE_STORAGE_DIR` | 各代理自身的主目录覆盖变量，按各代理的方式读取 | `@rivus/agent-kit` 中的会话读取器测试 |
 
 ### 会话位置
 

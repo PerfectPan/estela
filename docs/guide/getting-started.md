@@ -58,7 +58,7 @@ estela ~/.claude/projects/my-app/0f8c2f1e-....jsonl
 estela ~/.local/share/opencode/opencode.db#ses_123abc
 ```
 
-The argument is a session file, a `path#sessionId` for a file or database that holds several sessions (OpenCode always), or a canonical Estela JSON trace. Estela loads it before the server starts and exits with status 1 and the reason if no agent reader accepts it. `ESTELA_PATH` sets the same argument from the environment.
+The argument is a session file, a `path#sessionId` for a file or database that holds several sessions (OpenCode, DimCode, and ZCode always), or a canonical Estela JSON trace. Estela loads it before the server starts and exits with status 1 and the reason if no agent reader accepts it. `ESTELA_PATH` sets the same argument from the environment.
 
 ## Pick a session in the terminal
 

@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: f2934b90bf31f9116a7d7a0d15db0e40cc5529fc -->
+<!-- source-blob: 86845808bc08c093d1a3c8f008e66a77c3ffd272 -->
 
 # 架构
 
@@ -98,7 +98,7 @@ one session (build <path>, or export-report on the dev server)
 
 `packages/server/src/agent-tools/` 包含 [MCP 工具参考](../reference/mcp-tools.zh-CN.md)中列出输入、结果、大小上限和错误的各个工具：`estela_list_sessions`、`estela_search_sessions`、`estela_session_summary`、`estela_list_turns`、`estela_list_requests`、`estela_get_event` 和 `estela_reconstruct`。`registerAgentTools` 在定义的 `setup` 中将它们以 `estela:<name>` 的 id 注册到 DevFrame 的 agent host（列表和搜索工具仅在存在会话目录时注册）；DevFrame 的 MCP 适配器会以 `estela_<name>` 的名称通过 stdio（`estela mcp`）以及仅在启用 `--mcp` 时通过开发服务器的 HTTP `/__estela/__mcp` 提供服务。该路由以 bearer 令牌（DevFrame 的 `authorization` 选项：`ESTELA_MCP_TOKEN`，或由 CLI 每次启动生成并打印）代替一次性验证码，因为 MCP 客户端无法回答验证码。DevFrame 自带的 `Origin` 检查是关闭的，因为它会拒绝不带 `Origin` 的请求，而命令行客户端不发送 `Origin`；CLI 的 `authorization` 回调（`apps/cli/src/entry/mcp-authorization.ts`）会拒绝非回环地址的 `Host`（DNS rebinding）或 `Origin`（网页发出的每个 POST；不带 `Origin` 的跨源请求无法携带 `Authorization`），然后比对令牌。DevFrame 只在路由没有令牌时检查对端地址，因此 CLI 改为在 `--host` 不是回环地址时拒绝 `--mcp`；该路由默认关闭。`estela mcp` 和该 HTTP 路由都会关闭 DevFrame 的共享状态工具。
 
-这些工具读取浏览器所读取的同一套数据：会话目录行（使用始终脱敏规则调用 `listSessions`，并传入 `first` 以便摘要标记过滤尚不能检查的行，最多等待 5 秒），以及 TraceStore 中已加载的 trace（通过 `TraceStore.withTrace` 获取自身持有引用），再经过内核投影、`get-event` 和 `reconstruct` 处理。它们不做任何估算。在工具边界、底层服务之后，无论 `ESTELA_REDACT` 的取值如何，每条结果和错误消息都会使用 kit 的 `redact` 和平台主目录进行脱敏，并序列化为紧凑 JSON 文本返回（DevFrame 若收到对象会进行格式化缩进）。每次结果最多 40,000 个字符：列表通过 `offset` / `limit` 分页，并在超限前通过 `nextOffset` 提前结束；已记录的字符串先脱敏再截断（若先截断可能将主目录开头留在文本中），目录也在截短提示词前先脱敏；kit 自身会在任何脱敏前先截断标题和首条提示词，因此对于这两个字段，在 kit 改为先脱敏再截断之前，`trimCutHome` 会把末尾残缺的主目录路径替换为 `~`；被截断的列表字符串会记在 `truncated` 中；`estela_get_event` 在脱敏后用内核的 `capStrings` 截断字符串，并按 0.75 步长下调上限至 256，之后依次省略 `original` 和 `payload`；`estela_reconstruct` 对每个列表保留最后 100 个 id 并附带总数。
+这些工具读取浏览器所读取的同一套数据：会话目录行（使用始终脱敏规则调用 `listSessions`，并传入 `first` 以便摘要标记过滤尚不能检查的行，最多等待 5 秒），以及 TraceStore 中已加载的 trace（通过 `TraceStore.withTrace` 获取自身持有引用），再经过内核投影、`get-event` 和 `reconstruct` 处理。它们不做任何估算。在工具边界、底层服务之后，无论 `ESTELA_REDACT` 的取值如何，每条结果和错误消息都会使用 kit 的 `redact` 和平台主目录进行脱敏，并序列化为紧凑 JSON 文本返回（DevFrame 若收到对象会进行格式化缩进）。每次结果最多 40,000 个字符：列表通过 `offset` / `limit` 分页，并在超限前通过 `nextOffset` 提前结束；已记录的字符串先脱敏再截断（若先截断可能将主目录开头留在文本中），目录也在截短提示词前先脱敏；kit 自身会在任何脱敏前先截断标题和首条提示词，其 `redactText` 会把这种截断在末尾留下的残缺主目录路径替换为 `~`；被截断的列表字符串会记在 `truncated` 中；`estela_get_event` 在脱敏后用内核的 `capStrings` 截断字符串，并按 0.75 步长下调上限至 256，之后依次省略 `original` 和 `payload`；`estela_reconstruct` 对每个列表保留最后 100 个 id 并附带总数。
 
 事件和泳道 id 由写入日志的一方生成，并会作为工具输入传回。`TraceIds` 仅当 id 为 1–128 个 `[A-Za-z0-9_.:-]` 字符且脱敏后保持不变时才按原样返回；其他任何 id 都返回为 `@e<seq>`（事件索引）或 `@l<n>`（泳道位置），工具同时接受这两种形式。重复 id 指向其中的最后一个事件，与 TraceStore 的查找行为一致。工具描述中写明返回结果是已记录的会话内容，应视为数据而非指令。代理技能位于 `skills/estela/SKILL.md`，保留在仓库中且不打入 tarball。
 
@@ -120,7 +120,7 @@ one session (build <path>, or export-report on the dev server)
 
 只有当请求的每一部分（当代理按模型拆分汇总用量时，每个模型对应一部分）都记录了输入和输出 Token、注明了模型且该模型有价格时，该请求才计价；否则它为未计价，并记录首个适用的原因（`no-usage`、`incomplete-usage`、`no-model`、`no-price` 及对应模型）。记录了 0 输入和 0 输出 Token 的请求无论模型为何均计为 $0。缺失 `granularity` 时按单个请求计算，与适配器写入的方式一致，因此长上下文档位按每次请求生效。`CostTotal` 保存已计价合计（没有任何请求计价时 `usd` 缺失，从不为 0）、按原因分类的未计价计数、当所有已计价请求均具备分项时的各类 Token 占比，以及缓存命中率（在同时记录了两者的请求中，缓存读取占输入 Token 的比例）。各分项金额来自 kit 自身的计价逻辑：在部分输入固定后（从而与整部分使用相同的价格档位），费用对各类 Token 呈线性关系，三次探测即可得出输入、缓存读取和缓存写入费率；各分项之和等于 kit 返回的总价。
 
-工作区在页头（标签：命中率，或「M 个请求中有 N 个未计价」，全部未计价时显示原因；悬停提示标明快照和分项）、轮次标题、代理布局的泳道标题以及检查器中展示费用。金额通过 `formatUsd` 格式化（低于一美分保留两位有效数字，再小显示 `<$0.0001`）。费用是已记录 Token 的目录价，不是实际账单：查看器读取的转录事件既不包含代理自身记录的金额（OpenCode、Pi、Grok、ZCode），也不包含 Codex 的优先服务等级倍率，这两者仅由 kit 的用量解码器报告，因此均未应用。会话浏览器不显示费用：索引摘要来自 kit 的有界摘要遍历，不记录模型或缓存类别，为行计价意味着必须实例化其转录。`index.sqlite` 中不存储任何与费用相关的信息，因此更新价格快照无需递增索引修订号。
+工作区在页头（标签：命中率，或「M 个请求中有 N 个未计价」，全部未计价时显示原因；悬停提示标明快照和分项）、轮次标题、代理布局的泳道标题以及检查器中展示费用。金额通过 `formatUsd` 格式化（低于一美分保留两位有效数字，再小显示 `<$0.0001`）。费用是已记录 Token 的目录价，不是实际账单：查看器读取的转录事件既不包含代理自身记录的金额（OpenCode、Pi、Grok、ZCode），也不包含 Codex 的优先服务等级倍率，这两者仅由 kit 的用量解码器报告，因此均未应用。DimCode 的请求事件带有它自己记录的金额（`costUsd`），但内核不读取该字段，因此 DimCode 的计价方式相同。会话浏览器不显示费用：索引摘要来自 kit 的有界摘要遍历，不记录模型或缓存类别，为行计价意味着必须实例化其转录。`index.sqlite` 中不存储任何与费用相关的信息，因此更新价格快照无需递增索引修订号。
 
 `toAtif(trace, { pricing })` 在每个请求已计价的步骤上写入 `metrics.cost_usd`，仅当该轨迹所在泳道的全部请求都已计价时才写入 `final_metrics.total_cost_usd`（对于根轨迹：按 ATIF 定义涵盖整个会话，包含子代理；被上下文压缩隐藏的请求虽不生成步骤但也计入），并在根轨迹上写入 `extra.estela.pricing = { version, unpricedRequests }`；`export-atif` 会传入 `snapshotPricing()`。OTLP 导出在固定版本的语义约定中没有费用属性可填，因此保持不变。
 

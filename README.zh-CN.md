@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 README.md 为准。
 
-<!-- source-blob: 68657251f73d04b5b16f9e0695c09ca051c2cb88 -->
+<!-- source-blob: da7c32ecc1dc4e347589277edf986ae39949c585 -->
 
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong>
@@ -60,19 +60,24 @@ npx @rivus/estela
 
 | 代理 | 会话位置 |
 |---|---|
+| Antigravity CLI | `~/.gemini/antigravity-cli/brain/` |
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/`、`~/.codex/archived_sessions/` |
 | DeepSeek Harness | `~/.dsh/sessions/` |
+| DimCode | `~/.dimcode/v2/dimcode.sqlite` |
 | Gemini CLI | `~/.gemini/tmp/` |
 | Grok | `~/.grok/sessions/` |
+| Kimi Code | `~/.kimi-code/sessions/` |
 | OpenCode | `~/.local/share/opencode/opencode.db` |
 | Pi | `~/.pi/agent/sessions/` |
+| Qoder CLI | `~/.qoder/projects/` |
+| ZCode | `~/.zcode/cli/db/db.sqlite` |
 
 各代理的主目录覆盖变量都会生效。各代理日志记录的内容（系统提示词、工具定义、用量、子代理、上下文压缩）不同，见[支持的代理](docs/guide/supported-agents.zh-CN.md)。
 
 ## 隐私
 
-Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的主目录和部分令牌形式，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
+Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的主目录、部分令牌形式以及 `PASSWORD=` 这类带名称凭据的值，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
 
 ## 文档
 

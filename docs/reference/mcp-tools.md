@@ -48,7 +48,7 @@ Audience: someone who writes an MCP client against `estela mcp`, or changes the 
 | `unsummarized` | sessions left out because their counts were still being computed (flag filters only) |
 | `agents` | `[{ id, sessions }]`: every agent the server reads, with its session count |
 
-A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, `lastActiveAt`, `sizeBytes`, `firstPrompt?`, `summary`, the counts `turns?`, `requests?`, `inputTokens?`, `outputTokens?`, `durationMs?`, `compactions?`, `subagents?`, `failedTools?`, `error?` (`{ reason, file?, line? }`), and `truncated?`. `summary` is `ready`, `pending` (counts not computed yet), or `failed` (the session could not be read; see `error`).
+A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, `lastActiveAt`, `sizeBytes`, `firstPrompt?`, `summary`, the counts `turns?`, `requests?`, `inputTokens?`, `outputTokens?`, `durationMs?`, `compactions?`, `subagents?`, `failedTools?`, `error?` (`{ reason, file?, line? }`), and `truncated?`. `summary` is `ready`, `pending` (counts not computed yet), or `failed` (the session could not be read; see `error`). `sizeBytes` is the size of the session's file, and 0 for an OpenCode or ZCode session, whose database file holds other sessions too.
 
 ### `estela_session_summary`
 
@@ -103,7 +103,7 @@ A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, 
 | `estela_get_event` strings | `maxChars`; if the result is still too large, `maxChars` is lowered in steps of 0.75 down to 256, then `original` and then `payload` are left out |
 | `estela_reconstruct` id lists | the last 100 ids of each list, halved further while the result is over the bound |
 
-Every recorded string is redacted before a tool cuts it, whatever `ESTELA_REDACT` says, so a tool's own cut never leaves part of a home path behind. A session title and a first prompt are the exception: they reach the tools already cut (a title at 80 characters, a first prompt at 500) before redaction. The tools replace a trailing partial home path in them with `~` when it is spelled as the absolute path, the path without its leading `/`, or the JSON-escaped path; another spelling cut at that point can still show the start of the user name ([Privacy](../guide/privacy.md)).
+Every recorded string is redacted before a tool cuts it, whatever `ESTELA_REDACT` says, so a tool's own cut never leaves part of a home path behind. A session title and a first prompt reach the tools already cut (a title at 80 characters, a first prompt at 500) before redaction; redaction also replaces a home path such a cut left partial at their end with `~`, in every spelling it knows ([Privacy](../guide/privacy.md)).
 
 ## Errors
 

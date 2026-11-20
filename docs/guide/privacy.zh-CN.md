@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/privacy.md 为准。
 
-<!-- source-blob: 24f3c6bbf9ca74b2156ad415c137924608014bce -->
+<!-- source-blob: 3232ea327eaa674fefc39a68e0041bc261cd6639 -->
 
 # 隐私与脱敏
 
@@ -37,12 +37,13 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 
 ## 脱敏覆盖的范围
 
-脱敏替换两类文本：
+脱敏替换三类文本：
 
-- **你的主目录**在 Estela 识别的所有拼写形式下都会变为 `~`：普通路径、去掉前导 `/` 的形式、JSON 转义形式（`\/Users\/<name>`）、URL 编码形式、Claude Code 的短横线拼接目录名和 Grok 的 `%2F` 形式，以及 `~<name>`，不区分大小写，同时覆盖值和键。更长的名称（如 `/Users/<name>x` 或 `/Users/<name>.bak`）保留原样。在会话列表和 `--pick` 标签中，截断到 80 个字符的标题或截断到 500 个字符的首条提示词仍可能露出主目录路径的开头部分。
-- **具有已知前缀的令牌**会变为 `[redacted]`：以 `sk-` 开头的密钥（OpenAI、Anthropic）、AWS 密钥 id（`AKIA`、`ASIA`）、GitHub 令牌（`ghp_`、`gho_`、`ghu_`、`ghs_`、`ghr_`、`github_pat_`）、Slack 令牌（`xoxa-`、`xoxb-`、`xoxp-`、`xoxr-`、`xoxs-`）、npm 令牌（`npm_`）以及 PEM 私钥块。
+- **你的主目录**在 Estela 识别的所有拼写形式下都会变为 `~`：普通路径、去掉前导 `/` 的形式、JSON 转义形式（`\/Users\/<name>`）、URL 编码形式、Claude Code 的短横线拼接目录名和 Grok 的 `%2F` 形式，以及 `~<name>`，不区分大小写，同时覆盖值和键。更长的名称（如 `/Users/<name>x` 或 `/Users/<name>.bak`）保留原样。截断到 80 个字符的标题或截断到 500 个字符的首条提示词如果停在主目录路径中间，且已露出用户名的至少一个字符（主目录直接位于 `/` 下时，如 `/root`，以及 `~<name>` 形式，为两个），这段残缺路径也会被替换。
+- **已知形式的令牌**会变为 `[redacted]`：以 `sk-` 开头的密钥（OpenAI、Anthropic）、AWS 密钥 id（`AKIA`、`ASIA`）、GitHub 令牌（`ghp_`、`gho_`、`ghu_`、`ghs_`、`ghr_`、`github_pat_`）、Slack 令牌（`xoxa-`、`xoxb-`、`xoxp-`、`xoxr-`、`xoxs-`）、npm 令牌（`npm_`）、Stripe 密钥（`sk_` 或 `rk_` 后接 `live_`、`test_` 或 `prod_`）、GitLab 令牌（`glpat-`）、Hugging Face 令牌（`hf_`）、Google API 密钥（`AIza…`）、JWT、Slack webhook URL 以及 PEM 私钥块。
+- **带名称的凭据**的值会变为 `[redacted]`：凭据名称后面的值，如 `PASSWORD=`、`DB_PASSWORD:`、`client_secret:`、`GITHUB_TOKEN=`、`SECRET_KEY=`、`X-Api-Key:` 或 `aws_secret_access_key =`，无论是原样、带引号还是 JSON 转义；`Authorization: Bearer`、`Basic` 或 `Token` 后面的值；单独出现、长度至少 16 个字符且含数字的 `Bearer` 值；以及 URL 中的密码（`postgres://user:password@host`）。看起来像代码、标签或数字的值会保留：不带引号且不含数字的值（`token = getToken()`），带引号、不含数字且短于 20 个字符或含空格或点号的值（`"password": "Password"`），占位符（`${TOKEN}`、`<token>`、`***`），以及数字。
 
-其余所有内容均原样保留：**脱敏只替换你的主目录、已知前缀的 API 密钥和 PEM 私钥块**，而任意密码、Bearer 令牌、会话正文和文件内容都会保留。**脱敏不会移除**的内容包括但不限于：AWS secret access key、`Authorization: Bearer …` 或 `Basic …` 的值、JWT、来自 `.env` 文件或 `env` 输出的 `PASSWORD=` 及其他 `KEY=value` 赋值、URL 中的凭据（`postgres://user:password@host`）、Stripe 密钥（`sk_live_`、`rk_live_`）、GitLab 令牌（`glpat-`）、Hugging Face 令牌（`hf_`）、Google API 密钥（`AIza…`）、Slack webhook URL，以及出现在主目录路径之外的你的用户名。如果代理在会话中运行了 `cat .env` 或 `env`，这些值就在其日志以及由日志生成的所有产物中。
+其余所有内容均原样保留：**脱敏只替换你的主目录、上面列出的令牌形式和带名称凭据的值**，会话正文和文件内容都会保留。**脱敏不会移除**的内容包括但不限于：既没有已知形式、前面也没有凭据名称的机密（单独一行的 AWS secret access key、正文里的密码），按上面的规则看起来像代码的凭据值（`PASSWORD=hunter`），名称不是凭据名称的 `KEY=value` 赋值，以及出现在主目录路径之外的你的用户名。如果代理在会话中运行了 `cat .env` 或 `env`，脱敏识别不出的值就在其日志以及由日志生成的所有产物中。
 
 ## 脱敏生效的位置
 

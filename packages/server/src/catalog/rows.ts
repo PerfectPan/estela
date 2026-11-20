@@ -9,7 +9,7 @@ import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
 import { loadFailure } from '../sessions/read-failure.ts'
 import { projectName, traceIdOf, sessionTargetLabel, toKitPath } from '../sessions/session-target.ts'
-import { sessionProviders } from '../sessions/adapters.ts'
+import { keepsSessionsInDatabase, sessionProviders } from '../sessions/adapters.ts'
 
 /** Server-side row. `path` never leaves the server; the browser gets `traceId`. */
 export interface LiveRow {
@@ -142,13 +142,16 @@ export function rowFromHead(
   return {
     ...headFields(head, homeDir),
     // A database session keeps its id even while it is the only row in that database.
-    traceId: traceIdOf(sharedFile || target.agent === 'opencode' ? target : { agent: target.agent, path: target.path }),
+    traceId: traceIdOf(
+      sharedFile || keepsSessionsInDatabase(target.agent) ? target : { agent: target.agent, path: target.path },
+    ),
     target,
     size: key.size,
     mtimeMs: key.mtimeMs,
     lastActiveAt: head.lastActiveAt,
-    // The stat size, like a row from the index, so an unchanged file compares equal.
-    sizeBytes: info.size,
+    // The key's size, as a row from the index has it, so an unchanged session compares equal: the stat size, or 0
+    // for a database row keyed by its own last write, where the shared file's size says nothing about this session.
+    sizeBytes: key.size,
     pending: true,
     revision: 0,
   }

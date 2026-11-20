@@ -125,7 +125,7 @@ export const zhCN = {
   },
   agents: {
     eyebrow: '支持的 Agent',
-    title: '七种 Agent，从它们保存会话的位置读取。',
+    title: '十二种 Agent，从它们保存会话的位置读取。',
     lead: '各 Agent 的 home 目录覆盖设置同样生效。目录不存在时显示 0 个会话和检查过的路径；无法解析的文件会列出文件、行号和原因。',
     grok: 'Grok 只按轮次记录 Token 用量，因此 Grok 会话每轮对应一个请求。',
   },
@@ -137,7 +137,7 @@ export const zhCN = {
       { title: '只读', body: '会话文件只读，不写入。URL 只携带不透明的 trace id，从不包含路径。' },
       {
         title: '脱敏',
-        body: '本地服务器把 home 目录替换成 ~，并把一组固定格式的 token 替换成占位符。其他形态的密钥不会被替换。',
+        body: '本地服务器把 home 目录替换成 ~，并把一组固定格式的 token 以及 PASSWORD= 这类带名称凭据的值替换成占位符。其他形态的密钥不会被替换。',
       },
       { title: '报告始终脱敏', body: '报告仍保留会话文本和文件内容，分享前请先阅读。' },
       {

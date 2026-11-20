@@ -126,8 +126,7 @@ export function sessionSummary(
       ['cwd', trace.session.cwd, PATH_CHARS],
     ] as const) {
       if (value !== undefined) {
-        // The kit cuts a title it takes from the first prompt before anything redacts it.
-        const text = shown(value, max, redaction, field === 'title')
+        const text = shown(value, max, redaction)
         result[field] = text.text
         if (text.cut) {
           truncated.push([field])

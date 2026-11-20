@@ -22,7 +22,7 @@ import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.t
 import { errorMessage, parseReadFailure } from '../sessions/read-failure.ts'
 import { oneLine, traceIdOf } from '../sessions/session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
-import { adapterDisplayName, builtinAdapters } from '../sessions/adapters.ts'
+import { adapterDisplayName, builtinAdapters, keepsSessionsInDatabase } from '../sessions/adapters.ts'
 
 export type { AgentProgress } from './discover.ts'
 
@@ -103,9 +103,9 @@ export class SessionCatalog {
         concurrency: CONCURRENCY,
         key: row => row.traceId,
         rank: row => row.lastActiveAt,
-        // An OpenCode row's size is the shared database file; its summary reads rows through the
+        // A database row's size is the shared database file; its summary reads rows through the
         // adapter instead of holding the file in memory, so it does not have to run alone.
-        heavy: row => row.target.agent !== 'opencode' && row.size >= HEAVY_BYTES,
+        heavy: row => !keepsSessionsInDatabase(row.target.agent) && row.size >= HEAVY_BYTES,
         run: row => this.summarize(row),
       },
       options.deferSummaries === true,

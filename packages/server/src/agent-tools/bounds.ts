@@ -20,37 +20,10 @@ export const SURFACE_IDS = 100
 /** Lanes in a session summary. */
 export const SUMMARY_LANES = 50
 
-/** How a tool redacts: a whole value (deep), one string, or one string that was already cut before it was redacted. */
+/** How a tool redacts: a whole value (deep) or one string. */
 export interface Redaction {
   value: <T>(value: T) => T
   text: (text: string) => string
-  /** `text`, plus a home path cut short at the end replaced with `~`; see `trimCutHome`. */
-  cutText: (text: string) => string
-}
-
-/** A character that can sit inside a path: before a fragment, it means the fragment is not where a path starts. */
-const PATH_CHAR = /[\w.~/\\%-]/
-
-/**
- * `text` (already redacted) with a trailing partial home path replaced by `~`. The kit cuts session titles and first
- * prompts (to 80 and 500 characters) before anything redacts them, and the kit's redaction matches only a whole home
- * path, so a cut inside one would keep the start of the user name. This handles the spellings that can
- * end such a cut: the absolute path, the path without its leading `/`, and the JSON-escaped path. It goes away once
- * the kit cuts after redacting.
- */
-export function trimCutHome(text: string, home: string): string {
-  const spellings = [home, home.replace(/^\//, ''), home.replaceAll('/', '\\/')]
-  for (const spelling of spellings) {
-    // Only a fragment that reaches into the last segment (the user name) is replaced; `/Users/` alone names no one.
-    const shortest = spelling.lastIndexOf('/') + 2
-    for (let length = Math.min(spelling.length - 1, text.length); length >= shortest; length--) {
-      const at = text.length - length
-      if (text.endsWith(spelling.slice(0, length)) && (at === 0 || !PATH_CHAR.test(text[at - 1]!))) {
-        return `${text.slice(0, at)}~`
-      }
-    }
-  }
-  return text
 }
 
 /** `text` cut to `max` UTF-16 units, never between the two halves of a surrogate pair. Callers go through `shown`. */
@@ -65,16 +38,11 @@ function clip(text: string, max: number): { text: string; cut: boolean } {
 
 /**
  * Recorded `text` as a tool shows it: redacted, then cut to `max`. Redaction runs first because it matches the whole
- * home path or token; a cut inside one would leave its start behind unredacted.
+ * home path or token; a cut inside one would leave its start behind unredacted. A title or first prompt the kit cut
+ * before anything redacted it can end inside a home path; the kit's `redactText` hides that partial home as well.
  */
-export function shown(
-  text: string,
-  max: number,
-  redaction: Redaction,
-  /** `true` for a field the kit cut before it was redacted (a title, a first prompt). */
-  cutUpstream = false,
-): { text: string; cut: boolean } {
-  return clip(cutUpstream ? redaction.cutText(text) : redaction.text(text), max)
+export function shown(text: string, max: number, redaction: Redaction): { text: string; cut: boolean } {
+  return clip(redaction.text(text), max)
 }
 
 /** Epoch milliseconds as an ISO 8601 UTC string. */

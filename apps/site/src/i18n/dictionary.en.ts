@@ -129,7 +129,7 @@ export const en = {
   },
   agents: {
     eyebrow: 'Supported agents',
-    title: 'Seven agents, found where they keep their sessions.',
+    title: 'Twelve agents, found where they keep their sessions.',
     lead: "Each agent's home override applies. A folder that does not exist shows 0 sessions and the path it checked; a file that cannot be parsed is listed with the file, line, and reason.",
     grok: 'Grok records token usage per turn, so a Grok session has one request per turn.',
   },
@@ -144,7 +144,7 @@ export const en = {
       { title: 'Read-only', body: 'Session files are read, never written. URLs carry opaque trace ids, never paths.' },
       {
         title: 'Redacted',
-        body: 'The local server replaces the home directory with ~ and a fixed set of token shapes with placeholders. Other secrets pass through.',
+        body: 'The local server replaces the home directory with ~, and a fixed set of token shapes and the values of labelled credentials such as PASSWORD= with placeholders. Other secrets pass through.',
       },
       {
         title: 'Reports are always redacted',

@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/mcp-tools.md 为准。
 
-<!-- source-blob: 2622ad5af45d83548eb59a7b149313a86dfc9738 -->
+<!-- source-blob: 1fe76ea21b1bb7b1d5de2c5861e16deb046663db -->
 
 # MCP 工具参考
 
@@ -52,7 +52,7 @@
 | `unsummarized` | 因计数仍在计算而被跳过的会话数（仅限标记过滤条件） |
 | `agents` | `[{ id, sessions }]`：服务器读取的每个代理及其会话数 |
 
-单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。
+单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。`sizeBytes` 是会话文件的大小；OpenCode 或 ZCode 会话为 0，因为其数据库文件还包含其他会话。
 
 ### `estela_session_summary`
 
@@ -107,7 +107,7 @@
 | `estela_get_event` 中的字符串 | `maxChars`；若结果仍过大，`maxChars` 按 0.75 的比例逐级下调至 256，之后依次省略 `original` 和 `payload` |
 | `estela_reconstruct` 的 id 列表 | 每个列表保留最后 100 个 id，若结果仍超过上限则继续减半 |
 
-无论 `ESTELA_REDACT` 的取值如何，每个已记录的字符串都会先脱敏再由工具截断，因此工具自身的截断绝不会遗留主目录路径的一部分。会话标题和首条提示词是例外：它们到达工具时就已经在脱敏前被截断（标题为 80 个字符，首条提示词为 500 个字符）。当它们末尾残留拼写为绝对路径、去掉前导 `/` 的路径或 JSON 转义路径的截断主目录路径时，工具会将其替换为 `~`；以其他形式拼写且在该处截断时仍可能露出用户名的开头部分（见[隐私与脱敏](../guide/privacy.zh-CN.md)）。
+无论 `ESTELA_REDACT` 的取值如何，每个已记录的字符串都会先脱敏再由工具截断，因此工具自身的截断绝不会遗留主目录路径的一部分。会话标题和首条提示词到达工具时已经在脱敏前被截断（标题为 80 个字符，首条提示词为 500 个字符）；脱敏会把这种截断在末尾留下的残缺主目录路径也替换为 `~`，覆盖它识别的所有拼写形式（见[隐私与脱敏](../guide/privacy.zh-CN.md)）。
 
 ## 错误
 

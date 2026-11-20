@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/troubleshooting.md 为准。
 
-<!-- source-blob: 4f2e5f1a0035371388cd4c8ab31eda4aab3d6cab -->
+<!-- source-blob: 3691e94779af98d0032602d61e95b3d3f6173dc6 -->
 
 # 故障排查
 
@@ -27,7 +27,7 @@ CLI 在加载其他任何模块前会先检查 Node.js 版本。运行 `node --v
 
 ## 显示 0 个会话的代理
 
-侧栏会显示 Estela 检查过的目录。如果你的会话位于其他路径，请在 Estela 的运行环境中设置对应代理的主目录覆盖变量（`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`DSH_HOME`、`GEMINI_CLI_HOME`、`GROK_HOME`、`XDG_DATA_HOME`、`PI_CODING_AGENT_DIR`；见[支持的代理](supported-agents.zh-CN.md)），或通过路径直接打开该会话。
+侧栏会显示 Estela 检查过的目录。如果你的会话位于其他路径，请在 Estela 的运行环境中设置对应代理的主目录覆盖变量（`ANTIGRAVITY_GEMINI_DIR`、`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`DSH_HOME`、`DIMCODE_HOME`、`GEMINI_CLI_HOME`、`GROK_HOME`、`KIMI_CODE_HOME`、`XDG_DATA_HOME`、`PI_CODING_AGENT_DIR`、`QODER_CONFIG_DIR`、`ZCODE_STORAGE_DIR`；见[支持的代理](supported-agents.zh-CN.md)），或通过路径直接打开该会话。
 
 ## 索引问题
 

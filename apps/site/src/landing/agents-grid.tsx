@@ -38,7 +38,8 @@ export function AgentsGrid({ t, sectionId, headingId }: { t: Dictionary; section
               <code className="mt-auto pt-4 font-mono text-[11px] text-muted-foreground">${agent.home}</code>
             </li>
           ))}
-          <li className="flex flex-col justify-end bg-background p-5 text-[13px] leading-relaxed text-muted-foreground">
+          {/* Twelve agents fill whole rows at every width, so the note takes a row of its own. */}
+          <li className="flex flex-col justify-end bg-background p-5 text-[13px] leading-relaxed text-muted-foreground sm:col-span-2 lg:col-span-4">
             {t.agents.grok}
           </li>
         </ul>
