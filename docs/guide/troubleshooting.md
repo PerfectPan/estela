@@ -23,7 +23,7 @@ A single line that is not JSON does not cause this: it is skipped and the rest o
 
 ## An agent shows 0 sessions
 
-The rail shows the folder Estela checked. If your sessions are elsewhere, set the agent's home override in the environment Estela runs in (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `GEMINI_CLI_HOME`, `GROK_HOME`, `XDG_DATA_HOME`, `PI_CODING_AGENT_DIR`; see [Supported agents](supported-agents.md)), or open the session by path.
+The rail shows the folder Estela checked. If your sessions are elsewhere, set the agent's home override in the environment Estela runs in (`ANTIGRAVITY_GEMINI_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `DIMCODE_HOME`, `GEMINI_CLI_HOME`, `GROK_HOME`, `KIMI_CODE_HOME`, `XDG_DATA_HOME`, `PI_CODING_AGENT_DIR`, `QODER_CONFIG_DIR`, `ZCODE_STORAGE_DIR`; see [Supported agents](supported-agents.md)), or open the session by path.
 
 ## Index problems
 

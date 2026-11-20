@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/getting-started.md 为准。
 
-<!-- source-blob: f8f35867a53fc9a5e7ce13eca5ee8ed592b7e325 -->
+<!-- source-blob: 8ad24a9fd3ddf595af6a18e31d35619c4e30e22d -->
 
 # 入门
 
@@ -62,7 +62,7 @@ estela ~/.claude/projects/my-app/0f8c2f1e-....jsonl
 estela ~/.local/share/opencode/opencode.db#ses_123abc
 ```
 
-参数可以是会话文件、用于包含多个会话的文件或数据库的 `path#sessionId`（OpenCode 总是采用这种形式），或规范 Estela JSON trace。Estela 会在服务器启动前加载它；如果没有代理读取器能识别该文件，则打印原因并以状态码 1 退出。也可以通过环境变量 `ESTELA_PATH` 设置相同参数。
+参数可以是会话文件、用于包含多个会话的文件或数据库的 `path#sessionId`（OpenCode、DimCode 和 ZCode 总是采用这种形式），或规范 Estela JSON trace。Estela 会在服务器启动前加载它；如果没有代理读取器能识别该文件，则打印原因并以状态码 1 退出。也可以通过环境变量 `ESTELA_PATH` 设置相同参数。
 
 ## 在终端中选择会话
 

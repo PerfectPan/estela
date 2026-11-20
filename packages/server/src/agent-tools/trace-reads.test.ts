@@ -1,7 +1,6 @@
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { describe, expect, it } from 'vite-plus/test'
-import { trimCutHome } from './bounds.ts'
 import { TraceIds } from './trace-ids.ts'
 import { listRequests, listTurns, sessionSummary } from './trace-reads.ts'
 
@@ -37,7 +36,7 @@ const trace: Trace = {
 }
 const ids = new TraceIds(trace, () => true)
 const same = <T>(value: T): T => value
-const plain = { value: same, text: (text: string) => text, cutText: (text: string) => text }
+const plain = { value: same, text: (text: string) => text }
 
 describe('trace reads', () => {
   it('summarizes recorded counts, names the unrecorded ones, and clips the title', () => {
@@ -68,7 +67,6 @@ describe('trace reads', () => {
     const kit = {
       value: <T>(value: T): T => redact(value, { home }),
       text: (text: string) => redactText(text, { home }),
-      cutText: (text: string) => trimCutHome(redactText(text, { home }), home),
     }
     const long = `${'x'.repeat(289)} ${home}/project`
     const hostile: Trace = {

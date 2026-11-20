@@ -290,7 +290,7 @@ export const en = {
     export: 'Export report',
     dialogTitle: 'Export a report of this session',
     dialogBody:
-      'The report is one index.html file that opens in a browser without a server. It is redacted: your home directory becomes ~ and API keys with known prefixes and private-key blocks are replaced; passwords, bearer tokens, and other secrets are not removed.',
+      'The report is one index.html file that opens in a browser without a server. It is redacted: your home directory becomes ~, and tokens of known shapes, private-key blocks, and the values of labelled credentials such as PASSWORD= are replaced; other secrets are not removed.',
     dialogKeeps: 'Session text and file contents remain in the report. Read it before you share it.',
     dialogLimit:
       'It holds every event as shown here, and the original records of the first {{ events }} events or {{ size }}, whichever is smaller.',

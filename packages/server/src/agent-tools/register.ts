@@ -5,7 +5,7 @@ import type * as z from 'zod/mini'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
 import { reconstruct } from '@rivus/estela-kernel'
-import { trimCutHome, type Redaction } from './bounds.ts'
+import type { Redaction } from './bounds.ts'
 import { DEFAULT_MAX_CHARS, eventResult, surfaceResult } from './event-read.ts'
 import {
   getEventInput,
@@ -64,7 +64,7 @@ function messageOf(error: unknown): string {
 export function registerAgentTools(host: AgentToolHost, deps: AgentToolDeps): string[] {
   const present = <T>(value: T): T => redact(value, { home: deps.home })
   const scrub = (text: string): string => redactText(text, { home: deps.home })
-  const redaction: Redaction = { value: present, text: scrub, cutText: text => trimCutHome(scrub(text), deps.home) }
+  const redaction: Redaction = { value: present, text: scrub }
   const shown = new WeakMap<Trace, TraceIds>()
   const idsOf = (trace: Trace): TraceIds => {
     let ids = shown.get(trace)

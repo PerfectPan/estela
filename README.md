@@ -56,19 +56,24 @@ Anything a log does not record is shown as `unavailable`, never estimated.
 
 | Agent | Sessions found in |
 |---|---|
+| Antigravity CLI | `~/.gemini/antigravity-cli/brain/` |
 | Claude Code | `~/.claude/projects/` |
 | Codex | `~/.codex/sessions/`, `~/.codex/archived_sessions/` |
 | DeepSeek Harness | `~/.dsh/sessions/` |
+| DimCode | `~/.dimcode/v2/dimcode.sqlite` |
 | Gemini CLI | `~/.gemini/tmp/` |
 | Grok | `~/.grok/sessions/` |
+| Kimi Code | `~/.kimi-code/sessions/` |
 | OpenCode | `~/.local/share/opencode/opencode.db` |
 | Pi | `~/.pi/agent/sessions/` |
+| Qoder CLI | `~/.qoder/projects/` |
+| ZCode | `~/.zcode/cli/db/db.sqlite` |
 
 Each agent's home override is honored. What each agent's log records (system prompt, tool definitions, usage, subagents, compaction) differs; see [Supported agents](docs/guide/supported-agents.md).
 
 ## Privacy
 
-Estela runs locally, binds `localhost`, and only reads the session logs. It keeps an unredacted cache of session titles, paths, numbers, and up to 200 of your prompts per session in `~/.cache/rivus-estela/`, which you can delete at any time. Redaction replaces your home directory and some token shapes, but not every secret, and a report still contains session text and file contents: read a report before you share it. Details in [Privacy and redaction](docs/guide/privacy.md).
+Estela runs locally, binds `localhost`, and only reads the session logs. It keeps an unredacted cache of session titles, paths, numbers, and up to 200 of your prompts per session in `~/.cache/rivus-estela/`, which you can delete at any time. Redaction replaces your home directory, some token shapes, and the values of labelled credentials such as `PASSWORD=`, but not every secret, and a report still contains session text and file contents: read a report before you share it. Details in [Privacy and redaction](docs/guide/privacy.md).
 
 ## Documentation
 

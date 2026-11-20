@@ -1,7 +1,6 @@
 import type { SessionListRow } from '@rivus/estela-rpc'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { describe, expect, it } from 'vite-plus/test'
-import { trimCutHome } from './bounds.ts'
 import { listSessionPage, type SessionSource } from './session-list.ts'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -31,7 +30,7 @@ const same = <T>(value: T): T => value
 /** Built from parts: the repository check rejects a literal home path in a tracked file. */
 const LIST_HOME = ['', 'home', 'u'].join('/')
 const tilde = (text: string): string => text.replace(LIST_HOME, '~')
-const redaction = { value: same, text: tilde, cutText: tilde }
+const redaction = { value: same, text: tilde }
 
 describe('listSessionPage', () => {
   const rows = [
@@ -100,7 +99,6 @@ describe('listSessionPage', () => {
     const kit = {
       value: <T>(value: T): T => redact(value, { home }),
       text: (text: string) => redactText(text, { home }),
-      cutText: (text: string) => trimCutHome(redactText(text, { home }), home),
     }
     const prompt = `${'x'.repeat(289)} ${home}/project`
     const page = await listSessionPage(
@@ -120,7 +118,6 @@ describe('listSessionPage', () => {
     const kit = {
       value: <T>(value: T): T => redact(value, { home }),
       text: (text: string) => redactText(text, { home }),
-      cutText: (text: string) => trimCutHome(redactText(text, { home }), home),
     }
     // The kit's title is the first prompt cut to 80 characters, before anything redacts it.
     const prompt = `${'x'.repeat(70)} ${home}/project fix it`

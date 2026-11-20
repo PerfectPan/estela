@@ -136,6 +136,71 @@ const GROK: ConformanceSession[] = [
   { path: 'unknown-type/updates.jsonl', records: 1, capabilities: [] },
 ]
 
+// The five agents below come with the fixtures their kit reader's own conformance suite uses, copied as they are.
+
+const QODER: ConformanceSession[] = [
+  {
+    path: 'projects/-u-me-work/s-1.jsonl',
+    records: 6,
+    capabilities: ['requests', 'usage', 'reasoning', 'compaction', 'subagents'],
+  },
+]
+
+const KIMI: ConformanceSession[] = [
+  {
+    path: 'sessions/wd_demo_111111111111/session_demo-1/agents/main/wire.jsonl',
+    records: 21,
+    capabilities: ['requests', 'usage', 'durations', 'systemPrompt', 'toolSchemas'],
+  },
+  {
+    path: 'sessions/wd_demo_111111111111/session_demo-2/agents/main/wire.jsonl',
+    records: 19,
+    capabilities: ['requests', 'usage', 'durations', 'systemPrompt'],
+  },
+]
+
+const AGY: ConformanceSession[] = [
+  {
+    // Discovery lists the full transcript when the folder has both.
+    path: 'antigravity-cli/brain/conv-1/.system_generated/logs/transcript_full.jsonl',
+    records: 6,
+    capabilities: ['requests', 'usage', 'reasoning', 'compaction'],
+  },
+]
+
+/** One database row per record: the session, then each message and each of its parts. */
+const ZCODE: ConformanceSession[] = [
+  {
+    path: 'cli/db/db.sqlite',
+    sessionId: 'smoke',
+    records: 7,
+    recordKeys: Array.from({ length: 7 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'reasoning'],
+  },
+]
+
+/** The kit's runner checks that each listed key is covered, so every row is listed: two messages, then two usage rows. */
+const DIM: ConformanceSession[] = [
+  {
+    path: 'dimcode.sqlite',
+    sessionId: 's1',
+    records: 4,
+    recordKeys: Array.from({ length: 4 }, (_, index) => `dimcode.sqlite\0${index + 1}`),
+    capabilities: ['requests', 'usage'],
+  },
+]
+
+/**
+ * Where discovery starts, below an agent's conformance folder, for the agents whose root is not the folder itself:
+ * the folder their home rule names, or DimCode's database file.
+ */
+const DISCOVERY_ROOTS: Partial<Record<string, string>> = {
+  qoder: 'projects',
+  kimi: 'sessions',
+  agy: 'antigravity-cli/brain',
+  dim: 'dimcode.sqlite',
+}
+
 /** The oversized line each old conformance suite used, one temp root per adapter so a discover run lists only its own file. */
 const OVERSIZED_LINES: Record<string, string | undefined> = {
   'claude-code': '{"type":"user","timestamp":"2026-01-01T00:00:00.000Z","message":{"role":"user","content":"x"}}',
@@ -185,11 +250,17 @@ describe('session adapter conformance', () => {
     ['gemini-cli', builtinAdapters['gemini-cli']!, GEMINI],
     ['dsh', builtinAdapters.dsh!, DSH],
     ['opencode', builtinAdapters.opencode!, OPENCODE],
+    ['qoder', builtinAdapters.qoder!, QODER],
+    ['kimi', builtinAdapters.kimi!, KIMI],
+    ['agy', builtinAdapters.agy!, AGY],
+    ['zcode', builtinAdapters.zcode!, ZCODE],
+    ['dim', builtinAdapters.dim!, DIM],
   ] as const) {
     const oversized = oversizedOf(agent)
+    const subdirectory = DISCOVERY_ROOTS[agent]
     const fixtures: SessionAdapterFixtures = {
       platform,
-      root: fixturesOf(agent),
+      root: subdirectory === undefined ? fixturesOf(agent) : kitJoin(fixturesOf(agent), subdirectory),
       sessions: sessionsOf(fixturesOf(agent), sessions),
       ...(oversized === undefined ? {} : { oversized }),
     }

@@ -1,11 +1,16 @@
 const LETTER: Record<string, string> = {
+  agy: 'A',
   'claude-code': 'C',
   codex: 'X',
+  dim: 'DM',
   dsh: 'D',
   grok: 'G',
   'gemini-cli': 'GM',
+  kimi: 'K',
   opencode: 'O',
   pi: 'P',
+  qoder: 'Q',
+  zcode: 'Z',
 }
 
 function agentLetter(id: string): string {

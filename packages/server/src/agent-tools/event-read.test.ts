@@ -21,11 +21,10 @@ function traceOf(events: TraceEvent[]): Trace {
 
 const same = <T>(value: T): T => value
 const homeToTilde = <T>(value: T): T => JSON.parse(JSON.stringify(value).replaceAll('/h', '~'))
-const plain = { value: same, text: (text: string) => text, cutText: (text: string) => text }
+const plain = { value: same, text: (text: string) => text }
 const tilde = {
   value: homeToTilde,
   text: (text: string) => text.replaceAll('/h', '~'),
-  cutText: (text: string) => text.replaceAll('/h', '~'),
 }
 
 describe('eventResult', () => {

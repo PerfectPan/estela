@@ -52,7 +52,7 @@ The failure kinds and their exit code are one table in `apps/cli/src/entry/failu
 | `ESTELA_REDACT` | `0` turns redaction off for the local server and the ATIF and OTLP exports; reports and MCP results always redact | `write-export.test.ts`, `packages/server/test/agent-tools.test.ts` (S18) |
 | `NO_COLOR` | Plain output lines with no escape sequences (also when stdout is not a terminal) | `apps/cli/src/entry/ui/terminal.test.ts`, `cli-smoke.test.ts` |
 | `XDG_CACHE_HOME` | Where the session index lives (`$XDG_CACHE_HOME/rivus-estela/`) | `packages/runtime-node` index tests |
-| `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `GEMINI_CLI_HOME`, `GROK_HOME`, `XDG_DATA_HOME`, `PI_CODING_AGENT_DIR` | The agents' own home overrides, read as each agent reads them | the session readers' tests in `@rivus/agent-kit` |
+| `ANTIGRAVITY_GEMINI_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `DIMCODE_HOME`, `GEMINI_CLI_HOME`, `GROK_HOME`, `KIMI_CODE_HOME`, `XDG_DATA_HOME`, `PI_CODING_AGENT_DIR`, `QODER_CONFIG_DIR`, `ZCODE_STORAGE_DIR` | The agents' own home overrides, read as each agent reads them | the session readers' tests in `@rivus/agent-kit` |
 
 ### Session locations
 
