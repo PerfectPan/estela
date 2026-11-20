@@ -2,6 +2,18 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.5.0
+
+### Minor Changes
+
+- [#162](https://github.com/PerfectPan/estela/pull/162) [`39b3cb5`](https://github.com/PerfectPan/estela/commit/39b3cb599b98fd6fd5a6382240a636876b1d3dc9) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Read Antigravity CLI, DimCode, Kimi Code, and Qoder CLI sessions, and list ZCode, which was already read, by its product name. Redaction now also replaces Stripe, GitLab, Hugging Face, and Google keys, JWTs, Slack webhook URLs, the values of credential assignments such as `PASSWORD=` and `client_secret:`, `Authorization` header values, and URL passwords. A session title or first prompt cut inside a home path no longer shows the start of the user name, in any spelling. Both come from `@rivus/agent-kit` 0.26.0. ZCode and DimCode sessions now see commits still in the database's write-ahead log, as OpenCode sessions did. An OpenCode or ZCode session keeps its cached summary across a start where nothing was written to it, and `estela_list_sessions` reports `sizeBytes` 0 for it, since the database file holds other sessions too.
+
+- [#157](https://github.com/PerfectPan/estela/pull/157) [`6b74185`](https://github.com/PerfectPan/estela/commit/6b74185dc6a586600fe900305a1fd30b5c7436f9) Thanks [@PerfectPan](https://github.com/PerfectPan)! - `estela --mcp` now requires a bearer token on the HTTP MCP route: clients send `Authorization: Bearer <token>` with the token printed at startup, or set `ESTELA_MCP_TOKEN` to choose one that survives restarts. `--mcp` is refused with a `--host` that is not a loopback address.
+
+### Patch Changes
+
+- [#78](https://github.com/PerfectPan/estela/pull/78) [`9845827`](https://github.com/PerfectPan/estela/commit/9845827fe2e21312291a96963fe67b8e7a32bdef) Thanks [@renovate](https://github.com/apps/renovate)! - The CLI bundle and the bundled web UI are built with Vite+ 1.5.0 (Vite 8.3.5 and Rolldown 1.2.16; the CLI bundle also moves to tsdown 0.23.4).
+
 ## 0.4.0
 
 ### Minor Changes
