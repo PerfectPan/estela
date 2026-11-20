@@ -8,7 +8,7 @@ import {
 } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
-import { adapterDisplayName, keepsSessionsInDatabase } from '../sessions/adapters.ts'
+import { adapterDisplayName, keepsSessionsInDatabase, keysRowByOwnWrite } from '../sessions/adapters.ts'
 import { errorMessage, listError } from '../sessions/read-failure.ts'
 import { errorRow, rowFromHead, type LiveRow } from './rows.ts'
 
@@ -154,11 +154,9 @@ export async function discoverRows(
           const target = head.ref
           if (info !== undefined && info.kind === 'file') {
             // Every session in one database shares the file stamp, and another session's write changes it.
-            // This session's own last write is what changes its summary, so that alone is its cache key; the
-            // shared size says nothing about this row and would invalidate all of them.
-            const key = keepsSessionsInDatabase(state.adapter.agent)
-              ? { size: 0, mtimeMs: head.lastActiveAt }
-              : undefined
+            // Where this session's own last write moves with every write to it, that alone is its cache key;
+            // the shared size says nothing about this row and would invalidate all of them.
+            const key = keysRowByOwnWrite(state.adapter.agent) ? { size: 0, mtimeMs: head.lastActiveAt } : undefined
             add(rowFromHead(target, head, info, platform.home, (perFile.get(head.ref.path) ?? 0) > 1, key))
           } else {
             add(

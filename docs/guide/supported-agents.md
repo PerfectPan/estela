@@ -35,7 +35,7 @@ What Estela can show depends on what the agent writes to its log. This table com
 | Claude Code | from prompt snapshots (Claude Code 2.1.268 and later) | from prompt snapshots (2.1.268 and later) | per request | read, write (5-minute and 1-hour) | yes | yes, with tokens before and after | yes | yes |
 | Codex | when the rollout records it (older rollouts do not) | not recorded | per request | read, write when recorded | yes | yes, without token counts | yes | not recorded |
 | DeepSeek Harness | yes | yes | per request | read, write | not recorded | yes, with tokens | not recorded | not recorded |
-| DimCode | not read | not read | per request | read, write | not read | not read | not read | not read |
+| DimCode | not read | not read | per run (below) | read, write | not read | not read | not read | not read |
 | Gemini CLI | not recorded | not recorded | per request | read only | not recorded | yes, with tokens | not recorded | not recorded |
 | Grok | when the session folder has the prompt file | when the session folder has the tools file | per turn (below) | read, write | yes | yes, with tokens | yes | yes |
 | Kimi Code | yes | when the wire records them | per request | read, write | not read (below) | not read | yes | not read |
@@ -51,7 +51,9 @@ When a log does not record the system prompt or tool definitions, those slots of
 ## Known limits
 
 - **Grok records usage only per turn.** Each Grok request covers one whole turn (several model calls, subagents that finished within it included), so a Grok session has one request per turn, not one per model call. Grok also logs its own cost per turn; Estela shows the list price of the recorded tokens instead ([Cost](workspace.md#cost)).
+- **DimCode records usage per run.** Each DimCode request is one usage row DimCode wrote for a run of the agent, which can cover several model calls, so a DimCode session has fewer requests than model calls.
+- **ZCode 0.16.5 databases cannot be read yet.** Their session table has no `time_deleted` column, which the reader expects, so the session list shows the database as one session that could not be read ([agent-kit#331](https://github.com/PerfectPan/agent-kit/issues/331)).
 - **Kimi Code subagents are not read.** A Kimi Code session shows its main agent only; the subagents' wires (`agents/<id>/wire.jsonl`) are not opened.
-- **Agent-logged cost is not shown.** OpenCode, Pi, Grok, ZCode, and DimCode log a cost of their own, and Codex logs a priority-tier multiplier. The readers do not pass these to the viewer yet, so the cost Estela shows can differ from what those agents logged.
+- **Agent-logged cost is not shown.** OpenCode, Pi, Grok, ZCode, and DimCode log a cost of their own, and Codex logs a priority-tier multiplier. Estela shows the list price of the recorded tokens instead, so the cost it shows can differ from what those agents logged.
 - **New log formats are rejected, not guessed.** When an agent release changes its log format in a way the reader does not know, the session shows "Could not read" with the file, line, and reason instead of a partial session. Reading resumes after an Estela release with an updated reader (see [Troubleshooting](troubleshooting.md#a-session-says-could-not-read)).
 - **One line can be skipped.** A line that is not JSON is skipped and counted, and the rest of the session loads.

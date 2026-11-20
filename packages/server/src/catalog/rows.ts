@@ -149,8 +149,9 @@ export function rowFromHead(
     size: key.size,
     mtimeMs: key.mtimeMs,
     lastActiveAt: head.lastActiveAt,
-    // The stat size, like a row from the index, so an unchanged file compares equal.
-    sizeBytes: info.size,
+    // The key's size, as a row from the index has it, so an unchanged session compares equal: the stat size, or 0
+    // for a database row keyed by its own last write, where the shared file's size says nothing about this session.
+    sizeBytes: key.size,
     pending: true,
     revision: 0,
   }

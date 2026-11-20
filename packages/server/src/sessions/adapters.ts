@@ -19,13 +19,26 @@ export function adapterDisplayName(adapter: SessionAdapter): string {
 /**
  * Agents that keep every session as rows of one SQLite database, which the kit's adapters do not say. All of its
  * sessions share the database file's stamp, and a commit can sit in its write-ahead log without touching the file, so
- * the catalog adds the log to the stamp, keys each row by its session's own last write, and always puts the session
- * id in the trace id.
+ * the catalog adds the log to the stamp and always puts the session id in the trace id.
+ *
+ * `ownStamp`: the session's `lastActiveAt` moves with every write to that session, so the catalog keys the row by it
+ * and a write to one session leaves the others' cached summaries alone. OpenCode's does, and ZCode's did on a real
+ * 0.16.5 database (no message or part written after its session's `time_updated`). DimCode's `updatedAt` is not known
+ * to move when a message or usage row is added, so a DimCode row keys on the whole database's stamp.
  */
-const DATABASE_AGENTS: ReadonlySet<string> = new Set(['opencode', 'zcode', 'dim'])
+const DATABASE_AGENTS: ReadonlyMap<string, { ownStamp: boolean }> = new Map([
+  ['opencode', { ownStamp: true }],
+  ['zcode', { ownStamp: true }],
+  ['dim', { ownStamp: false }],
+])
 
 export function keepsSessionsInDatabase(agent: string): boolean {
   return DATABASE_AGENTS.has(agent)
+}
+
+/** Whether a row is keyed by its session's own last write rather than the database's stamp; see `DATABASE_AGENTS`. */
+export function keysRowByOwnWrite(agent: string): boolean {
+  return DATABASE_AGENTS.get(agent)?.ownStamp === true
 }
 
 /** Adapt the shell's reader registry to the kit's provider SPI. */

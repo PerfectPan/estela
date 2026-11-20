@@ -8,8 +8,13 @@ import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 
-// The agents whose sessions are rows of one shared database (`keepsSessionsInDatabase`).
-for (const agent of ['opencode', 'zcode', 'dim'] as const) {
+// The agents whose sessions are rows of one shared database (`DATABASE_AGENTS`), and whether a row is keyed by its
+// session's own last write or by the whole database's stamp.
+for (const [agent, ownStamp] of [
+  ['opencode', true],
+  ['zcode', true],
+  ['dim', false],
+] as const) {
   it(`keeps ${agent} session ids stable and invalidates a cached summary when the session is written`, async () => {
     const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
     const root = join(home, 'sessions')
@@ -80,7 +85,7 @@ for (const agent of ['opencode', 'zcode', 'dim'] as const) {
     }
   })
 
-  it(`recomputes only the ${agent} session whose own last write changed`, async () => {
+  it(`recomputes ${ownStamp ? 'only the session whose own last write changed' : 'every session'} after a ${agent} write`, async () => {
     const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
     const root = join(home, 'sessions')
     await mkdir(root)
@@ -147,12 +152,69 @@ for (const agent of ['opencode', 'zcode', 'dim'] as const) {
       await writeFile(`${path}-wal`, 'new committed rows')
       catalog = open()
       await catalog.whenIdle()
-      // The unchanged session comes from its own cache entry; only the written one is summarized again.
-      expect(loads).toEqual(['1'])
+      // Keyed by its own last write, the unchanged session comes from its cache entry; keyed by the database's
+      // stamp, which the WAL write moved, every session is summarized again.
+      expect(loads.toSorted()).toEqual(ownStamp ? ['1'] : ['0', '1'])
       const after = (await catalog.listSessions()).rows
       expect(after.map(row => row.requests).toSorted((a, b) => a! - b!)).toEqual([1, 3])
     } finally {
       catalog.close()
+      await rm(home, { recursive: true, force: true })
+    }
+  })
+
+  it(`keeps every ${agent} row unchanged across a cached start when nothing was written`, async () => {
+    const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
+    const root = join(home, 'sessions')
+    await mkdir(root)
+    const path = join(root, 'sessions.db')
+    await writeFile(path, 'unchanged database')
+    await writeFile(`${path}-wal`, 'committed rows')
+    const source = { file: path, offset: 0, length: 0, line: 1 }
+    const adapter: SessionAdapter = {
+      specificationVersion: 'sessions-v1',
+      agent,
+      displayName: agent,
+      home: { defaultPath: [] },
+      capabilities: ['requests'],
+      roots: () => [root],
+      async *discover() {
+        for (const [index, stamp] of [100, 200].entries()) {
+          yield { ref: { agent, path, sessionId: String(index) }, lastActiveAt: stamp, sizeBytes: 0 }
+        }
+      },
+      async detect() {
+        return false
+      },
+      async load(_platform, ref) {
+        return ok({
+          agent,
+          session: { id: ref.sessionId! },
+          capabilities: ['requests'],
+          agents: [{ id: 'main' }],
+          skipped: [],
+          events: [{ id: '0', seq: 0, ts: 0, kind: 'request' as const, payload: {}, source }],
+        })
+      },
+    }
+    const file = join(home, 'index.sqlite')
+    const open = () =>
+      new SessionCatalog({
+        platform: createNodePlatform({ home, env: {} }),
+        adapters: { [agent]: adapter },
+        index: openSessionIndex({ file, summaryVersion: 1 }),
+      })
+    const first = open()
+    await first.whenIdle()
+    first.close()
+    const second = open()
+    try {
+      // The rows the index holds, then this start's discovery: a row it finds unchanged keeps its revision.
+      const cached = await second.listSessions()
+      await second.discovered()
+      expect((await second.listSessions({ since: cached.revision })).rows).toEqual([])
+    } finally {
+      second.close()
       await rm(home, { recursive: true, force: true })
     }
   })

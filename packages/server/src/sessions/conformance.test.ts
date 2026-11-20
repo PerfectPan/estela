@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { projectTurns, reconstruct } from '@rivus/estela-kernel'
-import { builtinAdapters } from './adapters.ts'
+import { builtinAdapters, keepsSessionsInDatabase } from './adapters.ts'
 import {
   oversizedSession,
   sessionAdapterConformance,
@@ -241,21 +241,28 @@ afterAll(() => {
   }
 })
 
+/** Every built-in adapter with its fixture sessions. */
+const SUITES = [
+  ['claude-code', CLAUDE],
+  ['codex', CODEX],
+  ['grok', GROK],
+  ['pi', PI],
+  ['gemini-cli', GEMINI],
+  ['dsh', DSH],
+  ['opencode', OPENCODE],
+  ['qoder', QODER],
+  ['kimi', KIMI],
+  ['agy', AGY],
+  ['zcode', ZCODE],
+  ['dim', DIM],
+] as const
+
 describe('session adapter conformance', () => {
-  for (const [agent, adapter, sessions] of [
-    ['claude-code', builtinAdapters['claude-code']!, CLAUDE],
-    ['codex', builtinAdapters.codex!, CODEX],
-    ['grok', builtinAdapters.grok!, GROK],
-    ['pi', builtinAdapters.pi!, PI],
-    ['gemini-cli', builtinAdapters['gemini-cli']!, GEMINI],
-    ['dsh', builtinAdapters.dsh!, DSH],
-    ['opencode', builtinAdapters.opencode!, OPENCODE],
-    ['qoder', builtinAdapters.qoder!, QODER],
-    ['kimi', builtinAdapters.kimi!, KIMI],
-    ['agy', builtinAdapters.agy!, AGY],
-    ['zcode', builtinAdapters.zcode!, ZCODE],
-    ['dim', builtinAdapters.dim!, DIM],
-  ] as const) {
+  it('covers every built-in adapter', () => {
+    expect(SUITES.map(([agent]) => agent).toSorted()).toEqual(Object.keys(builtinAdapters).toSorted())
+  })
+  for (const [agent, sessions] of SUITES) {
+    const adapter = builtinAdapters[agent]!
     const oversized = oversizedOf(agent)
     const subdirectory = DISCOVERY_ROOTS[agent]
     const fixtures: SessionAdapterFixtures = {
@@ -272,6 +279,24 @@ describe('session adapter conformance', () => {
           await expect(run()).resolves.toBeUndefined()
         })
       }
+    })
+  }
+})
+
+describe('database agents', () => {
+  // The catalog's database rules (`keepsSessionsInDatabase`) are a list the kit does not supply, so a new reader
+  // whose records are SQLite rows must be added to it.
+  for (const [agent, sessions] of SUITES) {
+    it(`${agent} is a database agent exactly when its records are SQLite rows`, async () => {
+      const [first] = sessionsOf(fixturesOf(agent), [...sessions])
+      const loaded = await builtinAdapters[agent]!.load(platform, {
+        agent,
+        path: first!.path,
+        ...(first!.sessionId === undefined ? {} : { sessionId: first!.sessionId }),
+      })
+      expect(loaded.ok).toBe(true)
+      const rows = loaded.ok && loaded.value.events.some(event => event.source.sqlite !== undefined)
+      expect(rows).toBe(keepsSessionsInDatabase(agent))
     })
   }
 })
