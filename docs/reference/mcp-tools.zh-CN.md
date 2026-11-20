@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/mcp-tools.md 为准。
 
-<!-- source-blob: 5c8b7ba98aaa6332156b68086138d5524e4963b4 -->
+<!-- source-blob: 1fe76ea21b1bb7b1d5de2c5861e16deb046663db -->
 
 # MCP 工具参考
 
@@ -52,7 +52,7 @@
 | `unsummarized` | 因计数仍在计算而被跳过的会话数（仅限标记过滤条件） |
 | `agents` | `[{ id, sessions }]`：服务器读取的每个代理及其会话数 |
 
-单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。
+单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。`sizeBytes` 是会话文件的大小；OpenCode 或 ZCode 会话为 0，因为其数据库文件还包含其他会话。
 
 ### `estela_session_summary`
 

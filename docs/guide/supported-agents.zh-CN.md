@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/supported-agents.md 为准。
 
-<!-- source-blob: e9fc188e0ac1b0b62a5a6cd35b4d01222f798809 -->
+<!-- source-blob: a440906ac1730d7b920c7ffd9706d43a59b1d9a2 -->
 
 # 支持的代理
 
@@ -39,7 +39,7 @@ Estela 能展示什么取决于代理写入日志的内容。下表依据各读�
 | Claude Code | 来自提示词快照（Claude Code 2.1.268 及更高版本） | 来自提示词快照（2.1.268 及更高版本） | 按请求 | 读取、写入（5 分钟和 1 小时） | 是 | 是，含压缩前后 Token 数 | 是 | 是 |
 | Codex | 当 rollout 有记录时（较旧的 rollout 不记录） | 未记录 | 按请求 | 读取，有记录时含写入 | 是 | 是，不含 Token 数 | 是 | 未记录 |
 | DeepSeek Harness | 是 | 是 | 按请求 | 读取、写入 | 未记录 | 是，含 Token 数 | 未记录 | 未记录 |
-| DimCode | 未读取 | 未读取 | 按运行（见下文） | 读取、写入 | 未读取 | 未读取 | 未读取 | 未读取 |
+| DimCode | 未读取 | 未读取 | 按用量记录（见下文） | 读取、写入 | 未读取 | 未读取 | 未读取 | 未读取 |
 | Gemini CLI | 未记录 | 未记录 | 按请求 | 仅读取 | 未记录 | 是，含 Token 数 | 未记录 | 未记录 |
 | Grok | 当会话目录包含提示词文件时 | 当会话目录包含工具文件时 | 按轮次（见下文） | 读取、写入 | 是 | 是，含 Token 数 | 是 | 是 |
 | Kimi Code | 是 | 当 wire 有记录时 | 按请求 | 读取、写入 | 未读取（见下文） | 未读取 | 是 | 未读取 |
@@ -55,7 +55,7 @@ Estela 读取每个代理的请求和 Token 用量；除 DimCode 和 Kimi Code �
 ## 已知限制
 
 - **Grok 仅按轮次记录用量。** 每个 Grok 请求覆盖整整一轮（包括其中多次模型调用以及在轮次内完成的子代理），因此一个 Grok 会话中每轮只有一条请求，而不是每次模型调用一条。Grok 也会在日志中记录自己的每轮费用；Estela 改为显示已记录 Token 的目录价（[费用](workspace.zh-CN.md#费用)）。
-- **DimCode 按运行记录用量。** 每个 DimCode 请求对应 DimCode 为一次代理运行写入的一条用量记录，可能涵盖多次模型调用，因此一个 DimCode 会话的请求数少于模型调用次数。
+- **DimCode 按结算记录用量，而不是按模型调用。** 每个 DimCode 请求对应 DimCode 用量台账中的一行。一次代理运行可能写入多行，一行也可能涵盖多次模型调用。
 - **暂时无法读取 ZCode 0.16.5 的数据库。** 其会话表没有读取器需要的 `time_deleted` 列，因此会话列表会把该数据库显示为一个无法读取的会话（[agent-kit#331](https://github.com/PerfectPan/agent-kit/issues/331)）。
 - **不读取 Kimi Code 的子代理。** Kimi Code 会话只显示主代理；子代理的 wire（`agents/<id>/wire.jsonl`）不会被打开。
 - **不显示代理自行记录的费用。** OpenCode、Pi、Grok、ZCode 和 DimCode 会记录各自的费用，Codex 会记录优先服务等级的倍率。Estela 改为显示已记录 Token 的目录价，因此显示的费用可能与这些代理自身记录的金额不同。

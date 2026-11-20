@@ -48,7 +48,7 @@ Audience: someone who writes an MCP client against `estela mcp`, or changes the 
 | `unsummarized` | sessions left out because their counts were still being computed (flag filters only) |
 | `agents` | `[{ id, sessions }]`: every agent the server reads, with its session count |
 
-A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, `lastActiveAt`, `sizeBytes`, `firstPrompt?`, `summary`, the counts `turns?`, `requests?`, `inputTokens?`, `outputTokens?`, `durationMs?`, `compactions?`, `subagents?`, `failedTools?`, `error?` (`{ reason, file?, line? }`), and `truncated?`. `summary` is `ready`, `pending` (counts not computed yet), or `failed` (the session could not be read; see `error`).
+A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, `lastActiveAt`, `sizeBytes`, `firstPrompt?`, `summary`, the counts `turns?`, `requests?`, `inputTokens?`, `outputTokens?`, `durationMs?`, `compactions?`, `subagents?`, `failedTools?`, `error?` (`{ reason, file?, line? }`), and `truncated?`. `summary` is `ready`, `pending` (counts not computed yet), or `failed` (the session could not be read; see `error`). `sizeBytes` is the size of the session's file, and 0 for an OpenCode or ZCode session, whose database file holds other sessions too.
 
 ### `estela_session_summary`
 
