@@ -5,6 +5,7 @@ import { formatDuration, formatInOut, formatNumber, formatOptional, formatWhen }
 import { ContextShape } from '@/browser/context-shape.tsx'
 import { AgentMark } from '@/browser/agent-mark.tsx'
 import { Metric } from '@/components/metric.tsx'
+import { UnknownFormatHint } from '@/components/unknown-format-hint.tsx'
 import { costBasisText, listCostText } from '@/lib/cost-text.ts'
 
 const dash = () => t('common.dash')
@@ -53,6 +54,7 @@ export function SessionPreview(props: {
               )}
             </Show>
             <span class="text-muted-foreground [overflow-wrap:anywhere]">{error().reason}</span>
+            <UnknownFormatHint reason={error().reason} />
           </div>
         )}
       </Show>

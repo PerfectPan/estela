@@ -39,6 +39,21 @@ describe('failureReport sanitization', () => {
     expect(exportOut.exitCode).toBe(1)
     expect(exportOut.message?.fix).toContain('--out')
   })
+
+  it('points unknown format generation failures to the issue tracker', () => {
+    const report = failureReport({
+      kind: 'session',
+      action: 'load',
+      label: '/tmp/session.jsonl',
+      cause: new Error('claude-code: /tmp/session.jsonl:1: unknown format generation'),
+    })
+    expect(report.exitCode).toBe(1)
+    expect(report.message?.cause).toBe(
+      'Could not load /tmp/session.jsonl: claude-code: /tmp/session.jsonl:1: unknown format generation',
+    )
+    expect(report.message?.fix).toContain('https://github.com/PerfectPan/estela/issues/new/choose')
+    expect(report.message?.fix).toContain('npx @rivus/estela@latest')
+  })
 })
 
 describe('isListenFailure and listen reports', () => {

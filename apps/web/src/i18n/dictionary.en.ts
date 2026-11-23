@@ -20,6 +20,9 @@ export const en = {
     finishReason: 'finish {{ reason }}',
     openSession: 'Open session',
     couldNotRead: 'Could not read',
+    unknownFormatHint:
+      'This agent may have changed its log format. Update Estela, or report the agent name, version, and reason line:',
+    reportIssue: 'Report on GitHub',
     line: 'line {{ line }}',
     loading: 'Loading…',
     nothingLeaves: 'reads session logs on this machine, nothing leaves it',

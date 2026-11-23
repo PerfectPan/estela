@@ -1,5 +1,6 @@
 import type { LoadFailure } from './load-session.ts'
 import { Show } from 'solid-js'
+import { UnknownFormatHint } from '@/components/unknown-format-hint.tsx'
 import { translate as t } from '@/i18n/locale.ts'
 import { agentName } from '@/lib/agent-names.ts'
 import { ConnectionLost } from '@/shell/connection-lost.tsx'
@@ -41,6 +42,7 @@ export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void })
         <dt class="text-subtle">{t('workspace.errorReason')}</dt>
         <dd class="m-0 break-words whitespace-pre-wrap text-muted-foreground">{props.failure.reason}</dd>
       </dl>
+      <UnknownFormatHint reason={props.failure.reason} />
       <div class="flex items-center gap-4 text-[13px]">
         <a href="#/" class="text-link hover:underline">
           {t('workspace.back')}
