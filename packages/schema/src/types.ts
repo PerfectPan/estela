@@ -247,6 +247,8 @@ const laneSchema = z.object({
   title: z.optional(z.string()),
   /** This lane's own system prompt, when the agent records one per lane. */
   systemPrompt: z.optional(z.string()),
+  /** The session records this subagent, but its own log is missing or could not be read. */
+  unavailable: z.optional(z.boolean()),
 }) satisfies z.ZodMiniType<Lane, Lane>
 
 /** `Trace.session`: the kit's `TranscriptSession`, plus the field a view trace adds. */

@@ -243,8 +243,8 @@ describe('loadSession', () => {
     const path = join(dir, 'huge.trace.json')
     await writeFile(path, canonicalHook({ type: 'hook_success', name: 'PreToolUse' }))
     const base = createNodePlatform({ home: dir, env: {} })
-    // `loadSession` reads the `toKitPath` form of the path.
-    const read = toKitPath(path)
+    // `loadSession` reads a canonical file at the path as given.
+    const read = path
     const wrapped = {
       ...base,
       fs: {

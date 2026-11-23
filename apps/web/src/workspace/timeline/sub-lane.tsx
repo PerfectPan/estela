@@ -1,6 +1,7 @@
 import type { LaneDraw } from './timeline-data.ts'
 import type { Bar, TimeScale } from '@/lib/timeline-scale.ts'
 import { For, Show, createMemo } from 'solid-js'
+import { translate as t } from '@/i18n/locale.ts'
 import { escapeBidi } from '@/lib/preview.ts'
 import { barHolding, bucketBars, xOf } from '@/lib/timeline-scale.ts'
 import { LAYOUT } from './timeline-layout.ts'
@@ -47,7 +48,8 @@ export function SubLane(props: {
   const barOf = (id: string | undefined) => barHolding(bars(), props.draw.bars, id, props.scale, BAR_GAP)
   const selected = createMemo(() => barOf(props.selectedId))
   const compared = createMemo(() => (props.compareId === props.selectedId ? undefined : barOf(props.compareId)))
-  const title = () => escapeBidi(props.draw.lane.title ?? props.draw.lane.id)
+  const name = () => escapeBidi(props.draw.lane.title ?? props.draw.lane.id)
+  const title = () => (props.draw.lane.unavailable ? t('timeline.laneUnavailable', { title: name() }) : name())
   const label = () => props.fit(title(), props.scale.x0 - LAYOUT.labelX - 12)
   const span = () => {
     const { from, to } = props.draw
@@ -60,7 +62,7 @@ export function SubLane(props: {
   return (
     <g data-lane={props.draw.lane.id}>
       <text x={LAYOUT.labelX} y={y() + 4} class="font-sans" font-size="12" fill="var(--muted-foreground)">
-        <title>{title()}</title>
+        <title>{props.draw.lane.unavailable ? `${title()}\n${t('timeline.laneUnavailableNote')}` : title()}</title>
         {label()}
       </text>
       <line x1={props.scale.x0} y1={y()} x2={props.scale.x1} y2={y()} stroke="var(--border)" />

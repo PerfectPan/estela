@@ -74,6 +74,20 @@ const CODEX: ConformanceSession[] = [
   { path: 'rollout-compaction.jsonl', records: 11, capabilities: ['compaction', 'subagents'] },
   { path: 'rollout-subagent.jsonl', records: 9, capabilities: ['subagents'] },
   { path: 'rollout-unknown.jsonl', records: 6, capabilities: [] },
+  {
+    path: 'rollout-features.jsonl',
+    records: 14,
+    capabilities: [
+      'requests',
+      'usage',
+      'durations',
+      'compaction',
+      'compactionTokens',
+      'hooks',
+      'systemPrompt',
+      'toolSchemas',
+    ],
+  },
 ]
 
 const GEMINI: ConformanceSession[] = [
@@ -108,6 +122,18 @@ const DSH: ConformanceSession[] = [
     capabilities: ['requests', 'usage', 'reasoning', 'systemPrompt', 'toolSchemas'],
   },
   {
+    path: 'timed/session.v4.jsonl',
+    records: 10,
+    capabilities: ['requests', 'usage', 'durations', 'reasoning'],
+  },
+  {
+    // Its local subagents run in sessions of their own (`spawn-child`, `fork-child`), attached as lanes.
+    path: 'parent/session.v4.jsonl',
+    records: 9,
+    capabilities: ['requests', 'usage', 'subagents'],
+  },
+  { path: 'hooks/session.v4.jsonl', records: 5, capabilities: ['requests', 'usage', 'hooks'] },
+  {
     path: 'compaction/session.v4.jsonl',
     records: 10,
     capabilities: ['requests', 'usage', 'compaction', 'compactionTokens', 'systemPrompt'],
@@ -122,6 +148,30 @@ const OPENCODE: ConformanceSession[] = [
     records: 8,
     recordKeys: Array.from({ length: 8 }, (_, index) => `opencode.db\0${index + 1}`),
     capabilities: ['requests', 'usage', 'reasoning'],
+  },
+  // The kit's own conformance sessions, merged into the same database.
+  {
+    path: 'opencode.db',
+    sessionId: 'ses_features',
+    records: 4,
+    recordKeys: Array.from({ length: 4 }, (_, index) => `opencode.db\0${index + 1}`),
+    capabilities: ['compaction', 'compactionTokens', 'subagents'],
+    compactionShadowing: false,
+  },
+  {
+    path: 'opencode.db',
+    sessionId: 'ses_plain',
+    records: 8,
+    // A part whose message is missing is a record too, so the keys outnumber the records by one.
+    recordKeys: Array.from({ length: 9 }, (_, index) => `opencode.db\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'durations', 'reasoning'],
+  },
+  {
+    path: 'opencode.db',
+    sessionId: 'ses_unknown',
+    records: 5,
+    recordKeys: Array.from({ length: 5 }, (_, index) => `opencode.db\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'durations'],
   },
 ]
 
@@ -150,12 +200,27 @@ const KIMI: ConformanceSession[] = [
   {
     path: 'sessions/wd_demo_111111111111/session_demo-1/agents/main/wire.jsonl',
     records: 21,
-    capabilities: ['requests', 'usage', 'durations', 'systemPrompt', 'toolSchemas'],
+    capabilities: ['requests', 'usage', 'durations', 'reasoning', 'systemPrompt', 'toolSchemas'],
   },
   {
     path: 'sessions/wd_demo_111111111111/session_demo-2/agents/main/wire.jsonl',
     records: 19,
     capabilities: ['requests', 'usage', 'durations', 'systemPrompt'],
+  },
+  {
+    path: 'sessions/wd_demo_111111111111/session_demo-3/agents/main/wire.jsonl',
+    records: 11,
+    capabilities: [
+      'requests',
+      'usage',
+      'durations',
+      'reasoning',
+      'compaction',
+      'compactionTokens',
+      'subagents',
+      'hooks',
+      'systemPrompt',
+    ],
   },
 ]
 
@@ -168,14 +233,50 @@ const AGY: ConformanceSession[] = [
   },
 ]
 
-/** One database row per record: the session, then each message and each of its parts. */
+/** The kit's own conformance sessions, one database row per record: the session, then each message and its parts. */
 const ZCODE: ConformanceSession[] = [
   {
     path: 'cli/db/db.sqlite',
-    sessionId: 'smoke',
+    sessionId: 'ses_fork',
+    records: 9,
+    recordKeys: Array.from({ length: 9 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'durations', 'reasoning'],
+  },
+  {
+    path: 'cli/db/db.sqlite',
+    sessionId: 'ses_features',
+    records: 5,
+    recordKeys: Array.from({ length: 5 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
+    capabilities: ['compaction', 'compactionTokens', 'subagents', 'systemPrompt'],
+    compactionShadowing: false,
+  },
+  {
+    path: 'cli/db/db.sqlite',
+    sessionId: 'ses_plain',
+    records: 9,
+    recordKeys: Array.from({ length: 9 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'durations', 'reasoning'],
+  },
+  {
+    path: 'cli/db/db.sqlite',
+    sessionId: 'ses_unknown',
+    records: 5,
+    recordKeys: Array.from({ length: 5 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
+    capabilities: ['requests', 'usage', 'durations'],
+  },
+  {
+    path: 'cli/db/db.sqlite',
+    sessionId: 'ses_order',
+    records: 4,
+    recordKeys: Array.from({ length: 5 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
+    capabilities: ['requests'],
+  },
+  {
+    path: 'cli/db/db.sqlite',
+    sessionId: 'ses_snapshot',
     records: 7,
     recordKeys: Array.from({ length: 7 }, (_, index) => `cli/db/db.sqlite\0${index + 1}`),
-    capabilities: ['requests', 'usage', 'reasoning'],
+    capabilities: ['systemPrompt'],
   },
 ]
 
@@ -186,19 +287,18 @@ const DIM: ConformanceSession[] = [
     sessionId: 's1',
     records: 4,
     recordKeys: Array.from({ length: 4 }, (_, index) => `dimcode.sqlite\0${index + 1}`),
-    capabilities: ['requests', 'usage'],
+    capabilities: ['requests', 'usage', 'durations', 'reasoning'],
   },
 ]
 
 /**
  * Where discovery starts, below an agent's conformance folder, for the agents whose root is not the folder itself:
- * the folder their home rule names, or DimCode's database file.
+ * the folder their home rule names.
  */
 const DISCOVERY_ROOTS: Partial<Record<string, string>> = {
   qoder: 'projects',
   kimi: 'sessions',
   agy: 'antigravity-cli/brain',
-  dim: 'dimcode.sqlite',
 }
 
 /** The oversized line each old conformance suite used, one temp root per adapter so a discover run lists only its own file. */

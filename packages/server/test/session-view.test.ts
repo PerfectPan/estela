@@ -6,7 +6,6 @@ import { fold, projectLanes, reconstruct, summaryOf, toView } from '@rivus/estel
 import { describe, expect, it } from 'vite-plus/test'
 import { summarizeRow } from '../src/catalog/rows.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
-import { toKitPath } from '../src/sessions/session-target.ts'
 import { transcriptToTrace } from '../src/sessions/transcript-trace.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -52,8 +51,8 @@ describe('catalog summary equals the workspace header summary', () => {
   for (const [agent, relative] of FIXTURES) {
     it(`${agent} ${relative}`, async () => {
       const path = fixture(agent, relative)
-      // The kit's own call: it gets the path in the form the server hands it.
-      const loaded = await loadTranscript(platform, { agent, path: toKitPath(path) })
+      // The kit's own call, with the path the server hands it.
+      const loaded = await loadTranscript(platform, { agent, path })
       if (!loaded.ok) {
         throw new Error(`${path}: ${loaded.error._tag}`)
       }

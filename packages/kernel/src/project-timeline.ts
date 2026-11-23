@@ -28,6 +28,8 @@ export interface TimelineLane {
   parentId?: string
   spawnEventId?: string
   title?: string
+  /** The session records this subagent, but its own log is missing or could not be read, so it has no events. */
+  unavailable?: true
   /** 0 for the main lane, 1 for its subagents, and so on. */
   depth: number
   requests: RequestEntry[]
@@ -150,6 +152,9 @@ export function projectLanes(trace: Trace): TimelineLane[] {
     }
     if (info?.title) {
       lane.title = info.title
+    }
+    if (info?.unavailable === true) {
+      lane.unavailable = true
     }
     lanes.set(id, lane)
     parents.set(id, id === mainId ? undefined : (info?.parentId ?? mainId))

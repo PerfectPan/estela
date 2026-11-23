@@ -8,13 +8,9 @@ import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { expect, it } from 'vite-plus/test'
 import { SessionCatalog } from '../src/catalog/session-catalog.ts'
 
-// The agents whose sessions are rows of one shared database (`DATABASE_AGENTS`), and whether a row is keyed by its
-// session's own last write or by the whole database's stamp.
-for (const [agent, ownStamp] of [
-  ['opencode', true],
-  ['zcode', true],
-  ['dim', false],
-] as const) {
+// The agents whose sessions are rows of one shared database (`DATABASE_AGENTS`); each row is keyed by its session's
+// own last write.
+for (const agent of ['opencode', 'zcode', 'dim'] as const) {
   it(`keeps ${agent} session ids stable and invalidates a cached summary when the session is written`, async () => {
     const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
     const root = join(home, 'sessions')
@@ -85,7 +81,7 @@ for (const [agent, ownStamp] of [
     }
   })
 
-  it(`recomputes ${ownStamp ? 'only the session whose own last write changed' : 'every session'} after a ${agent} write`, async () => {
+  it(`recomputes only the session whose own last write changed after a ${agent} write`, async () => {
     const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
     const root = join(home, 'sessions')
     await mkdir(root)
@@ -152,9 +148,9 @@ for (const [agent, ownStamp] of [
       await writeFile(`${path}-wal`, 'new committed rows')
       catalog = open()
       await catalog.whenIdle()
-      // Keyed by its own last write, the unchanged session comes from its cache entry; keyed by the database's
-      // stamp, which the WAL write moved, every session is summarized again.
-      expect(loads.toSorted()).toEqual(ownStamp ? ['1'] : ['0', '1'])
+      // Keyed by its own last write, the unchanged session comes from its cache entry, although the WAL write moved
+      // the database's stamp.
+      expect(loads.toSorted()).toEqual(['1'])
       const after = (await catalog.listSessions()).rows
       expect(after.map(row => row.requests).toSorted((a, b) => a! - b!)).toEqual([1, 3])
     } finally {
@@ -219,52 +215,3 @@ for (const [agent, ownStamp] of [
     }
   })
 }
-
-it('lists the sessions under a root that is the database file itself, as DimCode names its root', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'catalog-db-'))
-  const path = join(home, 'dimcode.sqlite')
-  await writeFile(path, 'database')
-  const adapter: SessionAdapter = {
-    specificationVersion: 'sessions-v1',
-    agent: 'dim',
-    displayName: 'DimCode',
-    home: { defaultPath: [] },
-    capabilities: ['requests'],
-    roots: () => [path],
-    async *discover(_platform, root) {
-      for (const sessionId of ['a', 'b']) {
-        yield { ref: { agent: 'dim', path: root, sessionId }, lastActiveAt: 1, sizeBytes: 0 }
-      }
-    },
-    async detect() {
-      return false
-    },
-    async load(_platform, ref) {
-      return ok({
-        agent: 'dim',
-        session: { id: ref.sessionId! },
-        capabilities: ['requests'],
-        agents: [{ id: 'main' }],
-        skipped: [],
-        events: [],
-      })
-    },
-  }
-  const catalog = new SessionCatalog({
-    platform: createNodePlatform({ home, env: {} }),
-    adapters: { dim: adapter },
-    noIndex: true,
-  })
-  try {
-    await catalog.whenIdle()
-    const rows = (await catalog.listSessions()).rows
-    expect(rows.map(row => [row.agent, row.error])).toEqual([
-      ['dim', undefined],
-      ['dim', undefined],
-    ])
-    expect(new Set(rows.map(row => row.traceId)).size).toBe(2)
-  } finally {
-    catalog.close()
-    await rm(home, { recursive: true, force: true })
-  }
-})

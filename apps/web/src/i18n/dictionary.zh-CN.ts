@@ -146,6 +146,8 @@ export const zhCN = {
     rangeStart: '范围起点',
     rangeEnd: '范围终点',
     moreLanes: '另有 {{ count }} 条泳道',
+    laneUnavailable: '{{ title }} · 日志不可用',
+    laneUnavailableNote: '会话记录了这个子 agent，但它的日志缺失或无法读取。',
   },
   ledger: {
     label: '事件',

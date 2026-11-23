@@ -116,6 +116,18 @@ describe('projectLanes', () => {
     expect(lanes[0]!.markers).toEqual([{ kind: 'compaction', eventId: 'k', ts: 0 }])
     expect(lanes[1]!.depth).toBe(1)
   })
+  it('marks a subagent whose log the session records but could not read as unavailable, with no events', () => {
+    const lanes = projectLanes({
+      ...synthetic([['u', on('user', { text: 'go' })]]),
+      agents: [{ id: 'main' }, { id: 'lost', parentId: 'main', unavailable: true }, { id: 'kept', parentId: 'main' }],
+    })
+    expect(lanes.map(lane => [lane.id, lane.unavailable])).toEqual([
+      ['main', undefined],
+      ['lost', true],
+      ['kept', undefined],
+    ])
+    expect(lanes[1]).toMatchObject({ requests: [], markers: [] })
+  })
 })
 
 describe('projectTurns', () => {

@@ -38,7 +38,7 @@ catalog:
   '@fontsource/instrument-sans': 5.3.0
   '@fontsource/jetbrains-mono': 5.3.0
   '@perfectpan/lint-config': github:PerfectPan/lint-config#v0.9.1
-  '@rivus/agent-kit': 0.26.0
+  '@rivus/agent-kit': 0.27.0
   '@tailwindcss/vite': ^4.3.5
   '@types/node': ^24.19.2
   cva: 1.0.0-beta.12

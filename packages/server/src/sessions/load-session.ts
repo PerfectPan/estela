@@ -7,7 +7,7 @@ import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { isTrace } from '@rivus/estela-schema'
 import { hardenPlatform, MAX_CANONICAL_TRACE_BYTES, MAX_CANONICAL_TRACE_MB } from './node-platform.ts'
 import { loadErrorMessage } from './read-failure.ts'
-import { sessionTargetLabel, toKitPath } from './session-target.ts'
+import { sessionTargetLabel } from './session-target.ts'
 import { transcriptToTrace } from './transcript-trace.ts'
 import { sessionProviders } from './adapters.ts'
 
@@ -34,8 +34,7 @@ export interface LoadSessionOptions {
  * `No adapter accepted …`, `agent: file:line: unknown format generation`, and the
  * IO error's own message.
  */
-export async function loadSession(input: SessionTarget, options: LoadSessionOptions): Promise<Trace> {
-  const target = { ...input, path: toKitPath(input.path) }
+export async function loadSession(target: SessionTarget, options: LoadSessionOptions): Promise<Trace> {
   const platform = hardenPlatform(options.platform)
   const fs = platform.fs
   try {
@@ -43,7 +42,7 @@ export async function loadSession(input: SessionTarget, options: LoadSessionOpti
       const stat = await fs.stat(target.path, { followSymlinks: true })
       if (stat && stat.size > MAX_CANONICAL_TRACE_BYTES) {
         throw new Error(
-          `${sessionTargetLabel(input)}: canonical trace file exceeds the ${MAX_CANONICAL_TRACE_MB} MB limit`,
+          `${sessionTargetLabel(target)}: canonical trace file exceeds the ${MAX_CANONICAL_TRACE_MB} MB limit`,
         )
       }
       const bytes = await readRange(fs, target.path)
@@ -64,7 +63,7 @@ export async function loadSession(input: SessionTarget, options: LoadSessionOpti
     ...(options.onProgress ? { onProgress: options.onProgress } : {}),
   })
   if (!loaded.ok) {
-    throw new Error(loadErrorMessage(loaded.error, sessionTargetLabel(input)))
+    throw new Error(loadErrorMessage(loaded.error, sessionTargetLabel(target)))
   }
   return transcriptToTrace(loaded.value)
 }
