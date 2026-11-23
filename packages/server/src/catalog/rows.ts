@@ -1,8 +1,7 @@
-import { summaryOf } from '@rivus/estela-kernel'
-import type { IndexHead, IndexRow } from '@rivus/estela-runtime-node'
+import { priceRequestUsage, snapshotPricing, summaryOf } from '@rivus/estela-kernel'
+import type { IndexCost, IndexHead, IndexRow, StoredSummary } from '@rivus/estela-runtime-node'
 import type { SessionError, SessionListRow } from '@rivus/estela-rpc'
 import type { SessionAdapters, SessionHead, SessionRef } from '@rivus/agent-kit/sessions'
-import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/estela-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import { redactText } from '@rivus/agent-kit/redact'
@@ -27,7 +26,7 @@ export interface LiveRow {
   lastActiveAt: number
   sizeBytes: number
   firstPrompt?: string
-  summary?: SessionSummary
+  summary?: StoredSummary
   pending: boolean
   error?: SessionError
   /** Catalog revision of the last change, for `list-sessions({ since })`. */
@@ -45,17 +44,30 @@ function clipPrompt(text: string): string {
 }
 
 function summaryFields(
-  summary: SessionSummary | undefined,
+  summary: StoredSummary | undefined,
 ): Omit<SessionListRow, 'traceId' | 'agent' | 'lastActiveAt' | 'sizeBytes' | 'pending'> {
   if (!summary) {
     return {}
   }
-  const { contextShape, ...numbers } = summary
+  const { contextShape, cost, ...numbers } = summary
+  const priced = {
+    ...numbers,
+    ...(cost?.usd === undefined ? {} : { costUsd: cost.usd }),
+    ...(cost?.unpriced === undefined ? {} : { unpricedRequests: cost.unpriced }),
+  }
   if (!contextShape || contextShape.length === 0) {
-    return numbers
+    return priced
   }
   const max = Math.max(...contextShape)
-  return { ...numbers, shape: contextShape.map(value => (max > 0 ? Math.round((value / max) * 100) : 0)) }
+  return { ...priced, shape: contextShape.map(value => (max > 0 ? Math.round((value / max) * 100) : 0)) }
+}
+
+/**
+ * A cached summary when it was priced at the bundled price snapshot; one priced at another snapshot, or before
+ * summaries carried a cost, is summarized again, since every cost shown names the snapshot that priced it.
+ */
+export function currentSummary(summary: StoredSummary | undefined): StoredSummary | undefined {
+  return summary?.cost?.prices === snapshotPricing().version ? summary : undefined
 }
 
 export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
@@ -75,7 +87,21 @@ export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
   }
 }
 
-export type SummarizeResult = { summary: SessionSummary; prompts: string[] } | { error: SessionError }
+/** The list cost of a session's request fields, by the rules the workspace prices its loaded requests with. */
+function listCost(requestUsage: Parameters<typeof priceRequestUsage>[0] | undefined): IndexCost {
+  const { pricing, version } = snapshotPricing()
+  if (requestUsage === undefined) {
+    return { prices: version }
+  }
+  const total = priceRequestUsage(requestUsage, pricing)
+  return {
+    prices: version,
+    ...(total.usd === undefined ? {} : { usd: total.usd }),
+    unpriced: total.requests - total.priced,
+  }
+}
+
+export type SummarizeResult = { summary: StoredSummary; prompts: string[] } | { error: SessionError }
 
 /**
  * One read per session: the kit's bounded summary pass (`adapter.summarize`, else the folded
@@ -91,11 +117,15 @@ export async function summarizeRow(
   const result = await summarizeSession(platform, target, {
     ...(adapters ? { providers: sessionProviders(adapters) } : {}),
     prompts: { limit: PROMPT_LIMIT, maxChars: PROMPT_CHARS },
+    requestUsage: true,
   })
   if (!result.ok) {
     return { error: loadFailure(result.error, platform.home, sessionTargetLabel(target), target.path) }
   }
-  return { summary: summaryOf(result.value), prompts: (result.value.prompts ?? []).map(prompt => prompt.text) }
+  return {
+    summary: { ...summaryOf(result.value), cost: listCost(result.value.requestUsage) },
+    prompts: (result.value.prompts ?? []).map(prompt => prompt.text),
+  }
 }
 
 function pad(value: number): string {
@@ -163,8 +193,8 @@ export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
     mtimeMs: stored.mtimeMs,
     lastActiveAt: stored.lastActiveAt ?? stored.mtimeMs,
     sizeBytes: stored.size,
-    ...(stored.summary ? { summary: stored.summary } : {}),
-    pending: stored.summary === undefined,
+    ...(currentSummary(stored.summary) ? { summary: stored.summary } : {}),
+    pending: currentSummary(stored.summary) === undefined,
     revision: 0,
   }
 }

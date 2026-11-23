@@ -43,6 +43,13 @@ export interface SessionListRow extends Omit<SessionSummary, 'contextShape'> {
   lastActiveAt: number
   sizeBytes: number
   firstPrompt?: string
+  /**
+   * List price of the session's priced requests at `ListSessionsResult.pricesVersion`; absent when none is priced or
+   * the summary is not done. Never 0 for "unknown".
+   */
+  costUsd?: number
+  /** Requests the cost leaves out (no usage, no model, or no price); absent when the reader gives none to price. */
+  unpricedRequests?: number
   /** A summary is still being computed. */
   pending: boolean
   /** "Could not read": discover or summarize failed. */
@@ -63,6 +70,8 @@ export interface ListSessionsResult {
   pending: number
   /** Increases whenever a row changes. Pass it back as `since`. */
   revision: number
+  /** The price snapshot every row's `costUsd` is priced at. */
+  pricesVersion: string
 }
 
 /** Shared state pushed to every browser. It only says that rows changed; the rows come from `list-sessions`. */

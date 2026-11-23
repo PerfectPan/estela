@@ -50,6 +50,7 @@ export {
 } from './project-turns.ts'
 export {
   costOfEvents,
+  priceRequestUsage,
   priceTrace,
   UNPRICED_REASONS,
   type CostTotal,

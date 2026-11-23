@@ -30,7 +30,7 @@ describe('list-sessions input', () => {
   bindSessionService({
     listSessions: async query => {
       seen.push(query)
-      return { agents: [], rows: [], complete: true, pending: 0, revision: 0 }
+      return { agents: [], rows: [], complete: true, pending: 0, revision: 0, pricesVersion: 'test-prices' }
     },
   })
 

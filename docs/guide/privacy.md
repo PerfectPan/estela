@@ -21,7 +21,7 @@ Files Estela writes:
 
 ## The session index
 
-The index is a cache that makes the session browser fast on the next start. It holds, per session: the title, the working directory and the session file's path, numbers (turns, requests, tokens, duration, flags), and up to 200 prompts you typed yourself, 500 characters each, for search. It does not hold the agent's replies, tool output, file contents, or text the agent injected. **The index is not redacted**: titles, paths, and prompts are stored as recorded, including any secret you typed into a prompt. The file has mode 0600 (readable only by you).
+The index is a cache that makes the session browser fast on the next start. It holds, per session: the title, the working directory and the session file's path, numbers (turns, requests, tokens, duration, flags, and the list cost with its price snapshot), and up to 200 prompts you typed yourself, 500 characters each, for search. It does not hold the agent's replies, tool output, file contents, or text the agent injected. **The index is not redacted**: titles, paths, and prompts are stored as recorded, including any secret you typed into a prompt. The file has mode 0600 (readable only by you).
 
 Deleting it is safe; it is rebuilt from the logs on the next start:
 

@@ -67,9 +67,9 @@ A slot that either request's log does not record is hatched, marked `unavailable
 
 ## Cost
 
-Estela shows the list price of the tokens each request recorded, at the [LiteLLM](https://github.com/BerriAI/litellm) model prices bundled with the CLI. It is not the amount billed: plans, discounts, service tiers, and costs an agent logs itself are not applied, and Codex's priority-tier pricing is not either.
+Estela shows the list price of the tokens each request recorded, at the [LiteLLM](https://github.com/BerriAI/litellm) model prices bundled with the CLI. A Codex request on the priority tier is priced at the tier's multiple of the list price (2), as Codex records it. It is not the amount billed: plans, discounts, and costs an agent logs itself are not applied.
 
-Where it appears: the session total in the header (with the cache hit rate), per turn in the turn header, per lane in the Agents layout (a subagent's cost also counts in the turn that started it), and per request in the inspector with its input, cache-read, cache-write, and output shares and its cache hit rate. The session browser shows no cost. The tooltip and the inspector name the price snapshot, for example `LiteLLM 2026-11-02 · ff3983c`; a newer Estela can bundle newer prices, so the same session can show a different cost after an upgrade.
+Where it appears: the session total in the header (with the cache hit rate), per turn in the turn header, per lane in the Agents layout (a subagent's cost also counts in the turn that started it), and per request in the inspector with its input, cache-read, cache-write, and output shares and its cache hit rate. The session browser's preview shows the session total too, priced from the same request fields when the session list reads the session, so it matches the header. The tooltip and the inspector name the price snapshot, for example `LiteLLM 2026-11-02 · ff3983c`; a newer Estela can bundle newer prices, so the same session can show a different cost after an upgrade.
 
 The rules:
 

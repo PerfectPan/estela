@@ -1,10 +1,17 @@
-import type { Pricing } from '@rivus/agent-kit/cost'
+import type { PriceableRecord, Pricing } from '@rivus/agent-kit/cost'
+import type { SessionRequestUsage } from '@rivus/agent-kit/transcript'
 import type { UsageRecord } from '@rivus/agent-kit/transcript/usage'
 import type { EventOf, Trace } from '@rivus/estela-schema'
 import { priceRecord } from '@rivus/agent-kit/cost'
 import { laneOf, mainAgentId } from './lanes.ts'
 
 type Usage = UsageRecord['usage']
+
+/**
+ * The fields of one request that pricing reads: a `request` event's payload, or one entry of a summary's
+ * `requestUsage`, which the kit keeps equal to that payload's fields.
+ */
+type BilledFields = SessionRequestUsage
 
 /** A price lookup and the version of the table behind it, which every cost shown or exported names. */
 export interface TracePricing {
@@ -37,27 +44,27 @@ interface CacheTokens {
   cacheWriteTokens?: number
 }
 
-interface RequestCostBase {
-  eventId: string
-  laneId: string
-  tokens: CacheTokens
-}
-
-interface PricedRequest extends RequestCostBase {
+interface PricedFields {
   kind: 'priced'
   usd: number
   /** Absent when the counts do not add up (cache reads and writes above the input) or a split part lacks shares. */
   shares?: CostShares
+  tokens: CacheTokens
 }
 
-interface UnpricedRequest extends RequestCostBase {
+interface UnpricedFields {
   kind: 'unpriced'
   reason: UnpricedReason
   /** For `no-price`: the model ids the table has no price for. */
   models: string[]
+  tokens: CacheTokens
 }
 
-export type RequestCost = PricedRequest | UnpricedRequest
+/** One request priced from its billed fields alone. */
+type FieldsCost = PricedFields | UnpricedFields
+
+/** One request event priced, with the event and lane it belongs to. */
+export type RequestCost = FieldsCost & { eventId: string; laneId: string }
 
 /** Cost of a set of requests: a sum over the priced ones, and what the rest lacked. */
 export interface CostTotal {
@@ -112,7 +119,7 @@ function cacheTokens(usage: Usage | undefined): CacheTokens {
 }
 
 /** The whole request's usage: its own, else its split by model added up. */
-function requestTokens(payload: EventOf<'request'>['payload']): CacheTokens {
+function requestTokens(payload: BilledFields): CacheTokens {
   if (hasCounts(payload.usage)) {
     return cacheTokens(payload.usage)
   }
@@ -132,24 +139,19 @@ interface Part {
   single: boolean
 }
 
-/** The record the kit prices for one request event. Absent granularity is one request, as the adapters write it. */
-function recordOf(trace: Trace, event: EventOf<'request'>, usage: Usage): UsageRecord {
-  const payload = event.payload
+/** The record the kit prices for one request's fields. Absent granularity is one request, as the adapters write it. */
+function recordOf(fields: BilledFields, usage: Usage): PriceableRecord {
   return {
-    agent: trace.agent,
-    sessionId: trace.session.id,
-    granularity: payload.granularity ?? 'request',
-    modelCalls: payload.modelCalls,
-    model: payload.model,
+    granularity: fields.granularity ?? 'request',
+    modelCalls: fields.modelCalls,
+    model: fields.model,
     usage,
-    usageByModel: payload.usageByModel,
-    timestamp: event.ts,
-    source: event.source,
+    usageByModel: fields.usageByModel,
+    pricingMultiplier: fields.pricingMultiplier,
   }
 }
 
-function partsOf(event: EventOf<'request'>): Part[] {
-  const payload = event.payload
+function partsOf(payload: BilledFields): Part[] {
   const granularity = payload.granularity ?? 'request'
   const split = Object.entries(payload.usageByModel ?? {})
   if (split.length > 0) {
@@ -165,10 +167,10 @@ function partsOf(event: EventOf<'request'>): Part[] {
 }
 
 /** USD of `usage` for one part, billed the way the kit bills that part (`priceRecord`). */
-function partCost(trace: Trace, event: EventOf<'request'>, part: Part, usage: Usage, pricing: Pricing): number {
-  const record: UsageRecord = {
-    ...recordOf(trace, event, usage),
-    granularity: part.single ? 'request' : (event.payload.granularity ?? 'request'),
+function partCost(fields: BilledFields, part: Part, usage: Usage, pricing: Pricing): number {
+  const record: PriceableRecord = {
+    ...recordOf(fields, usage),
+    granularity: part.single ? 'request' : (fields.granularity ?? 'request'),
     modelCalls: part.single ? 1 : undefined,
     model: part.model,
     usageByModel: undefined,
@@ -183,7 +185,7 @@ function partCost(trace: Trace, event: EventOf<'request'>, part: Part, usage: Us
  * with only cache reads, then with only cache writes. The shares add up to the kit's total. Counts whose cache
  * reads and writes exceed the input break that linearity, and get no shares.
  */
-function partShares(trace: Trace, event: EventOf<'request'>, part: Part, pricing: Pricing): CostShares | undefined {
+function partShares(fields: BilledFields, part: Part, pricing: Pricing): CostShares | undefined {
   const { usage } = part
   const input = usage.inputTokens ?? 0
   const read = usage.cacheReadTokens ?? 0
@@ -191,7 +193,7 @@ function partShares(trace: Trace, event: EventOf<'request'>, part: Part, pricing
   if (read + write > input) {
     return undefined
   }
-  const cost = (probe: Usage) => partCost(trace, event, part, probe, pricing)
+  const cost = (probe: Usage) => partCost(fields, part, probe, pricing)
   const total = cost(usage)
   const noOutput = cost({ ...usage, outputTokens: 0 })
   if (input === 0) {
@@ -222,21 +224,20 @@ function addShares(into: CostShares, add: CostShares): void {
 }
 
 /**
- * One request event priced at the table's prices. A request is priced only when every part of it is: its model
- * has a price and it records input and output tokens; otherwise it is unpriced with the first reason that
- * applies. A request that records 0 input and 0 output tokens costs 0 whatever its model, since nothing is billed.
- * @internal
+ * One request priced at the table's prices from its billed fields. A request is priced only when every part of it
+ * is: its model has a price and it records input and output tokens; otherwise it is unpriced with the first reason
+ * that applies. A request that records 0 input and 0 output tokens costs 0 whatever its model, since nothing is
+ * billed.
  */
-export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: Pricing): RequestCost {
-  const laneId = laneOf(event, mainAgentId(trace))
-  const base = { eventId: event.id, laneId, tokens: requestTokens(event.payload) }
-  const unpriced = (reason: UnpricedReason, models: string[] = []): UnpricedRequest => ({
+function priceFields(fields: BilledFields, pricing: Pricing): FieldsCost {
+  const base = { tokens: requestTokens(fields) }
+  const unpriced = (reason: UnpricedReason, models: string[] = []): UnpricedFields => ({
     ...base,
     kind: 'unpriced',
     reason,
     models,
   })
-  const parts = partsOf(event)
+  const parts = partsOf(fields)
   if (!parts.some(part => hasCounts(part.usage))) {
     return unpriced('no-usage')
   }
@@ -255,7 +256,7 @@ export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: P
   if (missing.length > 0) {
     return unpriced('no-price', [...new Set(missing)])
   }
-  const priced = priceRecord(recordOf(trace, event, event.payload.usage ?? {}), pricing).parts
+  const priced = priceRecord(recordOf(fields, fields.usage ?? {}), pricing).parts
   let usd = 0
   for (const part of priced) {
     usd += part.cost?.costUsd ?? Number.NaN
@@ -268,7 +269,7 @@ export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: P
   }
   let shares: CostShares | undefined = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 }
   for (const part of parts) {
-    const own = partShares(trace, event, part, pricing)
+    const own = partShares(fields, part, pricing)
     if (own === undefined) {
       shares = undefined
       break
@@ -286,10 +287,18 @@ export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: P
 }
 
 /**
+ * One request event priced at the table's prices (`priceFields`), with its event and lane.
+ * @internal
+ */
+export function priceRequest(trace: Trace, event: EventOf<'request'>, pricing: Pricing): RequestCost {
+  return { ...priceFields(event.payload, pricing), eventId: event.id, laneId: laneOf(event, mainAgentId(trace)) }
+}
+
+/**
  * Totals of some request costs: priced sum, unpriced counts by reason, shares, and the cache hit rate.
  * @internal
  */
-export function sumCosts(costs: Iterable<RequestCost>): CostTotal {
+export function sumCosts(costs: Iterable<FieldsCost>): CostTotal {
   const total: CostTotal = {
     requests: 0,
     priced: 0,
@@ -369,4 +378,12 @@ export function costOfEvents(cost: TraceCost, eventIds: Iterable<string>): CostT
     }
   }
   return sumCosts(found)
+}
+
+/**
+ * The requests of a session priced from a summary's `requestUsage`, by the rules `priceTrace` applies to the loaded
+ * session's request events, so the session list and the workspace show the same total.
+ */
+export function priceRequestUsage(requests: readonly SessionRequestUsage[], pricing: Pricing): CostTotal {
+  return sumCosts(requests.map(fields => priceFields(fields, pricing)))
 }

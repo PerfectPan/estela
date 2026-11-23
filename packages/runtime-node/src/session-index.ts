@@ -1,78 +1,20 @@
-import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { DatabaseSync, StatementSync } from 'node:sqlite'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import * as z from 'zod/mini'
 import { isTransient, openDatabase } from './session-index-schema.ts'
+import type {
+  IndexHead,
+  IndexRow,
+  IndexSummary,
+  OpenIndexOptions,
+  SessionIndex,
+  StoredSummary,
+} from './session-index-types.ts'
 
 /** User prompts kept per session: the first 200, 500 characters each. */
 export const PROMPT_LIMIT = 200
 export const PROMPT_CHARS = 500
-
-/** Head fields from `discover`, keyed by trace id. `size` and `mtimeMs` are the cache key. */
-export interface IndexHead {
-  traceId: string
-  agent: string
-  path: string
-  size: number
-  mtimeMs: number
-  sessionId?: string
-  title?: string
-  cwd?: string
-  startedAt?: number
-  lastActiveAt?: number
-  firstPrompt?: string
-}
-
-/** A stored row: the head from the last discover pass, and the summary when a current one is cached. */
-export interface IndexRow extends IndexHead {
-  summary?: SessionSummary
-}
-
-export interface IndexSummary extends IndexHead {
-  summary: SessionSummary
-  /** User prompts in order. The index keeps the first `PROMPT_LIMIT`, `PROMPT_CHARS` each. */
-  prompts: string[]
-}
-
-export interface SessionIndex {
-  readonly file: string
-  readonly enabled: boolean
-  /** Set when the index could not be opened; the session list then runs without it. */
-  readonly unavailable?: string
-  /** Every stored row, newest activity first. A second launch shows these before `discover` finishes. */
-  rows: () => IndexRow[]
-  /** Drop sessions that disappeared from discovery, without removing other sessions in the same file. */
-  remove: (traceIds: readonly string[]) => void
-  /** The cached summary, only when size, mtime, and the summary version all match. */
-  get: (traceId: string, size: number, mtimeMs: number) => SessionSummary | undefined
-  /** One transaction for the whole discover batch. A changed key drops the cached summary. */
-  putHeads: (rows: readonly IndexHead[]) => void
-  /** One transaction per batch. A failed summary is never passed in, so it is never cached. */
-  putSummaries: (rows: readonly IndexSummary[]) => void
-  /**
-   * Trace ids of the sessions whose title or prompts match, newest first. `undefined` when the index is off or the
-   * query is blank. 3 or more characters use FTS5 `trigram`; shorter queries are a substring
-   * match over titles and prompts, so a 2-character Chinese word works.
-   */
-  search: (query: string) => string[] | undefined
-  close: () => void
-}
-
-export interface OpenIndexOptions {
-  /** `false` for `--no-index`: nothing is read or written, and no file is created. */
-  enabled?: boolean
-  /** Override the database file. Tests pass a temporary path. */
-  file?: string
-  homeDir?: string
-  env?: Readonly<Record<string, string | undefined>>
-  /**
-   * Summary version of the numbers the caller writes; the CLI derives it from the kit's
-   * `SESSION_SUMMARY_VERSION`, which owns the summary semantics. A row at another version
-   * is recomputed, never served.
-   */
-  summaryVersion: number
-}
 
 /** `$XDG_CACHE_HOME/rivus-estela/index.sqlite`, else `~/.cache/rivus-estela/index.sqlite`. */
 export function sessionIndexFile(
@@ -138,6 +80,9 @@ const summaryRow = z.object({
   subagents: numberColumn,
   failed_tools: numberColumn,
   context_shape: textColumn,
+  cost_usd: numberColumn,
+  cost_unpriced: numberColumn,
+  cost_prices: textColumn,
 })
 const idRow = z.object({ id: z.number() })
 const traceIdRow = z.object({ trace_id: z.string() })
@@ -233,7 +178,7 @@ class SqliteIndex implements SessionIndex {
     return out
   }
 
-  get(traceId: string, size: number, mtimeMs: number): SessionSummary | undefined {
+  get(traceId: string, size: number, mtimeMs: number): StoredSummary | undefined {
     return this.summaryOf(
       this.sql(`SELECT ${SUMMARY_SELECT} FROM sessions WHERE trace_id = ? AND size = ? AND mtime = ?`).get(
         traceId,
@@ -310,12 +255,12 @@ class SqliteIndex implements SessionIndex {
   }
 
   /** A NULL column is a capability the agent does not record: it stays `undefined`, never 0. */
-  private summaryOf(stored: unknown): SessionSummary | undefined {
+  private summaryOf(stored: unknown): StoredSummary | undefined {
     const row = z.safeParse(summaryRow, stored).data
     if (row?.summary_version !== this.version) {
       return undefined
     }
-    const summary: SessionSummary = {}
+    const summary: StoredSummary = {}
     for (const [column, key] of SUMMARY_COLUMNS) {
       const value = row[column]
       if (value !== null) {
@@ -325,6 +270,13 @@ class SqliteIndex implements SessionIndex {
     const shape = row.context_shape === null ? undefined : contextShapeOf(row.context_shape)
     if (shape) {
       summary.contextShape = shape
+    }
+    if (row.cost_prices !== null) {
+      summary.cost = {
+        prices: row.cost_prices,
+        ...(row.cost_usd === null ? {} : { usd: row.cost_usd }),
+        ...(row.cost_unpriced === null ? {} : { unpriced: row.cost_unpriced }),
+      }
     }
     return summary
   }
@@ -369,7 +321,7 @@ class SqliteIndex implements SessionIndex {
     }
     this.sql(
       `UPDATE sessions SET summary_version = NULL, ${SUMMARY_COLUMNS.map(([column]) => `${column} = NULL`).join(', ')},
-       context_shape = NULL WHERE trace_id = ?`,
+       context_shape = NULL, cost_usd = NULL, cost_unpriced = NULL, cost_prices = NULL WHERE trace_id = ?`,
     ).run(row.traceId)
     const prompts = next.firstPrompt ? [next.firstPrompt] : []
     this.replacePrompts(row.traceId, prompts)
@@ -385,11 +337,14 @@ class SqliteIndex implements SessionIndex {
     const shape = row.summary.contextShape
     this.sql(
       `UPDATE sessions SET summary_version = ?, ${SUMMARY_COLUMNS.map(([column]) => `${column} = ?`).join(', ')},
-       context_shape = ? WHERE trace_id = ?`,
+       context_shape = ?, cost_usd = ?, cost_unpriced = ?, cost_prices = ? WHERE trace_id = ?`,
     ).run(
       this.version,
       ...SUMMARY_COLUMNS.map(([, key]) => row.summary[key] ?? null),
       shape ? JSON.stringify(shape) : null,
+      row.summary.cost?.usd ?? null,
+      row.summary.cost?.unpriced ?? null,
+      row.summary.cost?.prices ?? null,
       row.traceId,
     )
     this.replacePrompts(row.traceId, prompts)

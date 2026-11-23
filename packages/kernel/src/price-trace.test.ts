@@ -1,7 +1,15 @@
 import type { EventOf, Trace, TraceEvent } from '@rivus/estela-schema'
 import { createPricing } from '@rivus/agent-kit/cost'
 import { describe, expect, it } from 'vite-plus/test'
-import { costOfEvents, priceRequest, priceTrace, sumCosts, type RequestCost, type TracePricing } from './price-trace.ts'
+import {
+  costOfEvents,
+  priceRequest,
+  priceRequestUsage,
+  priceTrace,
+  sumCosts,
+  type RequestCost,
+  type TracePricing,
+} from './price-trace.ts'
 import { snapshotPricing } from './snapshot-pricing.ts'
 
 const source = { file: 'fixture.json', offset: 0, length: 1, line: 1 }
@@ -158,6 +166,40 @@ describe('priceTrace and sumCosts', () => {
     expect(turn.usd).toBeUndefined()
     expect(sumCosts([])).toMatchObject({ requests: 0, priced: 0 })
     expect(sumCosts([]).usd).toBeUndefined()
+  })
+})
+
+describe('pricingMultiplier and priceRequestUsage', () => {
+  it('bills a request at its tier multiple, shares included', () => {
+    const usage = { inputTokens: 1_000_000, cacheReadTokens: 600_000, outputTokens: 100_000 }
+    const standard = price({ model: 'model-a', usage })
+    const priority = price({ model: 'model-a', usage, pricingMultiplier: 2 })
+    expect(standard.kind === 'priced' && priority.kind === 'priced').toBe(true)
+    if (standard.kind !== 'priced' || priority.kind !== 'priced') {
+      return
+    }
+    expect(priority.usd).toBeCloseTo(standard.usd * 2, 10)
+    expect(priority.shares?.cacheRead).toBeCloseTo((standard.shares?.cacheRead ?? Number.NaN) * 2, 10)
+  })
+
+  it("totals a summary's request fields as priceTrace totals the same requests", () => {
+    const payloads: EventOf<'request'>['payload'][] = [
+      { model: 'model-a', usage: { inputTokens: 100, outputTokens: 10 } },
+      { model: 'model-long', usage: { inputTokens: 2000, outputTokens: 10 } },
+      { model: 'model-a', usage: { inputTokens: 100, outputTokens: 10 }, pricingMultiplier: 2 },
+      {
+        model: 'model-a',
+        granularity: 'turn',
+        modelCalls: 2,
+        usageByModel: { 'model-long': { usage: { inputTokens: 3000, outputTokens: 5 }, modelCalls: 2 } },
+      },
+      { model: 'model-unknown', usage: { inputTokens: 1, outputTokens: 1 } },
+      { usage: { inputTokens: 1 } },
+    ]
+    const events = payloads.map((payload, index) => request(`r${index}`, payload))
+    const fromTrace = priceTrace(trace(events), pricing).total
+    expect(priceRequestUsage(payloads, pricing.pricing)).toEqual(fromTrace)
+    expect(fromTrace).toMatchObject({ requests: 6, priced: 4 })
   })
 })
 

@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
-import { openSessionIndex, type IndexSummary } from './session-index.ts'
+import { openSessionIndex } from './session-index.ts'
+import type { IndexSummary } from './session-index-types.ts'
 
 const dirs: string[] = []
 

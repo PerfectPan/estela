@@ -25,6 +25,7 @@ export function createSessionStore() {
   const [agents, setAgents] = createSignal<AgentListEntry[]>([])
   const [rows, setRows] = createSignal<SessionListRow[]>([])
   const [pending, setPending] = createSignal(0)
+  const [pricesVersion, setPricesVersion] = createSignal<string>()
   const [loaded, setLoaded] = createSignal(false)
   const [error, setError] = createSignal<string>()
   const [matches, setMatches] = createSignal<ReadonlySet<string>>()
@@ -46,6 +47,7 @@ export function createSessionStore() {
     batch(() => {
       setAgents(result.agents)
       setPending(result.pending)
+      setPricesVersion(result.pricesVersion)
       if (result.complete) {
         setRows(result.rows)
       } else if (result.rows.length > 0 || (result.removed?.length ?? 0) > 0) {
@@ -166,5 +168,5 @@ export function createSessionStore() {
     }
   })
 
-  return { agents, rows, pending, loaded, error, matches, search, prioritize, refresh }
+  return { agents, rows, pending, pricesVersion, loaded, error, matches, search, prioritize, refresh }
 }

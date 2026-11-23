@@ -5,12 +5,14 @@ import { formatDuration, formatInOut, formatNumber, formatOptional, formatWhen }
 import { ContextShape } from '@/browser/context-shape.tsx'
 import { AgentMark } from '@/browser/agent-mark.tsx'
 import { Metric } from '@/components/metric.tsx'
+import { costBasisText, listCostText } from '@/lib/cost-text.ts'
 
 const dash = () => t('common.dash')
 
 export function SessionPreview(props: {
   row: SessionListRow
   agents: AgentListEntry[]
+  pricesVersion?: string
   now: number
   onOpen: (traceId: string) => void
 }) {
@@ -77,6 +79,12 @@ export function SessionPreview(props: {
         <Metric
           value={pair(num(props.row.compactions), num(props.row.subagents))}
           label={t('browser.compactionsSubagents')}
+        />
+        <Metric
+          value={listCostText(props.row)}
+          label={t('cost.label')}
+          title={props.pricesVersion === undefined ? undefined : costBasisText(props.pricesVersion)}
+          testId="list-cost"
         />
       </div>
       <Show when={props.row.firstPrompt}>

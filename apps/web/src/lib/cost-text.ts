@@ -89,6 +89,23 @@ export function costShort(total: CostTotal): string {
     : value
 }
 
+/**
+ * A session row's cost: `$0.42`, `$0.42 · 2 unpriced`, "cost unavailable" when no request is priced, or a dash
+ * without requests or before the summary is done.
+ */
+export function listCostText(row: { requests?: number; costUsd?: number; unpricedRequests?: number }): string {
+  if (row.unpricedRequests === undefined || !row.requests) {
+    return t('common.dash')
+  }
+  if (row.costUsd === undefined) {
+    return t('cost.unavailableShort')
+  }
+  const value = formatUsd(row.costUsd, locale())
+  return row.unpricedRequests > 0
+    ? t('cost.partialShort', { value, count: formatNumber(row.unpricedRequests, locale()) })
+    : value
+}
+
 /** One request's cost in the inspector: the amount, or why there is none. */
 export function requestCostText(cost: RequestCost): string {
   return cost.kind === 'priced'

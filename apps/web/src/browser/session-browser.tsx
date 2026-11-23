@@ -251,7 +251,13 @@ export function SessionBrowser() {
             <span>· {t('common.nothingLeaves')}</span>
           </footer>
         </main>
-        <PreviewPane row={selectedRow()} agents={store.agents()} now={now()} onOpen={openRow} />
+        <PreviewPane
+          row={selectedRow()}
+          agents={store.agents()}
+          pricesVersion={store.pricesVersion()}
+          now={now()}
+          onOpen={openRow}
+        />
       </div>
     </div>
   )

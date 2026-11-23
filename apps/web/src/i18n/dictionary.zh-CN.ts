@@ -275,7 +275,7 @@ export const zhCN = {
     },
     moreModels: '{{ models }} 及另外 {{ count }} 个',
     basis:
-      '按 {{ version }} 目录价计算已记录的 Token，不是实际账单：订阅、折扣、服务等级和代理自己记录的费用都未计入。',
+      '按 {{ version }} 目录价计算已记录的 Token，Codex 的优先服务等级按其倍率计算。不是实际账单：订阅、折扣和代理自己记录的费用都未计入。',
     version: 'LiteLLM {{ date }} · {{ commit }}',
     requestUnavailable: '费用不可用：{{ reason }}',
     input: '输入',
