@@ -52,6 +52,8 @@ export const zhCN = {
     finishReason: '结束原因 {{ reason }}',
     openSession: '打开会话',
     couldNotRead: '无法读取',
+    unknownFormatHint: '该代理可能更改了日志格式。请更新 Estela，或提交包含代理名称、版本和原因行的报告：',
+    reportIssue: '在 GitHub 上报告',
     line: '第 {{ line }} 行',
     loading: '加载中…',
     nothingLeaves: '只读取本机的会话日志，数据不会离开这台机器',

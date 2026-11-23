@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/troubleshooting.md 为准。
 
-<!-- source-blob: 3691e94779af98d0032602d61e95b3d3f6173dc6 -->
+<!-- source-blob: a6eabf392211081fae52110dc00e9191192ee7fa -->
 
 # 故障排查
 
@@ -18,7 +18,7 @@ CLI 在加载其他任何模块前会先检查 Node.js 版本。运行 `node --v
 
 读取器无法解析的会话文件仍会出现在列表中并标记为「无法读取」，打开它会显示代理、文件、行号和原因。常见原因包括：
 
-- **代理更改了日志格式。** 读取器会拒绝未知代次的日志格式，而不展示部分内容。请更新 Estela（`npx @rivus/estela@latest` 或 `npm install -g @rivus/estela`）；如果最新版本仍无法读取，请提交 issue，附上代理名称、版本和原因行（不要包含会话内容）。
+- **代理更改了日志格式。** 读取器会拒绝未知代次的日志格式，而不展示部分内容。`@rivus/agent-kit` 发布更新后的读取器后，Estela 会发布补丁版本。请更新 Estela（`npx @rivus/estela@latest` 或 `npm install -g @rivus/estela`）；如果最新版本仍无法读取，请[提交 issue](https://github.com/PerfectPan/estela/issues/new/choose)，附上代理名称、版本和原因行（不要包含会话内容）。
 - **该文件不是会话文件**，或在代理写入过程中被截断。
 
 单行不是有效 JSON 不会导致此错误：该行会被跳过，会话其余部分照常加载。

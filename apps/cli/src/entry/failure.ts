@@ -3,6 +3,12 @@ import * as z from 'zod/mini'
 import { errorMessage, oneLine } from '@rivus/estela-server'
 
 const SESSION_FIX = 'Pass a canonical Estela JSON file, or a session path a registered agent adapter accepts.'
+const REPORT_ISSUE_URL = 'https://github.com/PerfectPan/estela/issues/new/choose'
+const UNKNOWN_FORMAT_FIX = `Update Estela (npx @rivus/estela@latest), or report the agent name, version, and reason line at ${REPORT_ISSUE_URL}.`
+
+function isUnknownFormatGeneration(message: string): boolean {
+  return message.includes('unknown format generation')
+}
 
 const errorShapeSchema = z.object({
   code: z.optional(z.string()),
@@ -120,14 +126,16 @@ export function failureReport(failure: CliFailure): FailureReport {
   switch (failure.kind) {
     case 'usage':
       return { message: { cause: sanitizeLines(failure.detail), fix: 'Run estela --help for usage.' }, exitCode: 1 }
-    case 'session':
+    case 'session': {
+      const detail = sanitizeInline(errorMessage(failure.cause))
       return {
         message: {
-          cause: `Could not ${failure.action} ${sanitizeInline(failure.label)}: ${sanitizeInline(errorMessage(failure.cause))}`,
-          fix: SESSION_FIX,
+          cause: `Could not ${failure.action} ${sanitizeInline(failure.label)}: ${detail}`,
+          fix: isUnknownFormatGeneration(detail) ? UNKNOWN_FORMAT_FIX : SESSION_FIX,
         },
         exitCode: 1,
       }
+    }
     case 'output':
       return {
         message: {
