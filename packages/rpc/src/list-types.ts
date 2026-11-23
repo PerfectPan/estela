@@ -48,7 +48,10 @@ export interface SessionListRow extends Omit<SessionSummary, 'contextShape'> {
    * the summary is not done. Never 0 for "unknown".
    */
   costUsd?: number
-  /** Requests the cost leaves out (no usage, no model, or no price); absent when the reader gives none to price. */
+  /**
+   * Requests the cost leaves out (no usage, no model, or no price); 0 when every request is priced or there are none.
+   * Absent while the summary is pending or failed, or when the reader gives no request usage to price.
+   */
   unpricedRequests?: number
   /** A summary is still being computed. */
   pending: boolean

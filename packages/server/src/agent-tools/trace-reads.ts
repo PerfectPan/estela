@@ -37,6 +37,8 @@ interface LaneItem {
   depth: number
   /** The event that started this subagent. */
   spawnEventId?: string
+  /** `true` when the session records this subagent, but its own log is missing or could not be read. */
+  unavailable?: true
   requests: number
   failedTools: number
   compactions: number
@@ -114,6 +116,7 @@ export function sessionSummary(
           }
         }
         put(item, 'spawnEventId', lane.spawnEventId === undefined ? undefined : ids.event(lane.spawnEventId))
+        put(item, 'unavailable', lane.unavailable)
         return item
       }),
       laneCount: lanes.length,
