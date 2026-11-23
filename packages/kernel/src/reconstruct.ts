@@ -118,28 +118,33 @@ function systemRecorded(trace: Trace, lane: string, mainId: string): boolean {
 }
 
 /**
- * The `system` and `tools` slots. A trace with prompt snapshots uses the latest
- * snapshot at or before the event on its lane that recorded the field; one
- * without snapshots uses the session and lane fields.
+ * The `system` and `tools` slots, each from its own source. A slot that some prompt snapshot of the trace records
+ * uses the latest snapshot at or before the event on its lane that recorded it; otherwise it uses the session and
+ * lane fields. A trace can have snapshots for one slot only: a Codex rollout's `additional_tools` snapshot holds
+ * tools, while its system prompt is the session's.
  */
 function promptSlots(trace: Trace, lane: string, mainId: string, prefix: TraceEvent[]): [ContextSlot, ContextSlot] {
-  if (trace.events.some(event => promptSnapshot(event) !== undefined)) {
-    const system = latestSnapshot(prefix, snapshotHasSystemPrompt)
-    const tools = latestSnapshot(prefix, snapshotHasTools)
-    return [
-      recordedSlot('system', system !== undefined, system),
-      recordedSlot(
-        'tools',
-        tools !== undefined,
-        tools,
-        tools !== undefined && snapshotToolsEmpty(promptSnapshot(tools)),
-      ),
-    ]
-  }
+  const snapshots = trace.events.flatMap(event => {
+    const snapshot = promptSnapshot(event)
+    return snapshot === undefined ? [] : [snapshot]
+  })
+  const systemSnapshot = snapshots.some(snapshotHasSystemPrompt)
+    ? latestSnapshot(prefix, snapshotHasSystemPrompt)
+    : null
+  const toolsSnapshot = snapshots.some(snapshotHasTools) ? latestSnapshot(prefix, snapshotHasTools) : null
   const tools = trace.session.tools
   return [
-    recordedSlot('system', systemRecorded(trace, lane, mainId), undefined),
-    recordedSlot('tools', tools != null, undefined, Array.isArray(tools) && tools.length === 0),
+    systemSnapshot === null
+      ? recordedSlot('system', systemRecorded(trace, lane, mainId), undefined)
+      : recordedSlot('system', systemSnapshot !== undefined, systemSnapshot),
+    toolsSnapshot === null
+      ? recordedSlot('tools', tools != null, undefined, Array.isArray(tools) && tools.length === 0)
+      : recordedSlot(
+          'tools',
+          toolsSnapshot !== undefined,
+          toolsSnapshot,
+          toolsSnapshot !== undefined && snapshotToolsEmpty(promptSnapshot(toolsSnapshot)),
+        ),
   ]
 }
 

@@ -197,6 +197,40 @@ describe('reconstruct', () => {
     expect(result.slots?.find(item => item.name === 'messages')?.eventIds).toEqual(['a'])
     expect(result.slots?.find(item => item.name === 'currentTurn')?.status).toBe('empty')
   })
+  it('keeps the session system prompt when the snapshots record tools only, as a Codex rollout does', () => {
+    const source = { file: 'f', offset: 0, length: 1, line: 1 }
+    const trace: Trace = {
+      schema: 'estela',
+      agent: 'codex',
+      session: { id: 's', systemPrompt: 'Be precise.', tools: [{ name: 'a' }] },
+      capabilities: ['systemPrompt', 'toolSchemas'],
+      agents: [{ id: 'main' }],
+      events: [
+        { id: 'r0', seq: 0, ts: 0, kind: 'request', payload: {}, source },
+        {
+          id: 't1',
+          seq: 1,
+          ts: 1,
+          kind: 'system',
+          payload: { type: 'prompt_snapshot', tools: [{ name: 'a' }] },
+          source: { ...source, line: 2 },
+        },
+        { id: 'r1', seq: 2, ts: 2, kind: 'request', payload: {}, source: { ...source, line: 3 } },
+      ],
+      skipped: [],
+    }
+    const prompt = (id: string) =>
+      (reconstruct(trace, id).slots ?? []).slice(0, 2).map(item => [item.status, item.recordedBy])
+    expect(prompt('r0')).toEqual([
+      ['present', undefined],
+      ['unavailable', undefined],
+    ])
+    expect(prompt('r1')).toEqual([
+      ['present', undefined],
+      ['present', 't1'],
+    ])
+  })
+
   it('takes the system prompt and tools from the latest snapshot at or before the event on its lane', () => {
     const source = { file: 'f', offset: 0, length: 1, line: 1 }
     const snap = (

@@ -126,20 +126,12 @@ export async function discoverRows(
       for (const head of heads) {
         perFile.set(head.ref.path, (perFile.get(head.ref.path) ?? 0) + 1)
       }
-      // All sessions in a database share one snapshot of its main file and WAL in this pass.
+      // All sessions in a database share one stat of its file in this pass.
       const stats = new Map<string, ReturnType<ShellPlatform['fs']['stat']>>()
       const statFile = (path: string) => {
         let pending = stats.get(path)
         if (!pending) {
-          pending = (async () => {
-            const info = await platform.fs.stat(path, { followSymlinks: true })
-            if (info?.kind !== 'file' || !keepsSessionsInDatabase(state.adapter.agent)) {
-              return info
-            }
-            // Committed SQLite changes may still live in WAL without touching the main database.
-            const wal = await platform.fs.stat(`${path}-wal`, { followSymlinks: true })
-            return { ...info, size: info.size + (wal?.size ?? 0), mtimeMs: Math.max(info.mtimeMs, wal?.mtimeMs ?? 0) }
-          })()
+          pending = platform.fs.stat(path, { followSymlinks: true })
           stats.set(path, pending)
         }
         return pending

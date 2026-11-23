@@ -18,11 +18,9 @@ export function adapterDisplayName(adapter: SessionAdapter): string {
 
 /**
  * Agents that keep every session as rows of one SQLite database, which the kit's adapters do not say. All of its
- * sessions share the database file's stamp, and a commit can sit in its write-ahead log without touching the file, so
- * the catalog adds the log to the stamp and always puts the session id in the trace id.
- *
- * A row is keyed by its session's `lastActiveAt` instead, which moves with every write to that session, so a write to
- * one session leaves the others' cached summaries alone. OpenCode's does, ZCode's did on a real 0.16.5 database (no
+ * sessions share the database file's stamp, which also misses a commit still in the write-ahead log, so the catalog
+ * always puts the session id in the trace id and keys a row by its session's `lastActiveAt` instead: it moves with
+ * every write to that session, so a write to one session leaves the others' cached summaries alone. OpenCode's does, ZCode's did on a real 0.16.5 database (no
  * message or part written after its session's `time_updated`), and DimCode's is the latest write across the session,
  * its messages, and its usage ledger. A subagent's writes to its own session row do not move its parent's, so a
  * parent's cached summary, which counts the subagent lanes, can lag a running subagent.

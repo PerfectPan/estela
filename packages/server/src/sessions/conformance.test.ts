@@ -129,7 +129,8 @@ const DSH: ConformanceSession[] = [
   {
     // Its local subagents run in sessions of their own (`spawn-child`, `fork-child`), attached as lanes.
     path: 'parent/session.v4.jsonl',
-    records: 9,
+    files: ['parent/session.v4.jsonl', 'spawn-child/session.v4.jsonl', 'fork-child/session.v4.jsonl'],
+    records: 19,
     capabilities: ['requests', 'usage', 'subagents'],
   },
   { path: 'hooks/session.v4.jsonl', records: 5, capabilities: ['requests', 'usage', 'hooks'] },
@@ -209,7 +210,11 @@ const KIMI: ConformanceSession[] = [
   },
   {
     path: 'sessions/wd_demo_111111111111/session_demo-3/agents/main/wire.jsonl',
-    records: 11,
+    files: [
+      'sessions/wd_demo_111111111111/session_demo-3/agents/main/wire.jsonl',
+      'sessions/wd_demo_111111111111/session_demo-3/agents/sub_1/wire.jsonl',
+    ],
+    records: 15,
     capabilities: [
       'requests',
       'usage',
