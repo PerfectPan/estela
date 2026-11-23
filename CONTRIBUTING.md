@@ -195,7 +195,7 @@ Session readers live in [`@rivus/agent-kit`](https://github.com/PerfectPan/agent
 - **Urgent patch-release path when an agent changes its log format**: readers fail loud with `UnknownFormatGeneration` rather than guessing, so an upstream format change blocks reading new sessions of that agent until an updated reader ships. Do not wait for Monday's Renovate run:
   1. Update the reader and its conformance fixtures in [`PerfectPan/agent-kit`](https://github.com/PerfectPan/agent-kit) and publish the new `@rivus/agent-kit` release.
   2. In Estela, bump `@rivus/agent-kit` in `pnpm-workspace.yaml` and run `pnpm install`. Because `@rivus/agent-kit` is listed in `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`, the new release installs immediately after npm publication without waiting 24 hours.
-  3. Copy the updated conformance fixtures, update the tested versions and capabilities in `docs/guide/supported-agents.md` (and `.zh-CN.md`), and add a `patch` changeset for `@rivus/estela`.
+  3. Copy the updated conformance fixtures, update the tested versions (agent versions the kit's source or README says the reader was verified or captured on, plus any log-format version recorded in the fixtures) and capabilities in `docs/guide/supported-agents.md` (and `.zh-CN.md`), and add a `patch` changeset for `@rivus/estela`.
   4. Merge the PR once CI passes. On push to `main`, `.github/workflows/publish.yml` opens or updates the draft `chore(release): version packages` PR; mark it Ready and merge it once CI passes to publish the patch release to npm.
 
 ### Publishing to npm

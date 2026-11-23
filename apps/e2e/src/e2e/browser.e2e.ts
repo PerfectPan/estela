@@ -49,6 +49,7 @@ test('S4: an unknown format generation is listed as "could not read", and openin
   await expect(preview).toContainText('app-unknown-generation/session.jsonl')
   await expect(preview).toContainText('line 1')
   await expect(preview).toContainText('unknown format generation')
+  await expect(preview.getByTestId('unknown-format-hint')).toBeVisible()
   // Opening its workspace by trace id shows agent, file, and line in the error panel.
   await page.goto(`${server.base}#/s/${await row.getAttribute('data-trace-id')}`)
   const panel = page.getByTestId('load-error')
@@ -57,4 +58,5 @@ test('S4: an unknown format generation is listed as "could not read", and openin
   await expect(panel).toContainText('app-unknown-generation/session.jsonl')
   await expect(panel).toContainText(/Line\s*1/)
   await expect(panel).toContainText('unknown format generation')
+  await expect(panel.getByTestId('unknown-format-hint')).toBeVisible()
 })

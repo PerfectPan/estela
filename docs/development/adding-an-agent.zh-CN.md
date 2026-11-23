@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/adding-an-agent.md 为准。
 
-<!-- source-blob: 9216c3253c172334697e7a7a01d35c0f95324353 -->
+<!-- source-blob: 648622b1fc5deae10496d54fb2007050420d4e08 -->
 
 # 添加代理
 
@@ -17,14 +17,16 @@
    - `src/layout.ts` 与 `src/records.ts`（或 `src/records/`）：会话读取与用量解码共用的存储布局和 `zod/mini` 记录 schema。
    - `src/identity.ts`：`CodingAgent` 身份条目。
    - `src/sessions.ts`（辅助模块放在 `src/sessions/` 下）：`SessionAdapter`（`specificationVersion: "sessions-v1"`）。
-2. **实现 `SessionAdapter` 契约**：
-   - `discover`：在代理根目录下枚举会话引用，不加载完整转录。
-   - `detect` / `isSessionHead`：在通过路径直接打开时识别该代理的会话文件。
+2. **实现 `SessionAdapter` SPI**（`agent-kit` 中的 `packages/sessions/src/application/spi.ts`）：
+   - 元数据字段：`specificationVersion: "sessions-v1"`、`agent`、`displayName`、`capabilities`，以及可选的 `home`（`HomeRule`）。
+   - `roots`：返回该代理主目录下存放会话的目录（或数据库路径）。
+   - `discover`：在每个根目录下枚举会话引用，不加载完整转录。
+   - `detect`：在通过路径直接打开时识别该代理的会话文件。
    - `load`：将记录转换为有序的 `TranscriptEvent`；日志记录了版本时填入 `agentVersion`，按实际提取的数据声明 `capabilities`，并记录准确的 `SourcePointer` 偏移（字节范围、解压后行偏移或 SQLite 行指针），以便 `readOriginal` 回读任意事件的原始记录。
-   - `summarize`：流式计算摘要计数与提示词，不物化完整转录。
+   - `summarize`（可选）：流式计算摘要计数与提示词，不物化完整转录。
    - **遇到未知格式代次时显式报错**：当文件头、schema 版本或记录外层结构属于不支持的代次时，返回 `UnknownFormatGeneration`（切勿静默丢弃或猜测）。
 3. **将提供方接入套件外壳**：
-   - 在 `packages/agent-kit/src/providers/` 中注册服务（`identity`、`sessions` 和 `builtin.ts`），并从 `packages/agent-kit/src/providers/unsupported.ts` 移除对应的未支持条目。
+   - 在 `packages/agent-kit/src/providers/` 中注册提供方（在 `identity.ts` 中添加身份条目、在 `sessions.ts` 中添加会话适配器；`builtin.ts` 会由这些服务表派生 `builtinProviders`）。
    - 更新 `packages/agent-kit/README.md` 中的支持矩阵（由 `packages/agent-kit/test/provider-tables.test.ts` 检查）。
 4. **添加一致性测试夹具与测试** `packages/providers/<agent>/test/`：
    - 编写合成夹具，覆盖每个声明的能力（请求、用量、推理、上下文压缩、子代理、钩子、系统提示词、工具 schema），以及一条未知类型记录和一个未知代次失败用例。
@@ -45,7 +47,7 @@
 `packages/server/src/sessions/adapters.ts` 会自动将每个导出 `.sessions` 的内置套件提供方加载到 `builtinAdapters`。检查该文件中的两张表：
 
 - `PRODUCT_NAMES`：当套件适配器的 `displayName` 只是原始 id 而非产品名时添加条目（例如 `opencode: 'OpenCode'`）。
-- `DATABASE_AGENTS`（`keepsSessionsInDatabase`）：当该代理将所有会话作为行保存在单个 SQLite 数据库中时加入其代理 id。`packages/server/src/sessions/conformance.test.ts` 会校验 `keepsSessionsInDatabase(agent)` 与适配器事件是否携带 `source.sqlite` 保持一致。
+- `DATABASE_AGENTS`（`keepsSessionsInDatabase`）：当该代理将所有会话作为行保存在单个 SQLite 数据库中，且其 `lastActiveAt` 会随该会话的每次写入而更新时加入其代理 id——目录会将 session id 放入 trace id，并以各会话自身的 `lastActiveAt` 而非共享数据库时间戳作为缓存键，从而避免写入单个会话使其他会话的缓存摘要失效。`packages/server/src/sessions/conformance.test.ts` 会校验 `keepsSessionsInDatabase(agent)` 与适配器事件是否携带 `source.sqlite` 保持一致。
 
 ### 复制一致性测试夹具并注册套件
 
@@ -64,6 +66,7 @@
 | Web 代理徽标 | `apps/web/src/browser/agent-mark.tsx` | `LETTER[<id>]`：1–2 个字母标记。 |
 | Web 主题颜色 | `apps/web/src/styles.css` | 在深色（`:root, html[data-theme="dark"]`）与浅色（`html[data-theme="light"]`）令牌块中添加 `--agent-<id>`。 |
 | 站点代理列表 | `apps/site/src/content/agents.ts` | 包含 `id`、`name`、`paths` 和主目录覆盖变量 `home` 的条目。 |
+| 站点代理网格 | `apps/site/src/landing/agents-grid.tsx` | 检查底部注释 `<li>` 的跨列类名（`sm:col-span-2 lg:col-span-4`），当前假设十二个代理在每个断点都恰好填满整行。 |
 | 站点主题颜色 | `apps/site/src/styles.css` | 在浅色（`:root`）与深色（`.dark`）令牌块中添加 `--agent-<id>`。 |
 | 站点代理数量文案 | `apps/site/src/i18n/dictionary.en.ts`、`apps/site/src/i18n/dictionary.zh-CN.ts` | 若落地页文案提及支持的代理数量，同步更新。 |
 
@@ -71,9 +74,9 @@
 
 `docs/guide/`、`docs/reference/`、`docs/architecture/`、`docs/development/` 下的每篇文档以及根目录 `README.md` 都有 `.zh-CN.md` 中文阅读版，需在同一 PR 中同步更新：
 
-1. `docs/guide/supported-agents.md`（及 `.zh-CN.md`）：更新套件版本与代理数量，在**会话位置**中添加该代理，在**各代理记录的内容**中添加其**测试版本**（取自一致性测试夹具，无记录时写「未记录」）和能力行，并在**已知限制**中记录限制。
+1. `docs/guide/supported-agents.md`（及 `.zh-CN.md`）：更新套件版本与代理数量，在**会话位置**中添加该代理，在**各代理记录的内容**中添加其**测试版本**（套件源码或 README 说明读取器已验证或采集的代理版本，加上一致性测试夹具记录的日志格式版本；均无记录时写「未记录」）和能力行，并在**已知限制**中记录限制。
 2. `docs/guide/troubleshooting.md`（及 `.zh-CN.md`）：在**显示 0 个会话的代理**下的环境变量列表中加入该代理的主目录覆盖变量。
-3. `README.md`（及 `.zh-CN.md`）、`docs/guide/getting-started.md`（及 `.zh-CN.md`）、`docs/architecture/overview.md`（及 `.zh-CN.md`）以及 `docs/reference/public-interface.md` / `docs/reference/mcp-tools.md`（及 `.zh-CN.md`）中涉及代理列表、数量或主目录覆盖变量的位置。
+3. `README.md`（及 `.zh-CN.md`）、`docs/guide/getting-started.md`（及 `.zh-CN.md`）、`docs/guide/concepts.md`（及 `.zh-CN.md`，数据库代理列表）、`docs/architecture/overview.md`（及 `.zh-CN.md`）、`docs/reference/public-interface.md` / `docs/reference/mcp-tools.md`（及 `.zh-CN.md`）以及 `AGENTS.md`（若新增数据库代理，更新会话索引规则）中涉及代理列表、数量、数据库代理或主目录覆盖变量的位置。
 4. 使用 `node scripts/check-doc-translations.mjs --write <zh-CN 文件...>` 记录更新后的英文 blob 哈希。
 5. 在 `.changeset/` 下为 `@rivus/estela` 添加 changeset（新增代理使用 `minor`，更新现有读取器使用 `patch`；见 [`CONTRIBUTING.md`](../../CONTRIBUTING.md#kit-upgrades-and-format-change-releases)）。
 

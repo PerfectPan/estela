@@ -27,19 +27,19 @@ An agent whose folder does not exist shows 0 sessions and the folder Estela chec
 
 ## What each agent records
 
-What Estela can show depends on what the agent writes to its log. This table comes from the capabilities each reader declares and the conformance fixtures under `fixtures/sessions/<agent>/conformance/` that `packages/server/src/sessions/conformance.test.ts` runs. "Tested against" lists the agent or log-format versions recorded in those conformance fixtures; where a log format stores no version, it says "not recorded". "Not recorded" in a capability column means the agent's log does not hold that data, and "not read" means the reader does not take it from the log, whether or not the agent records it; either way the matching view shows `unavailable` or "—" for every session of that agent.
+What Estela can show depends on what the agent writes to its log. This table comes from the capabilities each reader declares and the conformance fixtures under `fixtures/sessions/<agent>/conformance/` that `packages/server/src/sessions/conformance.test.ts` runs. "Tested against" lists an agent version when the kit's source or README says the reader was verified or captured on it, plus any log-format version recorded in those conformance fixtures; where neither is recorded, it says "not recorded". "Not recorded" in a capability column means the agent's log does not hold that data, and "not read" means the reader does not take it from the log, whether or not the agent records it; either way the matching view shows `unavailable` or "—" for every session of that agent.
 
 | Agent | Tested against | System prompt | Tool definitions | Usage | Cache token classes | Subagents | Compaction | Durations | Hooks |
 |---|---|---|---|---|---|---|---|---|---|
-| Antigravity CLI | not recorded | not read | not read | per request | read only | not read | yes, without token counts | not read | not read |
-| Claude Code | 2.0.0, 2.1.268 | from prompt snapshots (Claude Code 2.1.268 and later) | from prompt snapshots (2.1.268 and later) | per request | read, write (5-minute and 1-hour) | yes | yes, with tokens before and after | yes | yes |
-| Codex | 0.0.9, 0.1.0 | when the rollout records it (older rollouts do not) | when the rollout records them | per request | read, write when recorded | yes | yes, with tokens before | yes | yes |
+| Antigravity CLI | 1.5.10 | not read | not read | per request | read only | not read | yes, without token counts | not read | not read |
+| Claude Code | 2.1.268 | from prompt snapshots (Claude Code 2.1.268 and later) | from prompt snapshots (2.1.268 and later) | per request | read, write (5-minute and 1-hour) | yes | yes, with tokens before and after | yes | yes |
+| Codex | not recorded | when the rollout records it (older rollouts do not) | when the rollout records them | per request | read, write when recorded | yes | yes, with tokens before | yes | yes |
 | DeepSeek Harness | format v4 (agent version not recorded) | yes | yes | per request | read, write | yes (local subagents) | yes, with tokens | yes | yes |
-| DimCode | v2 SQLite store (agent version not recorded) | not read | not read | per usage record (below) | read, write | not read | not read | per run | not read |
+| DimCode | 0.5.27 | not read | not read | per usage record (below) | read, write | not read | not read | per run | not read |
 | Gemini CLI | not recorded | not recorded | not recorded | per request | read only | not recorded | yes, with tokens | not recorded | not recorded |
-| Grok | not recorded | when the session folder has the prompt file | when the session folder has the tools file | per turn (below) | read, write | yes | yes, with tokens | yes | yes |
-| Kimi Code | wire protocol 1.5 (agent version not recorded) | yes | when the wire records them | per request | read, write | yes | yes, with tokens | yes | yes |
-| OpenCode | 1.18.5 | not recorded | not recorded | per request | read, write | yes | yes, with tokens before | yes | not recorded |
+| Grok | format v1 (agent version not recorded) | when the session folder has the prompt file | when the session folder has the tools file | per turn (below) | read, write | yes | yes, with tokens | yes | yes |
+| Kimi Code | 2.6.0 (wire protocol 1.5) | yes | when the wire records them | per request | read, write | yes | yes, with tokens | yes | yes |
+| OpenCode | not recorded | not recorded | not recorded | per request | read, write | yes | yes, with tokens before | yes | not recorded |
 | Pi | format v3 (agent version not recorded) | not recorded | not recorded | per request | read, write | not recorded | yes, with tokens | not recorded | not recorded |
 | Qoder CLI | 1.1.88 | not read | not read | per request | read, write (5-minute and 1-hour) | yes | yes, without token counts | not read | not read |
 | ZCode | 3.17.2 | per conversation | not read | per request | read, write | yes | yes, with tokens | yes | not read |
