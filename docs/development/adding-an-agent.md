@@ -15,7 +15,7 @@ All session adapters live in [`PerfectPan/agent-kit`](https://github.com/Perfect
    - `src/sessions.ts` (with helpers under `src/sessions/`): the `SessionAdapter` (`specificationVersion: "sessions-v1"`).
 2. **Implement the `SessionAdapter` SPI** (`packages/sessions/src/application/spi.ts` in `agent-kit`):
    - Metadata fields: `specificationVersion: "sessions-v1"`, `agent`, `displayName`, `capabilities`, and optional `home` (`HomeRule`).
-   - `roots`: return the directories (or database paths) under the agent's home that hold its sessions.
+   - `roots`: return the directories under the agent's home that hold its sessions.
    - `discover`: list session references under each root without loading full transcripts.
    - `detect`: recognize the agent's session files when opened directly by path.
    - `load`: translate records into ordered `TranscriptEvent` values, recording `agentVersion` when the log stores one, `capabilities` for what the reader actually extracts, and accurate `SourcePointer` offsets (byte ranges, decompressed line offsets, or SQLite row pointers) so `readOriginal` can fetch any event's raw record back.

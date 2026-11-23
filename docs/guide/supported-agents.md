@@ -32,7 +32,7 @@ What Estela can show depends on what the agent writes to its log. This table com
 | Agent | Tested against | System prompt | Tool definitions | Usage | Cache token classes | Subagents | Compaction | Durations | Hooks |
 |---|---|---|---|---|---|---|---|---|---|
 | Antigravity CLI | 1.5.10 | not read | not read | per request | read only | not read | yes, without token counts | not read | not read |
-| Claude Code | 2.1.268 | from prompt snapshots (Claude Code 2.1.268 and later) | from prompt snapshots (2.1.268 and later) | per request | read, write (5-minute and 1-hour) | yes | yes, with tokens before and after | yes | yes |
+| Claude Code | not recorded | from prompt snapshots (Claude Code 2.1.268 and later) | from prompt snapshots (2.1.268 and later) | per request | read, write (5-minute and 1-hour) | yes | yes, with tokens before and after | yes | yes |
 | Codex | not recorded | when the rollout records it (older rollouts do not) | when the rollout records them | per request | read, write when recorded | yes | yes, with tokens before | yes | yes |
 | DeepSeek Harness | format v4 (agent version not recorded) | yes | yes | per request | read, write | yes (local subagents) | yes, with tokens | yes | yes |
 | DimCode | 0.5.27 | not read | not read | per usage record (below) | read, write | not read | not read | per run | not read |
@@ -42,7 +42,7 @@ What Estela can show depends on what the agent writes to its log. This table com
 | OpenCode | not recorded | not recorded | not recorded | per request | read, write | yes | yes, with tokens before | yes | not recorded |
 | Pi | format v3 (agent version not recorded) | not recorded | not recorded | per request | read, write | not recorded | yes, with tokens | not recorded | not recorded |
 | Qoder CLI | 1.1.88 | not read | not read | per request | read, write (5-minute and 1-hour) | yes | yes, without token counts | not read | not read |
-| ZCode | 3.17.2 | per conversation | not read | per request | read, write | yes | yes, with tokens | yes | not read |
+| ZCode | not recorded | per conversation | not read | per request | read, write | yes | yes, with tokens | yes | not read |
 
 Estela reads requests, token usage, and the reasoning text the model produced for every agent. A request's input tokens include its cache reads and writes wherever the agent records those classes.
 

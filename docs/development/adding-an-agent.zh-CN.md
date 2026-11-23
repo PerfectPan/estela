@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/adding-an-agent.md 为准。
 
-<!-- source-blob: 648622b1fc5deae10496d54fb2007050420d4e08 -->
+<!-- source-blob: ecadffe2a0b4dccc4cf8a8503330d0e50c56f7ab -->
 
 # 添加代理
 
@@ -19,7 +19,7 @@
    - `src/sessions.ts`（辅助模块放在 `src/sessions/` 下）：`SessionAdapter`（`specificationVersion: "sessions-v1"`）。
 2. **实现 `SessionAdapter` SPI**（`agent-kit` 中的 `packages/sessions/src/application/spi.ts`）：
    - 元数据字段：`specificationVersion: "sessions-v1"`、`agent`、`displayName`、`capabilities`，以及可选的 `home`（`HomeRule`）。
-   - `roots`：返回该代理主目录下存放会话的目录（或数据库路径）。
+   - `roots`：返回该代理主目录下存放会话的目录。
    - `discover`：在每个根目录下枚举会话引用，不加载完整转录。
    - `detect`：在通过路径直接打开时识别该代理的会话文件。
    - `load`：将记录转换为有序的 `TranscriptEvent`；日志记录了版本时填入 `agentVersion`，按实际提取的数据声明 `capabilities`，并记录准确的 `SourcePointer` 偏移（字节范围、解压后行偏移或 SQLite 行指针），以便 `readOriginal` 回读任意事件的原始记录。
