@@ -127,4 +127,24 @@ describe('listSessionPage', () => {
     expect(page.sessions[0]).toMatchObject({ title: `${'x'.repeat(70)} ~`, firstPrompt: `${'y'.repeat(100)} ~` })
     expect(JSON.stringify(page)).not.toContain(home.slice(0, 9))
   })
+
+  it('includes each session list cost, unpriced request count, and the price snapshot once', async () => {
+    const priced = [
+      row('full', { costUsd: 0.42, unpricedRequests: 0 }),
+      row('zero', { costUsd: 0, unpricedRequests: 0 }),
+      row('partial', { costUsd: 0.15, unpricedRequests: 2 }),
+      row('unpriced', { unpricedRequests: 3 }),
+      row('pending', { pending: true }),
+    ]
+    const page = await listSessionPage(sourceOf(priced), {}, redaction)
+    expect(page.pricesVersion).toBe('test-prices')
+    const byId = new Map(page.sessions.map(item => [item.traceId, item]))
+    expect(byId.get('full')).toMatchObject({ costUsd: 0.42, unpricedRequests: 0 })
+    expect(byId.get('zero')).toMatchObject({ costUsd: 0, unpricedRequests: 0 })
+    expect(byId.get('partial')).toMatchObject({ costUsd: 0.15, unpricedRequests: 2 })
+    expect(byId.get('unpriced')).toMatchObject({ unpricedRequests: 3 })
+    expect(byId.get('unpriced')).not.toHaveProperty('costUsd')
+    expect(byId.get('pending')).not.toHaveProperty('costUsd')
+    expect(byId.get('pending')).not.toHaveProperty('unpricedRequests')
+  })
 })

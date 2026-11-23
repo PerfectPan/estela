@@ -50,6 +50,25 @@ describe('trace reads', () => {
     expect(summary.truncated).toEqual([['title']])
   })
 
+  it('marks a subagent lane whose log is missing as unavailable', () => {
+    const withMissing: Trace = {
+      ...trace,
+      agents: [
+        { id: 'main' },
+        { id: 'lost', parentId: 'main', spawnEventId: 'r1', unavailable: true },
+        { id: 'sub', parentId: 'main', spawnEventId: 'r1' },
+      ],
+    }
+    const summary = sessionSummary(withMissing, 't1', new TraceIds(withMissing, () => true), plain)
+    expect(summary.lanes.map(lane => [lane.id, lane.requests, lane.unavailable])).toEqual([
+      ['main', 2, undefined],
+      ['lost', 0, true],
+      ['sub', 1, undefined],
+    ])
+    expect(summary.lanes[0]).not.toHaveProperty('unavailable')
+    expect(summary.lanes[1]).toMatchObject({ id: 'lost', requests: 0, unavailable: true })
+  })
+
   it('lists turns with their prompts and requests by lane and turn', () => {
     const turns = listTurns(trace, 't1', ids, {}, plain)
     expect(turns.turns.map(turn => [turn.index, turn.prompt, turn.requests])).toEqual([

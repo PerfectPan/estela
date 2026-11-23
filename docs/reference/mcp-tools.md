@@ -38,7 +38,7 @@ Audience: someone who writes an MCP client against `estela mcp`, or changes the 
 
 ### `estela_list_sessions`, `estela_search_sessions`
 
-`{ sessions, total, offset, nextOffset?, unsummarized?, agents }`
+`{ sessions, total, offset, nextOffset?, unsummarized?, agents, pricesVersion }`
 
 | Field | Meaning |
 |---|---|
@@ -47,8 +47,9 @@ Audience: someone who writes an MCP client against `estela mcp`, or changes the 
 | `nextOffset` | present when more sessions match; pass it as `offset` |
 | `unsummarized` | sessions left out because their counts were still being computed (flag filters only) |
 | `agents` | `[{ id, sessions }]`: every agent the server reads, with its session count |
+| `pricesVersion` | the price snapshot every session item's `costUsd` is priced at |
 
-A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, `lastActiveAt`, `sizeBytes`, `firstPrompt?`, `summary`, the counts `turns?`, `requests?`, `inputTokens?`, `outputTokens?`, `durationMs?`, `compactions?`, `subagents?`, `failedTools?`, `error?` (`{ reason, file?, line? }`), and `truncated?`. `summary` is `ready`, `pending` (counts not computed yet), or `failed` (the session could not be read; see `error`). `sizeBytes` is the size of the session's file, and 0 for an OpenCode, ZCode, or DimCode session, whose database file holds other sessions too.
+A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, `lastActiveAt`, `sizeBytes`, `firstPrompt?`, `summary`, the counts `turns?`, `requests?`, `inputTokens?`, `outputTokens?`, `durationMs?`, `compactions?`, `subagents?`, `failedTools?`, `costUsd?`, `unpricedRequests?`, `error?` (`{ reason, file?, line? }`), and `truncated?`. `summary` is `ready`, `pending` (counts not computed yet), or `failed` (the session could not be read; see `error`). `costUsd` is the list price of the session's priced requests at `pricesVersion`, and is absent when none is priced or the summary is not done (never 0 for unknown); `unpricedRequests` is the number of requests the cost leaves out (no usage, no model, or no price), and is absent when the reader gives none to price. `sizeBytes` is the size of the session's file, and 0 for an OpenCode, ZCode, or DimCode session, whose database file holds other sessions too.
 
 ### `estela_session_summary`
 
@@ -61,7 +62,7 @@ A session item: `traceId`, `agent`, `title?`, `project?`, `cwd?`, `startedAt?`, 
 | `capabilities` | what this agent's log can record ([Concepts](../guide/concepts.md#capabilities)) |
 | `numbers` | the recorded counts among `turns`, `requests`, `inputTokens`, `outputTokens`, `durationMs`, `compactions`, `subagents`, `failedTools` |
 | `unavailable` | the counts of that list this session's log does not record |
-| `lanes` | at most 50 lanes: `{ id, parentId?, title?, depth, spawnEventId?, requests, failedTools, compactions }`; `depth` is 0 for the main lane, 1 for a subagent it started, and one more for each level of nesting; `spawnEventId` is the event that started the subagent |
+| `lanes` | at most 50 lanes: `{ id, parentId?, title?, depth, spawnEventId?, unavailable?, requests, failedTools, compactions }`; `depth` is 0 for the main lane, 1 for a subagent it started, and one more for each level of nesting; `spawnEventId` is the event that started the subagent; `unavailable` is `true` when the session records the subagent but its own log is missing or could not be read |
 | `laneCount` | lanes in the session |
 
 ### `estela_list_turns`

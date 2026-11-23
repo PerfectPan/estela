@@ -56,9 +56,18 @@ const objectSchema = z.object({
   additionalProperties: z.literal(false),
 })
 const page = z.object({
-  sessions: z.array(z.object({ traceId: z.string(), title: z.optional(z.string()), summary: z.string() })),
+  sessions: z.array(
+    z.object({
+      traceId: z.string(),
+      title: z.optional(z.string()),
+      summary: z.string(),
+      costUsd: z.optional(z.number()),
+      unpricedRequests: z.optional(z.number()),
+    }),
+  ),
   total: z.number(),
   nextOffset: z.optional(z.number()),
+  pricesVersion: z.string(),
 })
 const turns = z.object({
   turns: z.array(

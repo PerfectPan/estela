@@ -43,6 +43,13 @@ interface SessionItem {
   compactions?: number
   subagents?: number
   failedTools?: number
+  /**
+   * List price of the session's priced requests at `SessionPage.pricesVersion`; absent when none is priced or the
+   * summary is not done. Never 0 for "unknown".
+   */
+  costUsd?: number
+  /** Requests the cost leaves out (no usage, no model, or no price); absent when the reader gives none to price. */
+  unpricedRequests?: number
   error?: { reason: string; file?: string; line?: number }
   /** Fields cut to their bound, as paths. */
   truncated?: string[][]
@@ -62,6 +69,8 @@ export interface SessionPage {
   unsummarized?: number
   /** Every agent the server reads, with its session count. */
   agents: { id: string; sessions: number }[]
+  /** The price snapshot every session item's `costUsd` is priced at. */
+  pricesVersion: string
 }
 
 type Verdict = 'match' | 'no' | 'unsummarized'
@@ -75,6 +84,8 @@ const COUNTS = [
   'compactions',
   'subagents',
   'failedTools',
+  'costUsd',
+  'unpricedRequests',
 ] as const
 
 function flagVerdict(row: SessionListRow, value: number | undefined, wanted: boolean | undefined): Verdict {
@@ -229,6 +240,7 @@ export async function listSessionPage(
     total: rows.length,
     offset,
     agents: listed.agents.map(agent => ({ id: agent.id, sessions: agent.count })),
+    pricesVersion: listed.pricesVersion,
   }
   if (unsummarized > 0) {
     base.unsummarized = unsummarized

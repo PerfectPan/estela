@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/mcp-tools.md 为准。
 
-<!-- source-blob: 6c520276d07f2e658c80797ce9c265138eecfc2b -->
+<!-- source-blob: 7b466320b9138b11a5a4714a870affb2c0eb8a63 -->
 
 # MCP 工具参考
 
@@ -42,7 +42,7 @@
 
 ### `estela_list_sessions`、`estela_search_sessions`
 
-`{ sessions, total, offset, nextOffset?, unsummarized?, agents }`
+`{ sessions, total, offset, nextOffset?, unsummarized?, agents, pricesVersion }`
 
 | 字段 | 含义 |
 |---|---|
@@ -51,8 +51,9 @@
 | `nextOffset` | 存在更多匹配会话时出现；将其作为 `offset` 传入 |
 | `unsummarized` | 因计数仍在计算而被跳过的会话数（仅限标记过滤条件） |
 | `agents` | `[{ id, sessions }]`：服务器读取的每个代理及其会话数 |
+| `pricesVersion` | 每个会话条目的 `costUsd` 所依据的价格快照 |
 
-单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。`sizeBytes` 是会话文件的大小；OpenCode、ZCode 或 DimCode 会话为 0，因为其数据库文件还包含其他会话。
+单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`costUsd?`、`unpricedRequests?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。`costUsd` 为该会话已计价请求在 `pricesVersion` 下的目录价费用，没有已计价请求或摘要尚未完成时缺失（未知时从不为 0）；`unpricedRequests` 为费用未包含的请求数（缺少用量、模型或价格），读取器未提供可计价请求时缺失。`sizeBytes` 是会话文件的大小；OpenCode、ZCode 或 DimCode 会话为 0，因为其数据库文件还包含其他会话。
 
 ### `estela_session_summary`
 
@@ -65,7 +66,7 @@
 | `capabilities` | 该代理的日志能够记录的数据类型（见[概念](../guide/concepts.zh-CN.md#能力)） |
 | `numbers` | `turns`、`requests`、`inputTokens`、`outputTokens`、`durationMs`、`compactions`、`subagents`、`failedTools` 中已记录的计数 |
 | `unavailable` | 上述列表中该会话日志未记录的计数名称 |
-| `lanes` | 最多 50 条泳道：`{ id, parentId?, title?, depth, spawnEventId?, requests, failedTools, compactions }`；主泳道 `depth` 为 0，其启动的子代理为 1，每嵌套一层加 1；`spawnEventId` 为启动该子代理的事件 |
+| `lanes` | 最多 50 条泳道：`{ id, parentId?, title?, depth, spawnEventId?, unavailable?, requests, failedTools, compactions }`；主泳道 `depth` 为 0，其启动的子代理为 1，每嵌套一层加 1；`spawnEventId` 为启动该子代理的事件；`unavailable` 为 `true` 表示会话记录了该子代理，但其自身日志缺失或无法读取 |
 | `laneCount` | 会话中的泳道总数 |
 
 ### `estela_list_turns`
