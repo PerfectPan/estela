@@ -1,3 +1,4 @@
+import { snapshotPricing } from '@rivus/estela-kernel'
 import type { SessionAdapter } from '@rivus/agent-kit/sessions'
 import type { Transcript } from '@rivus/agent-kit/transcript'
 import { ok } from '@rivus/agent-kit/catalog'
@@ -196,6 +197,47 @@ describe('session catalog cache', () => {
     // `summarizeRow` hands the kit the discovered path as it is; on Windows the kit hands its adapter the `/` form.
     expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     current.close()
+  })
+
+  it('re-summarizes a row priced at another price snapshot, then serves it from the cache', async () => {
+    const home = await tempHome()
+    await session(home, 'a.jsonl', 'Alpha')
+    const file = join(home, 'index.sqlite')
+    const platform = createNodePlatform({ home, env: {} })
+    const loads: string[] = []
+    const start = () =>
+      new SessionCatalog({
+        platform,
+        adapters: { fake: fakeAdapter(home, loads) },
+        index: openSessionIndex({ summaryVersion: 1, file }),
+      })
+    const first = start()
+    await first.whenIdle()
+    first.close()
+    expect(loads).toHaveLength(1)
+    // As a previous Estela left it: the same summary, priced at an older snapshot.
+    const index = openSessionIndex({ summaryVersion: 1, file })
+    index.putSummaries(
+      index.rows().map(row => ({ ...row, summary: { ...row.summary, cost: { prices: 'older-prices' } }, prompts: [] })),
+    )
+    index.close()
+
+    const second = start()
+    expect((await second.listSessions()).rows[0]?.pending).toBe(true)
+    await second.whenIdle()
+    const listed = await second.listSessions()
+    expect(loads).toHaveLength(2)
+    expect(listed.pricesVersion).toBe(snapshotPricing().version)
+    // The fake's one request records no usage: unpriced, and no sum, never $0.
+    expect(listed.rows[0]).toMatchObject({ requests: 1, unpricedRequests: 1 })
+    expect(listed.rows[0]).not.toHaveProperty('costUsd')
+    second.close()
+
+    const third = start()
+    expect((await third.listSessions()).rows[0]?.pending).toBe(false)
+    await third.whenIdle()
+    expect(loads).toHaveLength(2)
+    third.close()
   })
 
   it('re-summarizes a row cached under the previous index content revision', async () => {

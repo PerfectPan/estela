@@ -1,7 +1,14 @@
 import type { CostTotal, RequestCost } from '@rivus/estela-kernel'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { applyLocale } from '@/i18n/locale.ts'
-import { costHeadline, costShort, priceVersionText, requestCostDetail, requestCostText } from './cost-text.ts'
+import {
+  costHeadline,
+  costShort,
+  listCostText,
+  priceVersionText,
+  requestCostDetail,
+  requestCostText,
+} from './cost-text.ts'
 
 function total(partial: Partial<CostTotal>): CostTotal {
   return {
@@ -18,6 +25,16 @@ describe('cost text', () => {
   // `applyLocale` sets `<html lang>`; the node environment has no document (see unavailable-note.test.ts).
   const globalDocument = globalThis as { document?: { documentElement: { lang: string } } }
   globalDocument.document ??= { documentElement: { lang: 'en' } }
+
+  it("shows a session row's list cost: a dash before it is priced, unavailable when nothing is, never $0 for unknown", () => {
+    expect(listCostText({})).toBe('—')
+    expect(listCostText({ requests: 0, unpricedRequests: 0 })).toBe('—')
+    expect(listCostText({ requests: 3, costUsd: 0.42 })).toBe('—')
+    expect(listCostText({ requests: 3, costUsd: 0.42, unpricedRequests: 0 })).toBe('$0.42')
+    expect(listCostText({ requests: 3, costUsd: 0, unpricedRequests: 0 })).toBe('$0.00')
+    expect(listCostText({ requests: 3, costUsd: 0.42, unpricedRequests: 2 })).toBe('$0.42 · 2 unpriced')
+    expect(listCostText({ requests: 3, unpricedRequests: 3 })).toBe('cost unavailable')
+  })
 
   it('shows a complete sum as it is', () => {
     expect(costHeadline(total({ requests: 2, priced: 2, usd: 1.5 }))).toEqual({ value: '$1.50', unavailable: false })

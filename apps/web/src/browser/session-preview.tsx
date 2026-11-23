@@ -83,6 +83,7 @@ export function SessionPreview(props: {
         <Metric
           value={listCostText(props.row)}
           label={t('cost.label')}
+          muted={props.row.unpricedRequests !== undefined && !!props.row.requests && props.row.costUsd === undefined}
           title={props.pricesVersion === undefined ? undefined : costBasisText(props.pricesVersion)}
           testId="list-cost"
         />
