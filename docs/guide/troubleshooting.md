@@ -14,7 +14,7 @@ Without `--port`, Estela uses 7392 or, when another program holds it, the next f
 
 A session file the reader cannot parse is still listed, marked "Could not read", and opening it shows the agent, file, line, and reason. Common causes:
 
-- **The agent changed its log format.** Readers reject a log generation they do not know instead of showing part of it. Update Estela (`npx @rivus/estela@latest`, or `npm install -g @rivus/estela`); if the newest version still cannot read it, open an issue with the agent's name and version and the reason line (not the session content).
+- **The agent changed its log format.** Readers reject a log generation they do not know instead of showing part of it. Once `@rivus/agent-kit` ships an updated reader, Estela publishes a patch release. Update Estela (`npx @rivus/estela@latest`, or `npm install -g @rivus/estela`); if the newest version still cannot read it, [open an issue](https://github.com/PerfectPan/estela/issues/new/choose) with the agent's name and version and the reason line (not the session content).
 - **The file is not a session**, or was cut off while the agent was writing it.
 
 A single line that is not JSON does not cause this: it is skipped and the rest of the session loads.
