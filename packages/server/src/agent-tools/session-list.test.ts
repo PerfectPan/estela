@@ -19,6 +19,7 @@ function sourceOf(rows: SessionListRow[], matches: string[] = []): SessionSource
       ],
       rows,
       complete: true,
+      pricesVersion: 'test-prices',
       ...(query.query === undefined ? {} : { matches }),
       pending: 0,
       revision: 1,

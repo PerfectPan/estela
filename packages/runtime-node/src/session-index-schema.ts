@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import * as z from 'zod/mini'
 
 /** Bump when the table layout changes. A different `user_version` is deleted and rebuilt. */
-const INDEX_LAYOUT_VERSION = 4
+const INDEX_LAYOUT_VERSION = 5
 /**
  * node:sqlite is synchronous: a busy wait blocks the event loop. Under WAL, readers never
  * wait; a writer waits at most this long for another process's write lock, then gives up
@@ -136,7 +136,10 @@ function createSchema(db: DatabaseSync): void {
       compactions INTEGER,
       subagents INTEGER,
       failed_tools INTEGER,
-      context_shape TEXT
+      context_shape TEXT,
+      cost_usd REAL,
+      cost_unpriced INTEGER,
+      cost_prices TEXT
     );
     CREATE TABLE prompts (
       trace_id TEXT NOT NULL,

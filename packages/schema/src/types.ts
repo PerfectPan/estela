@@ -153,6 +153,8 @@ const requestPayloadSchema = z.looseObject({
   granularity: z.optional(z.enum(['request', 'turn', 'session'])),
   modelCalls: z.optional(z.number()),
   usageByModel: z.optional(z.record(z.string(), z.object({ usage: usageSchema, modelCalls: z.optional(z.number()) }))),
+  /** The price factor the request was billed with, such as 2 for Codex's priority tier; absent means 1. */
+  pricingMultiplier: z.optional(z.number()),
   ...viewFields,
 })
 

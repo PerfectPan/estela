@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { loadTranscript } from '@rivus/agent-kit/transcript'
-import { fold, projectLanes, reconstruct, summaryOf, toView } from '@rivus/estela-kernel'
+import { fold, priceTrace, projectLanes, reconstruct, snapshotPricing, summaryOf, toView } from '@rivus/estela-kernel'
 import { describe, expect, it } from 'vite-plus/test'
 import { summarizeRow } from '../src/catalog/rows.ts'
 import { loadSession } from '../src/sessions/load-session.ts'
@@ -35,6 +35,9 @@ const FIXTURES: readonly (readonly [string, string])[] = [
   ['grok', 'compaction/updates.jsonl'],
   ['grok', 'subagent/updates.jsonl'],
   ['grok', 'unknown-type/updates.jsonl'],
+  ['codex', 'rollout-features.jsonl'],
+  ['dsh', 'parent/session.v4.jsonl'],
+  ['kimi', 'sessions/wd_demo_111111111111/session_demo-3/agents/main/wire.jsonl'],
 ]
 
 /** The system and tools slots of one request's reconstruction: name, status, recording snapshot. */
@@ -60,7 +63,16 @@ describe('catalog summary equals the workspace header summary', () => {
       if (!('summary' in listed)) {
         throw new Error(`${path}: ${listed.error.reason}`)
       }
-      expect(listed.summary).toEqual(summaryOf(fold(transcriptToTrace(loaded.value))))
+      const { cost, ...numbers } = listed.summary
+      const trace = transcriptToTrace(loaded.value)
+      expect(numbers).toEqual(summaryOf(fold(trace)))
+      // The list prices the summary's request fields; the header prices the trace's request events.
+      const total = priceTrace(trace, snapshotPricing()).total
+      expect(cost).toEqual({
+        prices: snapshotPricing().version,
+        ...(total.usd === undefined ? {} : { usd: total.usd }),
+        unpriced: total.requests - total.priced,
+      })
     })
   }
 })

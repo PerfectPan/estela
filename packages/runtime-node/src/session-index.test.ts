@@ -8,7 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { sqliteErrcode } from './session-index-schema.ts'
-import { openSessionIndex, sessionIndexFile, type IndexSummary } from './session-index.ts'
+import { openSessionIndex, sessionIndexFile } from './session-index.ts'
+import type { IndexSummary } from './session-index-types.ts'
 
 const dirs: string[] = []
 
@@ -80,6 +81,26 @@ describe('session index', () => {
       join('/h/u', '.cache', 'rivus-estela', 'index.sqlite'),
     )
     expect(sessionIndexFile({}, '/h/u')).toBe(join('/h/u', '.cache', 'rivus-estela', 'index.sqlite'))
+  })
+
+  it('keeps the list cost with its price snapshot, and an absent sum as absent, never 0', async () => {
+    const file = join(await tempDir(), 'index.sqlite')
+    const index = openSessionIndex({ summaryVersion: 1, file })
+    index.putSummaries([
+      summary({
+        traceId: 'a',
+        path: '/logs/a.jsonl',
+        summary: { requests: 3, cost: { prices: 'p1', usd: 0.25, unpriced: 1 } },
+      }),
+      summary({ traceId: 'b', path: '/logs/b.jsonl', summary: { requests: 2, cost: { prices: 'p1', unpriced: 2 } } }),
+      summary({ traceId: 'c', path: '/logs/c.jsonl', summary: { requests: 1 } }),
+    ])
+    index.close()
+    const again = openSessionIndex({ summaryVersion: 1, file })
+    expect(again.get('a', 10, 1_000)?.cost).toEqual({ prices: 'p1', usd: 0.25, unpriced: 1 })
+    expect(again.get('b', 10, 1_000)?.cost).toEqual({ prices: 'p1', unpriced: 2 })
+    expect(again.get('c', 10, 1_000)).not.toHaveProperty('cost')
+    again.close()
   })
 
   it('creates the file with mode 0600 and reopens the same summary', async () => {

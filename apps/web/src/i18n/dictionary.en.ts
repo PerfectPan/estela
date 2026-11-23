@@ -246,7 +246,7 @@ export const en = {
     },
     moreModels: '{{ models }} and {{ count }} more',
     basis:
-      'Recorded tokens at {{ version }} list prices. Not the amount billed: plans, discounts, service tiers, and costs an agent logs itself are not applied.',
+      "Recorded tokens at {{ version }} list prices, with Codex's priority tier at its multiple. Not the amount billed: plans, discounts, and costs an agent logs itself are not applied.",
     version: 'LiteLLM {{ date }} · {{ commit }}',
     requestUnavailable: 'Cost unavailable: {{ reason }}',
     input: 'input',

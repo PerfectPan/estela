@@ -11,6 +11,7 @@ import {
   activityLabel,
   indexHeadOf,
   publicRow,
+  currentSummary,
   rowFromIndex,
   sameRow,
   summarizeRow,
@@ -22,6 +23,7 @@ import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.t
 import { errorMessage, parseReadFailure } from '../sessions/read-failure.ts'
 import { oneLine, traceIdOf } from '../sessions/session-target.ts'
 import { SummaryQueue } from './summary-queue.ts'
+import { snapshotPricing } from '@rivus/estela-kernel'
 import { adapterDisplayName, builtinAdapters, keepsSessionsInDatabase } from '../sessions/adapters.ts'
 
 export type { AgentProgress } from './discover.ts'
@@ -209,6 +211,7 @@ export class SessionCatalog {
       ...(query ? { matches: this.search(query) } : {}),
       pending: this.pendingCount(),
       revision: this.revision,
+      pricesVersion: snapshotPricing().version,
     }
   }
 
@@ -260,7 +263,7 @@ export class SessionCatalog {
         const summary =
           old?.summary && !old.error && old.size === row.size && old.mtimeMs === row.mtimeMs
             ? old.summary
-            : this.readIndex(() => this.index.get(row.traceId, row.size, row.mtimeMs), undefined)
+            : currentSummary(this.readIndex(() => this.index.get(row.traceId, row.size, row.mtimeMs), undefined))
         if (summary) {
           row.summary = summary
           row.pending = false
