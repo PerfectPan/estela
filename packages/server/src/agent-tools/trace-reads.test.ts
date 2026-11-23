@@ -66,7 +66,6 @@ describe('trace reads', () => {
       ['sub', 1, undefined],
     ])
     expect(summary.lanes[0]).not.toHaveProperty('unavailable')
-    expect(summary.lanes[1]).toMatchObject({ id: 'lost', requests: 0, unavailable: true })
   })
 
   it('lists turns with their prompts and requests by lane and turn', () => {

@@ -111,7 +111,7 @@ export function registerAgentTools(host: AgentToolHost, deps: AgentToolDeps): st
     add({
       name: 'list_sessions',
       title: 'List sessions',
-      description: `List the agent sessions on this machine, newest activity first, with their counts and list cost (turns, requests, tokens, compactions, failed tools). Filter by agent, project, working directory, time, or whether a session had a compaction or a failed tool. Use a session's traceId with the other estela tools. ${DATA_NOTE}`,
+      description: `List the agent sessions on this machine, newest activity first, with their counts (turns, requests, tokens, compactions, failed tools) and list cost. Filter by agent, project, working directory, time, or whether a session had a compaction or a failed tool. Use a session's traceId with the other estela tools. ${DATA_NOTE}`,
       input: listSessionsInput,
       run: async input => listSessionPage(catalog, input, redaction),
     })

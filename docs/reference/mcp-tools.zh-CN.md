@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/mcp-tools.md 为准。
 
-<!-- source-blob: 7b466320b9138b11a5a4714a870affb2c0eb8a63 -->
+<!-- source-blob: d2b6b0f5d5edb2987c049c8463003f87fb40ad6b -->
 
 # MCP 工具参考
 
@@ -53,7 +53,7 @@
 | `agents` | `[{ id, sessions }]`：服务器读取的每个代理及其会话数 |
 | `pricesVersion` | 每个会话条目的 `costUsd` 所依据的价格快照 |
 
-单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`costUsd?`、`unpricedRequests?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。`costUsd` 为该会话已计价请求在 `pricesVersion` 下的目录价费用，没有已计价请求或摘要尚未完成时缺失（未知时从不为 0）；`unpricedRequests` 为费用未包含的请求数（缺少用量、模型或价格），读取器未提供可计价请求时缺失。`sizeBytes` 是会话文件的大小；OpenCode、ZCode 或 DimCode 会话为 0，因为其数据库文件还包含其他会话。
+单个会话条目：`traceId`、`agent`、`title?`、`project?`、`cwd?`、`startedAt?`、`lastActiveAt`、`sizeBytes`、`firstPrompt?`、`summary`、各项计数 `turns?`、`requests?`、`inputTokens?`、`outputTokens?`、`durationMs?`、`compactions?`、`subagents?`、`failedTools?`、`costUsd?`、`unpricedRequests?`、`error?`（`{ reason, file?, line? }`）以及 `truncated?`。`summary` 为 `ready`、`pending`（计数尚未计算完成）或 `failed`（无法读取该会话；见 `error`）。`costUsd` 为该会话已计价请求在 `pricesVersion` 下的目录价费用，没有已计价请求或摘要不是 `ready` 时缺失（未知时从不为 0）；`unpricedRequests` 为费用未包含的请求数（缺少用量、模型或价格），摘要处于 `pending` 或 `failed` 状态，或读取器未提供请求用量数据时缺失（所有请求均已计价或会话没有请求时为 0）。`sizeBytes` 是会话文件的大小；OpenCode、ZCode 或 DimCode 会话为 0，因为其数据库文件还包含其他会话。
 
 ### `estela_session_summary`
 

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DevframeNodeContext } from 'devframe'
 import { createNodePlatform } from '@rivus/agent-kit/node'
+import { snapshotPricing } from '@rivus/estela-kernel'
 import { createHostContext } from 'devframe/node'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
@@ -35,7 +36,7 @@ function hostileSession(home: string): string {
       requestId: 'req-h1',
       message: {
         role: 'assistant',
-        model: 'claude-test',
+        model: 'claude-sonnet-4-5-20250929',
         id: 'msg-h1',
         stop_reason: 'end_turn',
         usage: { input_tokens: 7, output_tokens: 3 },
@@ -151,7 +152,12 @@ describe('agent tools through the definition setup', () => {
   it('walks list, summary, turns, requests, reconstruct, and get-event', async () => {
     const listed = z.parse(page, await call('list_sessions', { hasFailedTools: true }))
     expect(listed.total).toBe(1)
-    const traceId = listed.sessions[0]!.traceId
+    expect(listed.pricesVersion).toBe(snapshotPricing().version)
+    const row = listed.sessions[0]!
+    expect(row.summary).toBe('ready')
+    expect(row.unpricedRequests).toBe(2)
+    expect(row.costUsd).toBeUndefined()
+    const traceId = row.traceId
     const summary = await call('session_summary', { traceId })
     expect(summary).toMatchObject({ traceId, agent: 'claude-code', numbers: { failedTools: 1 } })
     const turned = z.parse(turns, await call('list_turns', { traceId }))
@@ -180,7 +186,13 @@ describe('agent tools through the definition setup', () => {
 
   it('redacts every result and shows a hostile event id as an alias the tools accept', async () => {
     const listed = await call('search_sessions', { query: 'notes.md' })
-    const traceId = z.parse(page, listed).sessions[0]!.traceId
+    const parsed = z.parse(page, listed)
+    const row = parsed.sessions[0]!
+    expect(parsed.pricesVersion).toBe(snapshotPricing().version)
+    expect(row.summary).toBe('ready')
+    expect(row.unpricedRequests).toBe(0)
+    expect(row.costUsd).toBeGreaterThan(0)
+    const traceId = row.traceId
     const turned = await call('list_turns', { traceId })
     const prompt = z.parse(turns, turned).turns[0]!.promptEventId!
     expect(prompt).toBe('@e0')
