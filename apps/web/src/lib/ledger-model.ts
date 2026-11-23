@@ -312,7 +312,17 @@ export type VirtualRow =
       /** Inside an expanded subagent lane. */
       lane: boolean
     }
-  | { key: string; type: 'lane'; laneId: string; title?: string; collapsed: boolean; requests: number; size: number }
+  | {
+      key: string
+      type: 'lane'
+      laneId: string
+      title?: string
+      /** The session records this subagent, but its log is missing or could not be read. */
+      unavailable?: true
+      collapsed: boolean
+      requests: number
+      size: number
+    }
 
 /** Fixed heights: 36 px rows, 40 px turn and lane headers; the design's hook fold row is 30 px and the compaction row 44 px. */
 export const ROW_SIZE = { turn: 40, event: 36, hooks: 30, compaction: 44 } as const

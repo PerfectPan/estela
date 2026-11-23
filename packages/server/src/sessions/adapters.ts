@@ -18,27 +18,17 @@ export function adapterDisplayName(adapter: SessionAdapter): string {
 
 /**
  * Agents that keep every session as rows of one SQLite database, which the kit's adapters do not say. All of its
- * sessions share the database file's stamp, and a commit can sit in its write-ahead log without touching the file, so
- * the catalog adds the log to the stamp and always puts the session id in the trace id.
- *
- * `ownStamp`: the session's `lastActiveAt` moves with every write to that session, so the catalog keys the row by it
- * and a write to one session leaves the others' cached summaries alone. OpenCode's does, and ZCode's did on a real
- * 0.16.5 database (no message or part written after its session's `time_updated`). DimCode's `updatedAt` is not known
- * to move when a message or usage row is added, so a DimCode row keys on the whole database's stamp.
+ * sessions share the database file's stamp, which also misses a commit still in the write-ahead log, so the catalog
+ * always puts the session id in the trace id and keys a row by its session's `lastActiveAt` instead: it moves with
+ * every write to that session, so a write to one session leaves the others' cached summaries alone. OpenCode's does, ZCode's did on a real 0.16.5 database (no
+ * message or part written after its session's `time_updated`), and DimCode's is the latest write across the session,
+ * its messages, and its usage ledger. A subagent's writes to its own session row do not move its parent's, so a
+ * parent's cached summary, which counts the subagent lanes, can lag a running subagent.
  */
-const DATABASE_AGENTS: ReadonlyMap<string, { ownStamp: boolean }> = new Map([
-  ['opencode', { ownStamp: true }],
-  ['zcode', { ownStamp: true }],
-  ['dim', { ownStamp: false }],
-])
+const DATABASE_AGENTS: ReadonlySet<string> = new Set(['opencode', 'zcode', 'dim'])
 
 export function keepsSessionsInDatabase(agent: string): boolean {
   return DATABASE_AGENTS.has(agent)
-}
-
-/** Whether a row is keyed by its session's own last write rather than the database's stamp; see `DATABASE_AGENTS`. */
-export function keysRowByOwnWrite(agent: string): boolean {
-  return DATABASE_AGENTS.get(agent)?.ownStamp === true
 }
 
 /** Adapt the shell's reader registry to the kit's provider SPI. */

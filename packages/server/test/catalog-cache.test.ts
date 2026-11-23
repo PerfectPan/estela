@@ -193,7 +193,7 @@ describe('session catalog cache', () => {
     expect(listed.rows[0]?.pending).toBe(true)
     await current.whenIdle()
     expect((await current.listSessions()).rows[0]?.requests).toBe(1)
-    // `summarizeRow` hands the kit the `toKitPath` form of the discovered path.
+    // `summarizeRow` hands the kit the discovered path as it is; on Windows the kit hands its adapter the `/` form.
     expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     current.close()
   })
@@ -224,7 +224,7 @@ describe('session catalog cache', () => {
     await current.whenIdle()
     const done = await current.listSessions()
     expect(done.rows[0]?.requests).toBe(1)
-    // `summarizeRow` hands the kit the `toKitPath` form of the discovered path.
+    // `summarizeRow` hands the kit the discovered path as it is; on Windows the kit hands its adapter the `/` form.
     expect(loads).toEqual([toKitPath(path), toKitPath(path)])
     // The recomputed prompts are searchable through the index.
     const found = await current.listSessions({ query: 'hello' })

@@ -8,7 +8,7 @@ import {
 } from '@rivus/agent-kit/sessions'
 import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
-import { adapterDisplayName, keepsSessionsInDatabase, keysRowByOwnWrite } from '../sessions/adapters.ts'
+import { adapterDisplayName, keepsSessionsInDatabase } from '../sessions/adapters.ts'
 import { errorMessage, listError } from '../sessions/read-failure.ts'
 import { errorRow, rowFromHead, type LiveRow } from './rows.ts'
 
@@ -78,10 +78,9 @@ export async function discoverRows(
       const failed: { target: SessionRef; error: SessionListError; mtimeMs?: number }[] = []
       const home = sessionAdapterHome(state.adapter, { env: platform.env, home: platform.home })
       for (const root of state.adapter.roots(home)) {
-        // Symlinks resolved: the session files' own stat is the cache key. A root is a directory, or the
-        // database file itself for an adapter that names it (DimCode).
+        // Symlinks resolved: the session files' own stat is the cache key.
         const info = await platform.fs.stat(root, { followSymlinks: true })
-        if (info === undefined) {
+        if (info === undefined || info.kind !== 'dir') {
           state.missing.push(root)
           continue
         }
@@ -127,20 +126,12 @@ export async function discoverRows(
       for (const head of heads) {
         perFile.set(head.ref.path, (perFile.get(head.ref.path) ?? 0) + 1)
       }
-      // All sessions in a database share one snapshot of its main file and WAL in this pass.
+      // All sessions in a database share one stat of its file in this pass.
       const stats = new Map<string, ReturnType<ShellPlatform['fs']['stat']>>()
       const statFile = (path: string) => {
         let pending = stats.get(path)
         if (!pending) {
-          pending = (async () => {
-            const info = await platform.fs.stat(path, { followSymlinks: true })
-            if (info?.kind !== 'file' || !keepsSessionsInDatabase(state.adapter.agent)) {
-              return info
-            }
-            // Committed SQLite changes may still live in WAL without touching the main database.
-            const wal = await platform.fs.stat(`${path}-wal`, { followSymlinks: true })
-            return { ...info, size: info.size + (wal?.size ?? 0), mtimeMs: Math.max(info.mtimeMs, wal?.mtimeMs ?? 0) }
-          })()
+          pending = platform.fs.stat(path, { followSymlinks: true })
           stats.set(path, pending)
         }
         return pending
@@ -154,9 +145,11 @@ export async function discoverRows(
           const target = head.ref
           if (info !== undefined && info.kind === 'file') {
             // Every session in one database shares the file stamp, and another session's write changes it.
-            // Where this session's own last write moves with every write to it, that alone is its cache key;
+            // This session's own last write moves with every write to it, so that alone is its cache key;
             // the shared size says nothing about this row and would invalidate all of them.
-            const key = keysRowByOwnWrite(state.adapter.agent) ? { size: 0, mtimeMs: head.lastActiveAt } : undefined
+            const key = keepsSessionsInDatabase(state.adapter.agent)
+              ? { size: 0, mtimeMs: head.lastActiveAt }
+              : undefined
             add(rowFromHead(target, head, info, platform.home, (perFile.get(head.ref.path) ?? 0) > 1, key))
           } else {
             add(

@@ -4,11 +4,10 @@ import process from 'node:process'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 
 /**
- * A session path as the kit reads it. The kit joins and splits session paths on `/` only (its
- * Claude Code subagent directory, Codex rollout names, Grok session directories), so on Windows a
- * path's `\` separators become `/`, which Node's fs also takes. Other systems keep the path as given.
- * Every target the server hands the kit goes through this (`loadSession`, `summarizeRow`); the
- * kit's own discovery already joins on `/`.
+ * A session path with `/` separators on Windows, the form the kit reads a target in (it turns `\` into `/`
+ * itself when the platform's `os` is `win32`); other systems keep the path as given. Trace ids hash this
+ * form, and a caller that hands a path to an adapter directly, as the kit's conformance runner does, passes it.
+ * @internal
  */
 export function toKitPath(path: string, platform: NodeJS.Platform = process.platform): string {
   return platform === 'win32' ? path.replaceAll('\\', '/') : path

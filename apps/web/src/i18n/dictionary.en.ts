@@ -116,6 +116,8 @@ export const en = {
     rangeStart: 'Range start',
     rangeEnd: 'Range end',
     moreLanes: '+{{ count }} more lanes',
+    laneUnavailable: '{{ title }} · log unavailable',
+    laneUnavailableNote: 'The session records this subagent, but its log is missing or could not be read.',
   },
   ledger: {
     label: 'Events',

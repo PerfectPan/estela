@@ -20,7 +20,8 @@ export function LaneHeader(props: {
     if (title === undefined && laneId === mainAgentId(props.ctx.model.trace)) {
       return t('timeline.mainAgent')
     }
-    return escapeBidi(title ?? laneId)
+    const name = escapeBidi(title ?? laneId)
+    return props.row.unavailable ? t('timeline.laneUnavailable', { title: name }) : name
   }
   return (
     <div class="flex h-full items-center gap-2.5 border-b border-border bg-secondary pr-4 pl-[18px]">
@@ -28,6 +29,7 @@ export function LaneHeader(props: {
       <span
         class="min-w-0 flex-1 truncate text-[13px] font-semibold whitespace-nowrap text-foreground [unicode-bidi:isolate]"
         dir="auto"
+        title={props.row.unavailable ? t('timeline.laneUnavailableNote') : undefined}
       >
         {title()}
       </span>
