@@ -3,6 +3,7 @@ import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceView
 import type { Trace } from '@rivus/estela-schema'
 import { createSignal, onCleanup } from 'solid-js'
 import { messageOf } from '@/lib/error-message.ts'
+import { NoLogError, StaleError } from './load-errors.ts'
 
 /** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/estela-rpc` (the web app imports only its types). */
 const LOAD_PROGRESS_CHANNEL = 'load-progress'
@@ -27,6 +28,8 @@ export interface LoadFailure {
   reason: string
   /** The WebSocket closed: a closed DevFrame client never reconnects, so only a reload helps. */
   lost?: boolean
+  /** The session has started but has not written a log on disk yet. */
+  noLog?: boolean
 }
 
 type LoadState =
@@ -65,6 +68,15 @@ function lostFailure(): LoadFailure {
   return { reason: 'connection lost', lost: true }
 }
 
+export interface SessionLoadOptions {
+  /**
+   * When true (embedded host), a non-stale `event()` failure moves the load to its error state
+   * with "Try again" so the user can reopen the session. Standalone pages keep `get-event` errors
+   * inside the inspector and surface disconnects through their connection-lost banner.
+   */
+  failOnEventError?: boolean
+}
+
 /**
  * The workspace load flow: `load-trace(traceId)`, subscribe to `load-progress` with the
  * returned id at once (the server releases an unsubscribed hold after 5 s), then
@@ -72,7 +84,11 @@ function lostFailure(): LoadFailure {
  * A closed DevFrame client never reconnects, by design, so a drop during the load ends it with
  * a "lost the connection" failure; the page offers a reload.
  */
-export function createSessionLoad(traceId: string, connect: () => Promise<LoadClient>) {
+export function createSessionLoad(
+  traceId: string,
+  connect: () => Promise<LoadClient>,
+  options: SessionLoadOptions = {},
+) {
   const [state, setState] = createSignal<LoadState>({ status: 'loading', bytesRead: 0, totalBytes: 0 })
   let reader: { cancel: () => void } | undefined
   let attempt = 0
@@ -139,13 +155,35 @@ export function createSessionLoad(traceId: string, connect: () => Promise<LoadCl
         return
       }
       const live = client
+      const resolvedTraceId = view.traceId || traceId
       setState({
         status: 'ready',
-        session: { traceId, trace: view.trace, summary: view.summary, event: id => live.event(traceId, id) },
+        session: {
+          traceId: resolvedTraceId,
+          trace: view.trace,
+          summary: view.summary,
+          event: async id => {
+            try {
+              return await live.event(resolvedTraceId, id)
+            } catch (error) {
+              if (mine === attempt && !lifetime.signal.aborted) {
+                if (error instanceof StaleError) {
+                  void run()
+                } else if (options.failOnEventError) {
+                  fail(parseFailure(messageOf(error)))
+                }
+              }
+              throw error
+            }
+          },
+        },
       })
     } catch (error) {
       if (mine !== attempt || lifetime.signal.aborted || isCancelled(error) || state().status === 'error') {
         return
+      }
+      if (error instanceof NoLogError) {
+        return fail({ reason: error.message, noLog: true })
       }
       if (client && (client.status === 'disconnected' || client.status === 'error')) {
         return fail(lostFailure())

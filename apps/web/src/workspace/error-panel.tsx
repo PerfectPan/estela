@@ -1,5 +1,5 @@
 import type { LoadFailure } from './load-session.ts'
-import { Show } from 'solid-js'
+import { Match, Show, Switch } from 'solid-js'
 import { UnknownFormatHint } from '@/components/unknown-format-hint.tsx'
 import { translate as t } from '@/i18n/locale.ts'
 import { agentName } from '@/lib/agent-names.ts'
@@ -8,8 +8,7 @@ import { ConnectionLost } from '@/shell/connection-lost.tsx'
 /** A failed load: agent, file, and line when the message carries them, and a way back. */
 export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void; embedded?: boolean }) {
   return (
-    <Show
-      when={props.failure.lost}
+    <Switch
       fallback={
         <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
           <h1 class="m-0 text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
@@ -51,26 +50,33 @@ export function ErrorPanel(props: { failure: LoadFailure; onRetry: () => void; e
         </div>
       }
     >
-      <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
-        <h1 class="m-0 text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
-        <Show
-          when={!props.embedded}
-          fallback={
-            <div class="flex flex-col items-start gap-3 text-[13px]" role="alert">
-              <span class="text-foreground">{t('common.connectionLost')}</span>
-              <button
-                type="button"
-                class="rounded-md border border-input px-2.5 py-1 text-[12.5px] text-foreground hover:bg-accent"
-                onClick={() => props.onRetry()}
-              >
-                {t('workspace.retry')}
-              </button>
-            </div>
-          }
-        >
-          <ConnectionLost />
-        </Show>
-      </div>
-    </Show>
+      <Match when={props.failure.noLog}>
+        <div class="grid flex-1 place-items-center px-6" data-testid="no-log">
+          <p class="m-0 text-[13px] text-muted-foreground">{t('workspace.noLog')}</p>
+        </div>
+      </Match>
+      <Match when={props.failure.lost}>
+        <div class="flex flex-1 flex-col items-start gap-4 px-6 py-10" data-testid="load-error">
+          <h1 class="m-0 text-[22px] font-semibold">{t('workspace.couldNotOpen')}</h1>
+          <Show
+            when={!props.embedded}
+            fallback={
+              <div class="flex flex-col items-start gap-3 text-[13px]" role="alert">
+                <span class="text-foreground">{t('common.connectionLost')}</span>
+                <button
+                  type="button"
+                  class="rounded-md border border-input px-2.5 py-1 text-[12.5px] text-foreground hover:bg-accent"
+                  onClick={() => props.onRetry()}
+                >
+                  {t('workspace.retry')}
+                </button>
+              </div>
+            }
+          >
+            <ConnectionLost />
+          </Show>
+        </div>
+      </Match>
+    </Switch>
   )
 }

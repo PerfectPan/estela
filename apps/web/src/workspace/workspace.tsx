@@ -33,7 +33,9 @@ export function Workspace(props: WorkspaceProps) {
   const report = props.report
   let root: HTMLDivElement | undefined
   const baked = report ? ({ status: 'ready', session: reportSession(report) } as const) : undefined
-  const load = baked ? { state: () => baked, retry: () => {} } : createSessionLoad(props.traceId, props.connect!)
+  const load = baked
+    ? { state: () => baked, retry: () => {} }
+    : createSessionLoad(props.traceId, props.connect!, { failOnEventError: props.embedded })
   const ready = () => {
     const state = load.state()
     return state.status === 'ready' ? state.session : undefined

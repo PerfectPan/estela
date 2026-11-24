@@ -76,6 +76,7 @@ export const en = {
   },
   workspace: {
     couldNotOpen: 'Could not open this session',
+    noLog: 'This session has no log on disk yet.',
     back: 'Back to sessions',
     retry: 'Try again',
     opening: 'Opening session',

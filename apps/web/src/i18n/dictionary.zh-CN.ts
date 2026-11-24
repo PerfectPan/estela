@@ -107,6 +107,7 @@ export const zhCN = {
   },
   workspace: {
     couldNotOpen: '无法打开这个会话',
+    noLog: '这个会话尚未在磁盘上写入日志。',
     back: '返回会话列表',
     retry: '重试',
     opening: '正在打开会话',
