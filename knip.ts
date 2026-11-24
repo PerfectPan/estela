@@ -50,11 +50,10 @@ const config = {
       entry: ['src/host/index.ts!', 'src/client/index.ts!', 'src/contract/channel.ts!'],
       project: projectWithout(['scripts', 'test']),
       // `react` is supplied by DeepSeek Harness at runtime through its module loader (kept external
-      // by build-client.mjs, no runtime dependency declared); `@rivus/estela-server` is pinned for
-      // the host half; in `--production` mode Knip drops devDependencies (including
-      // `vite-plugin-solid`, whose peer supplies `solid-js` for `tsconfig.json`'s `jsxImportSource`).
+      // by build-client.mjs, no runtime dependency declared); in `--production` mode Knip drops
+      // devDependencies (including `vite-plugin-solid`, whose peer supplies `solid-js` for
+      // `tsconfig.json`'s `jsxImportSource`).
       ignoreDependencies: [
-        '@rivus/estela-server',
         'react',
         ...(process.argv.includes('--production') ? ['solid-js'] : []),
       ]

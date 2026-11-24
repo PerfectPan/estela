@@ -1,0 +1,239 @@
+import type { LoadHandle } from '@rivus/estela-rpc/trace-store'
+import type { EstelaCore } from '@rivus/estela-server/core'
+import * as z from 'zod/mini'
+import { channelInputs, type ChannelErrorCode } from '../contract/channel.ts'
+import type { HostPeer, RpcHandler, RpcHandlerResult } from './rpc.ts'
+import { FIXED_FAILURE_MESSAGE, type SessionRegistry } from './sessions.ts'
+
+export interface ChannelHostDeps {
+  readonly core: EstelaCore
+  readonly sessions: SessionRegistry
+}
+
+export interface ChannelHost {
+  readonly handler: RpcHandler
+  readonly dispose: () => void
+  /** Number of currently open TraceStore load holds; exposed for lifecycle tests. */
+  readonly activeHoldCount: () => number
+}
+
+function refusal(code: ChannelErrorCode, message: string): RpcHandlerResult {
+  return { ok: false, error: { code, message, details: {} } }
+}
+
+function closedRefusal(): RpcHandlerResult {
+  return refusal('estela/closed', 'the plugin is closed')
+}
+
+function isOwnerPeer(peer: HostPeer | undefined): boolean {
+  return peer?.principal?.kind === 'owner'
+}
+
+/** Reads `signal.aborted` without TypeScript narrowing a pre-await `false` across `await`. */
+function isAborted(signal: AbortSignal): boolean {
+  return signal.aborted
+}
+
+/**
+ * Creates the `/estela` RPC channel handler and its disposer.
+ * Never throws into dsh: every refusal and unexpected exception maps to `{ ok: false, error }`
+ * with `details: {}`.
+ */
+export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
+  let disposed = false
+  const disposeController = new AbortController()
+  const activeHolds = new Set<() => void>()
+
+  /** Reads `disposed` without TypeScript narrowing a pre-await `false` across `await`. */
+  function isDisposed(): boolean {
+    return disposed
+  }
+
+  function storeFailure(error: unknown, signal?: AbortSignal): RpcHandlerResult {
+    if (isDisposed()) {
+      return closedRefusal()
+    }
+    if ((signal && isAborted(signal)) || (error instanceof Error && error.name === 'LoadCancelledError')) {
+      return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+    }
+    if (error instanceof Error && error.message.length > 0) {
+      return refusal('estela/failed', deps.core.redact(error.message))
+    }
+    return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+  }
+
+  async function handleOpen(sessionId: string, signal: AbortSignal): Promise<RpcHandlerResult> {
+    const callSignal = AbortSignal.any([signal, disposeController.signal])
+    const opened = await deps.sessions.open(sessionId, callSignal)
+    if (isDisposed()) {
+      return closedRefusal()
+    }
+    return opened.ok ? { ok: true, value: { traceId: opened.traceId } } : opened.result
+  }
+
+  async function withReadySession(traceId: string, run: () => Promise<RpcHandlerResult>): Promise<RpcHandlerResult> {
+    const ready = await deps.sessions.checkReady(traceId)
+    if (!ready.ok) {
+      return isDisposed() ? closedRefusal() : ready.result
+    }
+    if (isDisposed()) {
+      return closedRefusal()
+    }
+    const unpin = deps.sessions.pin(traceId, ready.session)
+    try {
+      return await run()
+    } finally {
+      unpin()
+    }
+  }
+
+  async function handleTraceView(traceId: string, signal: AbortSignal): Promise<RpcHandlerResult> {
+    return withReadySession(traceId, async () => {
+      if (isAborted(signal)) {
+        return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+      }
+
+      let releaseHold: (() => void) | undefined
+      const onAbort = (): void => {
+        releaseHold?.()
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+
+      try {
+        const handle: LoadHandle = await deps.core.store.open(traceId)
+        const release = (): void => {
+          activeHolds.delete(release)
+          handle.release()
+        }
+        releaseHold = release
+        activeHolds.add(release)
+
+        if (isDisposed()) {
+          release()
+          return closedRefusal()
+        }
+        if (isAborted(signal)) {
+          release()
+          return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+        }
+
+        await handle.done
+        if (isDisposed()) {
+          return closedRefusal()
+        }
+        const view = await deps.core.store.view(traceId)
+        if (isDisposed()) {
+          return closedRefusal()
+        }
+        return { ok: true, value: view }
+      } catch (error) {
+        return storeFailure(error, signal)
+      } finally {
+        signal.removeEventListener('abort', onAbort)
+        releaseHold?.()
+      }
+    })
+  }
+
+  async function handleTraceEvent(traceId: string, id: string): Promise<RpcHandlerResult> {
+    return withReadySession(traceId, async () => {
+      try {
+        const event = await deps.core.store.event(traceId, id)
+        if (isDisposed()) {
+          return closedRefusal()
+        }
+        return { ok: true, value: event }
+      } catch (error) {
+        return storeFailure(error)
+      }
+    })
+  }
+
+  async function dispatch(
+    endpoint: string,
+    payload: unknown,
+    signal: AbortSignal,
+    peer: HostPeer | undefined,
+  ): Promise<RpcHandlerResult> {
+    if (isDisposed()) {
+      return closedRefusal()
+    }
+    if (!isOwnerPeer(peer)) {
+      return refusal('estela/forbidden', 'only the owner may read sessions')
+    }
+
+    switch (endpoint) {
+      case 'session/open': {
+        const parsed = z.safeParse(channelInputs['session/open'], payload)
+        if (!parsed.success) {
+          return refusal('estela/bad-request', 'invalid request payload')
+        }
+        return handleOpen(parsed.data.sessionId, signal)
+      }
+      case 'trace/view': {
+        const parsed = z.safeParse(channelInputs['trace/view'], payload)
+        if (!parsed.success) {
+          return refusal('estela/bad-request', 'invalid request payload')
+        }
+        return handleTraceView(parsed.data.traceId, signal)
+      }
+      case 'trace/event': {
+        const parsed = z.safeParse(channelInputs['trace/event'], payload)
+        if (!parsed.success) {
+          return refusal('estela/bad-request', 'invalid request payload')
+        }
+        return handleTraceEvent(parsed.data.traceId, parsed.data.id)
+      }
+      default:
+        return refusal('estela/bad-request', 'unknown endpoint')
+    }
+  }
+
+  const handler: RpcHandler = async (endpoint, payload, signal, peer) => {
+    let onDispose: (() => void) | undefined
+    const disposedPromise = new Promise<RpcHandlerResult>(resolve => {
+      if (disposeController.signal.aborted) {
+        resolve(closedRefusal())
+        return
+      }
+      onDispose = () => resolve(closedRefusal())
+      disposeController.signal.addEventListener('abort', onDispose, { once: true })
+    })
+
+    const work = (async (): Promise<RpcHandlerResult> => {
+      try {
+        return await dispatch(endpoint, payload, signal, peer)
+      } catch {
+        return isDisposed() ? closedRefusal() : refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+      }
+    })()
+    work.catch(() => {})
+
+    try {
+      return await Promise.race([work, disposedPromise])
+    } finally {
+      if (onDispose) {
+        disposeController.signal.removeEventListener('abort', onDispose)
+      }
+    }
+  }
+
+  function dispose(): void {
+    if (disposed) {
+      return
+    }
+    disposed = true
+    deps.sessions.clear()
+    for (const release of activeHolds) {
+      release()
+    }
+    activeHolds.clear()
+    disposeController.abort()
+  }
+
+  return {
+    handler,
+    dispose,
+    activeHoldCount: () => activeHolds.size,
+  }
+}
