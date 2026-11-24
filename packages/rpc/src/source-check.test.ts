@@ -119,4 +119,31 @@ describe('checkedOriginal', () => {
     )
     expect(result).toEqual({ unavailable: expect.stringContaining('holds a different record') })
   })
+
+  it('catches a same-size compressed rewrite that lands between stat and recordAt when mtime advances', async () => {
+    const before = { type: 'message', message: { content: [{ type: 'text', text: 'hello' }] } }
+    const after = { type: 'message', message: { content: [{ type: 'text', text: 'world' }] } }
+    const compressedEvent = {
+      ...event,
+      source: { file: '/data/session.jsonl.zst', offset: 0, length: 120, line: 4, codec: 'zstd' as const },
+    }
+    let statCount = 0
+    const racingFs = {
+      ...fs,
+      stat: async () => {
+        statCount += 1
+        // First stat sees the old stamp; second stat (after recordAt sees a hash mismatch) sees the bumped mtime.
+        return { kind: 'file' as const, size: 600, mtimeMs: statCount === 1 ? 1 : 2 }
+      },
+    }
+    const result = await checkedOriginal(
+      racingFs,
+      async () => after,
+      compressedEvent,
+      { size: 600, mtimeMs: 1 },
+      fingerprint(before, true),
+    )
+    expect(result).toEqual({ unavailable: expect.stringContaining('holds a different record') })
+    expect(statCount).toBe(2)
+  })
 })

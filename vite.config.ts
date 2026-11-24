@@ -207,6 +207,37 @@ export default {
         },
       },
       {
+        // Co-located client unit tests keep the same runtime boundary plus the test runner.
+        files: ['apps/dsh-plugin/src/client/**/*.test.{ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              patterns: [
+                agentKitTypesOnly,
+                {
+                  group: [
+                    '*',
+                    '**/*',
+                    '!./*',
+                    '!./**',
+                    '!../contract/*',
+                    '!../contract/**',
+                    '!@rivus/estela-web/embed',
+                    '!react',
+                    '!react/jsx-runtime',
+                    '!vite-plus/test',
+                  ],
+                  allowTypeImports: true,
+                  message:
+                    'apps/dsh-plugin/src/client tests may import at runtime only from src/client/**, src/contract/**, @rivus/estela-web/embed, react, and vite-plus/test.',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         // One Icon base and the stroke icons built on it: a component family, which lint-config's
         // README exempts from one component per file (like a shadcn/ui file).
         files: ['apps/web/src/components/icons.tsx', 'apps/site/src/components/icons.tsx'],

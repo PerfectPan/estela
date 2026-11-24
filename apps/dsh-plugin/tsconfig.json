@@ -1,7 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite-plus/client"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "paths": {
+      "@/*": ["../web/src/*"]
+    }
   },
   "include": ["src", "test", "scripts", "vite.config.ts"]
 }

@@ -1,6 +1,9 @@
 import { fileURLToPath } from 'node:url'
+import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite-plus'
 import { thirdPartyNotices } from '../../scripts/third-party-notices.mjs'
+
+const webSrc = fileURLToPath(new URL('../web/src', import.meta.url))
 
 // Rolldown only warns about an import it cannot resolve and leaves it external, which would ship a broken bundle.
 const failOnWarn = true
@@ -14,6 +17,12 @@ const PLUGIN_NOTICES_INTRO: readonly string[] = [
 ]
 
 export default defineConfig({
+  plugins: [solid()],
+  resolve: {
+    alias: {
+      '@': webSrc,
+    },
+  },
   pack: [
     {
       entry: { host: './src/host/index.ts' },
