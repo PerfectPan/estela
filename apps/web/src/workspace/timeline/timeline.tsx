@@ -12,13 +12,13 @@ import { SubLane } from './sub-lane.tsx'
 import { TimelineHeader } from './timeline-header.tsx'
 import { BrushHandle, type Edge } from './brush-handle.tsx'
 
-/** Lane labels are 12 px in the UI font. */
-function labelFont(): string {
-  return `12px ${typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily}`
-}
-
-function measureLabel(text: string): number {
-  return measureText(text, labelFont())
+/** Lane labels are 12 px in the UI font, read from the mounted element so a shadow root ignores `document.body`. */
+function labelFont(element?: Element): string {
+  if (typeof document === 'undefined') {
+    return '12px sans-serif'
+  }
+  const target = element?.isConnected ? element : document.body
+  return `12px ${getComputedStyle(target).fontFamily}`
 }
 
 /** Pointer capture on `target` until the button is released or the pointer is lost. */
@@ -58,13 +58,17 @@ export function Timeline(props: {
   let host: HTMLDivElement | undefined
   let svg: SVGSVGElement | undefined
   const [width, setWidth] = createSignal(1440)
+  const [fontSource, setFontSource] = createSignal<HTMLElement>()
   onMount(() => {
+    setFontSource(host)
     const observer = new ResizeObserver(entries => setWidth(Math.max(480, Math.round(entries[0]!.contentRect.width))))
     if (host) {
       observer.observe(host)
     }
     onCleanup(() => observer.disconnect())
   })
+
+  const measureLabel = (text: string): number => measureText(text, labelFont(fontSource()))
 
   const subs = createMemo(() => props.data.subs.slice(0, LAYOUT.maxSubLanes))
   /** The label column grows for long lane titles, up to `maxX0`; longer titles are cut with an ellipsis. */

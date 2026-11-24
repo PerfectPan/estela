@@ -24,9 +24,9 @@ export default defineConfig({
     },
   },
   test: {
-    // vite-plugin-solid would pick jsdom; the tests exercise plain modules.
+    // Plain-module tests run in Node; component tests opt into happy-dom via `@vitest-environment`.
     environment: 'node',
     // Relative to `root`, which is `src`.
-    include: ['**/*.test.ts'],
+    include: ['**/*.test.{ts,tsx}'],
   },
 })

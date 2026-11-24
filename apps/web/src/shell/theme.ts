@@ -18,23 +18,31 @@ function stored(): 'light' | 'dark' | undefined {
 const [mode, setMode] = createSignal<ThemeMode>('system')
 export { mode as themeMode }
 
+let themeTarget: HTMLElement | undefined
+let listening = false
+
 function apply(): void {
   const choice = mode()
   const resolved = choice === 'system' ? (media().matches ? 'dark' : 'light') : choice
   const root = document.documentElement
   root.dataset.theme = resolved
-  // Kobalte reads `data-kb-theme`.
-  root.dataset.kbTheme = resolved
+  if (themeTarget && themeTarget !== root) {
+    themeTarget.dataset.theme = resolved
+  }
 }
 
-export function initTheme(): void {
+export function initTheme(target?: HTMLElement): void {
+  themeTarget = target
   setMode(stored() ?? 'system')
   apply()
-  media().addEventListener('change', () => {
-    if (mode() === 'system') {
-      apply()
-    }
-  })
+  if (!listening) {
+    listening = true
+    media().addEventListener('change', () => {
+      if (mode() === 'system') {
+        apply()
+      }
+    })
+  }
 }
 
 /** `system` clears the stored choice; `light` and `dark` persist it. */

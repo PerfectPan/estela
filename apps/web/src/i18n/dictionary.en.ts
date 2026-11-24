@@ -6,6 +6,7 @@
 export const en = {
   common: {
     appName: 'Estela',
+    session: 'Session',
     sessions: 'Sessions',
     jumpTo: 'Jump to event, tool, file…',
     themeSystem: 'follow system',

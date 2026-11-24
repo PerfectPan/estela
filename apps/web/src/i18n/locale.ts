@@ -42,10 +42,17 @@ export function preferredLocale(languages: readonly string[] = navigator.languag
   return first.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
 
-/** Sets the active locale and `<html lang>`. */
-export function applyLocale(next: Locale = preferredLocale()): void {
+/**
+ * Sets the active locale and writes `lang` to `target` (defaulting to `<html lang>`).
+ * Passing a host element updates that element without touching the outer document, so `:lang()` inside
+ * a shadow root follows the element instead of the host page.
+ */
+export function applyLocale(next: Locale = preferredLocale(), target?: HTMLElement): void {
   setLocale(next)
-  document.documentElement.lang = next
+  const host = target ?? document.documentElement
+  if (host.lang !== next) {
+    host.lang = next
+  }
 }
 
 /** A manual switch, kept in `localStorage`. */
