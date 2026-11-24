@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 51f217c5f86ab2251e52b779bf07cdf440f6d644 -->
+<!-- source-blob: 173dccc6a47cbc46d9c259e3efa0d2fda8db63ee -->
 
 # 架构
 
@@ -61,7 +61,7 @@ one session (build <path>, or export-report on the dev server)
 
 `packages/runtime-node/src/session-index.ts` 通过 `node:sqlite` 管理 `index.sqlite`（位于 `$XDG_CACHE_HOME/rivus-estela/`，否则为 `~/.cache/rivus-estela/`，权限模式 0600）：包含 `sessions`（头部字段、摘要数字、缓存键）、`prompts`（前 200 条提示词，每条 500 个字符）以及 `search`（每个会话一行的 FTS5 `trigram` 表）。3 个及以上字符的查询使用 FTS5；更短的查询在标题和提示词上执行子串匹配，两侧应用统一的 JavaScript 大小写折叠（注册的 `casefold()` 函数），因此 `Über` 和 `Добро` 在任意大小写下都能匹配。每个摘要行存储壳层的 `INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION`；来自其他版本的行会重新计算。各组成部分定义在 [`packages/server/src/catalog/session-catalog.ts`](../../packages/server/src/catalog/session-catalog.ts)。索引以 WAL 模式运行并设置 200 ms 的 busy timeout（node:sqlite 是同步的，更长的等待会阻塞服务器）：读操作从不等待其他进程，而无法获取锁的写操作会被跳过。Schema 在 `BEGIN IMMEDIATE` 内创建，因此多个进程可以同时打开全新缓存；损坏或其他布局的文件只由持有 `index.sqlite.lock` 的进程重建；无法打开的索引（例如只读缓存目录）会打印一条警告并跳过。`PRAGMA user_version` 记录表结构版本；版本不同或无法读取的文件会被删除并重建。第二次启动时列表行直接立即从索引返回，`discover` 扫描则在后台对账。`--no-index` 不打开任何索引文件。由于首屏只需要 `discover` 和索引读取，即使面对数千个会话和数 GB 日志，设计目标也是在 2 秒内显示行。`node scripts/check-budgets.mjs` 在 5,000 个合成会话（Claude Code 和 Codex，约 190 MB）上测量从进程启动到返回包含所有行的首个 `list-sessions` 响应的时间：在设定预算时，一台 Apple-silicon 笔记本上冷启动为 1.0 到 1.8 秒，热启动为 0.2 到 0.4 秒。CI 设有宽松上限以在较慢 runner 上捕获数量级退化，并在热启动未从索引提供行时判为失败；预算数值及其原因见 `scripts/budgets/budgets.mjs`。
 
-会话通过其 trace id（`traceId`）寻址，它是代理和路径的哈希。OpenCode 列表行始终包含会话 id，即使数据库中只有一个会话也是如此；打开方式为 `estela <path>#<sessionId>`。其他代理仅当多个会话共享同一个文件时包含会话 id（`path#id` 形式），因此使用 `estela <path>` 打开单会话文件时会保留其列表行的 trace id。命令行上的 `path` 或 `path#id` 字符串会在入口解析一次为 kit 的 `SessionTarget`（`parseSessionTarget`）；已发现的会话则是 kit 的 `SessionRef`。列表和 `--pick` 标签中的标题、项目和提示词像工作区一样经过脱敏（主目录和令牌模式），除非设置了 `ESTELA_REDACT=0`。会话目录维护 trace id → 目标的映射并作为 TraceStore 的解析器：每个列表行都可以解析，从命令行（通过路径或 `--pick`）打开的会话同样如此，并会成为 `current`。URL 只携带 trace id（`#/s/<traceId>`）。CLI 打开时使用 `?s=<traceId>`，因为 DevFrame 的一次性验证码占用了 URL fragment；SPA 会在首次连接尝试结束时（无论成功与否）把 id 移回 `#/s/<traceId>`。
+会话通过其 trace id（`traceId`）寻址，它是代理和路径的哈希。OpenCode 列表行始终包含会话 id，即使数据库中只有一个会话也是如此；打开方式为 `estela <path>#<sessionId>`。其他代理仅当多个会话共享同一个文件时包含会话 id（`path#id` 形式），因此使用 `estela <path>` 打开单会话文件时会保留其列表行的 trace id。命令行上的 `path` 或 `path#id` 字符串会在入口解析一次为 kit 的 `SessionTarget`（`parseSessionTarget`）；已发现的会话则是 kit 的 `SessionRef`。列表和 `--pick` 标签中的标题、项目和提示词像工作区一样经过脱敏（主目录和令牌模式），是否脱敏由服务器的 `redacts` 选项决定（见[服务器组装](#服务器组装)）；只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`。会话目录维护 trace id → 目标的映射并作为 TraceStore 的解析器：每个列表行都可以解析，从命令行（通过路径或 `--pick`）打开的会话同样如此，并会成为 `current`。URL 只携带 trace id（`#/s/<traceId>`）。CLI 打开时使用 `?s=<traceId>`，因为 DevFrame 的一次性验证码占用了 URL fragment；SPA 会在首次连接尝试结束时（无论成功与否）把 id 移回 `#/s/<traceId>`。
 
 ## 视图 trace、加载与重建
 
@@ -92,7 +92,11 @@ one session (build <path>, or export-report on the dev server)
 
 ## 服务器组装
 
-`createEstelaServer(options)`（`packages/server/src/composition/estela-server.ts`）构建一个 Estela 服务器的各项服务，并返回绑定它们的 DevFrame 定义。选项包括包身份信息及已构建的 SPA（`app`）、平台实现（读取、主目录、环境变量；默认为 Node 平台）、目录配置（开发服务器和不带路径的 `mcp` 使用 `{ index }`，`mcp <path>` 和 `build` 不使用）、启动会话目标、用于 trace RPC 的脱敏开关，以及接收 TraceStore 警告的日志行输出函数。在 `dev` 模式下，该定义的 `setup` 会加载启动会话并将其设为 `current`、启动会话目录、将 TraceStore、会话服务和报告导出器绑定到 `@rivus/estela-rpc`、恢复会话目录的摘要任务，并在 `ctx.agent` 上注册 MCP 代理工具；在 `build` 模式（报告）下则只注册查询函数。每个步骤只执行一次：CLI 会在服务器监听前执行启动会话加载、会话目录启动以及 `--pick` 的 `open`，以显示旋转指示器、索引进度和选择器，随后 `setup` 会发现它们已完成。只运行 `setup` 的 DevFrame 宿主也能得到相同的服务器。RPC 绑定属于模块状态，因此一个进程只服务一个 Estela 服务器。`apps/cli/src/server.ts` 从已发布的包中填入 `app`（其名称、版本和 `dist/web/`）；`dev`、`build` 和 `mcp` 均从此处启动。工厂及其子模块各自抛出自己的错误；`apps/cli/src/entry/failure.ts` 负责映射它们。
+`createEstelaServer(options)`（`packages/server/src/composition/estela-server.ts`）构建一个 Estela 服务器的各项服务，并返回绑定它们的 DevFrame 定义。选项包括包身份信息及已构建的 SPA（`app`）、平台实现（读取、主目录、环境变量；默认为 Node 平台）、目录配置（开发服务器和不带路径的 `mcp` 使用 `{ index }`，`mcp <path>` 和 `build` 不使用）、启动会话目标、脱敏开关（`redacts`）、报告目录（`reportDir`，可选），以及接收 TraceStore 警告的日志行输出函数。在 `dev` 模式下，该定义的 `setup` 会加载启动会话并将其设为 `current`、启动会话目录、将 TraceStore、会话服务和报告导出器绑定到 `@rivus/estela-rpc`、恢复会话目录的摘要任务，并在 `ctx.agent` 上注册 MCP 代理工具；在 `build` 模式（报告）下则只注册查询函数。每个步骤只执行一次：CLI 会在服务器监听前执行启动会话加载、会话目录启动以及 `--pick` 的 `open`，以显示旋转指示器、索引进度和选择器，随后 `setup` 会发现它们已完成。只运行 `setup` 的 DevFrame 宿主也能得到相同的服务器。RPC 绑定属于模块状态，因此一个进程只服务一个 Estela 服务器。`apps/cli/src/server.ts` 从已发布的包中填入 `app`（其名称、版本和 `dist/web/`）；`dev`、`build` 和 `mcp` 均从此处启动。工厂及其子模块各自抛出自己的错误；`apps/cli/src/entry/failure.ts` 负责映射它们。
+
+`redacts` 是会话文本的唯一开关：它决定 trace RPC 返回的内容，以及列表行和 `--pick` 标签中的标题、项目和提示词是否脱敏。服务器代码不读取 `ESTELA_REDACT`；每个入口自行算出这个值（`apps/cli/src/entry/app.ts`）：只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`，`mcp` 和 `build` 始终传入 `true`。无论这个开关取值如何，报告、MCP 工具结果和错误、列表行的工作目录和读取错误、检查过的根目录，以及索引自身的失败原因始终保持脱敏（见[信任](#信任)）。
+
+`close()` 先停止会话目录，再关闭索引：等待中的摘要不再运行，仍在运行的摘要结束时结果直接丢弃（不写索引、不挂 flush 定时器、不推送会话状态），等待 `whenIdle()` 的调用方立即返回。在服务器停止后调用它。
 
 ## MCP 代理工具
 
@@ -129,7 +133,7 @@ one session (build <path>, or export-report on the dev server)
 报告是将单个会话的工作区打包成的静态页面，无需服务器即可从 `file://` 打开。`build <path> --out-dir <dir>` 和工作区的「导出报告」（`export-report(traceId, locale)`）执行 `packages/server/src/report/report.ts` 中的同一条管线：
 
 1. `buildReport`（`packages/rpc/src/report.ts`）获取与 `get-trace-view` 相同的视图 trace 和摘要，并按顺序获取前若干个完整事件（载荷与原始记录），直到达到 2,000 个事件或 20 MB 序列化事件体积（取先到者）。无论 `ESTELA_REDACT` 的取值如何，所有内容均使用主目录通过 `redact` 处理。`build` 从已加载的 trace 直接取完整事件（文件只读一次）；而「导出报告」通过 `TraceStore.withEvents` 读取，对源指针分批少量读取，或为整份报告重新加载一次规范文件。
-2. DevFrame 的 `createBuild` 在构建模式下运行定义的 `setup`，后者注册一个无参数的额外快照查询 `report-trace` 并绑定到该载荷，然后将其烘焙进 `__rpc-dump/`。构建模式跳过会话推送，因此开发服务器内触发导出不会干扰在线服务器的共享状态。导出一次只运行一个；每次导出都在写入前在服务器的工作目录下创建独立的 `estela-report-<traceId>-<time>` 目录，其错误消息在返回浏览器前会经过脱敏。
+2. DevFrame 的 `createBuild` 在构建模式下运行定义的 `setup`，后者注册一个无参数的额外快照查询 `report-trace` 并绑定到该载荷，然后将其烘焙进 `__rpc-dump/`。构建模式跳过会话推送，因此开发服务器内触发导出不会干扰在线服务器的共享状态。导出一次只运行一个；每次导出都在写入前在服务器的报告目录下创建独立的新目录 `estela-report-<traceId>-<time>`（`reportDir`；服务器未指定时为工作目录），其错误消息在返回浏览器前会经过脱敏。目录名通过普通的 `mkdir` 占用，因此名称已被占用时改用 `-2`、`-3`……，不会写入任何已存在的目录；这也是导出不需要[信任](#信任)一节中 `build --out-dir` 那些规则的原因。
 3. `packForFile`（`packages/server/src/report/report-site.ts`）使构建产物可以从磁盘直接打开。Chromium 禁止在 `file://` 下使用 `fetch()`、module script 和外部字体，因此烘焙后的 `report-trace` 输出会作为 `<script type="application/json" id="report-trace">` 移入 `index.html`，module script（网页构建产物为单 chunk；出现其他任何脚本都会使构建失败）和样式表均被内联（`woff2` 字体转为 data URI），并删除 `assets/`、`__rpc-dump/` 和 `__connection.json`。最终产物是单个 `index.html`。
 
 SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/report.ts`）：不建立 DevFrame 连接、不显示会话浏览器、不显示导出按钮。工作区从报告中读取视图 trace；`get-event` 变为对内置事件的查找，其他事件则显示视图内容，并在「原始记录」中提示「此报告未包含该事件的原始记录。」。「模型所见」和「对比」像在开发服务器上一样在浏览器中运行 `reconstruct` 和 `diffContext`。一条横幅会提示会话文本和文件内容仍然保留，并在报告未包含全部事件时说明包含了多少条原始记录。报告以导出时记录的界面语言打开（`build` 不记录语言，由浏览器语言决定），并保留语言和主题切换开关。
@@ -148,7 +152,7 @@ SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/repor
 
 ## 信任
 
-会话文件留在磁盘上。开发服务器绑定 localhost。索引保存标题、用户提示词（每条 500 个字符）、路径和数字，存放在用户缓存目录中且权限模式为 0600。无论 `ESTELA_REDACT` 如何设置，`build`、「导出报告」以及每条 MCP 工具结果和错误始终进行脱敏（主目录和令牌模式）；报告中仍保留会话文本和文件内容，并会明确提示。ATIF 和 OTLP 导出默认与服务器一样脱敏，设置 `ESTELA_REDACT=0` 可写出未脱敏的原始字节。脱敏逻辑由 kit 提供（`@rivus/agent-kit/redact`，由 `packages/server` 和 `apps/cli` 导入）：它替换字符串中出现的所有主目录拼写（也包括 git diff 标头 `a/<home>/…` 中的拼写）、去掉前导 `/` 的形式（`Users/<name>/…`）、JSON 转义形式（`\/Users\/<name>`）、Claude 的短横线拼接形式以及 Grok 的 `%2F` 形式，不区分大小写，覆盖值和键；更长的名称（`/Users/<name>x`、`/Users/<name>.bak`）保留原样。其令牌模式采用固定的前缀列表（`sk-`、`AKIA`/`ASIA`、GitHub、Slack、npm）和 PEM 私钥；其他形式的机密会原样通过，用户文档对此也有说明（见[隐私与脱敏](../guide/privacy.zh-CN.md#脱敏覆盖的范围)）。`build --out-dir` 仅在目标目录为空或包含先前 Estela 报告时才替换已有目录（并在 DevFrame 的 `createBuild` 移除目录前拒绝 `/`、工作目录、主目录、符号链接、非目录以及其他非空目录）；「导出报告」始终创建新目录。除非设置 `ESTELA_REDACT=0`，开发服务器对视图 trace、`get-event`、错误消息和列表行一视同仁地执行脱敏。切勿将本机路径或真实机密放入夹具。
+会话文件留在磁盘上。开发服务器绑定 localhost。索引保存标题、用户提示词（每条 500 个字符）、路径和数字，存放在用户缓存目录中且权限模式为 0600。无论 `ESTELA_REDACT` 如何设置，`build`、「导出报告」以及每条 MCP 工具结果和错误始终进行脱敏（主目录和令牌模式）；报告中仍保留会话文本和文件内容，并会明确提示。ATIF 和 OTLP 导出默认与服务器一样脱敏，设置 `ESTELA_REDACT=0` 可写出未脱敏的原始字节。脱敏逻辑由 kit 提供（`@rivus/agent-kit/redact`，由 `packages/server` 和 `apps/cli` 导入）：它替换字符串中出现的所有主目录拼写（也包括 git diff 标头 `a/<home>/…` 中的拼写）、去掉前导 `/` 的形式（`Users/<name>/…`）、JSON 转义形式（`\/Users\/<name>`）、Claude 的短横线拼接形式以及 Grok 的 `%2F` 形式，不区分大小写，覆盖值和键；更长的名称（`/Users/<name>x`、`/Users/<name>.bak`）保留原样。其令牌模式采用固定的前缀列表（`sk-`、`AKIA`/`ASIA`、GitHub、Slack、npm）和 PEM 私钥；其他形式的机密会原样通过，用户文档对此也有说明（见[隐私与脱敏](../guide/privacy.zh-CN.md#脱敏覆盖的范围)）。两个主目录不同时，服务器把两者都隐藏（`packages/server/src/sessions/redaction.ts`）：平台主目录（`platform.home`：代理根目录、索引，以及会话记录的内容，例如工作目录、标题或提示词）和进程主目录（`os.homedir()`：服务器自身产生的内容，例如报告构建的错误消息或导出路径，以及会话中记录的服务器运行用户的路径）。CLI 的平台主目录就是进程主目录，因此其输出只经过一次脱敏。`build --out-dir` 仅在目标目录为空或包含先前 Estela 报告时才替换已有目录（并在 DevFrame 的 `createBuild` 移除目录前拒绝 `/`、工作目录、主目录、符号链接、非目录以及其他非空目录）；「导出报告」始终创建新目录。除非设置 `ESTELA_REDACT=0`，开发服务器对视图 trace、`get-event`、错误消息和列表行一视同仁地执行脱敏。切勿将本机路径或真实机密放入夹具。
 
 ## 兼容性
 
