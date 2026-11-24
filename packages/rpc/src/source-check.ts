@@ -60,11 +60,15 @@ export function fingerprint(original: unknown, complete = false): number {
  * and a compressed line are compared whole: their content lives in nested fields (a dsh `data`, an
  * OpenCode part), where a top-level scalar would miss a rewrite. A plain file line stays cheap.
  */
+/** Whether a source's original is fingerprinted whole: a database row or a record inside a compressed file. */
+function completeFingerprint(source: SourcePointer): boolean {
+  return source.sqlite !== undefined || source.codec !== undefined
+}
+
 export function fingerprints(trace: Trace): Uint32Array {
   const out = new Uint32Array(trace.events.length)
   trace.events.forEach((event, index) => {
-    const complete = event.source.sqlite !== undefined || event.source.codec !== undefined
-    out[index] = fingerprint(event.original, complete)
+    out[index] = fingerprint(event.original, completeFingerprint(event.source))
   })
   return out
 }
@@ -153,7 +157,7 @@ export async function checkedOriginal(
           : `${source.file} changed since it was loaded; line ${source.line} could not be read${reasonOf(error)}`,
     }
   }
-  if (fingerprint(original, source.sqlite !== undefined) !== expected) {
+  if (fingerprint(original, completeFingerprint(source)) !== expected) {
     return { unavailable: `${source.file} changed since it was loaded; line ${source.line} holds a different record` }
   }
   return { original }

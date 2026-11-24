@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
-import type { TraceEvent } from '@rivus/estela-schema'
-import { fingerprint, checkedOriginal } from './source-check.ts'
+import type { Trace, TraceEvent } from '@rivus/estela-schema'
+import { fingerprint, fingerprints, checkedOriginal } from './source-check.ts'
 
 const fs = {
   stat: async () => ({ kind: 'file', size: 0, mtimeMs: 1 }),
@@ -55,12 +55,31 @@ describe('checkedOriginal', () => {
         },
         compressedEvent,
         stamp,
-        fingerprint(original),
+        fingerprint(original, true),
       )
       expect(result).toEqual({ original })
       expect(calls).toBe(1)
     },
   )
+
+  it('reads back an unchanged nested record from a compressed file that grew since the load', async () => {
+    // `fingerprints` hashes a compressed record whole at load; the check after a change must hash it the same way,
+    // or every old line of a live zstd log reads as "a different record" once the agent appends.
+    const nested = { type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'hello' }] } }
+    const compressedEvent = {
+      ...event,
+      source: { file: '/data/session.jsonl.zst', offset: 0, length: 120, line: 4, codec: 'zstd' as const },
+    }
+    const [expected] = fingerprints({ events: [{ ...compressedEvent, original: nested }] } as unknown as Trace)
+    const result = await checkedOriginal(
+      { ...fs, stat: async () => ({ kind: 'file', size: 900, mtimeMs: 2 }) },
+      async () => nested,
+      compressedEvent,
+      { size: 600, mtimeMs: 1 },
+      expected!,
+    )
+    expect(result).toEqual({ original: nested })
+  })
 
   it('reads a SQLite source through the injected resolver', async () => {
     const result = await checkedOriginal(
