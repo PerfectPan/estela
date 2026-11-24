@@ -15,7 +15,7 @@ import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
 import { serverRedaction } from '../sessions/redaction.ts'
 import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 import { sessionTargetLabel } from '../sessions/session-target.ts'
-import { createTraceStore } from '../store/trace-store.ts'
+import { createEstelaCore } from '../core/estela-core.ts'
 import { defineEstela, type EstelaApp } from './definition.ts'
 
 export interface EstelaServerOptions {
@@ -98,17 +98,17 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
         announce: signal => publisher.emit(signal),
       })
     : undefined
-  const traces = createTraceStore({
+  const core = createEstelaCore({
     platform,
     redacts: options.redacts,
     resolve: catalog ? traceId => catalog.resolve(traceId) : undefined,
     log: options.log,
   })
   // The redaction that is always on: reports, MCP tool results, and what names a path.
-  const redact = serverRedaction(platform.home)
+  const redact = serverRedaction(core.platform.home)
 
   const make = async (session: ResolvedSession, trace: Trace): Promise<OpenedSession> => {
-    await traces.seed(session, trace)
+    await core.seed(session, trace)
     return { traceId: session.key, trace }
   }
 
@@ -137,11 +137,11 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
   // `exportReport` runs DevFrame's build on the same definition that registers it.
   let builtDefinition: DevframeDefinition | undefined
   const services: ServerServices = {
-    store: traces.store,
+    store: core.store,
     listSessions: catalog ? query => catalog.listSessions(query) : undefined,
     exportReport: catalog
       ? query =>
-          exportReport(builtDefinition!, reportSource, reportQueue, traces.store, query, {
+          exportReport(builtDefinition!, reportSource, reportQueue, core.store, query, {
             dir: options.reportDir,
             redact,
           })
@@ -159,7 +159,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
         await catalog.start()
         catalog.resumeSummaries()
       }
-      registerAgentTools(ctx.agent, { store: traces.store, catalog, redact })
+      registerAgentTools(ctx.agent, { store: core.store, catalog, redact })
     },
   })
   builtDefinition = definition
@@ -167,7 +167,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
   return {
     definition,
     catalog,
-    store: traces.store,
+    store: core.store,
     openLaunch,
     open,
     writeReport: (outDir, report) => writeReport(definition, reportSource, reportQueue, outDir, report),

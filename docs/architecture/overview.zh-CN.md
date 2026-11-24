@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 70da8aea974eb1ff42bca962f2126d7211f4e0b9 -->
+<!-- source-blob: 93a9d04fa28063524b4274280252b3b3836e571f -->
 
 # 架构
 
@@ -85,14 +85,14 @@ one session (build <path>, or export-report on the dev server)
 | `packages/kernel`（`@rivus/estela-kernel`） | 规范文件头部检查、`SessionFs` 读取接口形状、折叠、重建、`diffContext`、`toView` / `fitView`、投影、目录价费用 |
 | `packages/runtime-node`（`@rivus/estela-runtime-node`） | 主目录、会话索引（`node:sqlite`） |
 | `packages/rpc`（`@rivus/estela-rpc`） | 基于注入会话服务的 `list-sessions`；基于 `TraceStore` 与注入解析器的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`；基于注入写入器的 `export-report`；`buildReport`；仅在 DevFrame 构建模式下注册的 `report-trace` |
-| `packages/server`（`@rivus/estela-server`） | `createEstelaServer`：DevFrame 定义及其 `setup` 绑定的服务（通过 kit 读取会话、会话目录、基于 Node 读取的 TraceStore、报告写入器），以及 MCP 代理工具（`src/agent-tools/`） |
+| `packages/server`（`@rivus/estela-server`） | `createEstelaCore`（`./core`）：不含 DevFrame 与会话目录的加固平台、基于 Node 读取的 TraceStore 和脱敏；`createEstelaServer`：在其上加入会话目录、按实例构建的 RPC 定义、报告写入器、MCP 代理工具（`src/agent-tools/`）以及由 `setup` 负责注册和启动的 DevFrame 定义；通过 kit 读取会话 |
 | `apps/web`（`@rivus/estela-web`） | Solid SPA：哈希路由 `#/`（会话浏览器）和 `#/s/<traceId>`（工作区）、报告模式、设计 token、`en` / `zh-CN` 词典 |
 | `apps/cli`（`@rivus/estela`） | 命令行、终端输出、打开浏览器，以及 ATIF 和 OTLP 导出；基于 `createEstelaServer` 启动 `dev`、`build` 和 `mcp`；唯一发布的包 |
 | `apps/e2e`（`@rivus/estela-e2e`） | 私有包：针对已安装 tarball 的 CLI 冒烟测试和 Playwright 测试套件 |
 
 ## 服务器组装
 
-`createEstelaServer(options)`（`packages/server/src/composition/estela-server.ts`）构建一个 Estela 服务器的各项服务，基于它们创建按实例隔离的 RPC 函数定义、会话发布器和报告队列，并返回注册它们的 DevFrame 定义。选项包括包身份信息及已构建的 SPA（`app`）、平台实现（读取、主目录、环境变量；默认为 Node 平台）、目录配置（开发服务器和不带路径的 `mcp` 使用 `{ index }`，`mcp <path>` 和 `build` 不使用）、启动会话目标、脱敏开关（`redacts`）、报告目录（`reportDir`，可选），以及接收 TraceStore 警告的日志行输出函数。在 `dev` 模式下，该定义的 `setup` 会加载启动会话并将其设为 `current`、启动会话目录、恢复会话目录的摘要任务、在 `ctx.agent` 上注册 MCP 代理工具，并将该实例的会话发布器绑定到共享状态；在 `build` 模式（报告）下则只注册函数。每个步骤只执行一次：CLI 会在服务器监听前执行启动会话加载、会话目录启动以及 `--pick` 的 `open`，以显示旋转指示器、索引进度和选择器，随后 `setup` 会发现它们已完成。只运行 `setup` 的 DevFrame 宿主也能得到相同的服务器。每个服务器各自闭包持有自己的服务、发布器和报告队列，因此一个进程可以并存多个实例。`apps/cli/src/server.ts` 从已发布的包中填入 `app`（其名称、版本和 `dist/web/`）；`dev`、`build` 和 `mcp` 均从此处启动。工厂及其子模块各自抛出自己的错误；`apps/cli/src/entry/failure.ts` 负责映射它们。
+`createEstelaCore(options)`（`packages/server/src/core/estela-core.ts`，以 `@rivus/estela-server/core` 导出）构建不含 DevFrame 与会话目录的单实例核心：加固平台、TraceStore（从 `@rivus/estela-rpc/trace-store` 读取）、`seed` 和跟随 `redacts` 的文本脱敏器；该入口还导出 `traceIdOf`，供自行生成键的宿主使用。`createEstelaServer(options)`（`packages/server/src/composition/estela-server.ts`）在 `createEstelaCore` 之上加入会话目录、按实例隔离的 RPC 函数定义、会话发布器和报告队列，并返回负责注册和启动它们的 DevFrame 定义。选项包括包身份信息及已构建的 SPA（`app`）、平台实现（读取、主目录、环境变量；默认为 Node 平台）、目录配置（开发服务器和不带路径的 `mcp` 使用 `{ index }`，`mcp <path>` 和 `build` 不使用）、启动会话目标、脱敏开关（`redacts`）、报告目录（`reportDir`，可选），以及接收 TraceStore 警告的日志行输出函数。在 `dev` 模式下，该定义的 `setup` 会加载启动会话并将其设为 `current`、启动会话目录、恢复会话目录的摘要任务、在 `ctx.agent` 上注册 MCP 代理工具，并将该实例的会话发布器绑定到共享状态；在 `build` 模式（报告）下则只注册函数。每个步骤只执行一次：CLI 会在服务器监听前执行启动会话加载、会话目录启动以及 `--pick` 的 `open`，以显示旋转指示器、索引进度和选择器，随后 `setup` 会发现它们已完成。只运行 `setup` 的 DevFrame 宿主也能得到相同的服务器。每个服务器各自闭包持有自己的服务、发布器和报告队列，因此一个进程可以并存多个实例。`apps/cli/src/server.ts` 从已发布的包中填入 `app`（其名称、版本和 `dist/web/`）；`dev`、`build` 和 `mcp` 均从此处启动。工厂及其子模块各自抛出自己的错误；`apps/cli/src/entry/failure.ts` 负责映射它们。
 
 `redacts` 是会话文本的唯一开关：它决定 trace RPC 返回的内容，以及列表行和 `--pick` 标签中的标题、项目和提示词是否脱敏。服务器代码不读取 `ESTELA_REDACT`；每个入口自行算出这个值（`apps/cli/src/entry/app.ts`）：只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`，`mcp` 和 `build` 始终传入 `true`。无论这个开关取值如何，报告、MCP 工具结果和错误、列表行的工作目录和读取错误、检查过的根目录，以及索引自身的失败原因始终保持脱敏（见[信任](#信任)）。
 

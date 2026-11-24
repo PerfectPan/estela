@@ -117,6 +117,36 @@ export default {
         },
       },
       {
+        // Keep the DevFrame-free core and its store free of DevFrame, the session catalog (which reaches
+        // `node:sqlite` through the session index), and the root `@rivus/estela-rpc` barrel (which imports
+        // DevFrame at top level).
+        files: ['packages/server/src/core/**/*.{ts,mts,cts,tsx}', 'packages/server/src/store/**/*.{ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              paths: [
+                {
+                  name: '@rivus/estela-rpc',
+                  message:
+                    'Import from @rivus/estela-rpc/trace-store instead so the DevFrame-free core never reaches the RPC barrel.',
+                },
+              ],
+              patterns: [
+                {
+                  group: ['devframe', 'devframe/**'],
+                  message: 'packages/server/src/core and store must not import devframe.',
+                },
+                {
+                  group: ['../catalog', '../catalog/**', '**/catalog/**'],
+                  message: 'packages/server/src/core and store must not import from packages/server/src/catalog/.',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         // One Icon base and the stroke icons built on it: a component family, which lint-config's
         // README exempts from one component per file (like a shadcn/ui file).
         files: ['apps/web/src/components/icons.tsx', 'apps/site/src/components/icons.tsx'],
