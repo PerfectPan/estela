@@ -4,8 +4,11 @@
   "type": "module",
   "version": "0.0.0",
   "license": "GPL-3.0-only",
+  "exports": {
+    "./embed": "./src/embed/index.ts"
+  },
   "scripts": {
-    "build": "vp build 2>&1",
+    "build": "vp build 2>&1 && vp build --mode embed 2>&1",
     "lint": "vp lint src vite.config.ts 2>&1",
     "test": "vp test 2>&1",
     "typecheck": "tsc --noEmit"

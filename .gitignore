@@ -19,6 +19,7 @@ test-results
 
 # Generated output
 dist/
+dist-embed/
 build/
 coverage/
 tmp/

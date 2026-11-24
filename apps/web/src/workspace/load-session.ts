@@ -2,6 +2,7 @@ import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import { createSignal, onCleanup } from 'solid-js'
+import { NoLogError, StaleError } from '@/embed/source.ts'
 import { messageOf } from '@/lib/error-message.ts'
 
 /** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/estela-rpc` (the web app imports only its types). */
@@ -27,6 +28,8 @@ export interface LoadFailure {
   reason: string
   /** The WebSocket closed: a closed DevFrame client never reconnects, so only a reload helps. */
   lost?: boolean
+  /** The session has started but has not written a log on disk yet. */
+  noLog?: boolean
 }
 
 type LoadState =
@@ -139,13 +142,31 @@ export function createSessionLoad(traceId: string, connect: () => Promise<LoadCl
         return
       }
       const live = client
+      const resolvedTraceId = view.traceId || traceId
       setState({
         status: 'ready',
-        session: { traceId, trace: view.trace, summary: view.summary, event: id => live.event(traceId, id) },
+        session: {
+          traceId: resolvedTraceId,
+          trace: view.trace,
+          summary: view.summary,
+          event: async id => {
+            try {
+              return await live.event(resolvedTraceId, id)
+            } catch (error) {
+              if (error instanceof StaleError && mine === attempt && !lifetime.signal.aborted) {
+                void run()
+              }
+              throw error
+            }
+          },
+        },
       })
     } catch (error) {
       if (mine !== attempt || lifetime.signal.aborted || isCancelled(error) || state().status === 'error') {
         return
+      }
+      if (error instanceof NoLogError) {
+        return fail({ reason: error.message, noLog: true })
       }
       if (client && (client.status === 'disconnected' || client.status === 'error')) {
         return fail(lostFailure())

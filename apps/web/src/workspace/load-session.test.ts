@@ -3,6 +3,7 @@ import type { Trace } from '@rivus/estela-schema'
 import type { LoadClient } from './load-session.ts'
 import { createRoot } from 'solid-js'
 import { describe, expect, it } from 'vite-plus/test'
+import { NoLogError, StaleError } from '@/embed/source.ts'
 import { createSessionLoad, reportSession } from './load-session.ts'
 
 type Status = LoadClient['status']
@@ -141,6 +142,44 @@ describe('createSessionLoad', () => {
     const load = createRoot(() => createSessionLoad('r', async () => fake.client))
     await tick()
     expect(load.state()).toEqual({ status: 'error', failure: { reason: 'connection lost', lost: true } })
+  })
+
+  it('maps NoLogError to a noLog failure', async () => {
+    const fake = fakeClient()
+    fake.client.traceView = async () => {
+      throw new NoLogError()
+    }
+    const load = createRoot(() => createSessionLoad('r', async () => fake.client))
+    await tick()
+    expect(load.state()).toEqual({
+      status: 'error',
+      failure: { reason: 'This session has no log on disk yet.', noLog: true },
+    })
+  })
+
+  it('reloads when event() rejects with StaleError', async () => {
+    let opens = 0
+    const fake = fakeClient()
+    fake.client.traceView = async () => {
+      opens += 1
+      return { traceId: `r-${opens}`, trace, summary: { turns: opens }, bytes: 1 }
+    }
+    fake.client.event = async () => {
+      throw new StaleError()
+    }
+    const load = createRoot(() => createSessionLoad('', async () => fake.client))
+    await tick()
+    const first = load.state()
+    expect(first.status).toBe('ready')
+    if (first.status !== 'ready') {
+      return
+    }
+    expect(first.session.traceId).toBe('r-1')
+    await expect(first.session.event('e1')).rejects.toBeInstanceOf(StaleError)
+    await tick()
+    const second = load.state()
+    expect(second.status).toBe('ready')
+    expect(second.status === 'ready' && second.session.traceId).toBe('r-2')
   })
 
   it("serves a report's included events in full and marks the rest", async () => {
