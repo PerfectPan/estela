@@ -3,13 +3,14 @@ import type {
   ExportReportInput,
   ExportReportResult,
   ReportLocale,
+  ReportSource,
   ReportTrace,
   TraceStore,
 } from '@rivus/estela-rpc'
 import { lstat, mkdir, readdir, readFile, realpath } from 'node:fs/promises'
 import { join, parse, resolve } from 'node:path'
 import process from 'node:process'
-import { bindReportSource, buildReport } from '@rivus/estela-rpc'
+import { buildReport } from '@rivus/estela-rpc'
 import { homeDir } from '@rivus/estela-runtime-node'
 import type { DevframeDefinition } from 'devframe'
 import { createBuild } from 'devframe/adapters/build'
@@ -33,13 +34,20 @@ export async function reportOf(
   return buildReport({ view: await store.view(traceId), full, redact: redact.value, locale })
 }
 
-let queue: Promise<unknown> = Promise.resolve()
+/** One report at a time per server instance: its `report-trace` slot serves one build, and DevFrame replaces `outDir`. */
+export interface ReportQueue {
+  run: <T>(work: () => Promise<T>) => Promise<T>
+}
 
-/** One report at a time: the `report-trace` binding is module state, and DevFrame's build replaces `outDir`. */
-function serialized<T>(run: () => Promise<T>): Promise<T> {
-  const next = queue.then(run)
-  queue = next.catch(() => {})
-  return next
+export function createReportQueue(): ReportQueue {
+  let tail: Promise<unknown> = Promise.resolve()
+  return {
+    run(work) {
+      const next = tail.then(work)
+      tail = next.catch(() => {})
+      return next
+    },
+  }
 }
 
 const REPORT_MARKER = '<script type="application/json" id="report-trace">'
@@ -136,17 +144,28 @@ export async function checkReportOutDir(rawOutDir: string, options?: { cwd?: str
   throw new ReportOutDirError(outDir, 'directory is not empty and is not an earlier Estela report')
 }
 
-/** DevFrame's static build of `definition` with `report-trace` bound to `report`, then `packForFile`. */
-async function buildSite(definition: DevframeDefinition, outDir: string, report: ReportTrace): Promise<void> {
-  bindReportSource(async () => report)
+/** DevFrame's static build of `definition` with `reportSource` set to `report`, then `packForFile`. */
+async function buildSite(
+  definition: DevframeDefinition,
+  reportSource: ReportSource,
+  outDir: string,
+  report: ReportTrace,
+): Promise<void> {
+  reportSource.set(async () => report)
   await createBuild(definition, { outDir })
   await packForFile(outDir)
 }
 
-export function writeReport(definition: DevframeDefinition, outDir: string, report: ReportTrace): Promise<void> {
-  return serialized(async () => {
+export function writeReport(
+  definition: DevframeDefinition,
+  reportSource: ReportSource,
+  queue: ReportQueue,
+  outDir: string,
+  report: ReportTrace,
+): Promise<void> {
+  return queue.run(async () => {
     const checked = await checkReportOutDir(outDir)
-    await buildSite(definition, checked, report)
+    await buildSite(definition, reportSource, checked, report)
   })
 }
 
@@ -194,6 +213,8 @@ export async function reserveReportDir(dir: string, traceId: string, now: Date):
  */
 export async function exportReport(
   definition: DevframeDefinition,
+  reportSource: ReportSource,
+  queue: ReportQueue,
   store: TraceStore,
   input: ExportReportInput,
   options: ExportReportOptions = {},
@@ -204,9 +225,9 @@ export async function exportReport(
     const report = await store.withEvents(input.traceId, read =>
       reportOf(store, input.traceId, read, input.locale, redact),
     )
-    const outDir = await serialized(async () => {
+    const outDir = await queue.run(async () => {
       const dir = await reserveReportDir(options.dir ?? process.cwd(), input.traceId, now)
-      await buildSite(definition, dir, report)
+      await buildSite(definition, reportSource, dir, report)
       return dir
     })
     // Absolute, so the browser can say exactly where; the home directory shows as `~`.

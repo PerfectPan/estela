@@ -1,8 +1,8 @@
 import type { ListSessionsQuery, ListSessionsResult } from '../list-types.ts'
+import type { ServerServices } from './service.ts'
 import { defineRpcFunction } from 'devframe'
 import * as z from 'zod/mini'
 import { parseInput } from './parse-input.ts'
-import { requireSessionService } from './service.ts'
 
 const QUERY = 'list-sessions: query must be a string of at most 1000 characters'
 const SINCE = 'list-sessions: since must be a non-negative integer'
@@ -25,17 +25,18 @@ const listSessionsQuery = z.nullish(
   ),
 )
 
-export const listSessions = defineRpcFunction({
-  name: 'list-sessions',
-  type: 'query',
-  jsonSerializable: true,
-  setup: () => ({
-    handler: async (input: ListSessionsQuery = {}): Promise<ListSessionsResult> => {
-      const service = requireSessionService()
-      if (!service.listSessions) {
-        throw new Error('list-sessions is not available')
-      }
-      return service.listSessions(parseInput(listSessionsQuery, input) ?? {})
-    },
-  }),
-})
+export function createListSessions(services: Pick<ServerServices, 'listSessions'>) {
+  return defineRpcFunction({
+    name: 'list-sessions',
+    type: 'query',
+    jsonSerializable: true,
+    setup: () => ({
+      handler: async (input: ListSessionsQuery = {}): Promise<ListSessionsResult> => {
+        if (!services.listSessions) {
+          throw new Error('list-sessions is not available')
+        }
+        return services.listSessions(parseInput(listSessionsQuery, input) ?? {})
+      },
+    }),
+  })
+}

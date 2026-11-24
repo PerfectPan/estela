@@ -1,11 +1,16 @@
-import type { ResolvedSession, TraceStore } from '@rivus/estela-rpc'
+import type { ReportTrace, ResolvedSession, ServerServices, TraceStore } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import type { DevframeDefinition } from 'devframe'
-import { bindReportExporter, bindSessionService, bindTraceStore } from '@rivus/estela-rpc'
+import {
+  createReportFunctions,
+  createReportSource,
+  createServerFunctions,
+  createSessionPublisher,
+} from '@rivus/estela-rpc'
 import { SessionCatalog } from '../catalog/session-catalog.ts'
 import { registerAgentTools } from '../agent-tools/register.ts'
-import { exportReport } from '../report/report.ts'
+import { createReportQueue, exportReport, writeReport } from '../report/report.ts'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
 import { serverRedaction } from '../sessions/redaction.ts'
 import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
@@ -50,8 +55,9 @@ export interface OpenedSession {
 export interface EstelaServer {
   /**
    * The DevFrame definition. Its `setup` in `dev` mode loads the launch session, starts the catalog,
-   * binds the RPC services, and resumes the catalog's summaries; each step that already ran is not
-   * repeated, so a caller may run them first (the CLI does, to show progress before the server listens).
+   * resumes the catalog's summaries, registers the agent tools, and binds this server's session publisher;
+   * each step that already ran is not repeated, so a caller may run them first (the CLI does, to show
+   * progress before the server listens).
    */
   definition: DevframeDefinition
   /** The session catalog when `catalog` is set. `start(onProgress)` before setup reports the first discover pass. */
@@ -62,6 +68,8 @@ export interface EstelaServer {
   openLaunch: () => Promise<OpenedSession | undefined>
   /** Loads the catalog session `traceId` and makes it `current`. Throws when it does not resolve or does not load. */
   open: (traceId: string) => Promise<OpenedSession>
+  /** Writes one redacted report directory (`index.html`), serialized on this server's report queue. */
+  writeReport: (outDir: string, report: ReportTrace) => Promise<void>
   /**
    * Stops the catalog and closes the session index: no summary starts after it, and one still running ends
    * without a write or a push. Call after the server stops.
@@ -70,13 +78,16 @@ export interface EstelaServer {
 }
 
 /**
- * The Estela server's services and the DevFrame definition that binds them: session reading
+ * The Estela server's services and the DevFrame definition that registers them: session reading
  * through the kit, the session catalog, the TraceStore, and the report writer. Every entry point
  * (the CLI's `dev`, `build`, and `mcp`, or a DevFrame hub that runs only `setup`) starts here.
- * The RPC bindings are module state in `@rivus/estela-rpc`, so one process serves one Estela server.
+ * Each server owns its own RPC function definitions, session publisher, and report queue.
  */
 export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
   const platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
+  const publisher = createSessionPublisher()
+  const reportSource = createReportSource()
+  const reportQueue = createReportQueue()
   // Summaries wait until setup: the server listens before they compete with it.
   const catalog = options.catalog
     ? new SessionCatalog({
@@ -84,6 +95,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
         noIndex: !options.catalog.index,
         deferSummaries: true,
         redacts: options.redacts,
+        announce: signal => publisher.emit(signal),
       })
     : undefined
   const traces = createTraceStore({
@@ -122,17 +134,37 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
     return make(session, await loadSession(session.target, { platform }))
   }
 
-  const definition: DevframeDefinition = defineEstela(options.app, async ctx => {
-    await openLaunch()
-    bindTraceStore(traces.store)
-    if (catalog) {
-      await catalog.start()
-      bindSessionService({ listSessions: query => catalog.listSessions(query) })
-      bindReportExporter(query => exportReport(definition, traces.store, query, { dir: options.reportDir, redact }))
-      catalog.resumeSummaries()
-    }
-    registerAgentTools(ctx.agent, { store: traces.store, catalog, redact })
+  // `exportReport` runs DevFrame's build on the same definition that registers it.
+  let builtDefinition: DevframeDefinition | undefined
+  const services: ServerServices = {
+    store: traces.store,
+    ...(catalog
+      ? {
+          listSessions: query => catalog.listSessions(query),
+          exportReport: query =>
+            exportReport(builtDefinition!, reportSource, reportQueue, traces.store, query, {
+              dir: options.reportDir,
+              redact,
+            }),
+        }
+      : {}),
+    reportSource,
+  }
+  const serverFunctions = createServerFunctions(services)
+  const reportFunctions = createReportFunctions(services)
+
+  const definition: DevframeDefinition = defineEstela(options.app, serverFunctions, reportFunctions, {
+    publisher,
+    setup: async ctx => {
+      await openLaunch()
+      if (catalog) {
+        await catalog.start()
+        catalog.resumeSummaries()
+      }
+      registerAgentTools(ctx.agent, { store: traces.store, catalog, redact })
+    },
   })
+  builtDefinition = definition
 
   return {
     definition,
@@ -140,6 +172,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
     store: traces.store,
     openLaunch,
     open,
+    writeReport: (outDir, report) => writeReport(definition, reportSource, reportQueue, outDir, report),
     close: () => catalog?.close(),
   }
 }

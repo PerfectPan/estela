@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: be393ca6a0797281f1a5b68d999c35413f5026b8 -->
+<!-- source-blob: 70da8aea974eb1ff42bca962f2126d7211f4e0b9 -->
 
 # 架构
 
@@ -92,7 +92,7 @@ one session (build <path>, or export-report on the dev server)
 
 ## 服务器组装
 
-`createEstelaServer(options)`（`packages/server/src/composition/estela-server.ts`）构建一个 Estela 服务器的各项服务，并返回绑定它们的 DevFrame 定义。选项包括包身份信息及已构建的 SPA（`app`）、平台实现（读取、主目录、环境变量；默认为 Node 平台）、目录配置（开发服务器和不带路径的 `mcp` 使用 `{ index }`，`mcp <path>` 和 `build` 不使用）、启动会话目标、脱敏开关（`redacts`）、报告目录（`reportDir`，可选），以及接收 TraceStore 警告的日志行输出函数。在 `dev` 模式下，该定义的 `setup` 会加载启动会话并将其设为 `current`、启动会话目录、将 TraceStore、会话服务和报告导出器绑定到 `@rivus/estela-rpc`、恢复会话目录的摘要任务，并在 `ctx.agent` 上注册 MCP 代理工具；在 `build` 模式（报告）下则只注册查询函数。每个步骤只执行一次：CLI 会在服务器监听前执行启动会话加载、会话目录启动以及 `--pick` 的 `open`，以显示旋转指示器、索引进度和选择器，随后 `setup` 会发现它们已完成。只运行 `setup` 的 DevFrame 宿主也能得到相同的服务器。RPC 绑定属于模块状态，因此一个进程只服务一个 Estela 服务器。`apps/cli/src/server.ts` 从已发布的包中填入 `app`（其名称、版本和 `dist/web/`）；`dev`、`build` 和 `mcp` 均从此处启动。工厂及其子模块各自抛出自己的错误；`apps/cli/src/entry/failure.ts` 负责映射它们。
+`createEstelaServer(options)`（`packages/server/src/composition/estela-server.ts`）构建一个 Estela 服务器的各项服务，基于它们创建按实例隔离的 RPC 函数定义、会话发布器和报告队列，并返回注册它们的 DevFrame 定义。选项包括包身份信息及已构建的 SPA（`app`）、平台实现（读取、主目录、环境变量；默认为 Node 平台）、目录配置（开发服务器和不带路径的 `mcp` 使用 `{ index }`，`mcp <path>` 和 `build` 不使用）、启动会话目标、脱敏开关（`redacts`）、报告目录（`reportDir`，可选），以及接收 TraceStore 警告的日志行输出函数。在 `dev` 模式下，该定义的 `setup` 会加载启动会话并将其设为 `current`、启动会话目录、恢复会话目录的摘要任务、在 `ctx.agent` 上注册 MCP 代理工具，并将该实例的会话发布器绑定到共享状态；在 `build` 模式（报告）下则只注册查询函数。每个步骤只执行一次：CLI 会在服务器监听前执行启动会话加载、会话目录启动以及 `--pick` 的 `open`，以显示旋转指示器、索引进度和选择器，随后 `setup` 会发现它们已完成。只运行 `setup` 的 DevFrame 宿主也能得到相同的服务器。每个服务器各自闭包持有自己的服务、发布器和报告队列，因此一个进程可以并存多个实例。`apps/cli/src/server.ts` 从已发布的包中填入 `app`（其名称、版本和 `dist/web/`）；`dev`、`build` 和 `mcp` 均从此处启动。工厂及其子模块各自抛出自己的错误；`apps/cli/src/entry/failure.ts` 负责映射它们。
 
 `redacts` 是会话文本的唯一开关：它决定 trace RPC 返回的内容，以及列表行和 `--pick` 标签中的标题、项目和提示词是否脱敏。服务器代码不读取 `ESTELA_REDACT`；每个入口自行算出这个值（`apps/cli/src/entry/app.ts`）：只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`，`mcp` 和 `build` 始终传入 `true`。无论这个开关取值如何，报告、MCP 工具结果和错误、列表行的工作目录和读取错误、检查过的根目录，以及索引自身的失败原因始终保持脱敏（见[信任](#信任)）。
 

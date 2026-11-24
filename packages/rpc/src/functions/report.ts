@@ -17,37 +17,42 @@ export interface ExportReportResult {
   total: number
 }
 
-let source: (() => Promise<ReportTrace>) | undefined
-let exporter: ((input: ExportReportInput) => Promise<ExportReportResult>) | undefined
-
-/** `build` binds the one session it writes; DevFrame bakes the result into the static dump. */
-export function bindReportSource(next: () => Promise<ReportTrace>): void {
-  source = next
+/** Per-instance slot for the one report `build` or "Export report" bakes into `report-trace`. */
+export interface ReportSource {
+  set: (next: () => Promise<ReportTrace>) => void
+  read: () => Promise<ReportTrace>
 }
 
-/** The dev server binds the writer behind "Export report". */
-export function bindReportExporter(next: (input: ExportReportInput) => Promise<ExportReportResult>): void {
-  exporter = next
+export function createReportSource(): ReportSource {
+  let current: (() => Promise<ReportTrace>) | undefined
+  return {
+    set(next) {
+      current = next
+    },
+    async read() {
+      if (!current) {
+        throw new Error('report-trace is bound only while build writes a report')
+      }
+      return current()
+    },
+  }
 }
 
 /**
  * Argument-free snapshot of the report session: the view trace, the summary, and the first
  * events in full. Registered only in `build` mode, where DevFrame bakes it.
  */
-export const reportTrace = defineRpcFunction({
-  name: 'report-trace',
-  type: 'query',
-  jsonSerializable: true,
-  snapshot: true,
-  setup: () => ({
-    handler: async (): Promise<ReportTrace> => {
-      if (!source) {
-        throw new Error('report-trace is bound only while build writes a report')
-      }
-      return source()
-    },
-  }),
-})
+export function createReportTrace(reportSource: ReportSource) {
+  return defineRpcFunction({
+    name: 'report-trace',
+    type: 'query',
+    jsonSerializable: true,
+    snapshot: true,
+    setup: () => ({
+      handler: async (): Promise<ReportTrace> => reportSource.read(),
+    }),
+  })
+}
 
 const NEEDS_TRACE_ID = 'export-report needs a trace id'
 const exportReportInput = z.object(
@@ -60,18 +65,20 @@ const exportReportInput = z.object(
 const reportLocale = z.enum(REPORT_LOCALES)
 
 /** "Export report" in the workspace: the same build as `build <path>`, for the session `traceId`. */
-export const exportReport = defineRpcFunction({
-  name: 'export-report',
-  type: 'action',
-  jsonSerializable: true,
-  setup: () => ({
-    handler: async (input: ExportReportInput): Promise<ExportReportResult> => {
-      if (!exporter) {
-        throw new Error('export-report is available only on the dev server')
-      }
-      const { traceId, locale } = parseInput(exportReportInput, input, Error)
-      // Any other locale is ignored, not refused: the report then follows the browser's language.
-      return exporter({ traceId, locale: z.safeParse(reportLocale, locale).data })
-    },
-  }),
-})
+export function createExportReport(exporter?: (input: ExportReportInput) => Promise<ExportReportResult>) {
+  return defineRpcFunction({
+    name: 'export-report',
+    type: 'action',
+    jsonSerializable: true,
+    setup: () => ({
+      handler: async (input: ExportReportInput): Promise<ExportReportResult> => {
+        if (!exporter) {
+          throw new Error('export-report is available only on the dev server')
+        }
+        const { traceId, locale } = parseInput(exportReportInput, input, Error)
+        // Any other locale is ignored, not refused: the report then follows the browser's language.
+        return exporter({ traceId, locale: z.safeParse(reportLocale, locale).data })
+      },
+    }),
+  })
+}

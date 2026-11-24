@@ -1,9 +1,14 @@
 import type { IndexSummary, SessionIndex } from '@rivus/estela-runtime-node'
-import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/estela-rpc'
+import type {
+  AgentListEntry,
+  ListSessionsQuery,
+  ListSessionsResult,
+  ResolvedSession,
+  SessionsSignal,
+} from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
-import { emitSessions } from '@rivus/estela-rpc'
 import { openSessionIndex } from '@rivus/estela-runtime-node'
 import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './discover.ts'
 import {
@@ -62,6 +67,8 @@ export interface CatalogOptions {
    * server's `redacts` option is `false`; the default redacts.
    */
   redacts?: boolean
+  /** Called whenever the catalog's revision or pending count changes. */
+  announce?: (signal: SessionsSignal) => void
 }
 
 /**
@@ -78,6 +85,7 @@ export class SessionCatalog {
   private readonly redaction: HomeRedaction
   /** Session text (titles, projects, prompts): on unless the server was created with `redacts: false`. */
   private readonly redact: Redactor
+  private readonly onAnnounce: ((signal: SessionsSignal) => void) | undefined
   private readonly agentStates: AgentState[]
   private rows = new Map<string, LiveRow>()
   /** Trace ids the server resolves: discovered rows and sessions opened from the command line. */
@@ -100,6 +108,7 @@ export class SessionCatalog {
     this.redaction = serverRedaction(this.platform.home)
     // Titles and prompts are session text, redacted like the workspace: the server's `redacts` decides.
     this.redact = options.redacts === false ? text => text : this.redaction.text
+    this.onAnnounce = options.announce
     this.index =
       options.index
       ?? openSessionIndex({
@@ -355,7 +364,7 @@ export class SessionCatalog {
   }
 
   private announce(): void {
-    emitSessions({ revision: this.revision, pending: this.pendingCount() })
+    this.onAnnounce?.({ revision: this.revision, pending: this.pendingCount() })
   }
 
   private search(query: string): string[] {

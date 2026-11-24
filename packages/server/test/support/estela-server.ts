@@ -4,10 +4,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import type { ExportReportInput, ExportReportResult, SessionListRow } from '@rivus/estela-rpc'
-import { serverFunctions } from '@rivus/estela-rpc'
+import type { DevframeNodeContext } from 'devframe'
+import { NAMESPACE } from '@rivus/estela-rpc'
 import { createHostContext } from 'devframe/node'
 import { expect, vi } from 'vite-plus/test'
-import * as z from 'zod/mini'
 import { createEstelaServer, type EstelaServer, type EstelaServerOptions } from '../../src/index.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
@@ -27,6 +27,7 @@ const servers: EstelaServer[] = []
 
 /** Closes every server and removes every directory a test made. Call it from `afterEach`. */
 export async function disposeAll(): Promise<void> {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   for (const server of servers.splice(0)) {
     server.close()
@@ -180,30 +181,14 @@ export async function rowsOf(server: EstelaServer): Promise<{
   }
 }
 
-const rpcSetup = z.function({
-  input: [z.unknown()],
-  output: z.promise(z.object({ handler: z.function({ input: [z.unknown()], output: z.promise(z.unknown()) }) })),
-})
-const exportResult = z.object({
-  path: z.string(),
-  included: z.number(),
-  total: z.number(),
-})
-
 /**
- * Calls "Export report" as the browser's RPC does: through the `export-report` handler, which reaches the
- * exporter the server bound. DevFrame's build logs as it writes; the test output stays without them.
+ * Calls "Export report" as the browser's RPC does: through the `export-report` handler registered on
+ * `ctx`. DevFrame's build logs as it writes; the test output stays without them.
  */
-export async function exportBound(input: ExportReportInput): Promise<ExportReportResult> {
-  const definition = serverFunctions.find(candidate => candidate.name === 'export-report')
-  if (!definition) {
-    throw new Error('the RPC package no longer registers export-report')
-  }
-  const setup = z.parse(rpcSetup, definition.setup)
+export async function exportBound(ctx: DevframeNodeContext, input: ExportReportInput): Promise<ExportReportResult> {
   const log = vi.spyOn(console, 'log').mockImplementation(() => {})
   try {
-    const { handler } = await setup({ rpc: { getCurrentRpcSession: () => ({ meta: {} }) } })
-    return z.parse(exportResult, await handler(input))
+    return await ctx.rpc.invokeLocal(`${NAMESPACE}:export-report`, input)
   } finally {
     log.mockRestore()
   }

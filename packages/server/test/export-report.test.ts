@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
-import { exportReport, reserveReportDir } from '../src/report/report.ts'
+import { reserveReportDir } from '../src/report/report.ts'
 import {
   disposeAll,
   exportBound,
@@ -46,10 +46,10 @@ describe('"Export report"', () => {
     const reportDir = join(home, 'reports')
     await mkdir(reportDir)
     const cwd = await workingDirectory()
-    const { server } = await start(home, { reportDir })
+    const { server, ctx } = await start(home, { reportDir })
     const { read } = await rowsOf(server)
 
-    const result = await exportBound(asked(read.traceId))
+    const result = await exportBound(ctx, asked(read.traceId))
     const report = await reportIn(reportDir)
     // Absolute, so the browser can say exactly where; the home directory shows as `~`.
     expect(result.path).toBe(join('~', 'reports', basename(report.dir), 'index.html'))
@@ -63,10 +63,10 @@ describe('"Export report"', () => {
     const home = await tempDir('export')
     await session(home)
     const cwd = await workingDirectory()
-    const { server } = await start(home)
+    const { server, ctx } = await start(home)
     const { read } = await rowsOf(server)
 
-    const result = await exportBound(asked(read.traceId))
+    const result = await exportBound(ctx, asked(read.traceId))
     const report = await reportIn(cwd)
     // The returned path is for the browser to show, not a path to open: compared as shown, read where written.
     expect(result.path).toBe(shown(join(report.dir, 'index.html')))
@@ -80,16 +80,16 @@ describe('"Export report"', () => {
     const reportDir = join(home, 'reports')
     await mkdir(reportDir)
     // The report redacts whatever `redacts` says.
-    const { server } = await start(home, { reportDir, redacts: false })
+    const { server, ctx } = await start(home, { reportDir, redacts: false })
     const { read } = await rowsOf(server)
-    const result = await exportBound(asked(read.traceId))
+    const result = await exportBound(ctx, asked(read.traceId))
     namesNeitherHome(result.path, home)
     namesNeitherHome((await reportIn(reportDir)).html, home)
 
     // A report directory that does not exist: the message names the path it tried, with `~`.
     const missing = join(home, 'missing')
-    await start(home, { reportDir: missing })
-    const failure: unknown = await exportBound(asked(read.traceId)).catch((error: unknown) => error)
+    const failing = await start(home, { reportDir: missing })
+    const failure: unknown = await exportBound(failing.ctx, asked(read.traceId)).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(Error)
     namesNeitherHome(String(failure), home)
     expect(String(failure)).toContain(join('~', 'missing', ''))
@@ -100,7 +100,7 @@ describe('"Export report"', () => {
     await session(home)
     const cwd = await workingDirectory()
     const reportDir = join(home, 'reports')
-    const { server } = await start(home)
+    const { server, ctx } = await start(home, { reportDir })
     const { read } = await rowsOf(server)
     // The name this export would take: the first 8 characters of the trace id, and the time.
     const taken = join(reportDir, `estela-report-${read.traceId.slice(0, 8)}-20260102-030405`)
@@ -108,15 +108,11 @@ describe('"Export report"', () => {
     await writeFile(join(taken, 'keep.txt'), 'keep me')
     await writeFile(`${taken}-2`, 'a file of the next name')
 
-    const result = await exportReport(
-      server.definition,
-      server.store,
-      { traceId: read.traceId },
-      { dir: reportDir },
-      new Date(2026, 0, 2, 3, 4, 5),
-    )
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 0, 2, 3, 4, 5))
+    const result = await exportBound(ctx, asked(read.traceId))
     const written = join(`${taken}-3`, 'index.html')
-    expect(result.path).toBe(shown(written))
+    expect(result.path).toBe(join('~', 'reports', `${basename(taken)}-3`, 'index.html'))
     expect((await readdir(reportDir)).toSorted()).toEqual([
       basename(taken),
       `${basename(taken)}-2`,

@@ -1,19 +1,12 @@
 import type { ListSessionsQuery, ListSessionsResult } from '../list-types.ts'
+import type { TraceStore } from '../trace-store.ts'
+import type { ExportReportInput, ExportReportResult, ReportSource } from './report.ts'
 
-/** `list-sessions` on the dev server. Traces by trace id come from the TraceStore. */
-export interface SessionService {
+/** Services one Estela server instance supplies to its RPC handlers. */
+export interface ServerServices {
+  store: TraceStore
   listSessions?: (input: ListSessionsQuery) => Promise<ListSessionsResult>
-}
-
-let service: SessionService | undefined
-
-export function bindSessionService(next: SessionService): void {
-  service = next
-}
-
-export function requireSessionService(): SessionService {
-  if (!service) {
-    throw new Error('session service is not bound')
-  }
-  return service
+  exportReport?: (input: ExportReportInput) => Promise<ExportReportResult>
+  /** The one report a build bakes; `writeReport` sets it right before DevFrame builds. */
+  reportSource: ReportSource
 }

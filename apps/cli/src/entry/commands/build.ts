@@ -2,7 +2,7 @@ import type { ReportTrace } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
-import { checkReportOutDir, reportOf, sessionTargetLabel, writeReport } from '@rivus/estela-server'
+import { checkReportOutDir, reportOf, sessionTargetLabel } from '@rivus/estela-server'
 import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
 import { sayBuild, sayStoreWarning } from '../ui/terminal.ts'
@@ -38,7 +38,7 @@ export async function runBuild(input: BuildInput, packageVersion: string): Promi
       },
       write: async () => {
         try {
-          await writeReport(server.definition, input.outDir, report!)
+          await server.writeReport(input.outDir, report!)
         } catch (cause) {
           throw new CliError({ kind: 'output', action: 'build', cause })
         }
