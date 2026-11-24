@@ -1,14 +1,16 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { exportReport, reserveReportDir } from '../src/report/report.ts'
 import {
   disposeAll,
   exportBound,
+  inJson,
   namesNeitherHome,
   readText,
   rowsOf,
   session,
+  shown,
   start,
   tempDir,
 } from './support/estela-server.ts'
@@ -53,7 +55,7 @@ describe('"Export report"', () => {
     expect(result.path).toBe(join('~', 'reports', basename(report.dir), 'index.html'))
     expect(result.total).toBeGreaterThan(0)
     expect(report.html).toContain('<script type="application/json" id="report-trace">')
-    expect(report.html).toContain(readText())
+    expect(report.html).toContain(inJson(readText()))
     expect(await readdir(cwd)).toEqual([])
   })
 
@@ -66,8 +68,8 @@ describe('"Export report"', () => {
 
     const result = await exportBound(asked(read.traceId))
     const report = await reportIn(cwd)
-    expect(result.path).toBe(join(report.dir, 'index.html'))
-    expect(dirname(dirname(result.path))).toBe(cwd)
+    // The returned path is for the browser to show, not a path to open: compared as shown, read where written.
+    expect(result.path).toBe(shown(join(report.dir, 'index.html')))
     expect((await readdir(home)).some(name => name.startsWith('estela-report'))).toBe(false)
   })
 
@@ -113,7 +115,8 @@ describe('"Export report"', () => {
       { dir: reportDir },
       new Date(2026, 0, 2, 3, 4, 5),
     )
-    expect(result.path).toBe(join(`${taken}-3`, 'index.html'))
+    const written = join(`${taken}-3`, 'index.html')
+    expect(result.path).toBe(shown(written))
     expect((await readdir(reportDir)).toSorted()).toEqual([
       basename(taken),
       `${basename(taken)}-2`,
@@ -121,7 +124,7 @@ describe('"Export report"', () => {
     ])
     expect(await readFile(join(taken, 'keep.txt'), 'utf8')).toBe('keep me')
     expect(await readFile(`${taken}-2`, 'utf8')).toBe('a file of the next name')
-    expect((await readFile(result.path, 'utf8')).length).toBeGreaterThan(0)
+    expect((await readFile(written, 'utf8')).length).toBeGreaterThan(0)
     expect(await readdir(cwd)).toEqual([])
   })
 })

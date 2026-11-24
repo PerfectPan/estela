@@ -1,8 +1,17 @@
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, win32 } from 'node:path'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import { disposeAll, namesNeitherHome, readText, rowsOf, session, start, tempDir } from './support/estela-server.ts'
+import {
+  disposeAll,
+  inJson,
+  namesNeitherHome,
+  readText,
+  rowsOf,
+  session,
+  start,
+  tempDir,
+} from './support/estela-server.ts'
 
 afterEach(disposeAll)
 
@@ -11,8 +20,9 @@ describe('one redaction source', () => {
     const home = await tempDir('redaction')
     await session(home)
     const raw = await start(home, { redacts: false })
-    const { read } = await rowsOf(raw.server)
+    const { read, elsewhere } = await rowsOf(raw.server)
     expect(read.title).toContain(home)
+    expect(elsewhere.title).toBe('Read notes with sk-abcdefghijklmnop\nthen stop')
     expect(
       raw.server
         .catalog!.pickChoices()
@@ -20,18 +30,21 @@ describe('one redaction source', () => {
         .join('\n'),
     ).toContain(home)
 
+    // Whole: each home as `~`, the token as its placeholder, the prompt kept. A title keeps its line break,
+    // a picker label is one line.
+    const prompt = `Read ${join('~', 'w')} and ${join('~', 's')}`
+    const token = 'Read notes with [redacted]\nthen stop'
     for (const env of [{}, { ESTELA_REDACT: '0' }]) {
       const redacted = await start(home, { platform: createNodePlatform({ home, env }) })
-      const listed = await redacted.server.catalog!.listSessions()
-      expect(listed.rows.find(row => !row.error)!.title).not.toBe(read.title)
-      namesNeitherHome(JSON.stringify(listed), home)
-      namesNeitherHome(
-        redacted.server
-          .catalog!.pickChoices()
-          .map(choice => choice.label)
-          .join('\n'),
-        home,
-      )
+      const { read: shown, elsewhere: tokenRow } = await rowsOf(redacted.server)
+      expect(shown.firstPrompt).toBe(prompt)
+      expect(tokenRow.title).toBe(token)
+      expect(tokenRow.firstPrompt).toBe(token)
+      const labels = redacted.server.catalog!.pickChoices()
+      const label = (traceId: string) => labels.find(choice => choice.value === traceId)?.label ?? ''
+      expect(label(tokenRow.traceId).startsWith(`${token.replaceAll('\n', ' ')} · Claude Code · `)).toBe(true)
+      namesNeitherHome(JSON.stringify(await redacted.server.catalog!.listSessions()), home)
+      namesNeitherHome(labels.map(choice => choice.label).join('\n'), home)
     }
   })
 
@@ -49,8 +62,9 @@ describe('one redaction source', () => {
     namesNeitherHome(JSON.stringify({ cwd: read.cwd, error: refused.error }), home)
     namesNeitherHome(JSON.stringify((await server.catalog!.listSessions()).agents), home)
     // The MCP tools redact whatever the server's `redacts` says.
+    // Serialized outputs: a Windows path's separators are escaped in them, so the expected text is escaped too.
     const event = String(await ctx.agent.invoke('estela:get_event', { traceId: read.traceId, eventId: 'a-redaction' }))
-    expect(event).toContain(readText())
+    expect(event).toContain(inJson(readText()))
     namesNeitherHome(event, home)
     namesNeitherHome(String(await ctx.agent.invoke('estela:session_summary', { traceId: read.traceId })), home)
   })
@@ -62,22 +76,37 @@ describe('one redaction source', () => {
     const { read } = await rowsOf(server)
     await server.open(read.traceId)
     const view = JSON.stringify(await server.store.view(read.traceId))
-    expect(view).toContain(readText())
+    expect(view).toContain(inJson(readText()))
     namesNeitherHome(view, home)
     namesNeitherHome(JSON.stringify(await server.store.event(read.traceId, 'a-redaction')), home)
   })
 
-  it('keeps the index’s own failure reason redacted', async () => {
+  // The index's failure reason always redacts: with `redacts: false`, a reason that followed the flag would
+  // show the home.
+  it.each([false, true])('keeps the index’s own failure reason redacted with `redacts: %s`', async redacts => {
     const home = await tempDir('redaction')
     // A file where the cache directory should be fails the index on every system; chmod cannot make a
     // directory read-only on Windows.
     const cache = join(home, 'cache')
     await writeFile(cache, '')
     const { server } = await start(home, {
+      redacts,
       catalog: { index: true },
       platform: createNodePlatform({ home, env: { XDG_CACHE_HOME: cache } }),
     })
     namesNeitherHome(server.catalog!.indexUnavailable!, home)
     expect(server.catalog!.indexUnavailable).toContain('~')
+  })
+
+  it('sees a home that JSON has escaped, as a Windows path is in every serialized output', () => {
+    const home = win32.join('C:\\Users\\runner', 'platform-home')
+    const text = `I read ${win32.join(home, 'notes.md')}`
+    const output = JSON.stringify({ text })
+    expect(output).toContain(inJson(text))
+    expect(output).not.toContain(text)
+    expect(() => namesNeitherHome(output, home)).toThrow('not to contain')
+    expect(() =>
+      namesNeitherHome(JSON.stringify({ text: `I read ${win32.join('~', 'notes.md')}` }), home),
+    ).not.toThrow()
   })
 })

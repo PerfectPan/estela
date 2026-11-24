@@ -45,10 +45,25 @@ function tilde(...parts: string[]): string {
   return join('~', ...parts)
 }
 
-/** Neither the platform home nor the process home is in `text`. */
+/** `text` as JSON writes it into a serialized output: on Windows every `\` of a path becomes `\\`. */
+export function inJson(text: string): string {
+  return JSON.stringify(text).slice(1, -1)
+}
+
+/** Neither the platform home nor the process home is in `text`, written plainly or as JSON escapes it. */
 export function namesNeitherHome(text: string, home: string): void {
-  expect(text).not.toContain(home)
-  expect(text).not.toContain(processHome)
+  for (const dir of [home, processHome]) {
+    expect(text).not.toContain(dir)
+    expect(text).not.toContain(inJson(dir))
+  }
+}
+
+/**
+ * A path as the server returns it outside the platform home: absolute, with the process home it is under shown
+ * as `~`. A Windows runner's temporary directory is in the process home, so a path a test made can be one.
+ */
+export function shown(path: string): string {
+  return path.replace(processHome, '~')
 }
 
 /** What the assistant event of `session` says once both homes are hidden. */
@@ -57,9 +72,10 @@ export function readText(): string {
 }
 
 /**
- * A Claude Code session whose prompt names the platform home and, in the full text, the process home, beside
- * one the reader refuses and one that ran under the process home. The kit cuts a title before anything
- * redacts it, so the platform home comes first and whole.
+ * A Claude Code session whose prompt names both homes and whose recorded text names the platform home and,
+ * in the full text, the process home; beside one that ran under the process home with a token in its short
+ * prompt, and one the reader refuses. The kit cuts a title to 80 characters before anything redacts it, so
+ * only the short prompt's title keeps its token whole.
  */
 export async function session(home: string): Promise<void> {
   const projects = join(home, '.claude/projects')
@@ -100,11 +116,16 @@ export async function session(home: string): Promise<void> {
     },
   ]
   await writeFile(join(projects, 'app/session.jsonl'), records.map(record => `${JSON.stringify(record)}\n`).join(''))
-  // A session that ran under the process home: its working directory names that home.
+  // A session that ran under the process home, so its working directory names that home, with a token in its prompt.
   await mkdir(join(projects, 'elsewhere'))
   await writeFile(
     join(projects, 'elsewhere/session.jsonl'),
-    `${JSON.stringify({ ...records[0], sessionId: 's-elsewhere', cwd: join(processHome, 'work/elsewhere') })}\n`,
+    `${JSON.stringify({
+      ...records[0],
+      sessionId: 's-elsewhere',
+      cwd: join(processHome, 'work/elsewhere'),
+      message: { role: 'user', content: 'Read notes with sk-abcdefghijklmnop\nthen stop' },
+    })}\n`,
   )
 }
 
@@ -141,8 +162,8 @@ export async function start(home: string, pick: Partial<EstelaServerOptions> = {
 }
 
 /**
- * The rows of a started server: the session `session` wrote, the one that ran under the process home, and
- * the one the reader refuses.
+ * The rows of a started server: the session whose text names both homes, the one that ran under the process
+ * home, and the one the reader refuses.
  */
 export async function rowsOf(server: EstelaServer): Promise<{
   read: SessionListRow
