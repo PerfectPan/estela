@@ -3,13 +3,16 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  schedule:
+    # Weekly canary against dsh's `latest` tag; only the `dsh-plugin` job runs on schedule.
+    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.head_ref || github.ref_name }}
+  group: ci-${{ github.event_name == 'schedule' && 'schedule' || (github.head_ref || github.ref_name) }}
   cancel-in-progress: true
 
 jobs:
@@ -157,3 +160,27 @@ jobs:
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
         run: pnpm run test:smoke
+
+  # Packs @rivus/dsh-estela, installs it into a temporary DSH_HOME against pinned dsh on pull requests
+  # (or dsh `latest` on the weekly schedule / manual dispatch), and drives `dsh web` with Chromium.
+  dsh-plugin:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    name: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'dsh-plugin (latest)' || 'dsh-plugin' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node@^26.13.1
+          cache: true
+          require-lockfile: true
+      - name: Build Web once before the dsh plugin smoke test
+        run: pnpm --filter @rivus/estela-web run build
+      - name: Install Chromium for Playwright
+        working-directory: apps/dsh-plugin
+        run: npx playwright install --with-deps chromium
+      - name: dsh plugin smoke on the installed tarball
+        env:
+          ESTELA_DSH_VERSION: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'latest' || '' }}
+        run: pnpm -C apps/dsh-plugin run test:smoke

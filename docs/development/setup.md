@@ -134,6 +134,25 @@ ATIF export ([export formats](../reference/export-formats.md)):
 | A1 | `fixtures/demo.trace.json` exports to ATIF that passes Harbor's validator; the compaction is a system step with `extra.context_management`, the events it hid produce no step, and steps kept from before it carry `is_copied_context: true` | `packages/kernel/src/export-atif.test.ts`, `apps/cli/src/export/write-export.test.ts`, `node scripts/validate-exports.mjs` |
 | A2 | Every registered agent's conformance fixtures export to ATIF that passes Harbor's validator | `write-export.test.ts` (structural check in CI), `node scripts/validate-exports.mjs` (Harbor, manual) |
 
+dsh plugin (`@rivus/dsh-estela`):
+
+| ID | Behavior | Evidence |
+|---|---|---|
+| DSH-1 | Installing `@rivus/dsh-estela` into dsh's `web` profile adds an `Estela` View tab beside `Chat` and `Trajectory` on a started session | `apps/dsh-plugin/test/dsh.smoke.ts` |
+| DSH-2 | Selecting the `Estela` tab shows header, timeline, virtualized ledger, and inspector (`Input`, `Output`, `Model saw`, `Compare`, `Raw`) sized above the composer with no "Export report" button | `dsh.smoke.ts`, `apps/e2e/src/e2e/embed.e2e.ts` |
+| DSH-3 | A blank session shows no View tabs and no `/estela` slash command | `dsh.smoke.ts` |
+| DSH-4 | A started session with no log on disk yet shows "This session has no log on disk yet." and no error details | `apps/dsh-plugin/src/host/channel.test.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-5 | Unreadable or unknown-generation logs show "Could not open this session" with the unknown-format hint and issue link, and no session-browser link | `apps/dsh-plugin/src/host/channel.test.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-6 | A transport or render failure stays inside the View with "Try again" while other dsh Views keep working, and recovers without remounting | `dsh.smoke.ts`, `apps/e2e/src/e2e/embed.e2e.ts` |
+| DSH-7 | Large sessions load with virtualized rows while dsh's own `POST /api/session/list` latency stays within `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-8 | Views over the 12 MB budget shorten long strings and load full event text on selection | `packages/kernel/src/view.test.ts` |
+| DSH-9 | Appending to a running session leaves the open snapshot steady without error; reloading shows the new turn, and stale snapshots auto-reopen without mixing states | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/sessions.test.ts`, `apps/dsh-plugin/src/client/source.test.ts` |
+| DSH-10 | Default redaction replaces the home path and secrets; `ESTELA_REDACT=0` disables redaction | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/lifecycle.test.ts` |
+| DSH-11 | Theme and language follow dsh (`ctx.theme` / `ctx.locale`) without writing `document.documentElement` | `dsh.smoke.ts`, `apps/dsh-plugin/src/client/appearance.test.ts` |
+| DSH-12 | Removing `@rivus/dsh-estela` while `dsh web` runs removes the tab, returns 405 on `/estela`, leaves listening sockets unchanged, and cleans the profile's `package.json` and `node_modules` | `dsh.smoke.ts` |
+| DSH-13 | An incompatible `engines.dsh` tarball is refused with exit 1, and a pre-installed incompatible copy is disabled at startup without showing the tab | `dsh.smoke.ts`, `apps/dsh-plugin/src/package.test.ts` |
+| DSH-14 | `/estela` enforces dsh admission (401 without cookie, 403 on cross-origin) and refuses non-owner peers | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/channel.test.ts` |
+
 ## CLI smoke on the installed tarball
 
 `apps/e2e` (`@rivus/estela-e2e`, private) runs `pnpm pack` in `apps/cli`, installs the tarball into an empty temp directory, builds a synthetic `HOME` (also set as `USERPROFILE`, which Windows reads) from `fixtures/sessions/<agent>/conformance`, and puts a fake `open` / `xdg-open` first on `PATH` that records the URL instead of starting a browser. Windows has no such stand-in, because DevFrame opens the browser there through `cmd /c start`; the tests that check the opened URL pass `--no-open` on Windows and check the printed URL only. It covers `--help` (through `npx`), S2, S10, S17 and S18 (`mcp.smoke.ts`), S13 (Node.js 22 through `npx -y node@22`), S15, and S16 (in a pseudo-terminal through `node-pty`, pinned to `1.2.0-beta.18` because 1.1.0 ships no Linux prebuilds). It is not part of `pnpm test`, because it packs and installs. Setup first runs `pnpm --filter '@rivus/estela...' run build`, so the tarball never holds a stale bundle.
@@ -159,6 +178,17 @@ ESTELA_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome 
 ```
 
 S8 runs `scripts/generate-trace.mjs` and S12 runs `packages/server/src/testsupport/large-session.ts` by path, both into the run's temp directory, and delete the output; nothing generated is committed. `ESTELA_E2E_S12_BYTES` changes the S12 size for a quick local try; the default, and the value CI uses, is 350 MiB (367,001,600 bytes). `ESTELA_E2E_KEEP=1` keeps the temp directory. With `CI` set, the suite also writes an HTML report to `apps/e2e/playwright-report/`, which the CI job uploads when a test fails. CI runs the suite in the `test` job on Node.js `^26.13.1` only.
+
+## dsh plugin smoke test
+
+`apps/dsh-plugin/test/dsh.smoke.ts` packs `@rivus/dsh-estela`, installs the pinned `@deepseek-ai/dsh` release (`DSH_VERSION` in `apps/dsh-plugin/src/contract/channel.ts`) into a temporary npm prefix, runs `dsh web` on loopback with an isolated `DSH_HOME` and fake `HOME` (no model key, no access to `~/.dsh`), seeds sessions from `fixtures/sessions/dsh/conformance/plain` (`apps/dsh-plugin/test/seed-session.mjs`), and drives the browser with Playwright through DSH-1, DSH-2, DSH-3, DSH-6, DSH-7, DSH-9, DSH-10, DSH-11, DSH-12, DSH-13, and DSH-14. It is not part of `pnpm test`.
+
+```bash
+cd apps/dsh-plugin
+pnpm run test:smoke
+```
+
+`ESTELA_DSH_VERSION` overrides the installed dsh version (for example `ESTELA_DSH_VERSION=latest`). `ESTELA_E2E_CHANNEL=chrome` uses an installed Google Chrome locally instead of Playwright's downloaded Chromium. `ESTELA_SMOKE_KEEP=1` keeps the temporary directory after the run. In CI, the `dsh-plugin` job runs on `ubuntu-latest` with Node.js `^26.13.1` against the pinned dsh version on pull requests, and runs weekly on `schedule` (and on `workflow_dispatch`) against dsh's `latest` tag.
 
 ## Check in a real browser
 

@@ -1,9 +1,11 @@
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite-plus'
 import { thirdPartyNotices } from '../../scripts/third-party-notices.mjs'
 
 const webSrc = fileURLToPath(new URL('../web/src', import.meta.url))
+const smoke = process.env.ESTELA_DSH_SMOKE === '1'
 
 // Rolldown only warns about an import it cannot resolve and leaves it external, which would ship a broken bundle.
 const failOnWarn = true
@@ -42,8 +44,12 @@ export default defineConfig({
   ],
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+    // Keep `test/dsh.smoke.ts` in `include` so static analyzers see the smoke entry while `exclude`
+    // keeps it out of `pnpm test` unless `ESTELA_DSH_SMOKE=1` selects the smoke run.
+    include: smoke ? ['test/dsh.smoke.ts'] : ['src/**/*.test.ts', 'test/**/*.test.ts', 'test/dsh.smoke.ts'],
+    exclude: smoke ? [] : ['**/node_modules/**', 'test/dsh.smoke.ts'],
     globalSetup: ['./test/global-setup.ts'],
-    testTimeout: 120000,
+    testTimeout: smoke ? 300_000 : 120_000,
+    hookTimeout: smoke ? 300_000 : 120_000,
   },
 })

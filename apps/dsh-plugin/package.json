@@ -51,12 +51,14 @@
     "build": "vp pack 2>&1 && node scripts/build-client.mjs",
     "lint": "vp lint src test scripts vite.config.ts 2>&1",
     "test": "vp test 2>&1",
+    "test:smoke": "ESTELA_DSH_SMOKE=1 vp test run 2>&1",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-client-locale": "0.2.2-rc.5",
     "@deepseek-ai/dsh-client-ui-theme": "0.2.2-rc.5",
     "@perfectpan/lint-config": "catalog:",
+    "@playwright/test": "catalog:",
     "@rivus/estela-rpc": "workspace:*",
     "@rivus/estela-server": "workspace:*",
     "@rivus/estela-web": "workspace:*",

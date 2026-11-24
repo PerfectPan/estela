@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@perfectpan/lint-config": "catalog:",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "node-pty": "1.2.0-beta.18",
     "tinyexec": "catalog:",
