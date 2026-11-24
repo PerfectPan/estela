@@ -7,15 +7,10 @@ import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { ctx, expect, openWorkspace, test } from './harness.ts'
+import { assertCdS1AcrossCompaction, selectRequest } from './workspace-checks.ts'
 
 const exec = promisify(execFile)
 const sessions = ctx.homes.main
-
-/** Selects the request with `input` input tokens (600 is the first after the compaction). */
-async function selectRequest(page: Page, input: string) {
-  // `hasText` ignores case, so "REQUEST" alone would also match a turn header's "1 request".
-  await page.locator('[role=option]').filter({ hasText: 'REQUEST' }).filter({ hasText: input }).click()
-}
 
 /** The Compare tab of the selected request. */
 async function openCompare(page: Page) {
@@ -30,27 +25,7 @@ test('CD-S1, CD-S4: across a compaction, the diff lists exactly the events Model
   launch,
 }) => {
   await openWorkspace(page, launch, sessions.claudeRising)
-  await selectRequest(page, '600 in')
-  await page.getByRole('tab', { name: 'Model saw' }).click()
-  const dropped = Number((await page.getByTestId('dropped-count').innerText()).replace(/\D/g, ''))
-  expect(dropped).toBeGreaterThan(0)
-  await page.getByTestId('open-compare').click()
-  const compare = page.getByTestId('context-compare')
-  await expect(compare).toBeVisible()
-  // The default is the previous request on the lane, the last one before the compaction (3k).
-  await expect(compare.getByTestId('compare-pick')).toHaveValue(/.+/)
-  await expect(compare.getByTestId('compare-tokens')).toContainText('3k → 600')
-  await expect(compare.getByTestId('compare-tokens')).toContainText('−2.4k input tokens')
-  await expect(compare.getByTestId('compare-compaction')).toContainText('3.5k → 400')
-  await expect(compare.getByTestId('compare-compacted')).toHaveAttribute('data-count', String(dropped))
-  await expect(compare.getByTestId('compare-entered')).toContainText('Summary of the earlier conversation.')
-  // This log records neither the system prompt nor the tool list: hatched and unavailable, never compared.
-  for (const slot of ['system', 'tools']) {
-    await expect(compare.locator(`[data-slot=${slot}]`)).toHaveAttribute('data-change', 'unavailable')
-    await expect(compare.locator(`[data-slot=${slot}] .hatched`)).toHaveCount(1)
-  }
-  await expect(compare.locator('[data-slot=summary]')).toHaveAttribute('data-change', 'changed')
-  await expect(compare).toContainText('Counts are events, not tokens')
+  await assertCdS1AcrossCompaction(page)
 })
 
 test('CD-S2, CD-S3: the before-compaction quick pick and a Shift-click on the timeline choose the comparison', async ({

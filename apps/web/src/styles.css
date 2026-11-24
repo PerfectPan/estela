@@ -243,3 +243,25 @@ body {
 .brush-handle[data-idle="true"] rect:focus-visible {
   opacity: 1;
 }
+
+/* Indeterminate loading bar while total file size is unknown (e.g. before load-trace returns or in embedded hosts). */
+@keyframes estela-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.loading-indeterminate {
+  animation: estela-indeterminate 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.45;
+  }
+}
