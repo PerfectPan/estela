@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
@@ -42,6 +42,16 @@ function dshSessionText(id: string, prompt: string, cwd: string): string {
       data: { role: 'user', content: [{ type: 'text', text: prompt }], source: { kind: 'user' }, id: `u-${id}` },
     }),
   ].join('\n')
+}
+
+function samePath(a: string, b: string): boolean {
+  return a.replaceAll('\\', '/') === b.replaceAll('\\', '/')
+}
+
+async function bumpMtime(file: string, stepMs = 5000): Promise<void> {
+  const info = await stat(file)
+  const next = new Date(Math.ceil(Math.max(Date.now(), info.mtimeMs) / 1000) * 1000 + stepMs)
+  await utimes(file, next, next)
 }
 
 function makePlatform(home: string, env: Record<string, string> = {}) {
@@ -265,8 +275,7 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     })
 
     await writeFile(file, `${dshSessionText('slow', 'hello 2', home)}\n`)
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(file, bumped, bumped)
+    await bumpMtime(file, 5000)
     const opened2 = await channel.handler(
       'session/open',
       { sessionId: 'slow' },
@@ -308,7 +317,7 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     const gatedFs: EstelaCore['platform']['fs'] = {
       ...base.fs,
       read(path, range) {
-        if (path !== file) {
+        if (!samePath(path, file)) {
           return base.fs.read(path, range)
         }
         const inner = base.fs.read(path, range)[Symbol.asyncIterator]()

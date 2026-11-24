@@ -17,6 +17,9 @@ export interface ChannelHost {
   readonly activeHoldCount: () => number
 }
 
+const snapshotChangedErrorSchema = z.object({ name: z.literal('SnapshotChangedError') })
+const loadCancelledErrorSchema = z.object({ name: z.literal('LoadCancelledError') })
+
 function refusal(code: ChannelErrorCode, message: string): RpcFailureResult {
   return { ok: false, error: { code, message, details: {} } }
 }
@@ -53,11 +56,11 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
     if (isDisposed()) {
       return closedRefusal()
     }
-    if (error instanceof Error && error.name === 'SnapshotChangedError') {
+    if (z.safeParse(snapshotChangedErrorSchema, error).success) {
       deps.sessions.invalidate(traceId)
       return refusal('estela/stale', STALE_MESSAGE)
     }
-    if ((signal && isAborted(signal)) || (error instanceof Error && error.name === 'LoadCancelledError')) {
+    if ((signal && isAborted(signal)) || z.safeParse(loadCancelledErrorSchema, error).success) {
       return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
     }
     if (error instanceof Error && error.message.length > 0) {

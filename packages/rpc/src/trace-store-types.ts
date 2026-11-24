@@ -1,5 +1,32 @@
-import type { SessionSummary } from '@rivus/agent-kit/transcript'
+import type { SessionSummary, SessionTarget } from '@rivus/agent-kit/transcript'
+import type { SessionFs } from '@rivus/estela-kernel'
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
+import type { FileStamp, ReadOriginal } from './source-check.ts'
+
+/** What a `traceId` resolves to. The shell's resolver (its session catalog) supplies it. */
+export interface ResolvedSession {
+  /** Cache key: one per session (the trace id, or the launch session's `path#id` string outside the dev server). */
+  key: string
+  /** What the shell loads: a discovered `SessionRef`, or the target of a path given on the command line. */
+  target: SessionTarget
+  /** Expected file stamp for `target.path`: a load whose file no longer matches throws `SnapshotChangedError` without caching. */
+  expect?: FileStamp
+}
+
+export interface TraceStoreDeps {
+  resolve: (traceId: string) => ResolvedSession | undefined | Promise<ResolvedSession | undefined>
+  load: (session: ResolvedSession, opts: LoadOpts) => Promise<LoadedTrace>
+  /** Reads for the source-pointer originals: stamps, `checkedOriginal`, and `totalBytes`. */
+  fs: SessionFs
+  /** Reads one original through its source pointer (compressed files, SQLite rows); defaults to a raw file range. */
+  readOriginal?: ReadOriginal
+  /** Applied to everything sent out: view trace, events, and error messages. Redaction lives here. */
+  present?: <T>(value: T) => T
+  /** Server log, for conditions the operator should see (a view over budget). */
+  log?: (message: string) => void
+  /** The view's starting string cap: 4,096 characters by default; `fitView` raises a value below 256 to 256. */
+  maxString?: number
+}
 
 export interface LoadedTrace {
   trace: Trace

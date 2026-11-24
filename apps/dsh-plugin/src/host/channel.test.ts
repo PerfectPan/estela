@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,7 +17,17 @@ import type {
   RpcHandler,
   RpcHandlerResult,
 } from './rpc.ts'
-import { createSessionRegistry, FIXED_FAILURE_MESSAGE } from './sessions.ts'
+import { createSessionRegistry, FIXED_FAILURE_MESSAGE, STALE_MESSAGE } from './sessions.ts'
+
+function samePath(a: string, b: string): boolean {
+  return a.replaceAll('\\', '/') === b.replaceAll('\\', '/')
+}
+
+async function bumpMtime(file: string, stepMs = 5000): Promise<void> {
+  const info = await stat(file)
+  const next = new Date(Math.ceil(Math.max(Date.now(), info.mtimeMs) / 1000) * 1000 + stepMs)
+  await utimes(file, next, next)
+}
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const plainFixture = join(repo, 'fixtures/sessions/dsh/conformance/plain/session.v4.jsonl')
@@ -309,7 +319,7 @@ describe('dsh host plugin and /estela channel', () => {
     const fsWithUnreadable: EstelaCore['platform']['fs'] = {
       ...baseFs,
       read(path, range) {
-        if (path === unreadable) {
+        if (samePath(path, unreadable)) {
           return {
             [Symbol.asyncIterator]: () => ({
               next: () => Promise.reject(new Error(`EACCES: permission denied, open '${unreadable}'`)),
@@ -378,9 +388,14 @@ describe('dsh host plugin and /estela channel', () => {
       const view = await harness.call('trace/view', openedVanish.value)
       expect(view).toEqual({
         ok: false,
-        error: { code: 'estela/failed', message: FIXED_FAILURE_MESSAGE, details: {} },
+        error: { code: 'estela/stale', message: STALE_MESSAGE, details: {} },
       })
     }
+    const reopenVanish = await harness.call('session/open', { sessionId: 'vanish' })
+    expect(reopenVanish).toEqual({
+      ok: false,
+      error: { code: 'estela/failed', message: FIXED_FAILURE_MESSAGE, details: {} },
+    })
 
     const openedUnreadable = await harness.call('session/open', { sessionId: 'unreadable' })
     expect(openedUnreadable.ok).toBe(true)
@@ -411,7 +426,7 @@ describe('dsh host plugin and /estela channel', () => {
     const trackedFs: EstelaCore['platform']['fs'] = {
       ...baseFs,
       read: (path, options) => {
-        if (path === files[0]) {
+        if (samePath(path, files[0]!)) {
           readsForFile0.push(path)
         }
         return baseFs.read(path, options)
@@ -445,8 +460,7 @@ describe('dsh host plugin and /estela channel', () => {
 
     readsForFile0.length = 0
     await writeFile(files[0]!, `${dshSessionText('st-0', 'updated after eviction', home)}\n`)
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(files[0]!, bumped, bumped)
+    await bumpMtime(files[0]!, 5000)
 
     const stale = await harness.call('trace/event', { traceId: id0, id: eventId0 })
     expect(stale.ok).toBe(false)

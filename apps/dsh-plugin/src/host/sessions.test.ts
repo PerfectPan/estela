@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { LoadHandle } from '@rivus/estela-rpc/trace-store'
@@ -43,6 +43,16 @@ function dshLogLines(id: string, prompt: string): string {
   ].join('\n')
 }
 
+function samePath(a: string, b: string): boolean {
+  return a.replaceAll('\\', '/') === b.replaceAll('\\', '/')
+}
+
+async function bumpMtime(file: string, stepMs = 5000): Promise<void> {
+  const info = await stat(file)
+  const next = new Date(Math.ceil(Math.max(Date.now(), info.mtimeMs) / 1000) * 1000 + stepMs)
+  await utimes(file, next, next)
+}
+
 function buildCore(
   home: string,
   resolve: (traceId: string) => ReturnType<ReturnType<typeof createSessionRegistry>['resolve']>,
@@ -83,8 +93,7 @@ describe('createSessionRegistry', () => {
 
     // Append to change size and mtime: a new id is issued.
     await writeFile(file, `${dshLogLines('s1', 'first and longer')}\n`)
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(file, bumped, bumped)
+    await bumpMtime(file, 5000)
 
     const second = await registry.open('sess-1')
     expect(second.ok).toBe(true)
@@ -268,8 +277,7 @@ describe('createSessionRegistry', () => {
     // Mutate session 0 on disk, then check readiness.
     readCalls.length = 0
     await writeFile(files[0]!, `${dshLogLines('ev-0', 'mutated content after eviction')}\n`)
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(files[0]!, bumped, bumped)
+    await bumpMtime(files[0]!, 5000)
 
     const stale = await registry.checkReady(ids[0]!)
     expect(stale.ok).toBe(false)
@@ -313,7 +321,7 @@ describe('createSessionRegistry', () => {
     const gatedFs: EstelaCore['platform']['fs'] = {
       ...baseFs,
       async stat(path, options) {
-        if (path === file) {
+        if (samePath(path, file)) {
           statEntered()
           await statGate
         }
@@ -419,5 +427,42 @@ describe('createSessionRegistry', () => {
     resolvers[1]!()
     expect((await view2).ok).toBe(true)
     expect(registry.resolve(id0)).toBeUndefined()
+  })
+
+  it('returns estela/failed and keeps the id when cold checkReady stat throws', async () => {
+    const home = await makeTempHome()
+    const file = join(home, 'stat-fail.v4.jsonl')
+    await writeFile(file, `${dshLogLines('sf', 'hi')}\n`)
+
+    let failStat = false
+    const baseFs = createEstelaCore({ redacts: false }).platform.fs
+    const flakyFs: EstelaCore['platform']['fs'] = {
+      ...baseFs,
+      async stat(path, options) {
+        if (failStat && samePath(path, file)) {
+          throw new Error('EIO: temporary stat failure')
+        }
+        return baseFs.stat(path, options)
+      },
+    }
+    const persistence: HostSessionPersistence = {
+      stat: async () => ({ location: { kind: 'jsonl', path: file } }),
+    }
+    let registry!: ReturnType<typeof createSessionRegistry>
+    const core = buildCore(home, id => registry.resolve(id), flakyFs)
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
+
+    const opened = await registry.open('sf')
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) {
+      return
+    }
+    failStat = true
+    const failed = await registry.checkReady(opened.traceId)
+    expect(failed.ok).toBe(false)
+    if (!failed.ok) {
+      expect(failed.result.error).toEqual({ code: 'estela/failed', message: FIXED_FAILURE_MESSAGE, details: {} })
+    }
+    expect(registry.resolve(opened.traceId)).toBeDefined()
   })
 })

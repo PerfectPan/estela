@@ -1,4 +1,4 @@
-import { appendFile, cp, mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
+import { appendFile, cp, mkdir, mkdtemp, rename, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,6 +55,16 @@ function dshSession(id: string, messages: readonly string[], cwd: string): strin
   return `${lines.join('\n')}\n`
 }
 
+function samePath(a: string, b: string): boolean {
+  return a.replaceAll('\\', '/') === b.replaceAll('\\', '/')
+}
+
+async function bumpMtime(file: string, stepMs = 5000): Promise<void> {
+  const info = await stat(file)
+  const next = new Date(Math.ceil(Math.max(Date.now(), info.mtimeMs) / 1000) * 1000 + stepMs)
+  await utimes(file, next, next)
+}
+
 function buildCore(
   home: string,
   resolve: (id: string) => ReturnType<ReturnType<typeof createSessionRegistry>['resolve']>,
@@ -81,12 +91,14 @@ describe('DSH-9 stale snapshot guarantees', () => {
     }
 
     let rewriteOnNextRead = false
+    let rewriteTriggered = false
     const baseFs = createEstelaCore({ redacts: false }).platform.fs
     const racingFs: EstelaCore['platform']['fs'] = {
       ...baseFs,
       read(path, range) {
-        if (rewriteOnNextRead && path === files[0]) {
+        if (rewriteOnNextRead && samePath(path, files[0]!)) {
           rewriteOnNextRead = false
+          rewriteTriggered = true
           return {
             [Symbol.asyncIterator]() {
               let inner: AsyncIterator<Uint8Array> | undefined
@@ -95,8 +107,7 @@ describe('DSH-9 stale snapshot guarantees', () => {
                   if (!inner) {
                     // Rewrite the file AFTER checkReady's stat succeeded and BEFORE store reads it.
                     await writeFile(files[0]!, dshSession('race-0', ['replacement message'], home))
-                    const bumped = new Date(Date.now() + 5000)
-                    await utimes(files[0]!, bumped, bumped)
+                    await bumpMtime(files[0]!, 5000)
                     inner = baseFs.read(path, range)[Symbol.asyncIterator]()
                   }
                   return inner.next()
@@ -143,6 +154,7 @@ describe('DSH-9 stale snapshot guarantees', () => {
     // Arm the rewrite between readiness stat and store read, then request A's event under the old id.
     rewriteOnNextRead = true
     const raced = await channel.handler('trace/event', { traceId: idA, id: eventIdA }, signal, ownerPeer)
+    expect(rewriteTriggered).toBe(true)
     expect(raced.ok).toBe(false)
     if (!raced.ok) {
       expect(raced.error.code).toBe('estela/stale')
@@ -213,8 +225,7 @@ describe('DSH-9 stale snapshot guarantees', () => {
 
     // 2. Normal append on plain jsonl: old events stay readable on the existing cached snapshot.
     await writeFile(file, dshSession('cw', ['first turn', 'second turn', 'third appended turn'], home))
-    const bumpedAppend = new Date(Date.now() + 3000)
-    await utimes(file, bumpedAppend, bumpedAppend)
+    await bumpMtime(file, 3000)
     const afterAppend = await channel.handler('trace/event', { traceId, id: secondEventId }, signal, ownerPeer)
     expect(afterAppend.ok).toBe(true)
     if (afterAppend.ok) {
@@ -226,8 +237,7 @@ describe('DSH-9 stale snapshot guarantees', () => {
     // 3. Rewrite to a shorter valid log so the second event's original is gone while still cached:
     //    must answer estela/stale and drop the id instead of returning ok:true + originalUnavailable.
     await writeFile(file, dshSession('cw', ['first turn'], home))
-    const bumpedRewrite = new Date(Date.now() + 6000)
-    await utimes(file, bumpedRewrite, bumpedRewrite)
+    await bumpMtime(file, 3000)
     expect(core.store.cachedKeys()).toContain(traceId)
 
     const afterRewrite = await channel.handler('trace/event', { traceId, id: secondEventId }, signal, ownerPeer)
@@ -323,8 +333,7 @@ describe('DSH-9 stale snapshot guarantees', () => {
       },
     })}\n`
     await appendFile(oldFile, zstdCompressSync(Buffer.from(appendedLine, 'utf8')))
-    const bumped = new Date(Date.now() + 3000)
-    await utimes(oldFile, bumped, bumped)
+    await bumpMtime(oldFile, 3000)
 
     const afterZstdAppend = await channel.handler('trace/event', { traceId, id: helloEvent!.id }, signal, ownerPeer)
     expect(afterZstdAppend.ok).toBe(true)
@@ -355,6 +364,77 @@ describe('DSH-9 stale snapshot guarantees', () => {
       expect(nextView.ok).toBe(true)
       if (nextView.ok) {
         expect(JSON.stringify(nextView.value)).toContain('restored hello')
+      }
+    }
+  })
+
+  it('returns estela/stale and drops the id when an evicted session log is relocated before a cold read', async () => {
+    const home = await makeTempHome()
+    const files: string[] = []
+    for (let index = 0; index < 4; index += 1) {
+      const dir = join(home, `evict-move-${index}`)
+      await mkdir(dir, { recursive: true })
+      const file = join(dir, 'session.v4.jsonl')
+      await writeFile(file, dshSession(`em-${index}`, [index === 0 ? 'before relocate' : `other ${index}`], home))
+      files.push(file)
+    }
+    const relocatedDir = join(home, 'evict-move-relocated')
+    await mkdir(relocatedDir, { recursive: true })
+    const relocatedFile = join(relocatedDir, 'session.v4.jsonl')
+
+    let pathFor0 = files[0]!
+    const persistence: HostSessionPersistence = {
+      stat: async id => {
+        const file = id === '0' ? pathFor0 : files[Number(id)]
+        return file ? { location: { kind: 'jsonl', path: file } } : undefined
+      },
+    }
+    let registry!: ReturnType<typeof createSessionRegistry>
+    const core = buildCore(home, id => registry.resolve(id))
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
+    const channel = createChannelHost({ core, sessions: registry })
+    const signal = new AbortController().signal
+
+    // Load A, then B, C, D to evict A from TraceStore's 3-slot cache.
+    let idA = ''
+    let eventIdA = ''
+    for (let index = 0; index < 4; index += 1) {
+      const opened = await channel.handler('session/open', { sessionId: String(index) }, signal, ownerPeer)
+      expect(opened.ok).toBe(true)
+      if (!opened.ok) {
+        return
+      }
+      const { traceId } = z.parse(openSchema, opened.value)
+      const view = await channel.handler('trace/view', { traceId }, signal, ownerPeer)
+      expect(view.ok).toBe(true)
+      if (index === 0 && view.ok) {
+        idA = traceId
+        eventIdA = z.parse(viewSchema, view.value).trace.events[0]!.id
+      }
+    }
+    expect(core.store.cachedKeys()).not.toContain(idA)
+
+    // Relocate A's log file and update persistence to point to the new path.
+    await rename(files[0]!, relocatedFile)
+    pathFor0 = relocatedFile
+
+    const coldRead = await channel.handler('trace/event', { traceId: idA, id: eventIdA }, signal, ownerPeer)
+    expect(coldRead.ok).toBe(false)
+    if (!coldRead.ok) {
+      expect(coldRead.error.code).toBe('estela/stale')
+      expect(coldRead.error.details).toEqual({})
+    }
+    expect(registry.resolve(idA)).toBeUndefined()
+
+    const reopened = await channel.handler('session/open', { sessionId: '0' }, signal, ownerPeer)
+    expect(reopened.ok).toBe(true)
+    if (reopened.ok) {
+      const nextId = z.parse(openSchema, reopened.value).traceId
+      expect(nextId).not.toBe(idA)
+      const nextView = await channel.handler('trace/view', { traceId: nextId }, signal, ownerPeer)
+      expect(nextView.ok).toBe(true)
+      if (nextView.ok) {
+        expect(JSON.stringify(nextView.value)).toContain('before relocate')
       }
     }
   })

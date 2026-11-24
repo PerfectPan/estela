@@ -1,4 +1,4 @@
-import { appendFile, cp, mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { appendFile, cp, mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -50,6 +50,16 @@ function dshSession(id: string, messages: readonly string[], cwd: string): strin
   return `${lines.join('\n')}\n`
 }
 
+function samePath(a: string, b: string): boolean {
+  return a.replaceAll('\\', '/') === b.replaceAll('\\', '/')
+}
+
+async function bumpMtime(file: string, stepMs = 5000): Promise<void> {
+  const info = await stat(file)
+  const next = new Date(Math.ceil(Math.max(Date.now(), info.mtimeMs) / 1000) * 1000 + stepMs)
+  await utimes(file, next, next)
+}
+
 function buildCore(
   home: string,
   resolve: (id: string) => ReturnType<ReturnType<typeof createSessionRegistry>['resolve']>,
@@ -74,12 +84,14 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
     await writeFile(file, zstdCompressSync(Buffer.from(initialJsonl, 'utf8')))
 
     let rewriteOnRead = false
+    let rewriteTriggered = false
     const baseFs = createEstelaCore({ redacts: false }).platform.fs
     const racingFs: EstelaCore['platform']['fs'] = {
       ...baseFs,
       read(path, range) {
-        if (rewriteOnRead && path === file) {
+        if (rewriteOnRead && samePath(path, file)) {
           rewriteOnRead = false
+          rewriteTriggered = true
           return {
             [Symbol.asyncIterator]() {
               let inner: AsyncIterator<Uint8Array> | undefined
@@ -88,8 +100,7 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
                   if (!inner) {
                     // Rewrite hello -> world AFTER checkedOriginal's initial stat and BEFORE reading bytes.
                     await writeFile(file, zstdCompressSync(Buffer.from(replacedJsonl, 'utf8')))
-                    const bumped = new Date(Date.now() + 5000)
-                    await utimes(file, bumped, bumped)
+                    await bumpMtime(file, 5000)
                     inner = baseFs.read(path, range)[Symbol.asyncIterator]()
                   }
                   return inner.next()
@@ -127,6 +138,7 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
 
     rewriteOnRead = true
     const raced = await channel.handler('trace/event', { traceId, id: eventId }, signal, ownerPeer)
+    expect(rewriteTriggered).toBe(true)
     expect(raced.ok).toBe(false)
     if (!raced.ok) {
       expect(raced.error.code).toBe('estela/stale')
@@ -159,7 +171,7 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
     const gatedFs: EstelaCore['platform']['fs'] = {
       ...baseFs,
       read(path, range) {
-        if (holdNextRead && path === files[0]) {
+        if (holdNextRead && samePath(path, files[0]!)) {
           holdNextRead = false
           return {
             [Symbol.asyncIterator]() {
@@ -219,8 +231,7 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
     await new Promise<void>(resolve => setTimeout(resolve, 10))
 
     await writeFile(files[0]!, dshSession('conc-0', ['replacement message'], home))
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(files[0]!, bumped, bumped)
+    await bumpMtime(files[0]!, 5000)
     releaseRead()
 
     const [res1, res2] = await Promise.all([first, second])
@@ -259,7 +270,7 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
     const gatedFs: EstelaCore['platform']['fs'] = {
       ...baseFs,
       read(path, range) {
-        if (holdNextRead && path === files[0]) {
+        if (holdNextRead && samePath(path, files[0]!)) {
           holdNextRead = false
           return {
             [Symbol.asyncIterator]() {
@@ -312,30 +323,26 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
 
     holdNextRead = true
     const ac = new AbortController()
-    const realView = core.store.view.bind(core.store)
-    vi.spyOn(core.store, 'view').mockImplementation(async id => {
-      // If a buggy store cached the rewritten file and reached store.view, cancel here as Codex's aborted-reload did.
-      if (id === idA) {
-        ac.abort()
-      }
-      return realView(id)
-    })
-
     const cancelledCall = channel.handler('trace/view', { traceId: idA }, ac.signal, ownerPeer)
     await started
     await writeFile(files[0]!, dshSession('ab-0', ['replacement message'], home))
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(files[0]!, bumped, bumped)
+    await bumpMtime(files[0]!, 5000)
+    // Abort genuinely while the cold reload is in flight.
+    ac.abort()
     releaseRead()
 
     const cancelled = await cancelledCall
+    expect(ac.signal.aborted).toBe(true)
     expect(cancelled.ok).toBe(false)
+    if (!cancelled.ok) {
+      expect(cancelled.error.code).toBe('estela/failed')
+    }
     expect(core.store.cachedKeys()).not.toContain(idA)
 
     const followUp = await channel.handler('trace/event', { traceId: idA, id: eventIdA }, signal, ownerPeer)
     expect(followUp.ok).toBe(false)
     if (!followUp.ok) {
-      expect(['estela/stale', 'estela/unknown-trace']).toContain(followUp.error.code)
+      expect(followUp.error.code).toBe('estela/stale')
     }
     expect(core.store.cachedKeys()).not.toContain(idA)
   })
@@ -420,8 +427,7 @@ describe('DSH-9 TraceStore stamp invariant and cached edge cases', () => {
         },
       })}\n`,
     )
-    const bumped = new Date(Date.now() + 5000)
-    await utimes(files[0]!, bumped, bumped)
+    await bumpMtime(files[0]!, 5000)
 
     gateResolve()
     const secondView = await secondViewCall

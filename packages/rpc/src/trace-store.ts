@@ -1,13 +1,14 @@
-import type { SessionTarget } from '@rivus/agent-kit/transcript'
 import type { ReconstructResult, Trace } from '@rivus/estela-schema'
-import type { FittedView, SessionFs } from '@rivus/estela-kernel'
-import type { FileStamp, ReadOriginal } from './source-check.ts'
+import type { FittedView } from '@rivus/estela-kernel'
+import type { FileStamp } from './source-check.ts'
 import type {
   EventDetail,
   LoadedTrace,
   LoadHandle,
   LoadOpts,
   LoadProgress,
+  ResolvedSession,
+  TraceStoreDeps,
   TraceViewResult,
 } from './trace-store-types.ts'
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
@@ -21,37 +22,22 @@ import {
   type Reloadable,
 } from './original-reload.ts'
 
-export type { EventDetail, FileStamp, LoadedTrace, LoadHandle, LoadOpts, LoadProgress, TraceViewResult }
+export type {
+  EventDetail,
+  FileStamp,
+  LoadedTrace,
+  LoadHandle,
+  LoadOpts,
+  LoadProgress,
+  ResolvedSession,
+  TraceStoreDeps,
+  TraceViewResult,
+}
 
 export const CURRENT_TRACE_ID = 'current' // Trace id of the launch session.
 const CAPACITY = 3 // Loaded traces kept in memory, without originals.
 const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024 // Reserve 64 KB of the 12 MB budget for `summary` and envelope.
 const READ_BATCH = 32 // Concurrent source-pointer reads in `withEvents`.
-
-/** What a `traceId` resolves to. The shell's resolver (its session catalog) supplies it. */
-export interface ResolvedSession {
-  /** Cache key: one per session (the trace id, or the launch session's `path#id` string outside the dev server). */
-  key: string
-  /** What the shell loads: a discovered `SessionRef`, or the target of a path given on the command line. */
-  target: SessionTarget
-  /** Expected file stamp for `target.path`: a load whose file no longer matches throws `SnapshotChangedError` without caching. */
-  expect?: FileStamp
-}
-
-export interface TraceStoreDeps {
-  resolve: (traceId: string) => ResolvedSession | undefined | Promise<ResolvedSession | undefined>
-  load: (session: ResolvedSession, opts: LoadOpts) => Promise<LoadedTrace>
-  /** Reads for the source-pointer originals: stamps, `checkedOriginal`, and `totalBytes`. */
-  fs: SessionFs
-  /** Reads one original through its source pointer (compressed files, SQLite rows); defaults to a raw file range. */
-  readOriginal?: ReadOriginal
-  /** Applied to everything sent out: view trace, events, and error messages. Redaction lives here. */
-  present?: <T>(value: T) => T
-  /** Server log, for conditions the operator should see (a view over budget). */
-  log?: (message: string) => void
-  /** The view's starting string cap: 4,096 characters by default; `fitView` raises a value below 256 to 256. */
-  maxString?: number
-}
 
 interface Entry extends Reloadable {
   session: ResolvedSession
@@ -371,6 +357,22 @@ export class TraceStore {
     return info?.size ?? 0
   }
 
+  private cachedHandle(total: number): LoadHandle {
+    const progress = { bytesRead: total, totalBytes: total }
+    return {
+      cached: true,
+      progress: () => progress,
+      onProgress: () => () => {},
+      done: Promise.resolve(),
+      release: () => {},
+    }
+  }
+
+  private activePending(key: string): Pending | undefined {
+    const pending = this.pending.get(key)
+    return pending && !pending.state.controller.signal.aborted ? pending : undefined
+  }
+
   /** `current` is checked before a new load starts, so a superseded `open` never starts one. */
   private async hold(
     traceId: string,
@@ -378,20 +380,15 @@ export class TraceStore {
     current: () => boolean = () => true,
   ): Promise<LoadHandle> {
     if (this.touch(session.key)) {
-      const total = await this.totalBytes(session)
-      const progress = { bytesRead: total, totalBytes: total }
-      return {
-        cached: true,
-        progress: () => progress,
-        onProgress: () => () => {},
-        done: Promise.resolve(),
-        release: () => {},
-      }
+      return this.cachedHandle(await this.totalBytes(session))
     }
-    let pending = this.pending.get(session.key)
+    let pending = this.activePending(session.key)
     if (!pending) {
       const total = await this.totalBytes(session)
-      pending = this.pending.get(session.key)
+      if (this.touch(session.key)) {
+        return this.cachedHandle(total)
+      }
+      pending = this.activePending(session.key)
       if (!pending) {
         if (!current()) {
           throw new LoadCancelledError(traceId)
@@ -471,12 +468,16 @@ export class TraceStore {
       } finally {
         state.settled = true
         state.listeners.clear()
-        this.pending.delete(session.key)
+        if (this.pending.get(session.key)?.state === state) {
+          this.pending.delete(session.key)
+        }
       }
     })()
     promise.catch(() => {})
     const pending = { state, promise }
-    this.pending.set(session.key, pending)
+    if (!state.settled) {
+      this.pending.set(session.key, pending)
+    }
     return pending
   }
 

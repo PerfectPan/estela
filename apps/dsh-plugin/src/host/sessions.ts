@@ -93,6 +93,10 @@ async function statFile(fs: EstelaCore['platform']['fs'], path: string): Promise
  * Maps dsh session ids to opaque trace ids keyed by log path, size, and mtime, keeps the 16 most
  * recently issued ids, and attaches each id's expected stamp for TraceStore's cache invariant.
  */
+function isStaleStat(current: Exclude<StatOutcome, { readonly kind: 'error' }>, expect: FileStamp): boolean {
+  return current.kind === 'missing' || current.stamp.size !== expect.size || current.stamp.mtimeMs !== expect.mtimeMs
+}
+
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
   let closed = false
   const issued = new Map<string, IssuedSession>()
@@ -175,10 +179,10 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
         return { ok: true, session: entry }
       }
       const current = await statFile(deps.fs, entry.target.path)
-      if (current.kind !== 'ok') {
+      if (current.kind === 'error') {
         return { ok: false, result: refusal('estela/failed', FIXED_FAILURE_MESSAGE) }
       }
-      if (current.stamp.size !== entry.expect.size || current.stamp.mtimeMs !== entry.expect.mtimeMs) {
+      if (isStaleStat(current, entry.expect)) {
         issued.delete(traceId)
         return { ok: false, result: refusal('estela/stale', STALE_MESSAGE) }
       }
@@ -190,11 +194,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
       if (current.kind === 'error') {
         return undefined
       }
-      if (
-        current.kind === 'missing'
-        || current.stamp.size !== session.expect.size
-        || current.stamp.mtimeMs !== session.expect.mtimeMs
-      ) {
+      if (isStaleStat(current, session.expect)) {
         issued.delete(traceId)
         return refusal('estela/stale', STALE_MESSAGE)
       }
