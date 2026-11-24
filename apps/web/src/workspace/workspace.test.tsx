@@ -101,9 +101,11 @@ describe('Workspace shell split', () => {
     mount(() => <Workspace traceId="t1" connect={fakeConnect()} embedded />, shadow)
     await tick()
     const jump = [...shadow.querySelectorAll('button')].find(button => button.textContent.includes('⌘K'))
+    const ledger = shadow.querySelector('[data-testid="ledger"]')
     expect(jump).toBeDefined()
+    expect(ledger).not.toBeNull()
     jump?.click()
-    expect(shadow.activeElement).toBe(shadow.querySelector('[data-testid="ledger"]'))
+    expect(shadow.activeElement).toBe(ledger)
   })
   it('moves inspector tab focus with arrow keys inside a shadow root', () => {
     const host = document.body.appendChild(document.createElement('div'))

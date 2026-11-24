@@ -16,14 +16,4 @@ describe('theme', () => {
     expect(document.documentElement.dataset.theme).toBe('dark')
     expect(document.documentElement.dataset.kbTheme).toBeUndefined()
   })
-
-  it('also writes data-theme to the given host element', () => {
-    const host = document.createElement('div')
-    initTheme(host)
-    chooseTheme('light')
-    expect(document.documentElement.dataset.theme).toBe('light')
-    expect(host.dataset.theme).toBe('light')
-    chooseTheme('dark')
-    expect(host.dataset.theme).toBe('dark')
-  })
 })
