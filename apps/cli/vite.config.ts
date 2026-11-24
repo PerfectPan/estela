@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite-plus'
-import { thirdPartyNotices } from './scripts/third-party-notices.ts'
+import { thirdPartyNotices } from '../../scripts/third-party-notices.mjs'
 
 const define = { ESTELA_BUNDLE: 'true' }
 // Rolldown only warns about an import it cannot resolve and leaves it external, which would ship a broken bundle.
@@ -20,8 +20,7 @@ export default defineConfig({
       ],
       plugins: [
         thirdPartyNotices({
-          webPackage: fileURLToPath(new URL('../web', import.meta.url)),
-          sourceNotices: fileURLToPath(new URL('../../third-party-notices.md', import.meta.url)),
+          packPackage: fileURLToPath(new URL('.', import.meta.url)),
         }),
       ],
     },

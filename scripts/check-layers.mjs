@@ -14,15 +14,17 @@ const KIT = '@rivus/agent-kit'
 const CORE = [RPC, KERNEL, SCHEMA]
 
 const SERVER = '@rivus/estela-server'
+const WEB = '@rivus/estela-web'
 const RUNTIME_NODE = '@rivus/estela-runtime-node'
 
 const ALLOW = {
   // The server reads sessions through the kit; the CLI imports only its redact and node entries at runtime, and the
   // kernel only the import-free /cost and /cost/prices. oxlint (root vite.config.ts) enforces type-only imports
   // everywhere else.
-  '@rivus/estela': [KIT, SERVER, '@rivus/estela-web', RUNTIME_NODE, ...CORE],
+  '@rivus/estela': [KIT, SERVER, WEB, RUNTIME_NODE, ...CORE],
+  '@rivus/dsh-estela': [SERVER, WEB, KIT, RPC, SCHEMA],
   [SERVER]: [KIT, RUNTIME_NODE, ...CORE],
-  '@rivus/estela-web': [KIT, ...CORE],
+  [WEB]: [KIT, ...CORE],
   // Tests the packed tarball from outside; it depends on no workspace package.
   '@rivus/estela-e2e': [],
   // The site runs the built CLI to write its live demo report; it imports no workspace code.

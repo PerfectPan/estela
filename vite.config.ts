@@ -147,6 +147,66 @@ export default {
         },
       },
       {
+        // The dsh plugin's host half must not pull in DevFrame or the root server/rpc barrels,
+        // and keeps @rivus/agent-kit type-only.
+        files: ['apps/dsh-plugin/src/host/**/*.{ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              paths: [
+                {
+                  name: '@rivus/estela-server',
+                  message: 'Import from @rivus/estela-server/core instead so the dsh host stays DevFrame-free.',
+                },
+                {
+                  name: '@rivus/estela-rpc',
+                  message: 'Import from @rivus/estela-rpc/trace-store instead so the dsh host stays DevFrame-free.',
+                },
+              ],
+              patterns: [
+                agentKitTypesOnly,
+                {
+                  group: ['devframe', 'devframe/**'],
+                  message: 'apps/dsh-plugin/src/host must not import devframe.',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // The dsh plugin's client half runs in the browser inside dsh's module loader: at runtime it
+        // may import only from src/client/**, src/contract/**, @rivus/estela-web/embed, and react.
+        files: ['apps/dsh-plugin/src/client/**/*.{ts,mts,cts,tsx}'],
+        rules: {
+          'no-restricted-imports': [
+            'error',
+            {
+              patterns: [
+                agentKitTypesOnly,
+                {
+                  group: [
+                    '*',
+                    '**/*',
+                    '!./*',
+                    '!./**',
+                    '!../contract/*',
+                    '!../contract/**',
+                    '!@rivus/estela-web/embed',
+                    '!react',
+                    '!react/jsx-runtime',
+                  ],
+                  allowTypeImports: true,
+                  message:
+                    'apps/dsh-plugin/src/client may import at runtime only from src/client/**, src/contract/**, @rivus/estela-web/embed, and react.',
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
         // One Icon base and the stroke icons built on it: a component family, which lint-config's
         // README exempts from one component per file (like a shadcn/ui file).
         files: ['apps/web/src/components/icons.tsx', 'apps/site/src/components/icons.tsx'],

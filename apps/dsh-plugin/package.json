@@ -1,0 +1,71 @@
+{
+  "name": "@rivus/dsh-estela",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Estela view of the current DeepSeek Harness session: ledger, Model saw, Compare, and cost.",
+  "homepage": "https://github.com/PerfectPan/estela",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PerfectPan/estela.git",
+    "directory": "apps/dsh-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/PerfectPan/estela/issues"
+  },
+  "license": "GPL-3.0-only",
+  "engines": {
+    "dsh": ">=0.2.2-rc.5 <0.3.0-0",
+    "node": ">=24.9.0"
+  },
+  "exports": {
+    ".": "./dist/host.mjs",
+    "./client": "./dist/client.js",
+    "./icon": "./assets/icon.png",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/host.mjs",
+    "dist/client.js",
+    "cordis.patch.yml",
+    "dist/THIRD-PARTY-NOTICES.txt",
+    "assets",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "vp pack 2>&1 && node scripts/build-client.mjs",
+    "lint": "vp lint src scripts vite.config.ts 2>&1",
+    "test": "vp test 2>&1",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-ui-theme": "0.2.2-rc.5",
+    "@perfectpan/lint-config": "catalog:",
+    "@rivus/estela-rpc": "workspace:*",
+    "@rivus/estela-server": "workspace:*",
+    "@rivus/estela-web": "workspace:*",
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "^18.3.28",
+    "typescript": "catalog:",
+    "vite-plugin-solid": "^2.11.15",
+    "vite-plus": "catalog:",
+    "zod": "catalog:"
+  }
+}

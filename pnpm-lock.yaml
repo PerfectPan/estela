@@ -273,6 +273,48 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
 
+  apps/dsh-plugin:
+    devDependencies:
+      '@deepseek-ai/dsh-client-locale':
+        specifier: 0.2.2-rc.5
+        version: 0.2.2-rc.5
+      '@deepseek-ai/dsh-client-ui-theme':
+        specifier: 0.2.2-rc.5
+        version: 0.2.2-rc.5
+      '@perfectpan/lint-config':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/PerfectPan/lint-config/tar.gz/b007df94b7436e9d2c2f6cd0a7059d036a141ce8(jscpd@5.4.3)(knip@6.45.1)(oxfmt@0.76.0(vite-plus@1.5.0(@types/node@24.19.2)(@vitest/ui@5.1.0)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)))(oxlint-tsgolint@7.0.2005)(oxlint@1.91.0(oxlint-tsgolint@7.0.2005)(vite-plus@1.5.0(@types/node@24.19.2)(@vitest/ui@5.1.0)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)))(typescript@7.0.2)(vite-plus@1.5.0(@types/node@24.19.2)(@vitest/ui@5.1.0)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1))
+      '@rivus/estela-rpc':
+        specifier: workspace:*
+        version: link:../../packages/rpc
+      '@rivus/estela-server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@rivus/estela-web':
+        specifier: workspace:*
+        version: link:../web
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.5
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      '@types/react':
+        specifier: ^18.3.28
+        version: 18.3.31
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plugin-solid:
+        specifier: ^2.11.15
+        version: 2.11.16(solid-js@1.9.19)
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.5.0(@types/node@24.19.2)(@vitest/ui@5.1.0)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+
   apps/e2e:
     devDependencies:
       '@perfectpan/lint-config':
@@ -797,6 +839,22 @@ packages:
   '@decimalturn/toml-patch@3.3.2':
     resolution: {integrity: sha512-UUsjKkIJWC4JwhAK7IUMZeN4TjjtCWapAkdIuvllT3/fYcNooDQ0HtwgGDV77ew+arh/15hazN9M9/oSNV+PDg==}
     engines: {node: '>=16'}
+
+  '@deepseek-ai/cosmokit@1.9.0':
+    resolution: {integrity: sha512-5O1S53mZiJyZYcvxxD0Qv1EY7qFPSxbGyD8CbVK6gw7W9FvcXZj2YIX1ZkOqyQQ3Xt2rFkZDHJv0+V3Zmmp8CA==}
+
+  '@deepseek-ai/dsh-client-locale@0.2.2-rc.5':
+    resolution: {integrity: sha512-4fz84aGUv2U7300PxkrKOu8lBKDlF88dan2icBtUcmDCIGrUL2UKGjDZYHv5gSQLNGvCjlecDcPPJ6IcPYeObQ==}
+    peerDependencies:
+      '@deepseek-ai/cordis': ~4.1.0
+
+  '@deepseek-ai/dsh-client-ui-theme@0.2.2-rc.5':
+    resolution: {integrity: sha512-z8eMQpUBht+XiGP/mQqd4K54dVz9CpR3dyepdNIV6ntjOtFxqjQwI8luJLeUHZJ1+b9rOX/QhIvRe1arpGEaHg==}
+    peerDependencies:
+      '@deepseek-ai/cordis': ~4.1.0
+
+  '@deepseek-ai/schemastery@3.19.0':
+    resolution: {integrity: sha512-bDXoYQa7ghAhmdYD5VPlzKxEzJV/aKkz5l4V5h1u06z8GAPN1ROewSjvR9WiXhpa52E9fng8lpH5QdCRIQgnyQ==}
 
   '@devframes/agentic@1.3.3':
     resolution: {integrity: sha512-Ij9KU8jXSsEXbAhxP8kFFiFMAiNH3TJblc+39sAEbg+MXZU1pVTk+oUE79qg07Kk6rZNjUyZqjeCnZaKY/9Uvg==}
@@ -2497,10 +2555,16 @@ packages:
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
 
+  '@types/prop-types@15.7.15':
+    resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
+
   '@types/react-dom@19.3.0':
     resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
     peerDependencies:
       '@types/react': ^19.3.0
+
+  '@types/react@18.3.31':
+    resolution: {integrity: sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==}
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
@@ -4745,6 +4809,21 @@ snapshots:
 
   '@decimalturn/toml-patch@3.3.2': {}
 
+  '@deepseek-ai/cosmokit@1.9.0': {}
+
+  '@deepseek-ai/dsh-client-locale@0.2.2-rc.5':
+    dependencies:
+      '@deepseek-ai/schemastery': 3.19.0
+
+  '@deepseek-ai/dsh-client-ui-theme@0.2.2-rc.5':
+    dependencies:
+      '@deepseek-ai/schemastery': 3.19.0
+
+  '@deepseek-ai/schemastery@3.19.0':
+    dependencies:
+      '@deepseek-ai/cosmokit': 1.9.0
+      '@standard-schema/spec': 1.1.0
+
   '@devframes/agentic@1.3.3(crossws@0.4.17(srvx@1.0.8))(devframe@1.3.3)':
     dependencies:
       '@modelcontextprotocol/client': 2.4.0
@@ -6169,9 +6248,16 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
+  '@types/prop-types@15.7.15': {}
+
   '@types/react-dom@19.3.0(@types/react@19.3.0)':
     dependencies:
       '@types/react': 19.3.0
+
+  '@types/react@18.3.31':
+    dependencies:
+      '@types/prop-types': 15.7.15
+      csstype: 3.2.3
 
   '@types/react@19.3.0':
     dependencies:
