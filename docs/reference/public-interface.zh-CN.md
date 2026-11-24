@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/public-interface.md 为准。
 
-<!-- source-blob: 960799fd4fc7c6cb615330be0ddead330b62269f -->
+<!-- source-blob: 3001889ae3b9663a35c016abf45819c3014ea383 -->
 
 # 公共接口与兼容性
 
@@ -84,15 +84,15 @@ HTTP 路由 `/__estela/__mcp` 仅在使用 `--mcp` 时存在（`--mcp` 要求回
 
 ### dsh 插件（`@rivus/dsh-estela`）
 
-DeepSeek Harness 插件以 `@rivus/dsh-estela` 发布，支持 `web` 配置文件（见[DeepSeek Harness 插件](../guide/dsh-plugin.zh-CN.md)）。覆盖范围：
+DeepSeek Harness 插件以 `@rivus/dsh-estela` 发布，支持 `web` profile（见[DeepSeek Harness 插件](../guide/dsh-plugin.zh-CN.md)）。覆盖范围：
 
 - 包名（`@rivus/dsh-estela`）、安装命令 `dsh plugin --profile web add @rivus/dsh-estela` 以及卸载命令 `dsh plugin --profile web remove @rivus/dsh-estela`。
 - 在已开始会话的 Chat 和 Trajectory 旁名为「Estela」的对话视图标签页。
-- `engines.dsh` 中声明的受支持 DeepSeek Harness 版本范围（`>=0.2.2-rc.5 <0.3.0-0`）以及 `engines.node` 中的 Node.js 范围（`>=24.9.0`）。
+- `engines.dsh` 中声明的受支持 DeepSeek Harness 版本范围（`>=0.2.2-rc.5 <0.3.0-0`）。
 - 默认开启脱敏，在 `dsh` 进程环境中设置 `ESTELA_REDACT=0` 可关闭脱敏。
 - 插件没有任何配置项。
 
-其版本策略与 `@rivus/estela` 的 0.x 策略相同：在 1.0 之前，对已覆盖接口的破坏性变更随 minor 版本发布（从 1.0 起随 major 版本发布），问题修复随 patch 版本发布。收窄 `engines.dsh` 范围属于破坏性变更，随 minor 版本发布。
+其版本策略与 `@rivus/estela` 的 0.x 策略相同：在 1.0 之前，对已覆盖接口的破坏性变更随 minor 版本发布（从 1.0 起随 major 版本发布），问题修复随 patch 版本发布。收窄 `engines.dsh` 范围属于破坏性变更，在 0.x 期间随 minor 版本发布。
 
 测试：`apps/dsh-plugin/src/package.test.ts`（清单字段与 `engines.dsh`）、`apps/dsh-plugin/src/host/channel.test.ts`（脱敏、仅限 owner 访问、失败模式）、`apps/dsh-plugin/src/host/sessions.test.ts` 与 `stale.test.ts`（快照保障）以及 `apps/dsh-plugin/test/package-artifacts.test.ts`（打包后的 tarball 与产物边界）。
 
@@ -103,7 +103,7 @@ DeepSeek Harness 插件以 `@rivus/dsh-estela` 发布，支持 `web` 配置文�
 ## 不在覆盖范围内
 
 - **Workspace 包。**`@rivus/estela-server`、`-rpc`、`-kernel`、`-schema`、`-runtime-node` 和 `-web` 均为私有包并打包进 CLI 与 dsh 插件；`@rivus/estela` 不导出编程 API。
-- **dsh 插件内部实现。**插件的 RPC 通道和端点名称、`<estela-workspace>` 自定义元素及其 `source` 属性、`@rivus/dsh-estela` 包内的文件结构，以及视图内提示信息的措辞。
+- **dsh 插件内部实现。**插件的 RPC 通道和端点名称、`<estela-workspace>` 自定义元素及其 `source` 属性、`@rivus/dsh-estela` 包内的文件，以及视图内提示信息的措辞。
 - **规范 trace JSON 格式**（`schema: "estela"`）。它没有版本字段且会就地修改；没有任何命令写出该格式，来自其他版本的文件可能无法加载。
 - **会话索引**（`index.sqlite`）：缓存文件，在数据结构或版本变化时会重建。
 - 打包后的服务器与网页应用之间的 **DevFrame RPC**、其共享状态及其文件（`~/.devframe/instances/`、`~/.estela/devframe/`）。

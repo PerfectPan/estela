@@ -58,7 +58,11 @@ On the main command, a bare word that names a command (`build`, `mcp`, `export-a
 - **During install:** if your `dsh` version is outside `engines.dsh`, `dsh` refuses before installing anything, exits with status 1, and prints which requirement was not met.
 - **After upgrading or downgrading `dsh`:** if the plugin is already in the `web` profile and `dsh` is now outside `engines.dsh`, `dsh` starts without the plugin, prints one line on stderr explaining why it disabled the plugin, and `dsh web` shows no Estela tab.
 
-Use a `dsh` version inside `engines.dsh`, or update `@rivus/dsh-estela` once a release supports your `dsh` version. If you want to accept the risk explicitly for one exact plugin version on one exact `dsh` version, use `dsh plugin allow-version` as noted in `dsh`'s error message.
+Use a `dsh` version inside `engines.dsh`, or update `@rivus/dsh-estela` once a release supports your `dsh` version. If you want to accept the risk explicitly for one exact plugin version on one exact `dsh` version, run:
+
+```sh
+dsh plugin --profile web allow-version @rivus/dsh-estela@<plugin-version> --dsh-version <current-dsh-version> --accept-risk
+```
 
 ## Upgrading from `@rivus/agent-trace`
 

@@ -1,6 +1,6 @@
 # @rivus/dsh-estela
 
-Adds an **Estela** view beside Chat and Trajectory in `dsh web` that reads the current session log from disk: the ledger, what the model saw at any request (**Model saw**), a context diff (**Compare**), what a compaction removed, and list-price cost. Anything a log does not record is shown as `unavailable`, never estimated.
+Adds an **Estela** view beside Chat and Trajectory in `dsh web` that reads the current session log from disk: the ledger, what the model saw at any request (**Model saw**), a context diff (**Compare**), what a compaction removed, and list-price cost. Missing data is never estimated or invented.
 
 Requires DeepSeek Harness `>=0.2.2-rc.5 <0.3.0-0` and Node.js `>=24.9.0`.
 

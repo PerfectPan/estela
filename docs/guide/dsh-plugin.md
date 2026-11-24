@@ -23,11 +23,11 @@ When you select the **Estela** tab on a conversation in `dsh web`, the View show
 - Event ledger (by turn or by agent).
 - Inspector with **Input**, **Output**, **Model saw** (the reconstructed context the model received), **Compare** (context diff between two requests of one lane, including events hidden by compaction), and **Raw**.
 
-Anything the session log does not record is shown as `unavailable`, never estimated.
+Missing data is never estimated or invented.
 
-The View follows `dsh`'s appearance setting (light, dark, or system) and language setting (Simplified Chinese for Chinese, English for every other language), updating live when you change them in `dsh`. Session content is always shown as recorded.
+The View follows `dsh`'s appearance setting (light, dark, or system) and language setting (Simplified Chinese for Chinese, English for every other language), updating live when you change them in `dsh`. Changing the language translates only the interface; session text stays in its original language.
 
-Large sessions follow the same 12 MB view budget as the CLI: long text is shortened to fit, and selecting an event loads its full text.
+Large sessions follow the same 12 MB view budget as the CLI: long text is shortened to fit, and selecting an event loads its full text. If the view still exceeds 12 MB even at the shortest text length, it still opens with a notice that the page may be slow, and selecting an event still loads its full text.
 
 The plugin focuses on the active conversation: it does not include a session browser, "Export report", or ATIF and OTLP exports. Use the `@rivus/estela` CLI for those.
 
@@ -43,7 +43,7 @@ The Estela View shows a snapshot of the session log as it was on disk when the V
 
 To pick up new turns or events written while a session is running, reload the `dsh web` page and open the Estela tab again.
 
-The plugin never mixes two states of a log: if an event can no longer be read back from the loaded snapshot because the log changed on disk, the View reloads the current log from disk instead of mixing old and new records. Up to three recently opened snapshots stay in memory inside the `dsh` process.
+The plugin never mixes two states of a log: if an event can no longer be read back from the loaded snapshot because the log changed on disk, the View reloads the current log from disk instead of mixing old and new records. Up to three recently opened snapshots stay in memory inside the `dsh` process. If a tab stays open while other tabs open many snapshots, selecting an event in the older tab may fail; select "Try again" to reload the session.
 
 ## Redaction
 
@@ -61,7 +61,7 @@ Remove the plugin from the `web` profile:
 dsh plugin --profile web remove @rivus/dsh-estela
 ```
 
-If `dsh web` is running, the Estela tab disappears within a few seconds without restarting `dsh`, calls to the plugin are refused, and nothing of the plugin remains in the profile (`package.json`, `node_modules`, ports, or processes).
+If `dsh web` is running, the Estela tab disappears within a few seconds without restarting `dsh`, calls to the plugin channel are refused, and no plugin tab, channel, process, port, `web` profile dependency or bundle entry (`package.json` and bundle config), or installed directory in `node_modules` remains. If you previously granted a version exemption with `dsh plugin allow-version`, that exemption is stored separately in the profile (`compatibility.json`) and removing the plugin does not revoke it.
 
 ## Version range
 

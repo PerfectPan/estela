@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 README.md 为准。
 
-<!-- source-blob: 22b7ed7ec777958229c41eb599b45eeb3c9349bb -->
+<!-- source-blob: d1d9970101f7160dbf9be1b32c9a90dda2293ac6 -->
 
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong>
@@ -78,7 +78,7 @@ npx @rivus/estela
 
 ## 隐私
 
-Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的主目录、部分令牌形式以及 `PASSWORD=` 这类带名称凭据的值，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
+Estela 在本地运行，只读取会话日志。CLI 开发服务器（`@rivus/estela`）绑定 `localhost`，并在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除；DeepSeek Harness 插件（`@rivus/dsh-estela`）在 `dsh` 内部读取日志，不监听端口，也不会建立这个索引。脱敏会替换你的主目录、部分令牌形式以及 `PASSWORD=` 这类带名称凭据的值，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
 
 ## 文档
 

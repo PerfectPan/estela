@@ -74,7 +74,7 @@ Each agent's home override is honored. What each agent's log records (system pro
 
 ## Privacy
 
-Estela runs locally, binds `localhost`, and only reads the session logs. It keeps an unredacted cache of session titles, paths, numbers, and up to 200 of your prompts per session in `~/.cache/rivus-estela/`, which you can delete at any time. Redaction replaces your home directory, some token shapes, and the values of labelled credentials such as `PASSWORD=`, but not every secret, and a report still contains session text and file contents: read a report before you share it. Details in [Privacy and redaction](docs/guide/privacy.md).
+Estela runs locally and only reads session logs. The CLI dev server (`@rivus/estela`) binds `localhost` and keeps an unredacted cache of session titles, paths, numbers, and up to 200 of your prompts per session in `~/.cache/rivus-estela/`, which you can delete at any time; the DeepSeek Harness plugin (`@rivus/dsh-estela`) reads logs inside `dsh` without opening a port or creating that index. Redaction replaces your home directory, some token shapes, and the values of labelled credentials such as `PASSWORD=`, but not every secret, and a report still contains session text and file contents: read a report before you share it. Details in [Privacy and redaction](docs/guide/privacy.md).
 
 ## Documentation
 

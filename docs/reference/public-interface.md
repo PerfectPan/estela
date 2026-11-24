@@ -84,11 +84,11 @@ The DeepSeek Harness plugin is published as `@rivus/dsh-estela` for the `web` pr
 
 - The package name (`@rivus/dsh-estela`), installing with `dsh plugin --profile web add @rivus/dsh-estela`, and removing with `dsh plugin --profile web remove @rivus/dsh-estela`.
 - The conversation View tab labeled "Estela" beside Chat and Trajectory for sessions that have started.
-- The supported DeepSeek Harness version range in `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`) and Node.js range in `engines.node` (`>=24.9.0`).
+- The supported DeepSeek Harness version range in `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`).
 - Redaction on by default, with `ESTELA_REDACT=0` in the `dsh` process environment disabling redaction.
 - No plugin configuration.
 
-Its version policy is the same 0.x policy as `@rivus/estela`: a breaking change to a covered surface ships in a minor release before 1.0 (and a major release from 1.0), and a fix ships in a patch release. Narrowing the `engines.dsh` range is breaking and ships in a minor release.
+Its version policy is the same 0.x policy as `@rivus/estela`: a breaking change to a covered surface ships in a minor release before 1.0 (and a major release from 1.0), and a fix ships in a patch release. Narrowing the `engines.dsh` range is breaking and ships in a minor release while on 0.x.
 
 Tests: `apps/dsh-plugin/src/package.test.ts` (manifest fields and `engines.dsh`), `apps/dsh-plugin/src/host/channel.test.ts` (redaction, owner-only access, failure modes), `apps/dsh-plugin/src/host/sessions.test.ts` and `stale.test.ts` (snapshot guarantees), and `apps/dsh-plugin/test/package-artifacts.test.ts` (packed tarball and bundle boundaries).
 
