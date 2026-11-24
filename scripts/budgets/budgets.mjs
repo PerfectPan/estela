@@ -97,4 +97,38 @@ export const BUDGETS = [
     reason:
       '654.7 kB, mostly the gzipped cli.mjs, web bundle, fonts, notices, and the demo trace (570.2 kB before the demo session, MCP tools, and cost); same headroom as cli.mjs.',
   },
+  {
+    id: 'dsh-client-raw',
+    label: 'dsh plugin dist/client.js, raw',
+    unit: 'bytes',
+    limit: 420 * KB,
+    enforced: true,
+    reason: '347.0 kB (346,952 B) for the embedded workspace element and React wrapper; about 20 % of headroom.',
+  },
+  {
+    id: 'dsh-client-gzip',
+    label: 'dsh plugin dist/client.js, gzip',
+    unit: 'bytes',
+    limit: 120 * KB,
+    enforced: true,
+    reason: '96.7 kB (96,722 B) gzipped with Node zlib defaults; about 20 % of headroom.',
+  },
+  {
+    id: 'dsh-host',
+    label: 'dsh plugin dist/host.mjs',
+    unit: 'bytes',
+    limit: 970 * KB,
+    enforced: true,
+    reason:
+      '803.6 kB (803,574 B) with the DevFrame-free server core, TraceStore, and agent-kit; about 20 % of headroom.',
+  },
+  {
+    id: 'dsh-tarball',
+    label: 'dsh plugin tarball (pnpm pack)',
+    unit: 'bytes',
+    limit: 430 * KB,
+    enforced: true,
+    reason:
+      '354.4 kB (354,396 B), mostly the gzipped host.mjs, client.js, third-party notices, icon, and cordis.patch.yml; about 20 % of headroom.',
+  },
 ]

@@ -30,14 +30,15 @@ jobs:
       pull-requests: write
       id-token: write
     with:
-      # Builds @rivus/estela and the packages it bundles with production conditions, packs and installs the tarball,
-      # and runs the CLI smoke scenarios against the installed bin. The pack step then packs that build.
-      check-command: pnpm -C apps/e2e run test:smoke
-      # The CLI bundles every workspace package it depends on and its own devDependencies, so the audit follows the
-      # workspace graph and keeps dev dependencies; the e2e suite and the root release tooling stay out. The scope
+      # Builds @rivus/estela and the packages it bundles with production conditions, packs and installs the CLI tarball,
+      # runs the CLI smoke scenarios against the installed bin, and builds the dsh plugin bundles. The pack step then
+      # packs those builds; the dsh smoke stays in CI on the version PR.
+      check-command: pnpm -C apps/e2e run test:smoke && pnpm --filter '@rivus/dsh-estela...' run build
+      # Both packages bundle the workspace packages they depend on and their own devDependencies, so the audit follows
+      # both workspace graphs and keeps dev dependencies; the e2e suite and the root release tooling stay out. The scope
       # also takes in build tooling (Vite+, TypeScript), so a high advisory there blocks a release too: the trade for
       # not missing a bundled dependency. The dry-run job runs the same command.
-      audit-command: pnpm --filter '@rivus/estela...' audit --audit-level=high
+      audit-command: pnpm --filter '@rivus/estela...' --filter '@rivus/dsh-estela...' audit --audit-level=high
       # The root package defines no version-packages script.
       version-command: pnpm exec changeset version
 
@@ -60,12 +61,15 @@ jobs:
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
         run: pnpm run test:smoke
+      - name: Build the dsh plugin, as the release does
+        run: pnpm --filter '@rivus/dsh-estela...' run build
       - name: Audit dependencies, as the release does
-        run: pnpm --filter '@rivus/estela...' audit --audit-level=high
-      - name: Inspect the publish plan and package archive
+        run: pnpm --filter '@rivus/estela...' --filter '@rivus/dsh-estela...' audit --audit-level=high
+      - name: Inspect the publish plan and package archives
         run: |
           pnpm exec changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
           pnpm --filter @rivus/estela pack --out "$RUNNER_TEMP/estela.tgz"
+          pnpm --filter @rivus/dsh-estela pack --out "$RUNNER_TEMP/dsh-estela.tgz"
       - name: Save the dry-run evidence
         uses: actions/upload-artifact@v7
         with:
@@ -73,4 +77,5 @@ jobs:
           path: |
             ${{ runner.temp }}/publish-plan.json
             ${{ runner.temp }}/estela.tgz
+            ${{ runner.temp }}/dsh-estela.tgz
           if-no-files-found: error

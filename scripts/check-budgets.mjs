@@ -15,7 +15,8 @@ import { writeSyntheticHome } from './budgets/synthetic-home.mjs'
 const HELP = `Usage:
   node scripts/check-budgets.mjs [--help]
 
-Runs the built CLI (apps/cli/dist; run "pnpm build" first) on synthetic data
+Runs the built CLI (apps/cli/dist) and measures the built dsh plugin
+(apps/dsh-plugin/dist; run "pnpm build" first) on synthetic data
 generated into a temp directory, and checks the numbers against the budgets in
 scripts/budgets/budgets.mjs:
 
@@ -24,7 +25,8 @@ scripts/budgets/budgets.mjs:
                    and warm (index from the cold run)
   large session    a ${Math.round(LARGE_SESSION_BYTES / 1e6)} MB Codex rollout given on the command line, from
                    process start to the get-trace-view response, and peak RSS
-  sizes            web JS and CSS (raw, gzip), dist/cli.mjs, the pnpm pack tarball
+  sizes            web JS and CSS (raw, gzip), dist/cli.mjs, the CLI tarball,
+                   dsh plugin dist/client.js (raw, gzip), dist/host.mjs, and the plugin tarball
 
 Prints a table, appends it to $GITHUB_STEP_SUMMARY when that is set, and exits 1
 when an enforced budget is exceeded. ESTELA_BUDGETS_KEEP=1 keeps the temp directory.
@@ -42,6 +44,15 @@ if (process.argv.length > 2) {
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 if (!existsSync(join(root, 'apps/cli/dist/cli.mjs')) || !existsSync(join(root, 'apps/cli/dist/web/assets'))) {
   process.stderr.write('check-budgets: apps/cli/dist is missing. Run "pnpm build" first.\n')
+  process.exit(1)
+}
+if (
+  !existsSync(join(root, 'apps/dsh-plugin/dist/host.mjs'))
+  || !existsSync(join(root, 'apps/dsh-plugin/dist/client.js'))
+) {
+  process.stderr.write(
+    `check-budgets: apps/dsh-plugin/dist is missing. Run "pnpm --filter '@rivus/dsh-estela...' run build" first.\n`,
+  )
   process.exit(1)
 }
 
