@@ -138,16 +138,14 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
   let builtDefinition: DevframeDefinition | undefined
   const services: ServerServices = {
     store: traces.store,
-    ...(catalog
-      ? {
-          listSessions: query => catalog.listSessions(query),
-          exportReport: query =>
-            exportReport(builtDefinition!, reportSource, reportQueue, traces.store, query, {
-              dir: options.reportDir,
-              redact,
-            }),
-        }
-      : {}),
+    listSessions: catalog ? query => catalog.listSessions(query) : undefined,
+    exportReport: catalog
+      ? query =>
+          exportReport(builtDefinition!, reportSource, reportQueue, traces.store, query, {
+            dir: options.reportDir,
+            redact,
+          })
+      : undefined,
     reportSource,
   }
   const serverFunctions = createServerFunctions(services)

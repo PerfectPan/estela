@@ -67,7 +67,7 @@ export interface CatalogOptions {
    * server's `redacts` option is `false`; the default redacts.
    */
   redacts?: boolean
-  /** Called whenever the catalog's revision or pending count changes. */
+  /** Receives the latest revision and pending count after a pass that changed them; one pass makes one call. */
   announce?: (signal: SessionsSignal) => void
 }
 
