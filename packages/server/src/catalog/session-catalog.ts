@@ -16,6 +16,7 @@ import {
   sameRow,
   summarizeRow,
   type LiveRow,
+  type SummarizeResult,
   type Redactor,
 } from './rows.ts'
 import type { ShellPlatform } from '../sessions/load-session.ts'
@@ -83,6 +84,7 @@ export class SessionCatalog {
   private cachedStart = false
   private revision = 0
   private flushTimer: ReturnType<typeof setTimeout> | undefined
+  private closed = false
 
   constructor(options: CatalogOptions = {}) {
     this.adapters = options.adapters
@@ -145,11 +147,16 @@ export class SessionCatalog {
     await this.discovery
   }
 
-  /** Resolves when discovery is done, no summary is queued or running, and the last batch is written. */
+  /**
+   * Resolves when discovery is done, no summary is queued or running, and the last batch is written. It also
+   * resolves when the catalog closes first: a summary still running then is dropped, with its batch.
+   */
   async whenIdle(): Promise<void> {
     await this.discovered()
     await this.queue.whenIdle()
-    this.flush()
+    if (!this.closed) {
+      this.flush()
+    }
   }
 
   /**
@@ -215,7 +222,13 @@ export class SessionCatalog {
     }
   }
 
+  /**
+   * Writes the summaries finished so far once and closes the index. After it returns no summary starts, no
+   * flush timer is armed, and nothing is announced: a summary still running ends with its result dropped.
+   */
   close(): void {
+    this.closed = true
+    this.queue.stop()
     if (this.flushTimer) {
       clearTimeout(this.flushTimer)
     }
@@ -247,6 +260,10 @@ export class SessionCatalog {
     const fresh = await discoverRows(this.agentStates, this.platform, () =>
       onProgress?.(progressOf(this.agentStates, this.platform.home)),
     )
+    // Closed while the pass ran: its rows are neither indexed nor queued for a summary.
+    if (this.closed) {
+      return
+    }
     const gone: string[] = []
     for (const traceId of this.rows.keys()) {
       if (!fresh.has(traceId)) {
@@ -288,21 +305,25 @@ export class SessionCatalog {
 
   private async summarize(row: LiveRow): Promise<void> {
     const adapter = this.adapterList.find(candidate => candidate.agent === row.target.agent)
+    let result: SummarizeResult
     try {
       if (!adapter) {
         throw new Error(`${row.target.agent}: agent is not registered`)
       }
-      const result = await summarizeRow(this.platform, this.adapters, row.target)
-      if ('error' in result) {
-        // Not cached: the head stays, the numbers stay undefined, and the reason is shown.
-        row.error = result.error
-      } else {
-        row.summary = result.summary
-        this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
-      }
+      result = await summarizeRow(this.platform, this.adapters, row.target)
     } catch (error) {
+      result = { error: parseReadFailure(errorMessage(error), this.platform.home, row.target.path) }
+    }
+    // Closed while the summary ran: the result is dropped, so it reaches neither the index nor a browser.
+    if (this.closed) {
+      return
+    }
+    if ('error' in result) {
       // Not cached: the head stays, the numbers stay undefined, and the reason is shown.
-      row.error = parseReadFailure(errorMessage(error), this.platform.home, row.target.path)
+      row.error = result.error
+    } else {
+      row.summary = result.summary
+      this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
     }
     row.pending = false
     row.revision = this.bump()
