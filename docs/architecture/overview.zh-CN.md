@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 173dccc6a47cbc46d9c259e3efa0d2fda8db63ee -->
+<!-- source-blob: be393ca6a0797281f1a5b68d999c35413f5026b8 -->
 
 # 架构
 
@@ -96,7 +96,7 @@ one session (build <path>, or export-report on the dev server)
 
 `redacts` 是会话文本的唯一开关：它决定 trace RPC 返回的内容，以及列表行和 `--pick` 标签中的标题、项目和提示词是否脱敏。服务器代码不读取 `ESTELA_REDACT`；每个入口自行算出这个值（`apps/cli/src/entry/app.ts`）：只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`，`mcp` 和 `build` 始终传入 `true`。无论这个开关取值如何，报告、MCP 工具结果和错误、列表行的工作目录和读取错误、检查过的根目录，以及索引自身的失败原因始终保持脱敏（见[信任](#信任)）。
 
-`close()` 先停止会话目录，再关闭索引：等待中的摘要不再运行，仍在运行的摘要结束时结果直接丢弃（不写索引、不挂 flush 定时器、不推送会话状态），等待 `whenIdle()` 的调用方立即返回。在服务器停止后调用它。
+`close()` 先停止会话目录，再关闭索引：等待中的摘要不再运行，仍在运行的摘要结束时结果直接丢弃（不写索引、不挂 flush 定时器、不推送会话状态），等待摘要的 `whenIdle()` 调用方立即返回；等待 `discover` 扫描的调用方要等扫描结束才返回，`close()` 不会中止扫描。在服务器停止后调用它。
 
 ## MCP 代理工具
 

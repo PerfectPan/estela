@@ -92,7 +92,7 @@ The `reconstruct` RPC takes `{ traceId?, eventId }`; without a trace id it reads
 
 `redacts` is the one switch for session text: what the trace RPCs return, and the titles, projects, and prompts of list rows and `--pick` labels. No server code reads `ESTELA_REDACT`; each entry point computes the flag (`apps/cli/src/entry/app.ts`): the dev server passes `false` only with `ESTELA_REDACT=0`, and `mcp` and `build` pass `true`. Whatever the flag says, reports, MCP tool results and errors, a row's working directory and read errors, the roots that were checked, and the index's own failure reason stay redacted ([Trust](#trust)).
 
-`close()` stops the catalog before it closes the index: the summaries that wait never run, one still running ends with its result dropped (no index write, no flush timer, no session push), and a caller of `whenIdle()` resolves at once. Call it after the server stops.
+`close()` stops the catalog before it closes the index: the summaries that wait never run, one still running ends with its result dropped (no index write, no flush timer, no session push). A caller of `whenIdle()` that waits for the summaries resolves at once; one that waits for the `discover` pass, which `close()` does not stop, resolves when that pass ends. Call it after the server stops.
 
 ## MCP agent tools
 

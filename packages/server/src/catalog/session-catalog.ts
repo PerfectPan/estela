@@ -155,8 +155,9 @@ export class SessionCatalog {
   }
 
   /**
-   * Resolves when discovery is done, no summary is queued or running, and the last batch is written. It also
-   * resolves when the catalog closes first: a summary still running then is dropped, with its batch.
+   * Resolves when discovery is done, no summary is queued or running, and the last batch is written. Closing
+   * the catalog ends the wait for summaries at once (one still running is dropped, with its batch); it does not
+   * end the wait for discovery, which goes on until its pass is done.
    */
   async whenIdle(): Promise<void> {
     await this.discovered()
