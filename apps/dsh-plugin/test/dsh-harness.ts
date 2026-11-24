@@ -1,15 +1,15 @@
+import { chromium, type Browser, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { x } from 'tinyexec'
 import * as z from 'zod/mini'
 
 const pluginDir = dirname(dirname(fileURLToPath(import.meta.url)))
-const e2ePlaywrightEntry = pathToFileURL(join(dirname(pluginDir), 'e2e/node_modules/@playwright/test/index.mjs')).href
 
 const packJsonSchema = z.object({ filename: z.string() })
 const workspaceStorageSchema = z.object({
@@ -18,74 +18,18 @@ const workspaceStorageSchema = z.object({
   }),
 })
 
-interface SmokeLocator {
-  first(): SmokeLocator
-  nth(index: number): SmokeLocator
-  locator(selector: string): SmokeLocator
-  filter(options: { hasText: RegExp | string }): SmokeLocator
-  count(): Promise<number>
-  click(options?: { force?: boolean; timeout?: number }): Promise<void>
-  waitFor(options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }): Promise<void>
-  allTextContents(): Promise<string[]>
-  textContent(): Promise<string | null>
-}
-
-interface SmokeRoute {
-  abort(errorCode?: string): Promise<void>
-}
-
-export interface SmokePage {
-  goto(url: string, options?: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }): Promise<unknown>
-  reload(options?: { waitUntil?: 'load' | 'domcontentloaded' | 'networkidle' }): Promise<unknown>
-  waitForTimeout(ms: number): Promise<void>
-  locator(selector: string): SmokeLocator
-  getByRole(role: string, options?: { name?: RegExp | string; exact?: boolean }): SmokeLocator
-  getByText(text: RegExp | string, options?: { exact?: boolean }): SmokeLocator
-  getByTestId(id: string): SmokeLocator
-  evaluate<R, A = undefined>(fn: (arg: A) => R, arg?: A): Promise<R>
-  route(url: string, handler: (route: SmokeRoute) => Promise<void> | void): Promise<void>
-  unroute(url: string): Promise<void>
-  on(event: 'console', listener: (msg: { type(): string; text(): string }) => void): void
-  on(event: 'pageerror', listener: (error: Error) => void): void
-  close(): Promise<void>
-}
-
-export interface SmokeContext {
-  newPage(): Promise<SmokePage>
-  cookies(): Promise<Array<{ name: string; value: string }>>
-  close(): Promise<void>
-}
-
-export interface SmokeBrowser {
-  newContext(options?: { viewport?: { width: number; height: number }; locale?: string }): Promise<SmokeContext>
-  close(): Promise<void>
-}
-
-interface BrowserType {
-  launch(options: { headless?: boolean; channel?: string }): Promise<SmokeBrowser>
-}
-
-// Keep `chromium` as a `z.custom` class instance so `z.parse` preserves `BrowserType`'s prototype.
-const playwrightModuleSchema = z.object({
-  chromium: z.custom<BrowserType>(
-    value => value instanceof Object && typeof Reflect.get(value, 'launch') === 'function',
-  ),
-})
-
-export async function launchChromium(): Promise<SmokeBrowser> {
-  const loaded: unknown = await import(e2ePlaywrightEntry)
-  const mod = z.parse(playwrightModuleSchema, loaded)
+export async function launchChromium(): Promise<Browser> {
   const channel = process.env.ESTELA_E2E_CHANNEL
   if (channel) {
-    return mod.chromium.launch({ channel, headless: true })
+    return chromium.launch({ channel, headless: true })
   }
   try {
-    return await mod.chromium.launch({ headless: true })
+    return await chromium.launch({ headless: true })
   } catch (error) {
     if (process.env.CI) {
       throw error
     }
-    return mod.chromium.launch({ channel: 'chrome', headless: true })
+    return chromium.launch({ channel: 'chrome', headless: true })
   }
 }
 
@@ -269,7 +213,7 @@ export async function readWorkspacePath(dshHome: string): Promise<string> {
   return first.path
 }
 
-export async function dismissNotices(page: SmokePage): Promise<void> {
+export async function dismissNotices(page: Page): Promise<void> {
   await page
     .getByRole('button', { name: /continue|继续/i })
     .first()

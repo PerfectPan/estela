@@ -178,7 +178,7 @@ jobs:
       - name: Build Web once before the dsh plugin smoke test
         run: pnpm --filter @rivus/estela-web run build
       - name: Install Chromium for Playwright
-        working-directory: apps/e2e
+        working-directory: apps/dsh-plugin
         run: npx playwright install --with-deps chromium
       - name: dsh plugin smoke on the installed tarball
         env:

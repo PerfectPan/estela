@@ -1,3 +1,4 @@
+import type { Browser } from '@playwright/test'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -20,7 +21,6 @@ import {
   runDshCli,
   startDshWeb,
   type RunningDsh,
-  type SmokeBrowser,
 } from './dsh-harness.ts'
 import { cookieHeaderOf, openSidebarSession, readWorkspaceGeometry, withDshPage } from './dsh-page.ts'
 import { appendTurnFrame, seedSession, type SeededSession } from './seed-session.mjs'
@@ -50,7 +50,7 @@ describe('@rivus/dsh-estela smoke on dsh web', () => {
   let rootTmp = ''
   let dshBin = ''
   let tarball = ''
-  let browser: SmokeBrowser | undefined
+  let browser: Browser | undefined
   let activeDsh: RunningDsh | undefined
 
   let mainDshHome = ''

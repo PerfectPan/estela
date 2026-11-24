@@ -1,9 +1,10 @@
-import { dismissNotices, type SmokeBrowser, type SmokeContext, type SmokePage } from './dsh-harness.ts'
+import type { Browser, BrowserContext, Page } from '@playwright/test'
+import { dismissNotices } from './dsh-harness.ts'
 
 export async function withDshPage<T>(
-  browser: SmokeBrowser,
+  browser: Browser,
   url: string,
-  fn: (page: SmokePage, ctx: SmokeContext) => Promise<T>,
+  fn: (page: Page, ctx: BrowserContext) => Promise<T>,
   locale = 'en-US',
 ): Promise<T> {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale })
@@ -18,7 +19,7 @@ export async function withDshPage<T>(
   }
 }
 
-export async function openSidebarSession(page: SmokePage, expectedEstelaTitle?: string): Promise<string[]> {
+export async function openSidebarSession(page: Page, expectedEstelaTitle?: string): Promise<string[]> {
   const entries = page.getByText(/^(Untitled|未命名)$/)
   const count = await entries.count()
   for (let i = 0; i < count; i += 1) {
@@ -49,7 +50,7 @@ export async function openSidebarSession(page: SmokePage, expectedEstelaTitle?: 
   )
 }
 
-export async function readWorkspaceGeometry(page: SmokePage) {
+export async function readWorkspaceGeometry(page: Page) {
   return page.evaluate(() => {
     const el = document.querySelector('estela-workspace')
     const shadow = el?.shadowRoot
@@ -82,7 +83,7 @@ export async function readWorkspaceGeometry(page: SmokePage) {
   })
 }
 
-export async function cookieHeaderOf(ctx: SmokeContext): Promise<string> {
+export async function cookieHeaderOf(ctx: BrowserContext): Promise<string> {
   const cookies = await ctx.cookies()
   return cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ')
 }
