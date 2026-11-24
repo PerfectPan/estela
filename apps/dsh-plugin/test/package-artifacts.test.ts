@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { x } from 'tinyexec'
 import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
@@ -118,5 +118,10 @@ describe('@rivus/dsh-estela built artifacts', () => {
     expect(specifiers.some(spec => spec === 'devframe' || spec.startsWith('devframe/'))).toBe(false)
     expect(specifiers).not.toContain('node:sqlite')
     expect(specifiers.some(spec => spec.startsWith('@rivus/'))).toBe(false)
+  })
+
+  it('exports only name, inject, and apply from dist/host.mjs', async () => {
+    const hostModule: Record<string, unknown> = await import(pathToFileURL(join(pluginDir, 'dist/host.mjs')).href)
+    expect(Object.keys(hostModule).toSorted()).toEqual(['apply', 'inject', 'name'])
   })
 })

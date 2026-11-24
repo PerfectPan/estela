@@ -1,9 +1,11 @@
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createEstelaCore, type EstelaCore } from '@rivus/estela-server/core'
+import type { LoadHandle } from '@rivus/estela-rpc/trace-store'
+import { createEstelaCore, traceIdOf, type EstelaCore } from '@rivus/estela-server/core'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
-import type { HostSessionPersistence, HostSessionSnapshot } from './rpc.ts'
+import { createChannelHost } from './channel.ts'
+import type { HostPeer, HostSessionPersistence, HostSessionSnapshot } from './rpc.ts'
 import { createSessionRegistry, FIXED_FAILURE_MESSAGE } from './sessions.ts'
 
 const FAKE_USER = 'fake-dsh-user-alice'
@@ -127,13 +129,13 @@ describe('createSessionRegistry', () => {
 
     const unknown = await registry.open('unknown')
     expect(unknown.ok).toBe(false)
-    if (!unknown.ok && !unknown.result.ok) {
+    if (!unknown.ok) {
       expect(unknown.result.error).toEqual({ code: 'estela/unknown-session', message: 'unknown session', details: {} })
     }
 
     const noLog = await registry.open('pending')
     expect(noLog.ok).toBe(false)
-    if (!noLog.ok && !noLog.result.ok) {
+    if (!noLog.ok) {
       expect(noLog.result.error.code).toBe('estela/no-log')
       expect(noLog.result.error.details).toEqual({})
       namesNeitherHome(noLog.result.error.message, home)
@@ -141,13 +143,13 @@ describe('createSessionRegistry', () => {
 
     const missing = await registry.open('missing')
     expect(missing.ok).toBe(false)
-    if (!missing.ok && !missing.result.ok) {
+    if (!missing.ok) {
       expect(missing.result.error).toEqual({ code: 'estela/failed', message: FIXED_FAILURE_MESSAGE, details: {} })
     }
 
     const unsupported = await registry.open('format-v5')
     expect(unsupported.ok).toBe(false)
-    if (!unsupported.ok && !unsupported.result.ok) {
+    if (!unsupported.ok) {
       expect(unsupported.result.error.code).toBe('estela/failed')
       expect(unsupported.result.error.details).toEqual({})
       expect(unsupported.result.error.message).toMatch(/^dsh: .+:1: unknown format generation: .+$/)
@@ -158,7 +160,7 @@ describe('createSessionRegistry', () => {
 
     const unsupportedNoLoc = await registry.open('format-v6')
     expect(unsupportedNoLoc.ok).toBe(false)
-    if (!unsupportedNoLoc.ok && !unsupportedNoLoc.result.ok) {
+    if (!unsupportedNoLoc.ok) {
       expect(unsupportedNoLoc.result.error.code).toBe('estela/failed')
       expect(unsupportedNoLoc.result.error.message).toMatch(/^dsh: .+:1: unknown format generation: .+$/)
       namesNeitherHome(unsupportedNoLoc.result.error.message, home)
@@ -166,7 +168,7 @@ describe('createSessionRegistry', () => {
 
     const crashed = await registry.open('crash')
     expect(crashed.ok).toBe(false)
-    if (!crashed.ok && !crashed.result.ok) {
+    if (!crashed.ok) {
       expect(crashed.result.error).toEqual({ code: 'estela/failed', message: FIXED_FAILURE_MESSAGE, details: {} })
       namesNeitherHome(crashed.result.error.message, home)
     }
@@ -203,7 +205,7 @@ describe('createSessionRegistry', () => {
     expect(registry.resolve(ids[0]!)).toBeUndefined()
     const evictedCheck = await registry.checkReady(ids[0]!)
     expect(evictedCheck.ok).toBe(false)
-    if (!evictedCheck.ok && !evictedCheck.result.ok) {
+    if (!evictedCheck.ok) {
       expect(evictedCheck.result.error.code).toBe('estela/unknown-trace')
     }
 
@@ -271,7 +273,7 @@ describe('createSessionRegistry', () => {
 
     const stale = await registry.checkReady(ids[0]!)
     expect(stale.ok).toBe(false)
-    if (!stale.ok && !stale.result.ok) {
+    if (!stale.ok) {
       expect(stale.result.error.code).toBe('estela/stale')
       expect(stale.result.error.details).toEqual({})
       namesNeitherHome(stale.result.error.message, home)
@@ -282,8 +284,140 @@ describe('createSessionRegistry', () => {
     expect(registry.resolve(ids[0]!)).toBeUndefined()
     const afterDrop = await registry.checkReady(ids[0]!)
     expect(afterDrop.ok).toBe(false)
-    if (!afterDrop.ok && !afterDrop.result.ok) {
+    if (!afterDrop.ok) {
       expect(afterDrop.result.error.code).toBe('estela/unknown-trace')
     }
+  })
+
+  it('does not repopulate issued when dispose occurs while fs.stat in open is still pending', async () => {
+    const home = await makeTempHome()
+    const dir = join(home, 'dispose-race')
+    await mkdir(dir, { recursive: true })
+    const file = join(dir, 'session.v4.jsonl')
+    await writeFile(file, `${dshLogLines('race', 'pending stat')}\n`)
+
+    const baseFs = createEstelaCore({ redacts: false }).platform.fs
+    const realInfo = await baseFs.stat(file, { followSymlinks: true })
+    expect(realInfo).toBeDefined()
+    const expectedTraceId = traceIdOf({ agent: 'dsh', path: file, sessionId: `${realInfo!.size}:${realInfo!.mtimeMs}` })
+
+    let statEntered!: () => void
+    const entered = new Promise<void>(resolve => {
+      statEntered = resolve
+    })
+    let releaseStat!: () => void
+    const statGate = new Promise<void>(resolve => {
+      releaseStat = resolve
+    })
+
+    const gatedFs: EstelaCore['platform']['fs'] = {
+      ...baseFs,
+      async stat(path, options) {
+        if (path === file) {
+          statEntered()
+          await statGate
+        }
+        return baseFs.stat(path, options)
+      },
+    }
+
+    const persistence: HostSessionPersistence = {
+      stat: async () => ({ location: { kind: 'jsonl', path: file } }),
+    }
+    let registry!: ReturnType<typeof createSessionRegistry>
+    const core = buildCore(home, id => registry.resolve(id), gatedFs)
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
+    const channel = createChannelHost({ core, sessions: registry })
+    const ownerPeer: HostPeer = { principal: { kind: 'owner' } }
+
+    const openCall = channel.handler('session/open', { sessionId: 'race' }, new AbortController().signal, ownerPeer)
+    await entered
+
+    channel.dispose()
+    releaseStat()
+
+    const result = await openCall
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'estela/closed', message: 'the plugin is closed', details: {} },
+    })
+    // Wait a tick for the post-stat continuation in `sessions.open` to finish.
+    await new Promise<void>(resolve => setTimeout(resolve, 10))
+    expect(registry.resolve(expectedTraceId)).toBeUndefined()
+  })
+
+  it('keeps an evicted in-flight trace id resolvable until its last channel holder unpins', async () => {
+    const home = await makeTempHome()
+    const files: string[] = []
+    for (let index = 0; index < 17; index += 1) {
+      const dir = join(home, `pin-${index}`)
+      await mkdir(dir, { recursive: true })
+      const file = join(dir, 'session.v4.jsonl')
+      await writeFile(file, `${dshLogLines(`pin-${index}`, `msg ${index}`)}\n`)
+      files.push(file)
+    }
+
+    const persistence: HostSessionPersistence = {
+      stat: async id => {
+        const file = files[Number(id)]
+        return file ? { location: { kind: 'jsonl', path: file } } : undefined
+      },
+    }
+    let registry!: ReturnType<typeof createSessionRegistry>
+    const core = buildCore(home, id => registry.resolve(id))
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
+
+    const resolvers: Array<() => void> = []
+    vi.spyOn(core.store, 'open').mockImplementation(async () => {
+      const done = new Promise<void>(resolve => {
+        resolvers.push(resolve)
+      })
+      const handle: LoadHandle = {
+        cached: false,
+        progress: () => ({ bytesRead: 0, totalBytes: 10 }),
+        onProgress: () => () => {},
+        done,
+        release: () => {},
+      }
+      return handle
+    })
+
+    const channel = createChannelHost({ core, sessions: registry })
+    const ownerPeer: HostPeer = { principal: { kind: 'owner' } }
+    const signal = new AbortController().signal
+
+    const first = await registry.open('0')
+    expect(first.ok).toBe(true)
+    if (!first.ok) {
+      return
+    }
+    const id0 = first.traceId
+
+    // Two concurrent channel views hold pins on id0.
+    const view1 = channel.handler('trace/view', { traceId: id0 }, signal, ownerPeer)
+    const view2 = channel.handler('trace/view', { traceId: id0 }, signal, ownerPeer)
+    await vi.waitFor(() => {
+      expect(resolvers).toHaveLength(2)
+    })
+
+    // Issue 16 more ids, pushing id0 out of the 16-id issued map.
+    for (let index = 1; index < 17; index += 1) {
+      const opened = await registry.open(String(index))
+      expect(opened.ok).toBe(true)
+    }
+    // New calls refuse evicted id0, but the in-flight pin still resolves it for both holders.
+    const rejected = await registry.checkReady(id0)
+    expect(rejected.ok).toBe(false)
+    expect(registry.resolve(id0)).toBeDefined()
+
+    // First holder finishes: second holder's pin still keeps id0 resolvable.
+    resolvers[0]!()
+    expect((await view1).ok).toBe(true)
+    expect(registry.resolve(id0)).toBeDefined()
+
+    // Last holder finishes: unpin drops the last reference and id0 is no longer resolvable.
+    resolvers[1]!()
+    expect((await view2).ok).toBe(true)
+    expect(registry.resolve(id0)).toBeUndefined()
   })
 })

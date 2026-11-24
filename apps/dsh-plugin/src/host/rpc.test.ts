@@ -26,7 +26,7 @@ describe('resolveConnectionRpc', () => {
     })
 
     const rpc = resolveConnectionRpc(proxy)
-    const noopHandler = async () => ({ ok: true as const, value: null })
+    const noopHandler = async () => ({ ok: true as const, value: { traceId: 't1' } })
     rpc.handle('/estela', noopHandler)
 
     expect(getterThis).toEqual([proxy])
@@ -45,7 +45,7 @@ describe('resolveConnectionRpc', () => {
     const connection: HostConnection = { rpc: plainRpc }
 
     const rpc = resolveConnectionRpc(connection)
-    rpc.handle('/estela', async () => ({ ok: true as const, value: null }))
+    rpc.handle('/estela', async () => ({ ok: true as const, value: { traceId: 't1' } }))
 
     expect(registered).toEqual(['/estela'])
   })

@@ -1,11 +1,11 @@
 import type { LoadHandle } from '@rivus/estela-rpc/trace-store'
 import type { EstelaCore } from '@rivus/estela-server/core'
 import * as z from 'zod/mini'
-import { channelInputs, type ChannelErrorCode } from '../contract/channel.ts'
-import type { HostPeer, RpcHandler, RpcHandlerResult } from './rpc.ts'
-import { FIXED_FAILURE_MESSAGE, type SessionRegistry } from './sessions.ts'
+import { channelInputs, type ChannelErrorCode, type ChannelResult } from '../contract/channel.ts'
+import type { HostPeer, RpcFailureResult, RpcHandler, RpcHandlerResult } from './rpc.ts'
+import { FIXED_FAILURE_MESSAGE, type ReadySession, type SessionRegistry } from './sessions.ts'
 
-export interface ChannelHostDeps {
+interface ChannelHostDeps {
   readonly core: EstelaCore
   readonly sessions: SessionRegistry
 }
@@ -17,11 +17,11 @@ export interface ChannelHost {
   readonly activeHoldCount: () => number
 }
 
-function refusal(code: ChannelErrorCode, message: string): RpcHandlerResult {
+function refusal(code: ChannelErrorCode, message: string): RpcFailureResult {
   return { ok: false, error: { code, message, details: {} } }
 }
 
-function closedRefusal(): RpcHandlerResult {
+function closedRefusal(): RpcFailureResult {
   return refusal('estela/closed', 'the plugin is closed')
 }
 
@@ -49,7 +49,7 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
     return disposed
   }
 
-  function storeFailure(error: unknown, signal?: AbortSignal): RpcHandlerResult {
+  function storeFailure(error: unknown, signal?: AbortSignal): RpcFailureResult {
     if (isDisposed()) {
       return closedRefusal()
     }
@@ -62,7 +62,10 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
     return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
   }
 
-  async function handleOpen(sessionId: string, signal: AbortSignal): Promise<RpcHandlerResult> {
+  async function handleOpen(
+    sessionId: string,
+    signal: AbortSignal,
+  ): Promise<RpcHandlerResult<ChannelResult<'session/open'>>> {
     const callSignal = AbortSignal.any([signal, disposeController.signal])
     const opened = await deps.sessions.open(sessionId, callSignal)
     if (isDisposed()) {
@@ -71,7 +74,10 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
     return opened.ok ? { ok: true, value: { traceId: opened.traceId } } : opened.result
   }
 
-  async function withReadySession(traceId: string, run: () => Promise<RpcHandlerResult>): Promise<RpcHandlerResult> {
+  async function withReadySession<T>(
+    traceId: string,
+    run: (ready: ReadySession) => Promise<RpcHandlerResult<T>>,
+  ): Promise<RpcHandlerResult<T>> {
     const ready = await deps.sessions.checkReady(traceId)
     if (!ready.ok) {
       return isDisposed() ? closedRefusal() : ready.result
@@ -81,14 +87,29 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
     }
     const unpin = deps.sessions.pin(traceId, ready.session)
     try {
-      return await run()
+      return await run({ session: ready.session, cached: ready.cached })
     } finally {
       unpin()
     }
   }
 
-  async function handleTraceView(traceId: string, signal: AbortSignal): Promise<RpcHandlerResult> {
-    return withReadySession(traceId, async () => {
+  async function staleAfterRead(
+    traceId: string,
+    ready: ReadySession,
+    missingIsStale: boolean,
+  ): Promise<RpcFailureResult | undefined> {
+    const stale = await deps.sessions.checkStillCurrent(traceId, ready.session, { missingIsStale })
+    if (!stale) {
+      return undefined
+    }
+    return isDisposed() ? closedRefusal() : stale
+  }
+
+  async function handleTraceView(
+    traceId: string,
+    signal: AbortSignal,
+  ): Promise<RpcHandlerResult<ChannelResult<'trace/view'>>> {
+    return withReadySession(traceId, async ready => {
       if (isAborted(signal)) {
         return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
       }
@@ -101,7 +122,12 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
 
       try {
         const handle: LoadHandle = await deps.core.store.open(traceId)
+        let released = false
         const release = (): void => {
+          if (released) {
+            return
+          }
+          released = true
           activeHolds.delete(release)
           handle.release()
         }
@@ -121,12 +147,25 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
         if (isDisposed()) {
           return closedRefusal()
         }
+        if (isAborted(signal)) {
+          return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+        }
         const view = await deps.core.store.view(traceId)
         if (isDisposed()) {
           return closedRefusal()
         }
-        return { ok: true, value: view }
+        if (isAborted(signal)) {
+          return refusal('estela/failed', FIXED_FAILURE_MESSAGE)
+        }
+        const stale = ready.cached ? undefined : await staleAfterRead(traceId, ready, true)
+        return stale ?? { ok: true, value: view }
       } catch (error) {
+        if (!isDisposed() && !isAborted(signal) && !ready.cached) {
+          const stale = await staleAfterRead(traceId, ready, false)
+          if (stale) {
+            return stale
+          }
+        }
         return storeFailure(error, signal)
       } finally {
         signal.removeEventListener('abort', onAbort)
@@ -135,15 +174,30 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
     })
   }
 
-  async function handleTraceEvent(traceId: string, id: string): Promise<RpcHandlerResult> {
-    return withReadySession(traceId, async () => {
+  async function handleTraceEvent(
+    traceId: string,
+    id: string,
+  ): Promise<RpcHandlerResult<ChannelResult<'trace/event'>>> {
+    return withReadySession(traceId, async ready => {
       try {
         const event = await deps.core.store.event(traceId, id)
         if (isDisposed()) {
           return closedRefusal()
         }
+        if (!ready.cached || event.originalUnavailable !== undefined) {
+          const stale = await staleAfterRead(traceId, ready, !ready.cached)
+          if (stale) {
+            return stale
+          }
+        }
         return { ok: true, value: event }
       } catch (error) {
+        if (!isDisposed() && !ready.cached) {
+          const stale = await staleAfterRead(traceId, ready, false)
+          if (stale) {
+            return stale
+          }
+        }
         return storeFailure(error)
       }
     })
@@ -223,7 +277,7 @@ export function createChannelHost(deps: ChannelHostDeps): ChannelHost {
       return
     }
     disposed = true
-    deps.sessions.clear()
+    deps.sessions.close()
     for (const release of activeHolds) {
       release()
     }

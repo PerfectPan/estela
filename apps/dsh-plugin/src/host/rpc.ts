@@ -1,5 +1,5 @@
 import * as z from 'zod/mini'
-import type { ChannelErrorCode } from '../contract/channel.ts'
+import type { ChannelEndpoint, ChannelErrorCode, ChannelResult } from '../contract/channel.ts'
 
 interface RpcFailure {
   readonly code: ChannelErrorCode
@@ -7,9 +7,14 @@ interface RpcFailure {
   readonly details: Record<string, never>
 }
 
-export type RpcHandlerResult<T = unknown> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: RpcFailure }
+export interface RpcFailureResult {
+  readonly ok: false
+  readonly error: RpcFailure
+}
+
+type ChannelResultValue = ChannelResult<ChannelEndpoint>
+
+export type RpcHandlerResult<T = ChannelResultValue> = { readonly ok: true; readonly value: T } | RpcFailureResult
 
 export interface HostPeer {
   readonly principal?: { readonly kind?: unknown } | undefined

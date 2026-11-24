@@ -7,7 +7,8 @@ import { createEstelaCore, type EstelaCore } from '@rivus/estela-server/core'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { createChannelHost } from './channel.ts'
-import { apply, mountHost } from './index.ts'
+import { apply } from './index.ts'
+import { mountHost } from './mount.ts'
 import type { EffectDisposer, HostContext, HostPeer, HostSessionPersistence, RpcHandler } from './rpc.ts'
 import { createSessionRegistry } from './sessions.ts'
 
@@ -155,6 +156,7 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     let releaseCount = 0
     let holders = 0
     let loadAborted = false
+    const handleReleaseCalls: number[] = []
     let loadDoneResolve!: () => void
     let loadDoneReject!: (error: Error) => void
     const loadDone = new Promise<void>((resolve, reject) => {
@@ -163,8 +165,11 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     })
     loadDone.catch(() => {})
 
+    const viewSpy = vi.spyOn(core.store, 'view')
     const openSpy = vi.spyOn(core.store, 'open').mockImplementation(async traceId => {
       holders += 1
+      const slot = handleReleaseCalls.length
+      handleReleaseCalls.push(0)
       let released = false
       const handle: LoadHandle = {
         cached: false,
@@ -172,6 +177,7 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
         onProgress: () => () => {},
         done: loadDone,
         release: () => {
+          handleReleaseCalls[slot] = (handleReleaseCalls[slot] ?? 0) + 1
           if (released) {
             return
           }
@@ -216,10 +222,12 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     expect(channel.activeHoldCount()).toBe(1)
 
     loadDoneResolve()
-    const res2 = await call2
+    const [res1, res2] = await Promise.all([call1, call2])
+    expect(res1.ok).toBe(false)
     expect(res2.ok).toBe(true)
+    expect(viewSpy).toHaveBeenCalledTimes(1)
+    expect(handleReleaseCalls).toEqual([1, 1])
     expect(channel.activeHoldCount()).toBe(0)
-    await call1
 
     // Single holder abort immediately releases its hold and aborts the load.
     releaseCount = 0

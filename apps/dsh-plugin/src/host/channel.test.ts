@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { CHANNEL } from '../contract/channel.ts'
 import { createChannelHost } from './channel.ts'
-import { inject, mountHost, name } from './index.ts'
+import { inject, name } from './index.ts'
+import { mountHost } from './mount.ts'
 import type {
   EffectDisposer,
   HostContext,
@@ -218,12 +219,6 @@ describe('dsh host plugin and /estela channel', () => {
         error: { code: 'estela/forbidden', message: 'only the owner may read sessions', details: {} },
       })
     }
-    expect(persistenceStat).not.toHaveBeenCalled()
-    expect(fsStat).not.toHaveBeenCalled()
-    expect(fsRead).not.toHaveBeenCalled()
-    expect(openSpy).not.toHaveBeenCalled()
-    expect(viewSpy).not.toHaveBeenCalled()
-    expect(eventSpy).not.toHaveBeenCalled()
 
     const badCalls: Array<[string, unknown]> = [
       ['unknown/endpoint', {}],
@@ -254,6 +249,14 @@ describe('dsh host plugin and /estela channel', () => {
         expect(res.error.details).toEqual({})
       }
     }
+
+    // Forbidden, bad-request, and unknown-trace must never touch persistence, the filesystem, or the store.
+    expect(persistenceStat).not.toHaveBeenCalled()
+    expect(fsStat).not.toHaveBeenCalled()
+    expect(fsRead).not.toHaveBeenCalled()
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(viewSpy).not.toHaveBeenCalled()
+    expect(eventSpy).not.toHaveBeenCalled()
   })
 
   it('catches unexpected handler exceptions and returns estela/failed with the fixed message', async () => {
