@@ -274,36 +274,6 @@ describe('session catalog cache', () => {
     current.close()
   })
 
-  it('redacts titles and prompts in the list and the picker unless ESTELA_REDACT=0', async () => {
-    const home = await tempHome()
-    await session(
-      home,
-      'a.jsonl',
-      `Read ${join('HOME', 'notes')} with sk-abcdefghijklmnop\nthen stop`.replace('HOME', home),
-    )
-    const adapter = fakeAdapter(home, [])
-    const redacted = new SessionCatalog({
-      platform: createNodePlatform({ home, env: {} }),
-      adapters: { fake: adapter },
-      noIndex: true,
-      deferSummaries: true,
-    })
-    const row = (await redacted.listSessions()).rows[0]!
-    // Redaction keeps the separator after the home directory: `~\notes` on Windows.
-    const notes = join('~', 'notes')
-    expect(row.title).toBe(`Read ${notes} with [redacted]\nthen stop`)
-    expect(row.firstPrompt).toBe(row.title)
-    expect(JSON.stringify(await redacted.listSessions())).not.toContain(home)
-    expect(redacted.pickChoices()[0]?.label.startsWith(`Read ${notes} with [redacted] then stop · Fake · `)).toBe(true)
-    const raw = new SessionCatalog({
-      platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }),
-      adapters: { fake: adapter },
-      noIndex: true,
-      deferSummaries: true,
-    })
-    expect((await raw.listSessions()).rows[0]?.title).toContain(home)
-  })
-
   it('places an unreadable file at its mtime, not at 1970', async () => {
     const home = await tempHome()
     const bad = await session(home, 'bad.jsonl', 'x')

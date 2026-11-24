@@ -1,11 +1,10 @@
 import type { Trace } from '@rivus/estela-schema'
 import type { ResolvedSession } from '@rivus/estela-rpc'
 import { isCanonicalTraceFile } from '@rivus/estela-kernel'
-import { redact } from '@rivus/agent-kit/redact'
 import { readOriginal, type ReadOriginalError, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { CURRENT_TRACE_ID, TraceStore } from '@rivus/estela-rpc'
-import { homeDir } from '@rivus/estela-runtime-node'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
+import { serverRedaction } from '../sessions/redaction.ts'
 import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 
 export interface TraceStoreOptions {
@@ -44,8 +43,8 @@ function originalFailure(error: ReadOriginalError): string {
 
 /** Store for `get-trace-view`, `get-event`, and `reconstruct` over Node file I/O. */
 export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
-  const home = homeDir()
   const platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
+  const redact = serverRedaction(platform.home)
   // The store's stat and source-pointer reads (`stampFiles`, `checkedOriginal`, `totalBytes`)
   // and the canonical fast path (`canonicalOf`, `loadSession`) all read through the platform.
   const fs = platform.fs
@@ -74,8 +73,8 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
       }
       return read.value
     },
-    present: options.redacts ? value => redact(value, { home }) : undefined,
-    log: log ? message => log(options.redacts ? redact(message, { home }) : message) : undefined,
+    present: options.redacts ? redact.value : undefined,
+    log: log ? message => log(options.redacts ? redact.text(message) : message) : undefined,
   })
   return {
     store,

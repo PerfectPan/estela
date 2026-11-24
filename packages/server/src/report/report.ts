@@ -9,27 +9,28 @@ import type {
 import { lstat, mkdir, readdir, readFile, realpath } from 'node:fs/promises'
 import { join, parse, resolve } from 'node:path'
 import process from 'node:process'
-import { redact, redactText } from '@rivus/agent-kit/redact'
 import { bindReportSource, buildReport } from '@rivus/estela-rpc'
 import { homeDir } from '@rivus/estela-runtime-node'
 import type { DevframeDefinition } from 'devframe'
 import { createBuild } from 'devframe/adapters/build'
 import * as z from 'zod/mini'
+import { homeRedaction, type HomeRedaction } from '../sessions/redaction.ts'
 import { packForFile } from './report-site.ts'
 
 /**
  * The report payload for `traceId`: the view from the store and the first events in full from `full`
  * (`build` passes the trace it loaded, so the file is read once; the export reads through the
- * store). Always redacted, whatever `ESTELA_REDACT` says.
+ * store). Always redacted, whatever the server's `redacts` says: with `redact`, or with the process
+ * home alone when the caller names none, as the CLI's `build` does.
  */
 export async function reportOf(
   store: TraceStore,
   traceId: string,
   full: (ids: readonly string[]) => Promise<EventDetail[]>,
   locale?: ReportLocale,
+  redact: HomeRedaction = homeRedaction(homeDir()),
 ): Promise<ReportTrace> {
-  const home = homeDir()
-  return buildReport({ view: await store.view(traceId), full, redact: value => redact(value, { home }), locale })
+  return buildReport({ view: await store.view(traceId), full, redact: redact.value, locale })
 }
 
 let queue: Promise<unknown> = Promise.resolve()
@@ -44,6 +45,11 @@ function serialized<T>(run: () => Promise<T>): Promise<T> {
 const REPORT_MARKER = '<script type="application/json" id="report-trace">'
 const MAX_EXISTING_REPORT_BYTES = 128 * 1024 * 1024
 const notFound = z.object({ code: z.literal('ENOENT') })
+
+export interface ExportReportOptions {
+  /** For the report and for what this function returns and throws; the process home alone when omitted. */
+  redact?: HomeRedaction
+}
 
 /** Raised when `build --out-dir` targets a location or existing directory that must not be wiped. */
 export class ReportOutDirError extends Error {
@@ -168,18 +174,22 @@ async function reserveDir(base: string): Promise<string> {
 }
 
 /**
- * The dev server's "Export report": a new `estela-report-<traceId>-<time>` directory in the
- * working directory. The error message reaches the browser, so it is redacted too.
+ * The dev server's "Export report": a new `estela-report-<traceId>-<time>` directory in the working
+ * directory. The report, the returned path, and the error message that reaches
+ * the browser are always redacted, whatever the server's `redacts` says.
  */
 export async function exportReport(
   definition: DevframeDefinition,
   store: TraceStore,
   input: ExportReportInput,
+  options: ExportReportOptions = {},
   now = new Date(),
 ): Promise<ExportReportResult> {
-  const home = homeDir()
+  const redact = options.redact ?? homeRedaction(homeDir())
   try {
-    const report = await store.withEvents(input.traceId, read => reportOf(store, input.traceId, read, input.locale))
+    const report = await store.withEvents(input.traceId, read =>
+      reportOf(store, input.traceId, read, input.locale, redact),
+    )
     const outDir = await serialized(async () => {
       const dir = await reserveDir(
         resolve(process.cwd(), `estela-report-${input.traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`),
@@ -189,12 +199,12 @@ export async function exportReport(
     })
     // Absolute, so the browser can say exactly where; the home directory shows as `~`.
     return {
-      path: redactText(join(outDir, 'index.html'), { home }),
+      path: redact.text(join(outDir, 'index.html')),
       included: report.events.length,
       total: report.total,
     }
   } catch (error) {
     // No cause: it would carry the unredacted home path to the browser.
-    throw new Error(redactText(error instanceof Error ? error.message : String(error), { home }))
+    throw new Error(redact.text(error instanceof Error ? error.message : String(error)))
   }
 }

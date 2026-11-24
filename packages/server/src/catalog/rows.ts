@@ -4,8 +4,8 @@ import type { SessionError, SessionListRow } from '@rivus/estela-rpc'
 import type { SessionAdapters, SessionHead, SessionRef } from '@rivus/agent-kit/sessions'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/estela-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
-import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
+import { serverRedaction, type Redactor } from '../sessions/redaction.ts'
 import { loadFailure } from '../sessions/read-failure.ts'
 import { projectName, traceIdOf, sessionTargetLabel } from '../sessions/session-target.ts'
 import { keepsSessionsInDatabase, sessionProviders } from '../sessions/adapters.ts'
@@ -32,9 +32,6 @@ export interface LiveRow {
   /** Catalog revision of the last change, for `list-sessions({ since })`. */
   revision: number
 }
-
-/** Session text shown in the browser and the terminal: redacted like the workspace unless `ESTELA_REDACT=0`. */
-export type Redactor = (text: string) => string
 
 /** The preview shows about nine lines; the whole prompt stays searchable in the index. */
 const LIST_PROMPT_CHARS = 400
@@ -120,7 +117,9 @@ export async function summarizeRow(
     requestUsage: true,
   })
   if (!result.ok) {
-    return { error: loadFailure(result.error, platform.home, sessionTargetLabel(target), target.path) }
+    return {
+      error: loadFailure(result.error, serverRedaction(platform.home).text, sessionTargetLabel(target), target.path),
+    }
   }
   return {
     summary: { ...summaryOf(result.value), cost: listCost(result.value.requestUsage) },
@@ -144,12 +143,12 @@ export function activityLabel(ts: number): string {
 type Head = Pick<SessionHead, 'title' | 'cwd' | 'startedAt' | 'firstPrompt'>
 
 /** Fields shared by rows built from a `discover` head and from the index. */
-function headFields(head: Head, homeDir: string): Partial<LiveRow> {
+function headFields(head: Head, redact: Redactor): Partial<LiveRow> {
   const project = projectName(head.cwd)
   return {
     ...(head.title ? { title: head.title } : {}),
     ...(project ? { project } : {}),
-    ...(head.cwd ? { cwd: redactText(head.cwd, { home: homeDir }), rawCwd: head.cwd } : {}),
+    ...(head.cwd ? { cwd: redact(head.cwd), rawCwd: head.cwd } : {}),
     ...(head.startedAt !== undefined ? { startedAt: head.startedAt } : {}),
     ...(head.firstPrompt ? { firstPrompt: head.firstPrompt } : {}),
   }
@@ -160,13 +159,13 @@ export function rowFromHead(
   target: SessionRef,
   head: SessionHead,
   info: { size: number; mtimeMs: number },
-  homeDir: string,
+  redact: Redactor,
   sharedFile = false,
   /** The cache key, when the file's own stamp says nothing about this one session (a shared database). */
   key: { size: number; mtimeMs: number } = info,
 ): LiveRow {
   return {
-    ...headFields(head, homeDir),
+    ...headFields(head, redact),
     // A database session keeps its id even while it is the only row in that database.
     traceId: traceIdOf(
       sharedFile || keepsSessionsInDatabase(target.agent) ? target : { agent: target.agent, path: target.path },
@@ -184,9 +183,9 @@ export function rowFromHead(
 }
 
 /** A row stored by an earlier launch, shown until this launch's `discover` pass replaces it. */
-export function rowFromIndex(stored: IndexRow, homeDir: string): LiveRow {
+export function rowFromIndex(stored: IndexRow, redact: Redactor): LiveRow {
   return {
-    ...headFields(stored, homeDir),
+    ...headFields(stored, redact),
     traceId: stored.traceId,
     target: { agent: stored.agent, path: stored.path, ...(stored.sessionId ? { sessionId: stored.sessionId } : {}) },
     size: stored.size,

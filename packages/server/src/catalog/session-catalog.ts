@@ -1,7 +1,6 @@
 import type { IndexSummary, SessionIndex } from '@rivus/estela-runtime-node'
 import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
-import { redactText } from '@rivus/agent-kit/redact'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
 import { emitSessions } from '@rivus/estela-rpc'
@@ -17,9 +16,9 @@ import {
   summarizeRow,
   type LiveRow,
   type SummarizeResult,
-  type Redactor,
 } from './rows.ts'
 import type { ShellPlatform } from '../sessions/load-session.ts'
+import { serverRedaction, type HomeRedaction, type Redactor } from '../sessions/redaction.ts'
 import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 import { errorMessage, parseReadFailure } from '../sessions/read-failure.ts'
 import { oneLine, traceIdOf } from '../sessions/session-target.ts'
@@ -58,6 +57,11 @@ export interface CatalogOptions {
   noIndex?: boolean
   /** Queue summaries without running them until `resumeSummaries()`: the server starts first. */
   deferSummaries?: boolean
+  /**
+   * Redact session text in list rows and picker labels (titles, projects, prompts). `false` only where the
+   * server's `redacts` option is `false`; the default redacts.
+   */
+  redacts?: boolean
 }
 
 /**
@@ -70,6 +74,9 @@ export class SessionCatalog {
   private readonly adapterList: readonly SessionAdapter[]
   private readonly platform: ShellPlatform
   private readonly index: SessionIndex
+  /** Always on: working directories, read errors, and the roots that were checked. */
+  private readonly redaction: HomeRedaction
+  /** Session text (titles, projects, prompts): on unless the server was created with `redacts: false`. */
   private readonly redact: Redactor
   private readonly agentStates: AgentState[]
   private rows = new Map<string, LiveRow>()
@@ -90,9 +97,9 @@ export class SessionCatalog {
     this.adapters = options.adapters
     this.adapterList = Object.values(this.adapters ?? builtinAdapters).filter(adapter => adapter !== undefined)
     this.platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
-    const home = this.platform.home
-    // Titles and prompts are session text: redacted like the workspace unless ESTELA_REDACT=0.
-    this.redact = this.platform.env.ESTELA_REDACT === '0' ? text => text : text => redactText(text, { home })
+    this.redaction = serverRedaction(this.platform.home)
+    // Titles and prompts are session text, redacted like the workspace: the server's `redacts` decides.
+    this.redact = options.redacts === false ? text => text : this.redaction.text
     this.index =
       options.index
       ?? openSessionIndex({
@@ -132,8 +139,8 @@ export class SessionCatalog {
 
   /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
   get indexUnavailable(): string | undefined {
-    // The reason names the cache path: always `~`, whatever ESTELA_REDACT says.
-    return this.index.unavailable ? redactText(this.index.unavailable, { home: this.platform.home }) : undefined
+    // The reason names the cache path: always `~`, whatever the server's `redacts` says.
+    return this.index.unavailable ? this.redaction.text(this.index.unavailable) : undefined
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */
@@ -195,8 +202,8 @@ export class SessionCatalog {
   }
 
   /**
-   * `redact` replaces the catalog's own rule (`ESTELA_REDACT`) for this call's titles, projects, and prompts; the MCP
-   * tools pass one that always redacts, because a prompt is shortened after redaction.
+   * `redact` replaces the catalog's own rule (the server's `redacts`) for this call's titles, projects, and prompts;
+   * the MCP tools pass one that always redacts, because a prompt is shortened after redaction.
    */
   async listSessions(input: ListSessionsQuery = {}, redact: Redactor = this.redact): Promise<ListSessionsResult> {
     await this.start()
@@ -245,7 +252,7 @@ export class SessionCatalog {
       return
     }
     for (const entry of stored) {
-      const row = rowFromIndex(entry, this.platform.home)
+      const row = rowFromIndex(entry, this.redaction.text)
       row.revision = this.bump()
       this.rows.set(row.traceId, row)
       this.targets.set(row.traceId, row.target)
@@ -258,7 +265,7 @@ export class SessionCatalog {
 
   private async discover(onProgress?: (agents: readonly AgentProgress[]) => void): Promise<void> {
     const fresh = await discoverRows(this.agentStates, this.platform, () =>
-      onProgress?.(progressOf(this.agentStates, this.platform.home)),
+      onProgress?.(progressOf(this.agentStates, this.redaction.text)),
     )
     // Closed while the pass ran: its rows are neither indexed nor queued for a summary.
     if (this.closed) {
@@ -312,7 +319,7 @@ export class SessionCatalog {
       }
       result = await summarizeRow(this.platform, this.adapters, row.target)
     } catch (error) {
-      result = { error: parseReadFailure(errorMessage(error), this.platform.home, row.target.path) }
+      result = { error: parseReadFailure(errorMessage(error), this.redaction.text, row.target.path) }
     }
     // Closed while the summary ran: the result is dropped, so it reaches neither the index nor a browser.
     if (this.closed) {
@@ -396,7 +403,7 @@ export class SessionCatalog {
             : state.adapter.roots(
                 sessionAdapterHome(state.adapter, { env: this.platform.env, home: this.platform.home }),
               )
-      const checked = roots.map(path => redactText(path, { home: this.platform.home })).join(', ')
+      const checked = roots.map(this.redaction.text).join(', ')
       return {
         id: state.adapter.agent,
         displayName: adapterDisplayName(state.adapter),
