@@ -13,6 +13,7 @@ export type EmbedSourceMode = 'ready' | 'slow' | 'throw' | 'fail-once' | 'event-
 interface EmbedPageControl {
   openCalls: () => number
   eventCalls: () => number
+  eventTraceIds: () => string[]
   resolveOpen: () => void
   isSameElement: () => boolean
   isSameSource: () => boolean
@@ -147,14 +148,20 @@ const HOST_HTML = `<!DOCTYPE html>
 
       let openCalls = 0
       let eventCalls = 0
+      let currentTraceId = ''
+      const eventTraceIds = []
       let pendingResolve = null
 
-      const viewFor = call => ({
-        traceId: 'embed-trace-' + call,
-        trace: report.trace,
-        summary: report.summary,
-        bytes: 1024,
-      })
+      const viewFor = call => {
+        const traceId = 'embed-trace-' + call
+        currentTraceId = traceId
+        return {
+          traceId,
+          trace: report.trace,
+          summary: report.summary,
+          bytes: 1024,
+        }
+      }
 
       const source = {
         open() {
@@ -173,8 +180,12 @@ const HOST_HTML = `<!DOCTYPE html>
           }
           return Promise.resolve(viewFor(call))
         },
-        async event(_traceId, id) {
+        async event(traceId, id) {
           eventCalls += 1
+          eventTraceIds.push(traceId)
+          if (traceId !== currentTraceId) {
+            throw new Error('unexpected traceId ' + traceId + ' (expected ' + currentTraceId + ')')
+          }
           if (mode === 'event-fail' && openCalls === 1) {
             throw new Error('transport closed')
           }
@@ -193,6 +204,7 @@ const HOST_HTML = `<!DOCTYPE html>
       window.__embed = {
         openCalls: () => openCalls,
         eventCalls: () => eventCalls,
+        eventTraceIds: () => [...eventTraceIds],
         resolveOpen: () => {
           if (pendingResolve) {
             const run = pendingResolve

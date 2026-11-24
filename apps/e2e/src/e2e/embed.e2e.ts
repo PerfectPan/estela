@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { EmbedSourceMode } from './embed-harness.ts'
 import { loadFixtureReportJson, startEmbedHost } from './embed-harness.ts'
-import { ctx, expect, test } from './harness.ts'
+import { activePanel, ctx, expect, test } from './harness.ts'
 import {
   assertCdS1AcrossCompaction,
   assertS7AfterCompaction,
@@ -11,6 +11,11 @@ import {
 
 const sessions = ctx.homes.main
 
+interface OpenedEmbed {
+  url: string
+  navigations: () => number
+}
+
 async function withEmbedHost<T>(
   sessionPath: string,
   slug: string,
@@ -18,13 +23,20 @@ async function withEmbedHost<T>(
     open: (
       page: Page,
       options?: { mode?: EmbedSourceMode; theme?: 'dark' | 'light'; lang?: string },
-    ) => Promise<string>,
+    ) => Promise<OpenedEmbed>,
   ) => Promise<T>,
 ): Promise<T> {
   const reportJson = await loadFixtureReportJson(sessionPath, slug)
   const host = await startEmbedHost(reportJson)
   try {
     return await run(async (page, options = {}) => {
+      let navCount = 0
+      const onNav = (frame: ReturnType<Page['mainFrame']>) => {
+        if (frame === page.mainFrame()) {
+          navCount += 1
+        }
+      }
+      page.on('framenavigated', onNav)
       const params = new URLSearchParams({
         mode: options.mode ?? 'ready',
         theme: options.theme ?? 'dark',
@@ -32,7 +44,7 @@ async function withEmbedHost<T>(
       })
       const targetUrl = host.url(`/host/session?${params.toString()}#host-anchor`)
       await page.goto(targetUrl)
-      return targetUrl
+      return { url: targetUrl, navigations: () => navCount }
     })
   } finally {
     await host.close()
@@ -42,7 +54,7 @@ async function withEmbedHost<T>(
 test('DSH-2 / S7: Model saw after a compaction works inside <estela-workspace>', async ({ page }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
     await open(page)
-    await expect(page.getByTestId('ledger')).toBeVisible()
+    await expect(page.locator('#ws').getByTestId('ledger')).toBeVisible()
     await assertS7AfterCompaction(page)
   })
 })
@@ -50,7 +62,7 @@ test('DSH-2 / S7: Model saw after a compaction works inside <estela-workspace>',
 test('DSH-2 / S7: Model saw with prompt snapshots works inside <estela-workspace>', async ({ page }) => {
   await withEmbedHost(sessions.claudeSnapshot, 'snapshot', async open => {
     await open(page)
-    await expect(page.getByTestId('ledger')).toBeVisible()
+    await expect(page.locator('#ws').getByTestId('ledger')).toBeVisible()
     await assertS7WithSnapshot(page)
   })
 })
@@ -58,7 +70,7 @@ test('DSH-2 / S7: Model saw with prompt snapshots works inside <estela-workspace
 test('DSH-2 / CD-S1: Compare across a compaction works inside <estela-workspace>', async ({ page }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
     await open(page)
-    await expect(page.getByTestId('ledger')).toBeVisible()
+    await expect(page.locator('#ws').getByTestId('ledger')).toBeVisible()
     await assertCdS1AcrossCompaction(page)
   })
 })
@@ -68,7 +80,8 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
 }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
     await open(page, { theme: 'dark', lang: 'en' })
-    await expect(page.getByTestId('ledger')).toBeVisible()
+    const ws = page.locator('#ws')
+    await expect(ws.getByTestId('ledger')).toBeVisible()
     await selectRequest(page, '600 in')
 
     const dark = await page.evaluate(() => {
@@ -103,7 +116,7 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
       window.__embed!.setTheme('light')
       window.__embed!.setLang('zh-CN')
     })
-    await expect(page.getByRole('tab', { name: '模型所见' })).toBeVisible()
+    await expect(ws.getByRole('tab', { name: '模型所见' })).toBeVisible()
 
     const lightZh = await page.evaluate(() => {
       const el = document.getElementById('ws')!
@@ -125,36 +138,40 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
   })
 })
 
-test('A7, A8, B8: Jump to, inspector arrow keys, failed load, and Try again never change the host URL', async ({
+test('A7, A8, B8: Jump to, inspector arrow keys, failed load, and Try again never reload or change the host URL', async ({
   page,
 }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
-    const initialUrl = await open(page, { mode: 'fail-once' })
-    await expect(page.getByTestId('load-error')).toBeVisible()
-    await expect(page.locator('estela-workspace a[href^="#"]')).toHaveCount(0)
-    expect(page.url()).toBe(initialUrl)
+    const opened = await open(page, { mode: 'fail-once' })
+    const ws = page.locator('#ws')
+    await expect(ws.getByTestId('load-error')).toBeVisible()
+    await expect(ws.locator('a[href^="#"]')).toHaveCount(0)
+    expect(page.url()).toBe(opened.url)
+    expect(opened.navigations()).toBe(1)
 
-    await page.getByRole('button', { name: 'Try again' }).click()
-    await expect(page.getByTestId('ledger')).toBeVisible()
-    expect(page.url()).toBe(initialUrl)
+    await ws.getByRole('button', { name: 'Try again' }).click()
+    await expect(ws.getByTestId('ledger')).toBeVisible()
+    expect(page.url()).toBe(opened.url)
+    expect(opened.navigations()).toBe(1)
 
     // Embedded chrome omits #/ links, theme/language switches, and Export report.
-    await expect(page.locator('estela-workspace a[href^="#"]')).toHaveCount(0)
-    await expect(page.getByTestId('theme-switch')).toHaveCount(0)
-    await expect(page.getByTestId('language-switch')).toHaveCount(0)
-    await expect(page.getByTestId('export-report')).toHaveCount(0)
+    await expect(ws.locator('a[href^="#"]')).toHaveCount(0)
+    await expect(ws.getByTestId('theme-switch')).toHaveCount(0)
+    await expect(ws.getByTestId('language-switch')).toHaveCount(0)
+    await expect(ws.getByTestId('export-report')).toHaveCount(0)
 
     // Jump to focuses the ledger inside the shadow root without touching location.href.
-    await page.getByRole('button', { name: /Jump to/ }).click()
+    await ws.getByRole('button', { name: /Jump to/ }).click()
     const focusedLedger = await page.evaluate(() =>
       document.getElementById('ws')?.shadowRoot?.activeElement?.getAttribute('data-testid'),
     )
     expect(focusedLedger).toBe('ledger')
-    expect(page.url()).toBe(initialUrl)
+    expect(page.url()).toBe(opened.url)
+    expect(opened.navigations()).toBe(1)
 
     // Arrow keys move focus across inspector tabs inside the shadow root without touching location.href.
     await selectRequest(page, '600 in')
-    const inputTab = page.getByRole('tab', { name: 'Input' })
+    const inputTab = ws.getByRole('tab', { name: 'Input' })
     await inputTab.focus()
     await page.keyboard.press('ArrowRight')
     const focusedTab = await page.evaluate(() => document.getElementById('ws')?.shadowRoot?.activeElement?.id)
@@ -163,8 +180,9 @@ test('A7, A8, B8: Jump to, inspector arrow keys, failed load, and Try again neve
     const lastTab = await page.evaluate(() => document.getElementById('ws')?.shadowRoot?.activeElement?.id)
     expect(lastTab).toBe('inspector-tab-raw')
 
-    expect(page.url()).toBe(initialUrl)
-    expect(await page.evaluate(() => location.href)).toBe(initialUrl)
+    expect(page.url()).toBe(opened.url)
+    expect(await page.evaluate(() => location.href)).toBe(opened.url)
+    expect(opened.navigations()).toBe(1)
   })
 })
 
@@ -172,35 +190,54 @@ test('DSH-6: a throwing source stays contained inside the element and leaves the
   page,
 }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
-    const initialUrl = await open(page, { mode: 'throw' })
-    await expect(page.getByTestId('load-error')).toBeVisible()
-    await expect(page.getByTestId('load-error')).toContainText('Could not open this session')
-    await expect(page.getByTestId('load-error')).toContainText('channel exploded')
+    const opened = await open(page, { mode: 'throw' })
+    const ws = page.locator('#ws')
+    const errorPanel = ws.getByTestId('load-error')
+    await expect(errorPanel).toBeVisible()
+    await expect(errorPanel).toContainText('Could not open this session')
+    await expect(errorPanel).toContainText('channel exploded')
+    await expect(ws.getByRole('button', { name: 'Try again' })).toBeVisible()
     await expect(page.getByTestId('host-chrome')).toBeVisible()
     await expect(page.getByTestId('host-chrome')).toHaveText('Host page chrome')
-    expect(page.url()).toBe(initialUrl)
+    expect(page.url()).toBe(opened.url)
+    expect(opened.navigations()).toBe(1)
   })
 })
 
-async function expectRetryRecovers(page: Page, initialUrl: string, expectedOpens: number) {
-  await page.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByTestId('ledger')).toBeVisible()
+async function expectRetryRecoversAndReadsRaw(page: Page, opened: OpenedEmbed, expectedOpens: number) {
+  const ws = page.locator('#ws')
+  await ws.getByRole('button', { name: 'Try again' }).click()
+  await expect(ws.getByTestId('ledger')).toBeVisible()
   await expect(page.getByTestId('host-chrome')).toBeVisible()
+
+  // After recovery, reading an event must pass the new traceId from the reopened view.
+  await selectRequest(page, '600 in')
+  await ws.getByRole('tab', { name: 'Raw' }).click()
+  await expect(activePanel(page)).toContainText('"type"')
+
   const state = await page.evaluate(() => ({
     openCalls: window.__embed!.openCalls(),
+    lastEventTraceId: window.__embed!.eventTraceIds().at(-1),
     sameElement: window.__embed!.isSameElement(),
     sameSource: window.__embed!.isSameSource(),
   }))
-  expect(state).toEqual({ openCalls: expectedOpens, sameElement: true, sameSource: true })
-  expect(page.url()).toBe(initialUrl)
+  expect(state).toEqual({
+    openCalls: expectedOpens,
+    lastEventTraceId: `embed-trace-${expectedOpens}`,
+    sameElement: true,
+    sameSource: true,
+  })
+  expect(page.url()).toBe(opened.url)
+  expect(opened.navigations()).toBe(1)
 }
 
 test('DSH-6: Try again recovers after a rejected open without replacing the element or source', async ({ page }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
-    const initialUrl = await open(page, { mode: 'fail-once' })
-    await expect(page.getByTestId('load-error')).toContainText('temporary open failure')
+    const opened = await open(page, { mode: 'fail-once' })
+    const ws = page.locator('#ws')
+    await expect(ws.getByTestId('load-error')).toContainText('temporary open failure')
     await expect(page.getByTestId('host-chrome')).toBeVisible()
-    await expectRetryRecovers(page, initialUrl, 2)
+    await expectRetryRecoversAndReadsRaw(page, opened, 2)
   })
 })
 
@@ -208,31 +245,40 @@ test('DSH-6: a post-load event() failure offers Try again and reopens without re
   page,
 }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
-    const initialUrl = await open(page, { mode: 'event-fail' })
-    await expect(page.getByTestId('ledger')).toBeVisible()
+    const opened = await open(page, { mode: 'event-fail' })
+    const ws = page.locator('#ws')
+    await expect(ws.getByTestId('ledger')).toBeVisible()
 
     await selectRequest(page, '600 in')
-    await page.getByRole('tab', { name: 'Raw' }).click()
+    await ws.getByRole('tab', { name: 'Raw' }).click()
 
-    await expect(page.getByTestId('load-error')).toBeVisible()
-    await expect(page.getByTestId('load-error')).toContainText('transport closed')
-    await expect(page.locator('estela-workspace a[href^="#"]')).toHaveCount(0)
+    const errorPanel = ws.getByTestId('load-error')
+    await expect(errorPanel).toBeVisible()
+    await expect(errorPanel).toContainText('transport closed')
+    await expect(ws.locator('a[href^="#"]')).toHaveCount(0)
     await expect(page.getByTestId('host-chrome')).toBeVisible()
-    await expectRetryRecovers(page, initialUrl, 2)
+    await expectRetryRecoversAndReadsRaw(page, opened, 2)
   })
 })
 
-test('DSH-7: a slow source shows indeterminate loading and enters the workspace once resolved', async ({ page }) => {
+test('DSH-7: a slow source shows an indeterminate progressbar and enters the workspace once resolved', async ({
+  page,
+}) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
-    await open(page, { mode: 'slow' })
-    const loading = page.getByTestId('loading')
+    const opened = await open(page, { mode: 'slow' })
+    const ws = page.locator('#ws')
+    const loading = ws.getByTestId('loading')
+    const progressbar = ws.getByRole('progressbar', { name: 'Opening session' })
     await expect(loading).toBeVisible()
+    await expect(progressbar).toBeVisible()
+    await expect(progressbar).not.toHaveAttribute('aria-valuenow')
     await expect(loading).toContainText('Opening session')
     await expect(loading).toContainText('Loading…')
     await expect(page.getByTestId('host-chrome')).toBeVisible()
 
     await page.evaluate(() => window.__embed!.resolveOpen())
     await expect(loading).toBeHidden()
-    await expect(page.getByTestId('ledger')).toBeVisible()
+    await expect(ws.getByTestId('ledger')).toBeVisible()
+    expect(opened.navigations()).toBe(1)
   })
 })
