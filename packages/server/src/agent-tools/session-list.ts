@@ -15,7 +15,7 @@ import {
 
 /** What the session tools read from the session catalog. */
 export interface SessionSource {
-  /** `redact` is applied to titles, projects, and prompts before the catalog shortens them. */
+  /** `redact` is applied to titles, projects, and prompts before the catalog shortens them, always. */
   listSessions: (query: ListSessionsQuery, redact: (text: string) => string) => Promise<ListSessionsResult>
 }
 

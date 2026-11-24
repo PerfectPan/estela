@@ -70,4 +70,38 @@ describe('SummaryQueue', () => {
     await queue.whenIdle()
     expect(overlap).toEqual([])
   })
+
+  it('stop() drops the jobs that wait, starts nothing after it, and resolves whenIdle()', async () => {
+    const started: string[] = []
+    let release: () => void = () => {}
+    const running = new Promise<void>(resolve => {
+      release = resolve
+    })
+    const queue = new SummaryQueue<Job>({
+      concurrency: 1,
+      key: job => job.id,
+      rank: job => job.rank,
+      heavy: () => false,
+      async run(job) {
+        started.push(job.id)
+        await running
+      },
+    })
+    queue.add([
+      { id: 'a', rank: 1 },
+      { id: 'b', rank: 2 },
+      { id: 'c', rank: 3 },
+    ])
+    expect(started).toEqual(['c'])
+    const idle = queue.whenIdle().then(() => 'idle')
+    queue.stop()
+    queue.add([{ id: 'd', rank: 4 }])
+    queue.resume()
+    release()
+    // The running job ends; the three others never start.
+    expect(await Promise.race([idle, tick(200).then(() => 'pending')])).toBe('idle')
+    await tick()
+    expect(started).toEqual(['c'])
+    await queue.whenIdle()
+  })
 })

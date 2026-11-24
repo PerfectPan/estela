@@ -15,6 +15,7 @@ export class SummaryQueue<T> {
   private active = 0
   private heavyActive = false
   private paused: boolean
+  private stopped = false
   private readonly idleWaiters: (() => void)[] = []
   private readonly options: SummaryQueueOptions<T>
 
@@ -23,8 +24,11 @@ export class SummaryQueue<T> {
     this.paused = paused
   }
 
-  /** Start running jobs (a queue created paused only collects them). */
+  /** Start running jobs (a queue created paused only collects them). A stopped queue stays stopped. */
   resume(): void {
+    if (this.stopped) {
+      return
+    }
     this.paused = false
     this.pump()
   }
@@ -33,7 +37,11 @@ export class SummaryQueue<T> {
     return this.waiting.length + this.active
   }
 
+  /** A stopped queue drops what it is given: nothing runs after `stop()`. */
   add(jobs: readonly T[]): void {
+    if (this.stopped) {
+      return
+    }
     const sorted = [...this.waiting, ...jobs].toSorted((a, b) => this.options.rank(b) - this.options.rank(a))
     this.waiting.splice(0, this.waiting.length, ...sorted)
     this.pump()
@@ -58,13 +66,28 @@ export class SummaryQueue<T> {
 
   whenIdle(): Promise<void> {
     this.resume()
-    if (this.size === 0) {
+    if (this.stopped || this.size === 0) {
       return Promise.resolve()
     }
     return new Promise(resolve => this.idleWaiters.push(resolve))
   }
 
+  /**
+   * Ends the queue: the jobs that wait are dropped and every `whenIdle()` resolves at once. A job that is
+   * already running is left to end on its own; its caller decides what becomes of its result.
+   */
+  stop(): void {
+    this.stopped = true
+    this.waiting.length = 0
+    for (const resolve of this.idleWaiters.splice(0)) {
+      resolve()
+    }
+  }
+
   private pump(): void {
+    if (this.stopped) {
+      return
+    }
     while (!this.paused && this.waiting.length > 0 && this.active < this.options.concurrency && !this.heavyActive) {
       const next = this.waiting[0]!
       const heavy = this.options.heavy(next)

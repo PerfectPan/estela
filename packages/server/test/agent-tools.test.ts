@@ -105,8 +105,9 @@ describe('agent tools through the definition setup', () => {
         description: 'test',
         clientAssets: home,
       },
-      // ESTELA_REDACT=0 turns redaction off for the dev server's RPCs; the agent tools redact anyway.
-      platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }),
+      // `redacts: false` is what ESTELA_REDACT=0 makes the dev server pass: its RPCs and list rows are not
+      // redacted; the agent tools redact anyway.
+      platform: createNodePlatform({ home, env: {} }),
       catalog: { index: false },
       launch: undefined,
       redacts: false,

@@ -2,9 +2,9 @@ import type { TraceStore } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { AgentToolInput, DevframeAgentHost } from 'devframe'
 import type * as z from 'zod/mini'
-import { redact, redactText } from '@rivus/agent-kit/redact'
 import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
 import { reconstruct } from '@rivus/estela-kernel'
+import type { HomeRedaction } from '../sessions/redaction.ts'
 import type { Redaction } from './bounds.ts'
 import { DEFAULT_MAX_CHARS, eventResult, surfaceResult } from './event-read.ts'
 import {
@@ -33,8 +33,8 @@ export interface AgentToolDeps {
   store: TraceStore
   /** The session catalog; without one (`estela mcp <path>`) the list and search tools are not registered. */
   catalog: SessionSource | undefined
-  /** The home directory redaction replaces. */
-  home: string
+  /** Applied to every result and error, whatever the server's `redacts` says. */
+  redact: HomeRedaction
 }
 
 /** What the tools need of DevFrame's agent host. */
@@ -59,11 +59,11 @@ function messageOf(error: unknown): string {
  * Registers Estela's agent tools (`docs/reference/mcp-tools.md`) on DevFrame's agent host, which the MCP adapters (`estela mcp` over
  * stdio, the dev server's `--mcp` route) serve. Each tool carries a JSON Schema with named properties built from the
  * same `zod/mini` schema that parses its input. Every result and every error message is redacted here, whatever
- * `ESTELA_REDACT` says, after the services below have (or have not) redacted it.
+ * the server's `redacts` says, after the services below have (or have not) redacted it.
  */
 export function registerAgentTools(host: AgentToolHost, deps: AgentToolDeps): string[] {
-  const present = <T>(value: T): T => redact(value, { home: deps.home })
-  const scrub = (text: string): string => redactText(text, { home: deps.home })
+  const present = deps.redact.value
+  const scrub = deps.redact.text
   const redaction: Redaction = { value: present, text: scrub }
   const shown = new WeakMap<Trace, TraceIds>()
   const idsOf = (trace: Trace): TraceIds => {

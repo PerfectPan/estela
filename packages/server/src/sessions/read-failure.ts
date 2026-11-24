@@ -1,28 +1,28 @@
 import type { SessionError } from '@rivus/estela-rpc'
 import type { LoadTranscriptError } from '@rivus/agent-kit/transcript'
 import type { SessionListError } from '@rivus/agent-kit/sessions'
-import { redactText } from '@rivus/agent-kit/redact'
+import type { Redactor } from './redaction.ts'
 
 /**
  * Split `agent: <file>:<line>: <reason>` into its parts. `ReadFailed` messages are free-form IO
  * text, and this shape is where a line number in them comes from; any other message becomes the
  * reason. The home directory is shown as `~`.
  */
-export function parseReadFailure(message: string, homeDir: string, fallbackFile?: string): SessionError {
+export function parseReadFailure(message: string, redact: Redactor, fallbackFile?: string): SessionError {
   const match = message.match(/:(\d+): (.*)$/)
   if (!match || match.index == null) {
     return {
-      reason: redactText(message, { home: homeDir }),
-      ...(fallbackFile ? { file: redactText(fallbackFile, { home: homeDir }) } : {}),
+      reason: redact(message),
+      ...(fallbackFile ? { file: redact(fallbackFile) } : {}),
     }
   }
   const head = message.slice(0, match.index)
   const colon = head.indexOf(': ')
   const file = colon === -1 ? fallbackFile : head.slice(colon + 2)
   return {
-    reason: redactText(match[2] || message, { home: homeDir }),
+    reason: redact(match[2] || message),
     line: Number(match[1]),
-    ...(file ? { file: redactText(file, { home: homeDir }) } : {}),
+    ...(file ? { file: redact(file) } : {}),
   }
 }
 
@@ -59,20 +59,20 @@ export function loadErrorMessage(error: LoadTranscriptError, targetLabel: string
  */
 export function loadFailure(
   error: LoadTranscriptError,
-  homeDir: string,
+  redact: Redactor,
   targetLabel: string,
   fallbackFile?: string,
 ): SessionError {
   if (error._tag === 'SessionNotFound') {
-    return { reason: 'session file does not exist', file: redactText(fallbackFile ?? targetLabel, { home: homeDir }) }
+    return { reason: 'session file does not exist', file: redact(fallbackFile ?? targetLabel) }
   }
-  return parseReadFailure(loadErrorMessage(error, targetLabel), homeDir, fallbackFile)
+  return parseReadFailure(loadErrorMessage(error, targetLabel), redact, fallbackFile)
 }
 
 /** A listing failure for one file. `RootMissing` never reaches a row: the root stat records it. */
-export function listError(error: SessionListError, homeDir: string): SessionError {
+export function listError(error: SessionListError, redact: Redactor): SessionError {
   if (error._tag === 'ReadFailed') {
-    return parseReadFailure(error.message, homeDir, error.path)
+    return parseReadFailure(error.message, redact, error.path)
   }
-  return { reason: 'session directory does not exist', file: redactText(error.path, { home: homeDir }) }
+  return { reason: 'session directory does not exist', file: redact(error.path) }
 }

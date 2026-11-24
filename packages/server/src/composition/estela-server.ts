@@ -7,6 +7,7 @@ import { SessionCatalog } from '../catalog/session-catalog.ts'
 import { registerAgentTools } from '../agent-tools/register.ts'
 import { exportReport } from '../report/report.ts'
 import { loadSession, type ShellPlatform } from '../sessions/load-session.ts'
+import { serverRedaction } from '../sessions/redaction.ts'
 import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 import { sessionTargetLabel } from '../sessions/session-target.ts'
 import { createTraceStore } from '../store/trace-store.ts'
@@ -24,8 +25,18 @@ export interface EstelaServerOptions {
   catalog: { index: boolean } | undefined
   /** The session that becomes `current` when the server sets up; `undefined` for none. */
   launch: SessionTarget | undefined
-  /** Redact what the trace RPCs return. `mcp` and `build` always pass `true`; the dev server `false` only with ESTELA_REDACT=0. */
+  /**
+   * Redact the session text the server returns: what the trace RPCs return, and the catalog's list rows and
+   * picker labels (titles, projects, prompts). `mcp` and `build` always pass `true`; the dev server passes
+   * `false` only with `ESTELA_REDACT=0`. Reports, MCP tool results, and what names a path redact whatever
+   * this says.
+   */
   redacts: boolean
+  /**
+   * Where "Export report" creates each report's new directory (`estela-report-<traceId>-<time>`): a host's own,
+   * since its working directory is not one its user chose. The working directory when omitted; it must exist.
+   */
+  reportDir?: string
   /** Where the TraceStore's warnings go, one line each, redacted like the store; omit to drop them. */
   log?: (line: string) => void
 }
@@ -51,7 +62,10 @@ export interface EstelaServer {
   openLaunch: () => Promise<OpenedSession | undefined>
   /** Loads the catalog session `traceId` and makes it `current`. Throws when it does not resolve or does not load. */
   open: (traceId: string) => Promise<OpenedSession>
-  /** Flushes and closes the session index. Call after the server stops. */
+  /**
+   * Stops the catalog and closes the session index: no summary starts after it, and one still running ends
+   * without a write or a push. Call after the server stops.
+   */
   close: () => void
 }
 
@@ -65,7 +79,12 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
   const platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
   // Summaries wait until setup: the server listens before they compete with it.
   const catalog = options.catalog
-    ? new SessionCatalog({ platform, noIndex: !options.catalog.index, deferSummaries: true })
+    ? new SessionCatalog({
+        platform,
+        noIndex: !options.catalog.index,
+        deferSummaries: true,
+        redacts: options.redacts,
+      })
     : undefined
   const traces = createTraceStore({
     platform,
@@ -73,6 +92,8 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
     resolve: catalog ? traceId => catalog.resolve(traceId) : undefined,
     log: options.log,
   })
+  // The redaction that is always on: reports, MCP tool results, and what names a path.
+  const redact = serverRedaction(platform.home)
 
   const make = async (session: ResolvedSession, trace: Trace): Promise<OpenedSession> => {
     await traces.seed(session, trace)
@@ -107,10 +128,10 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
     if (catalog) {
       await catalog.start()
       bindSessionService({ listSessions: query => catalog.listSessions(query) })
-      bindReportExporter(query => exportReport(definition, traces.store, query))
+      bindReportExporter(query => exportReport(definition, traces.store, query, { dir: options.reportDir, redact }))
       catalog.resumeSummaries()
     }
-    registerAgentTools(ctx.agent, { store: traces.store, catalog, home: platform.home })
+    registerAgentTools(ctx.agent, { store: traces.store, catalog, redact })
   })
 
   return {

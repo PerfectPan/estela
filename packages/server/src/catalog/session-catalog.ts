@@ -1,7 +1,6 @@
 import type { IndexSummary, SessionIndex } from '@rivus/estela-runtime-node'
 import type { AgentListEntry, ListSessionsQuery, ListSessionsResult, ResolvedSession } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
-import { redactText } from '@rivus/agent-kit/redact'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
 import { emitSessions } from '@rivus/estela-rpc'
@@ -16,9 +15,10 @@ import {
   sameRow,
   summarizeRow,
   type LiveRow,
-  type Redactor,
+  type SummarizeResult,
 } from './rows.ts'
 import type { ShellPlatform } from '../sessions/load-session.ts'
+import { serverRedaction, type HomeRedaction, type Redactor } from '../sessions/redaction.ts'
 import { createShellPlatform, hardenPlatform } from '../sessions/node-platform.ts'
 import { errorMessage, parseReadFailure } from '../sessions/read-failure.ts'
 import { oneLine, traceIdOf } from '../sessions/session-target.ts'
@@ -57,6 +57,11 @@ export interface CatalogOptions {
   noIndex?: boolean
   /** Queue summaries without running them until `resumeSummaries()`: the server starts first. */
   deferSummaries?: boolean
+  /**
+   * Redact session text in list rows and picker labels (titles, projects, prompts). `false` only where the
+   * server's `redacts` option is `false`; the default redacts.
+   */
+  redacts?: boolean
 }
 
 /**
@@ -69,6 +74,9 @@ export class SessionCatalog {
   private readonly adapterList: readonly SessionAdapter[]
   private readonly platform: ShellPlatform
   private readonly index: SessionIndex
+  /** Always on: working directories, read errors, and the roots that were checked. */
+  private readonly redaction: HomeRedaction
+  /** Session text (titles, projects, prompts): on unless the server was created with `redacts: false`. */
   private readonly redact: Redactor
   private readonly agentStates: AgentState[]
   private rows = new Map<string, LiveRow>()
@@ -83,14 +91,15 @@ export class SessionCatalog {
   private cachedStart = false
   private revision = 0
   private flushTimer: ReturnType<typeof setTimeout> | undefined
+  private closed = false
 
   constructor(options: CatalogOptions = {}) {
     this.adapters = options.adapters
     this.adapterList = Object.values(this.adapters ?? builtinAdapters).filter(adapter => adapter !== undefined)
     this.platform = options.platform ? hardenPlatform(options.platform) : createShellPlatform()
-    const home = this.platform.home
-    // Titles and prompts are session text: redacted like the workspace unless ESTELA_REDACT=0.
-    this.redact = this.platform.env.ESTELA_REDACT === '0' ? text => text : text => redactText(text, { home })
+    this.redaction = serverRedaction(this.platform.home)
+    // Titles and prompts are session text, redacted like the workspace: the server's `redacts` decides.
+    this.redact = options.redacts === false ? text => text : this.redaction.text
     this.index =
       options.index
       ?? openSessionIndex({
@@ -130,8 +139,8 @@ export class SessionCatalog {
 
   /** Why the index could not be opened; the catalog then runs as with `--no-index`. */
   get indexUnavailable(): string | undefined {
-    // The reason names the cache path: always `~`, whatever ESTELA_REDACT says.
-    return this.index.unavailable ? redactText(this.index.unavailable, { home: this.platform.home }) : undefined
+    // The reason names the cache path: always `~`, whatever the server's `redacts` says.
+    return this.index.unavailable ? this.redaction.text(this.index.unavailable) : undefined
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */
@@ -145,11 +154,17 @@ export class SessionCatalog {
     await this.discovery
   }
 
-  /** Resolves when discovery is done, no summary is queued or running, and the last batch is written. */
+  /**
+   * Resolves when discovery is done, no summary is queued or running, and the last batch is written. Closing
+   * the catalog ends the wait for summaries at once (one still running is dropped, with its batch); it does not
+   * end the wait for discovery, which goes on until its pass is done.
+   */
   async whenIdle(): Promise<void> {
     await this.discovered()
     await this.queue.whenIdle()
-    this.flush()
+    if (!this.closed) {
+      this.flush()
+    }
   }
 
   /**
@@ -188,8 +203,8 @@ export class SessionCatalog {
   }
 
   /**
-   * `redact` replaces the catalog's own rule (`ESTELA_REDACT`) for this call's titles, projects, and prompts; the MCP
-   * tools pass one that always redacts, because a prompt is shortened after redaction.
+   * `redact` replaces the catalog's own rule (the server's `redacts`) for this call's titles, projects, and prompts;
+   * the MCP tools pass one that always redacts, because a prompt is shortened after redaction.
    */
   async listSessions(input: ListSessionsQuery = {}, redact: Redactor = this.redact): Promise<ListSessionsResult> {
     await this.start()
@@ -215,7 +230,13 @@ export class SessionCatalog {
     }
   }
 
+  /**
+   * Writes the summaries finished so far once and closes the index. After it returns no summary starts, no
+   * flush timer is armed, and nothing is announced: a summary still running ends with its result dropped.
+   */
   close(): void {
+    this.closed = true
+    this.queue.stop()
     if (this.flushTimer) {
       clearTimeout(this.flushTimer)
     }
@@ -232,7 +253,7 @@ export class SessionCatalog {
       return
     }
     for (const entry of stored) {
-      const row = rowFromIndex(entry, this.platform.home)
+      const row = rowFromIndex(entry, this.redaction.text)
       row.revision = this.bump()
       this.rows.set(row.traceId, row)
       this.targets.set(row.traceId, row.target)
@@ -245,8 +266,12 @@ export class SessionCatalog {
 
   private async discover(onProgress?: (agents: readonly AgentProgress[]) => void): Promise<void> {
     const fresh = await discoverRows(this.agentStates, this.platform, () =>
-      onProgress?.(progressOf(this.agentStates, this.platform.home)),
+      onProgress?.(progressOf(this.agentStates, this.redaction.text)),
     )
+    // Closed while the pass ran: its rows are neither indexed nor queued for a summary.
+    if (this.closed) {
+      return
+    }
     const gone: string[] = []
     for (const traceId of this.rows.keys()) {
       if (!fresh.has(traceId)) {
@@ -288,21 +313,25 @@ export class SessionCatalog {
 
   private async summarize(row: LiveRow): Promise<void> {
     const adapter = this.adapterList.find(candidate => candidate.agent === row.target.agent)
+    let result: SummarizeResult
     try {
       if (!adapter) {
         throw new Error(`${row.target.agent}: agent is not registered`)
       }
-      const result = await summarizeRow(this.platform, this.adapters, row.target)
-      if ('error' in result) {
-        // Not cached: the head stays, the numbers stay undefined, and the reason is shown.
-        row.error = result.error
-      } else {
-        row.summary = result.summary
-        this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
-      }
+      result = await summarizeRow(this.platform, this.adapters, row.target)
     } catch (error) {
+      result = { error: parseReadFailure(errorMessage(error), this.redaction.text, row.target.path) }
+    }
+    // Closed while the summary ran: the result is dropped, so it reaches neither the index nor a browser.
+    if (this.closed) {
+      return
+    }
+    if ('error' in result) {
       // Not cached: the head stays, the numbers stay undefined, and the reason is shown.
-      row.error = parseReadFailure(errorMessage(error), this.platform.home, row.target.path)
+      row.error = result.error
+    } else {
+      row.summary = result.summary
+      this.finished.push({ ...indexHeadOf(row), summary: result.summary, prompts: result.prompts })
     }
     row.pending = false
     row.revision = this.bump()
@@ -375,7 +404,7 @@ export class SessionCatalog {
             : state.adapter.roots(
                 sessionAdapterHome(state.adapter, { env: this.platform.env, home: this.platform.home }),
               )
-      const checked = roots.map(path => redactText(path, { home: this.platform.home })).join(', ')
+      const checked = roots.map(this.redaction.text).join(', ')
       return {
         id: state.adapter.agent,
         displayName: adapterDisplayName(state.adapter),

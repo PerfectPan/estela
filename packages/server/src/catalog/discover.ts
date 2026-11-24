@@ -6,8 +6,8 @@ import {
   type SessionListError,
   type SessionRef,
 } from '@rivus/agent-kit/sessions'
-import { redactText } from '@rivus/agent-kit/redact'
 import type { ShellPlatform } from '../sessions/load-session.ts'
+import { serverRedaction, type Redactor } from '../sessions/redaction.ts'
 import { adapterDisplayName, keepsSessionsInDatabase } from '../sessions/adapters.ts'
 import { errorMessage, listError } from '../sessions/read-failure.ts'
 import { errorRow, rowFromHead, type LiveRow } from './rows.ts'
@@ -40,12 +40,9 @@ export function agentState(adapter: SessionAdapter): AgentState {
   return { adapter, read: 0, done: false, found: [], missing: [] }
 }
 
-export function progressOf(states: readonly AgentState[], homeDir: string): AgentProgress[] {
+export function progressOf(states: readonly AgentState[], redact: Redactor): AgentProgress[] {
   return states.map(state => {
-    const checked =
-      state.done && state.found.length === 0
-        ? state.missing.map(path => redactText(path, { home: homeDir })).join(', ')
-        : undefined
+    const checked = state.done && state.found.length === 0 ? state.missing.map(redact).join(', ') : undefined
     return {
       name: adapterDisplayName(state.adapter),
       read: state.read,
@@ -67,6 +64,7 @@ export async function discoverRows(
   report: () => void,
 ): Promise<Map<string, LiveRow>> {
   const rows = new Map<string, LiveRow>()
+  const redact = serverRedaction(platform.home).text
   const add = (row: LiveRow) => {
     if (!rows.has(row.traceId)) {
       rows.set(row.traceId, row)
@@ -150,21 +148,15 @@ export async function discoverRows(
             const key = keepsSessionsInDatabase(state.adapter.agent)
               ? { size: 0, mtimeMs: head.lastActiveAt }
               : undefined
-            add(rowFromHead(target, head, info, platform.home, (perFile.get(head.ref.path) ?? 0) > 1, key))
+            add(rowFromHead(target, head, info, redact, (perFile.get(head.ref.path) ?? 0) > 1, key))
           } else {
-            add(
-              errorRow(
-                target,
-                { reason: 'session file does not exist', file: redactText(target.path, { home: platform.home }) },
-                Date.now(),
-              ),
-            )
+            add(errorRow(target, { reason: 'session file does not exist', file: redact(target.path) }, Date.now()))
           }
         })
       }
       // An unreadable file sorts by its own mtime, not 1970.
       failed.forEach(item => {
-        add(errorRow(item.target, listError(item.error, platform.home), item.mtimeMs ?? Date.now()))
+        add(errorRow(item.target, listError(item.error, redact), item.mtimeMs ?? Date.now()))
       })
       state.done = true
       report()

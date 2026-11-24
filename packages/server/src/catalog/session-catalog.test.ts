@@ -89,7 +89,7 @@ describe('session catalog', () => {
     index.close()
   })
 
-  it('redacts titles and prompts with the caller’s rule when one is passed, whatever ESTELA_REDACT says', async () => {
+  it('redacts titles and prompts by default, or with the caller’s rule when one is passed', async () => {
     const home = await tempHome()
     await mkdir(join(home, '.claude/projects/plain'), { recursive: true })
     await cp(
@@ -97,7 +97,7 @@ describe('session catalog', () => {
       join(home, '.claude/projects/plain/session.jsonl'),
     )
     const index = openSessionIndex({ summaryVersion: 1, file: join(home, 'index.sqlite') })
-    const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: { ESTELA_REDACT: '0' } }), index })
+    const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: {} }), index })
     const own = await catalog.listSessions()
     expect(own.rows[0]).toMatchObject({ title: 'Run the tests', firstPrompt: 'Run the tests' })
     const theirs = await catalog.listSessions({}, text => `[${text.length}]`)
