@@ -287,8 +287,8 @@ export interface EstelaCoreOptions {
 export interface WorkspaceSource {
   /** Opens the session and resolves when its log is read and the view is built. Called again on every retry. */
   open(): Promise<TraceViewResult>
-  /** One event in full, of the view that `open` resolved last. */
-  event(id: string): Promise<EventDetail>
+  /** One event in full, of the view identified by `traceId` (the id returned by `open`). */
+  event(traceId: string, id: string): Promise<EventDetail>
 }
 /** `open` rejects with it when the session has not written a log yet. */
 export class NoLogError extends Error {}
@@ -299,7 +299,7 @@ export class StaleError extends Error {}
 - `apps/web/src/embed/load-client.ts` adapts a `WorkspaceSource` to the `LoadClient` that `createSessionLoad` takes,
   so that flow is unchanged: `loadTrace` resolves at once with a file size of 0 (the panel shows "Loading…"),
   `subscribe` returns an empty iterable, `traceView` calls `open` and takes the trace id from its result, and `event`
-  calls `event`.
+  calls `event(traceId, id)` with the current view's trace id.
 - `NoLogError` becomes a `LoadFailure` with `noLog: true` (`load-session.ts:24-31`), and `ErrorPanel` then shows
   "This session has no log on disk yet." and nothing else.
 - "Try again" and a `StaleError` from `event` both run the load again, which calls `open`. So a source whose `open`
@@ -492,7 +492,7 @@ strings (T12). `ESTELA_REDACT=0` in dsh's environment turns redaction off, as fo
 - Its component (`src/client/estela-view.tsx`) renders a wrapper `div` and, inside it, `<estela-workspace>` through
   a ref, and sets `source` once per `sessionId`. That source's `open` calls `session/open` for the current
   `sessionId` on every call and then `trace/view` with the id it returned; a refusal rejects with the mapped error.
-  `event` calls `trace/event` with the id of the last open. So "Try again" and a stale snapshot both open the session
+  `event` calls `trace/event` with the trace id the element passes. So "Try again" and a stale snapshot both open the session
   again without remounting the View (3.2.1).
 - The wrapper's height (T25): a `ResizeObserver` on the nearest ancestor of the element that scrolls vertically
   sets the wrapper's height to that ancestor's client height in pixels, and leaves the height of dsh's composer

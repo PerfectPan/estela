@@ -61,8 +61,8 @@ export default defineConfig(({ mode }) => {
     test: {
       // Plain-module tests run in Node; component tests opt into happy-dom via `@vitest-environment`.
       environment: 'node',
-      // Relative to `root`, which is `src`.
-      include: ['**/*.test.{ts,tsx}'],
+      // Relative to `root`, which is `src`; `../test` holds integration tests over built artifacts.
+      include: ['**/*.test.{ts,tsx}', '../test/**/*.test.{ts,tsx}'],
     },
   }
 })

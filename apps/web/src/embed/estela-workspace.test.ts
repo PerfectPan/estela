@@ -267,6 +267,7 @@ describe('<estela-workspace>', () => {
 
   it('reopens the session when event() rejects with StaleError', async () => {
     let opens = 0
+    const receivedTraceIds: string[] = []
     const firstTrace = sample()
     firstTrace.session.title = 'first snapshot'
     const secondTrace = sample()
@@ -277,8 +278,9 @@ describe('<estela-workspace>', () => {
         opens += 1
         return opens === 1 ? viewResult(firstTrace, 'trace-v1') : viewResult(secondTrace, 'trace-v2')
       },
-      event: async (id): Promise<EventDetail> => {
-        if (opens === 1) {
+      event: async (traceId, id): Promise<EventDetail> => {
+        receivedTraceIds.push(traceId)
+        if (traceId === 'trace-v1') {
           throw new StaleError()
         }
         const found = secondTrace.events.find(item => item.id === id)
@@ -294,7 +296,7 @@ describe('<estela-workspace>', () => {
     expect(shadow.querySelector('nav')?.textContent).toContain('first snapshot')
 
     // Move selection via keyboard on the ledger (happy-dom has zero viewport height for virtualized rows),
-    // then open the Raw tab to trigger `source.event(id)`.
+    // then open the Raw tab to trigger `source.event(traceId, id)`.
     const ledger = shadow.querySelector<HTMLElement>('[data-testid="ledger"]')
     expect(ledger).not.toBeNull()
     ledger!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }))
@@ -307,7 +309,119 @@ describe('<estela-workspace>', () => {
     await tick()
 
     expect(opens).toBe(2)
+    expect(receivedTraceIds).toEqual(['trace-v1'])
     expect(shadow.querySelector('nav')?.textContent).toContain('refreshed snapshot')
+  })
+
+  it('shows Try again when event() fails after load and reopens without replacing the element (DSH-6)', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {})
+    try {
+      let opens = 0
+      const trace = sample()
+      const source: WorkspaceSource = {
+        open: async () => {
+          opens += 1
+          return viewResult(trace, `trace-${opens}`)
+        },
+        event: async (_traceId, id): Promise<EventDetail> => {
+          if (opens === 1) {
+            throw new Error('transport closed')
+          }
+          const found = trace.events.find(item => item.id === id)
+          if (!found) {
+            throw new Error(`missing ${id}`)
+          }
+          return { ...found, original: { recovered: true } }
+        },
+      }
+      const el = mountElement(source)
+      await tick()
+
+      const shadow = el.shadowRoot!
+      const ledger = shadow.querySelector<HTMLElement>('[data-testid="ledger"]')
+      expect(ledger).not.toBeNull()
+      ledger!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }))
+      ledger!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }))
+      await tick()
+      shadow.querySelector<HTMLButtonElement>('#inspector-tab-raw')!.click()
+      await tick()
+      await tick()
+
+      const panel = shadow.querySelector('[data-testid="load-error"]')
+      expect(panel).not.toBeNull()
+      expect(panel!.textContent).toContain('Could not open this session')
+      expect(panel!.textContent).toContain('transport closed')
+      expect(shadow.querySelector('a[href^="#"]')).toBeNull()
+
+      const retry = panel!.querySelector<HTMLButtonElement>('button')
+      expect(retry?.textContent).toBe('Try again')
+      retry!.click()
+      await tick()
+
+      expect(opens).toBe(2)
+      expect(reload).not.toHaveBeenCalled()
+      expect(shadow.querySelector('[data-testid="ledger"]')).not.toBeNull()
+      expect(document.querySelector(ESTELA_WORKSPACE_TAG)).toBe(el)
+      expect(el.source).toBe(source)
+    } finally {
+      reload.mockRestore()
+    }
+  })
+
+  it('passes the displayed view traceId to event() even when overlapping opens resolve out of order (DSH-9)', async () => {
+    const v1Trace = sample()
+    v1Trace.session.title = 'version-one'
+    const v2Trace = sample()
+    v2Trace.session.title = 'version-two'
+    const resolvers: Array<(value: TraceViewResult) => void> = []
+    const requestedTraceIds: string[] = []
+
+    const source: WorkspaceSource = {
+      open: () =>
+        new Promise<TraceViewResult>(resolve => {
+          resolvers.push(resolve)
+        }),
+      event: async (traceId, id): Promise<EventDetail> => {
+        requestedTraceIds.push(traceId)
+        const base = traceId === 'trace-v2' ? v2Trace : v1Trace
+        const found = base.events.find(item => item.id === id)
+        if (!found) {
+          throw new Error(`missing ${id}`)
+        }
+        return { ...found, original: { snapshot: traceId } }
+      },
+    }
+
+    const el = mountElement(source)
+    await tick()
+    expect(resolvers.length).toBe(1)
+
+    // Remove and re-insert while the first open is still pending, starting a second overlapping open.
+    el.remove()
+    document.body.append(el)
+    await tick()
+    expect(resolvers.length).toBe(2)
+
+    // Second open resolves first with v2; first open resolves later with v1.
+    resolvers[1]!(viewResult(v2Trace, 'trace-v2'))
+    await tick()
+    resolvers[0]!(viewResult(v1Trace, 'trace-v1'))
+    await tick()
+
+    const shadow = el.shadowRoot!
+    expect(shadow.querySelector('nav')?.textContent).toContain('version-two')
+
+    const ledger = shadow.querySelector<HTMLElement>('[data-testid="ledger"]')
+    expect(ledger).not.toBeNull()
+    ledger!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }))
+    ledger!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }))
+    await tick()
+    shadow.querySelector<HTMLButtonElement>('#inspector-tab-raw')!.click()
+    await tick()
+    await tick()
+
+    expect(requestedTraceIds).toEqual(['trace-v2'])
+    expect(shadow.querySelector('[data-testid="inspector"]')?.textContent).toContain('"snapshot": "trace-v2"')
   })
 
   it('disposes rendering on disconnect and removes the shared document style after the last element disconnects', async () => {

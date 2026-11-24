@@ -2,8 +2,8 @@ import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceViewResult } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import { createSignal, onCleanup } from 'solid-js'
-import { NoLogError, StaleError } from '@/embed/source.ts'
 import { messageOf } from '@/lib/error-message.ts'
+import { NoLogError, StaleError } from './load-errors.ts'
 
 /** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/estela-rpc` (the web app imports only its types). */
 const LOAD_PROGRESS_CHANNEL = 'load-progress'
@@ -68,6 +68,15 @@ function lostFailure(): LoadFailure {
   return { reason: 'connection lost', lost: true }
 }
 
+export interface SessionLoadOptions {
+  /**
+   * When true (embedded host), a non-stale `event()` failure moves the load to its error state
+   * with "Try again" so the user can reopen the session. Standalone pages keep `get-event` errors
+   * inside the inspector and surface disconnects through their connection-lost banner.
+   */
+  failOnEventError?: boolean
+}
+
 /**
  * The workspace load flow: `load-trace(traceId)`, subscribe to `load-progress` with the
  * returned id at once (the server releases an unsubscribed hold after 5 s), then
@@ -75,7 +84,11 @@ function lostFailure(): LoadFailure {
  * A closed DevFrame client never reconnects, by design, so a drop during the load ends it with
  * a "lost the connection" failure; the page offers a reload.
  */
-export function createSessionLoad(traceId: string, connect: () => Promise<LoadClient>) {
+export function createSessionLoad(
+  traceId: string,
+  connect: () => Promise<LoadClient>,
+  options: SessionLoadOptions = {},
+) {
   const [state, setState] = createSignal<LoadState>({ status: 'loading', bytesRead: 0, totalBytes: 0 })
   let reader: { cancel: () => void } | undefined
   let attempt = 0
@@ -153,8 +166,12 @@ export function createSessionLoad(traceId: string, connect: () => Promise<LoadCl
             try {
               return await live.event(resolvedTraceId, id)
             } catch (error) {
-              if (error instanceof StaleError && mine === attempt && !lifetime.signal.aborted) {
-                void run()
+              if (mine === attempt && !lifetime.signal.aborted) {
+                if (error instanceof StaleError) {
+                  void run()
+                } else if (options.failOnEventError) {
+                  fail(parseFailure(messageOf(error)))
+                }
               }
               throw error
             }

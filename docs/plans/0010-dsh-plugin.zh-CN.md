@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/plans/0010-dsh-plugin.md 为准。
 
-<!-- source-blob: 5fc8d73895eb4747af848b04340ed1b0ff53ab4d -->
+<!-- source-blob: c18f98473c5f9da7ec4146a1c979f2052e7c9686 -->
 
 # Plan 0010：作为 dsh 插件的 Estela
 
@@ -277,8 +277,8 @@ export interface EstelaCoreOptions {
 export interface WorkspaceSource {
   /** Opens the session and resolves when its log is read and the view is built. Called again on every retry. */
   open(): Promise<TraceViewResult>
-  /** One event in full, of the view that `open` resolved last. */
-  event(id: string): Promise<EventDetail>
+  /** One event in full, of the view identified by `traceId` (the id returned by `open`). */
+  event(traceId: string, id: string): Promise<EventDetail>
 }
 /** `open` rejects with it when the session has not written a log yet. */
 export class NoLogError extends Error {}
@@ -288,7 +288,7 @@ export class StaleError extends Error {}
 
 - `apps/web/src/embed/load-client.ts` 把 `WorkspaceSource` 适配成 `createSessionLoad` 接收的 `LoadClient`，这样那段流程
   不用改：`loadTrace` 立即以文件大小 0 返回（面板显示「加载中…」），`subscribe` 返回一个空的可迭代对象，`traceView`
-  调用 `open` 并从它的结果取 trace id，`event` 调用 `event`。
+  调用 `open` 并从它的结果取 trace id，`event` 带着当前视图的 trace id 调用 `event(traceId, id)`。
 - `NoLogError` 变成带 `noLog: true` 的 `LoadFailure`（`load-session.ts:24-31`），此时 `ErrorPanel` 只显示「这个会话的
   日志尚未写入磁盘。」，不显示别的。
 - 「重试」和 `event` 抛出的 `StaleError` 都会重新运行加载，也就是再调用 `open`。所以 `open` 每次都调用 `session/open` 的
@@ -462,7 +462,7 @@ core 通过 `present` 脱敏（`packages/server/src/store/trace-store.ts:76`）�
   ({ sessionId }) }`。`order: 60` 使标签页排在 Trajectory 之后（A2，第 3 节）。
 - 它的组件（`src/client/estela-view.tsx`）渲染一个作为容器的 `div`，并通过 ref 在里面渲染 `<estela-workspace>`，每个
   `sessionId` 只设置一次 `source`。这个 source 的 `open` 每次都为当前的 `sessionId` 调用 `session/open`，再用它返回的
-  id 调用 `trace/view`；被拒绝时以映射后的错误拒绝。`event` 用最近一次打开得到的 id 调用 `trace/event`。所以「重试」
+  id 调用 `trace/view`；被拒绝时以映射后的错误拒绝。`event` 用元素传入的 trace id 调用 `trace/event`。所以「重试」
   和快照过期都会重新打开会话，而不重挂 View（3.2.1）。
 - 容器的高度（T25）：在元素最近的、可纵向滚动的祖先上放一个 `ResizeObserver`，把容器的高度设为该祖先的 client 高度
   （像素）；当 dsh 的输入框浮层处在这个祖先里时，把它的高度扣掉。批次 7 先按 3.9 的做法在 dsh 里挂载元素并

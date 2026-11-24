@@ -11,9 +11,9 @@ export interface SplitStylesheet {
 }
 
 /**
- * Splits a CSS stylesheet into top-level slices without dropping or altering characters:
- * braced blocks stay whole, top-level `;` statements stay whole, and comments, strings,
- * escapes, and parenthesized groups (such as data URIs) do not split a rule.
+ * Splits Tailwind's compiled CSS stylesheet into top-level slices without dropping or altering characters:
+ * top-level braced blocks and `;` statements stay whole, and comments, quoted strings, backslash escapes,
+ * and nested blocks/parentheses do not split a rule.
  * @internal
  */
 export function splitTopLevelRules(css: string): string[] {
