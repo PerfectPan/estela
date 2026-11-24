@@ -4,7 +4,11 @@ A plan records the technical decisions and the detailed execution plan for one d
 
 Each plan has a Chinese reading copy; see [Bilingual Documentation](../../CONTRIBUTING.md#bilingual-documentation).
 
-There are no active plans. Delivered plans were retired after their lasting constraints moved into the [architecture overview](../architecture/overview.md), [`AGENTS.md`](../../AGENTS.md), the [public interface](../reference/public-interface.md), and the tests. Git history keeps the retired files.
+Active plans:
+
+- [0010: Estela as a dsh plugin](0010-dsh-plugin.md) (in review), paired with its [Spec](../specs/0010-dsh-plugin.md).
+
+Delivered plans were retired after their lasting constraints moved into the [architecture overview](../architecture/overview.md), [`AGENTS.md`](../../AGENTS.md), the [public interface](../reference/public-interface.md), and the tests. Git history keeps the retired files.
 
 Start from [`0000-template.md`](0000-template.md). Keep only the sections the change needs: background, outline, detailed design, rollout, verification, and the execution plan. Delete the rest. The execution plan lists preconditions, a completion contract, ordered tasks with files, changes, tests, and exit conditions, a validation ledger, and rollback per batch. Keep a plan `blocked` while a material decision is unresolved. Unknown owners and dates stay "unconfirmed".
 
