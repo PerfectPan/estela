@@ -32,6 +32,11 @@ export interface EstelaServerOptions {
    * this says.
    */
   redacts: boolean
+  /**
+   * Where "Export report" creates each report's new directory (`estela-report-<traceId>-<time>`): a host's own,
+   * since its working directory is not one its user chose. The working directory when omitted; it must exist.
+   */
+  reportDir?: string
   /** Where the TraceStore's warnings go, one line each, redacted like the store; omit to drop them. */
   log?: (line: string) => void
 }
@@ -123,7 +128,7 @@ export function createEstelaServer(options: EstelaServerOptions): EstelaServer {
     if (catalog) {
       await catalog.start()
       bindSessionService({ listSessions: query => catalog.listSessions(query) })
-      bindReportExporter(query => exportReport(definition, traces.store, query, { redact }))
+      bindReportExporter(query => exportReport(definition, traces.store, query, { dir: options.reportDir, redact }))
       catalog.resumeSummaries()
     }
     registerAgentTools(ctx.agent, { store: traces.store, catalog, redact })

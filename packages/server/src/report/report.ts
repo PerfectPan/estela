@@ -47,6 +47,8 @@ const MAX_EXISTING_REPORT_BYTES = 128 * 1024 * 1024
 const notFound = z.object({ code: z.literal('ENOENT') })
 
 export interface ExportReportOptions {
+  /** The directory each report's new directory goes in: a host's own, or the working directory when omitted. */
+  dir?: string
   /** For the report and for what this function returns and throws; the process home alone when omitted. */
   redact?: HomeRedaction
 }
@@ -174,8 +176,19 @@ async function reserveDir(base: string): Promise<string> {
 }
 
 /**
- * The dev server's "Export report": a new `estela-report-<traceId>-<time>` directory in the working
- * directory. The report, the returned path, and the error message that reaches
+ * The new directory one export writes to, under `dir`: `estela-report-<traceId>-<time>`, then `-2`, `-3`, …
+ * A plain `mkdir` claims the name, so it fails on whatever exists already, and "Export report" never
+ * writes into a directory that was there before. That is why it needs none of `checkReportOutDir`'s
+ * rules: those keep `build --out-dir` from removing an existing directory, and the build here removes
+ * only the directory this function just created.
+ */
+export async function reserveReportDir(dir: string, traceId: string, now: Date): Promise<string> {
+  return reserveDir(resolve(dir, `estela-report-${traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`))
+}
+
+/**
+ * The dev server's "Export report": a new `estela-report-<traceId>-<time>` directory under `options.dir`,
+ * else in the working directory. The report, the returned path, and the error message that reaches
  * the browser are always redacted, whatever the server's `redacts` says.
  */
 export async function exportReport(
@@ -191,9 +204,7 @@ export async function exportReport(
       reportOf(store, input.traceId, read, input.locale, redact),
     )
     const outDir = await serialized(async () => {
-      const dir = await reserveDir(
-        resolve(process.cwd(), `estela-report-${input.traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`),
-      )
+      const dir = await reserveReportDir(options.dir ?? process.cwd(), input.traceId, now)
       await buildSite(definition, dir, report)
       return dir
     })
