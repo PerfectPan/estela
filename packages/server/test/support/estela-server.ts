@@ -17,7 +17,7 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
  * can name either: the platform's, through what the agent recorded, or this one, through what the server
  * produces or what a tool of the agent's printed.
  */
-export const processHome = homedir()
+const processHome = homedir()
 
 /** A web build in the shape a report needs: one module script and one stylesheet. */
 const reportSite = join(repo, 'packages/server/test/fixtures/report-site')
@@ -41,7 +41,7 @@ export async function tempDir(prefix: string): Promise<string> {
 }
 
 /** `~` and the parts, with this system's separator after the home directory. */
-export function tilde(...parts: string[]): string {
+function tilde(...parts: string[]): string {
   return join('~', ...parts)
 }
 

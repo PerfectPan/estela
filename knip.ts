@@ -79,7 +79,11 @@ const config = {
     'packages/kernel': {},
     'packages/rpc': { project: projectWithout(['testing']) },
     'packages/schema': {},
-    'packages/server': { project: projectWithout(['src/testsupport']) }
+    'packages/server': {
+      // The report export's test site is an HTML page that loads a script nothing imports: an entry, as the root's fixtures are.
+      entry: ['test/fixtures/**/*'],
+      project: projectWithout(['src/testsupport', 'test/support'])
+    }
   }
 };
 

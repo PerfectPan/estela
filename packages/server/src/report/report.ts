@@ -181,6 +181,7 @@ async function reserveDir(base: string): Promise<string> {
  * writes into a directory that was there before. That is why it needs none of `checkReportOutDir`'s
  * rules: those keep `build --out-dir` from removing an existing directory, and the build here removes
  * only the directory this function just created.
+ * @internal
  */
 export async function reserveReportDir(dir: string, traceId: string, now: Date): Promise<string> {
   return reserveDir(resolve(dir, `estela-report-${traceId.replaceAll(/[^\w-]/g, '').slice(0, 8)}-${stamp(now)}`))
