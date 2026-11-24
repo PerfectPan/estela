@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: a8b74b8ec257dce75e92e084979633345c264ebc -->
+<!-- source-blob: e36900c030563517312cba859946d65d02528a1b -->
 
 # 开发
 
@@ -138,6 +138,25 @@ ATIF 导出（见[导出格式](../reference/export-formats.zh-CN.md)）：
 | A1 | `fixtures/demo.trace.json` 导出的 ATIF 通过 Harbor 校验器；上下文压缩成为带有 `extra.context_management` 的 system 步骤，被它隐藏的事件不生成步骤，从它之前保留的步骤带有 `is_copied_context: true` | `packages/kernel/src/export-atif.test.ts`、`apps/cli/src/export/write-export.test.ts`、`node scripts/validate-exports.mjs` |
 | A2 | 每个已注册代理的一致性测试夹具导出的 ATIF 均通过 Harbor 校验器 | `write-export.test.ts`（CI 中的结构化检查）、`node scripts/validate-exports.mjs`（Harbor，手动运行） |
 
+dsh 插件（`@rivus/dsh-estela`）：
+
+| ID | 行为 | 证据 |
+|---|---|---|
+| DSH-1 | 将 `@rivus/dsh-estela` 安装到 dsh 的 `web` profile 后，已开始的会话在 `Chat` 和 `Trajectory` 旁显示 `Estela` 视图标签页 | `apps/dsh-plugin/test/dsh.smoke.ts` |
+| DSH-2 | 切换到 `Estela` 标签页显示会话头部、时间线、虚拟化账本和检查器（`Input`、`Output`、`Model saw`、`Compare`、`Raw`），高度止于输入框上方，且不含「导出报告」按钮 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts` |
+| DSH-3 | 空白会话不显示视图标签页，也没有 `/estela` 斜杠命令 | `dsh.smoke.ts` |
+| DSH-4 | 已开始但磁盘尚无日志的会话显示「This session has no log on disk yet.」且无错误详情 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-5 | 不可读或未知格式代际的日志显示「Could not open this session」、未知格式提示与反馈链接，且不含会话浏览器链接 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-6 | 传输或渲染失败被限制在视图内部并显示「Try again」，不影响其他 dsh 视图，且重试时不重挂元素 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts` |
+| DSH-7 | 大型会话账本保持虚拟化，同时 dsh 自身的 `POST /api/session/list` 延迟增幅不超过 `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-8 | 超过 12 MB 预算的视图会缩短长字符串，并在选中事件时加载完整文本 | `packages/kernel/src/view.test.ts` |
+| DSH-9 | 向运行中的会话追加新帧时，已打开的视图保持原快照且无报错；刷新页面后展示新内容，过期快照会自动重开且不混用状态 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/sessions.test.ts`、`apps/dsh-plugin/src/client/source.test.ts` |
+| DSH-10 | 默认脱敏替换主目录路径与敏感凭据；`ESTELA_REDACT=0` 关闭脱敏 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/channel.test.ts` |
+| DSH-11 | 主题与语言跟随 dsh（`ctx.theme` / `ctx.locale`），不写 `document.documentElement` | `dsh.smoke.ts`、`apps/dsh-plugin/src/client/appearance.test.ts` |
+| DSH-12 | 在 `dsh web` 运行期间移除 `@rivus/dsh-estela` 后，标签页消失、`/estela` 返回 405、监听端口不变，且 profile 的 `package.json` 和 `node_modules` 清理干净 | `dsh.smoke.ts` |
+| DSH-13 | `engines.dsh` 不兼容的 tarball 安装以退出码 1 拒绝；已装不兼容副本在启动时被禁用且不显示标签页 | `dsh.smoke.ts`、`apps/dsh-plugin/src/package.test.ts` |
+| DSH-14 | `/estela` 受 dsh 准入保护（无 cookie 返回 401，跨源返回 403）并拒绝非 owner 对端 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/channel.test.ts` |
+
 ## 已安装 tarball 上的 CLI 冒烟测试
 
 `apps/e2e`（`@rivus/estela-e2e`，私有包）在 `apps/cli` 中运行 `pnpm pack`，将 tarball 安装到空临时目录中，用 `fixtures/sessions/<agent>/conformance` 构建合成 `HOME`（同时设为 Windows 读取的 `USERPROFILE`），并在 `PATH` 最前面放置一个假 `open` / `xdg-open` 脚本来记录 URL 而不真正启动浏览器。Windows 上没有此类替代脚本，因为 DevFrame 在 Windows 通过 `cmd /c start` 打开浏览器；检查打开 URL 的测试在 Windows 上传入 `--no-open` 并仅检查打印的 URL。该套件覆盖 `--help`（通过 `npx`）、S2、S10、S17 与 S18（`mcp.smoke.ts`）、S13（通过 `npx -y node@22` 在 Node.js 22 上运行）、S15 以及 S16（通过 `node-pty` 在伪终端中运行，因 1.1.0 未附带 Linux 预编译包而固定在 `1.2.0-beta.18`）。它不包含在 `pnpm test` 中，因为它需要打包并安装。测试准备阶段会先运行 `pnpm --filter '@rivus/estela...' run build`，因此 tarball 绝不会包含陈旧的打包产物。
@@ -163,6 +182,17 @@ ESTELA_E2E_CHANNEL=chrome pnpm run test:e2e   # use the installed Google Chrome 
 ```
 
 S8 运行 `scripts/generate-trace.mjs`，S12 按路径运行 `packages/server/src/testsupport/large-session.ts`，两者均写入本次运行的临时目录并在之后删除输出；不会向仓库提交任何生成文件。`ESTELA_E2E_S12_BYTES` 可在本地快速试用时修改 S12 的大小；默认值（也是 CI 使用的值）为 350 MiB（367,001,600 字节）。`ESTELA_E2E_KEEP=1` 保留临时目录。设置了 `CI` 时，测试套件还会向 `apps/e2e/playwright-report/` 写出 HTML 报告，测试失败时由 CI 作业上传。CI 仅在 `test` 作业中使用 Node.js `^26.13.1` 运行该套件。
+
+## dsh 插件冒烟测试
+
+`apps/dsh-plugin/test/dsh.smoke.ts` 会打包 `@rivus/dsh-estela`，在临时 npm 前缀下安装固定版本的 `@deepseek-ai/dsh`（`apps/dsh-plugin/src/contract/channel.ts` 中的 `DSH_VERSION`），在仅监听 loopback、隔离 `DSH_HOME` 与伪造 `HOME`（不设模型 key、不碰 `~/.dsh`）的环境下启动 `dsh web`，使用 `apps/dsh-plugin/test/seed-session.mjs` 基于 `fixtures/sessions/dsh/conformance/plain` 生成种子会话，并通过 Playwright 覆盖 DSH-1、DSH-2、DSH-3、DSH-6、DSH-7、DSH-9、DSH-10、DSH-11、DSH-12、DSH-13 和 DSH-14。它不包含在 `pnpm test` 中。
+
+```bash
+cd apps/dsh-plugin
+pnpm run test:smoke
+```
+
+`ESTELA_DSH_VERSION` 可覆盖安装的 dsh 版本（例如 `ESTELA_DSH_VERSION=latest`）。`ESTELA_E2E_CHANNEL=chrome` 可在本地改用已安装的 Google Chrome，而不必下载 Playwright Chromium。`ESTELA_SMOKE_KEEP=1` 会在运行结束后保留临时目录。CI 中的 `dsh-plugin` 作业运行在 `ubuntu-latest` 与 Node.js `^26.13.1` 上：PR 触发时针对固定版本运行，每周 `schedule` 和手动 `workflow_dispatch` 时针对 dsh 的 `latest` 标签运行。
 
 ## 在真实浏览器中检查
 

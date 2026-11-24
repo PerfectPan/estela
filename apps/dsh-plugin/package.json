@@ -51,6 +51,7 @@
     "build": "vp pack 2>&1 && node scripts/build-client.mjs",
     "lint": "vp lint src test scripts vite.config.ts 2>&1",
     "test": "vp test 2>&1",
+    "test:smoke": "ESTELA_DSH_SMOKE=1 vp test run 2>&1",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
