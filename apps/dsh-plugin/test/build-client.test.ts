@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 
 const clientModule = z.object({
-  inject: z.unknown(),
+  inject: z.array(z.string()),
   apply: z.unknown(),
 })
 
@@ -24,16 +24,21 @@ describe('dist/client.js', () => {
   it('registers a dsh module with inject and apply, requires only React externals, and defines no plugin globals', async () => {
     const code = await readFile(clientBundle, 'utf8')
     const loaded: RegisteredModule[] = []
+    const doc = { addEventListener() {} }
     const windowObj: Record<string, unknown> = {
+      document: doc,
       __ModuleLoader__: {
         load(entry: RegisteredModule) {
           loaded.push(entry)
         },
       },
     }
+    class FakeHTMLElement {}
     const sandbox: Record<string, unknown> = {
       window: windowObj,
       self: windowObj,
+      document: doc,
+      HTMLElement: FakeHTMLElement,
     }
     sandbox.globalThis = sandbox
     const context = vm.createContext(sandbox)
@@ -59,10 +64,11 @@ describe('dist/client.js', () => {
     expect(() => fakeRequire('unavailable-module')).toThrow('unexpected require("unavailable-module")')
 
     const exported = z.parse(clientModule, loaded[0]!.factory(fakeRequire))
-    expect(required.every(id => ALLOWED_EXTERNALS.has(id))).toBe(true)
+    expect(required).toEqual(['react'])
 
     // `Array.isArray` and `typeof` work across `vm` realms where `instanceof Array` does not.
     expect(Array.isArray(exported.inject)).toBe(true)
+    expect(Array.from(exported.inject)).toEqual(['slots', 'connection', 'theme', 'locale'])
     expect(typeof exported.apply).toBe('function')
 
     // Evaluating the bundle and invoking its factory must define no plugin globals on the host page

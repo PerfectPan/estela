@@ -489,22 +489,25 @@ strings (T12). `ESTELA_REDACT=0` in dsh's environment turns redaction off, as fo
   inside `ctx.effect`, as dsh's Statistics plugin does.
 - The slot entry is `{ name: 'conversation.view', id: 'estela', order: 60, label: 'Estela', inject: sessionId =>
   ({ sessionId }) }`. With `order: 60` the tab follows Trajectory (A2, section 3).
-- Its component (`src/client/estela-view.tsx`) renders a wrapper `div` and, inside it, `<estela-workspace>` through
-  a ref, and sets `source` once per `sessionId`. That source's `open` calls `session/open` for the current
-  `sessionId` on every call and then `trace/view` with the id it returned; a refusal rejects with the mapped error.
-  `event` calls `trace/event` with the trace id the element passes. So "Try again" and a stale snapshot both open the session
-  again without remounting the View (3.2.1).
-- The wrapper's height (T25): a `ResizeObserver` on the nearest ancestor of the element that scrolls vertically
-  sets the wrapper's height to that ancestor's client height in pixels, and leaves the height of dsh's composer
-  overlay out when one is in that ancestor. Batch 7 first mounts the element in dsh, by the procedure of 3.9, and
-  measures; if dsh's View area already gives the element the full height, the observer is not added.
+- Its component (`src/client/estela-view.ts`, no JSX per T17; context types in `src/client/types.ts`) renders a wrapper
+  `div` and, inside it, `<estela-workspace>` through a ref, and sets `source` (`src/client/source.ts`) once per
+  `sessionId`. That source's `open` calls `session/open` for the current `sessionId` on every call and then `trace/view`
+  with the id it returned; a refusal rejects with the mapped error. `event` calls `trace/event` with the trace id the
+  element passes. So "Try again" and a stale snapshot both open the session again without remounting the View (3.2.1).
+- The wrapper's height (T25, `src/client/view-height.ts`): measured on dsh 0.2.2-rc.5 in batch 7, dsh's View area
+  (`flex: 1 0 auto` inside an `overflow-y: auto` scroll body) does not constrain the element's height—without a wrapper
+  height `<estela-workspace>` expands to 4410 px (breaking ledger virtualization) and the 128 px sticky composer seat
+  covers the bottom of the ledger and inspector. A `ResizeObserver` (with a `MutationObserver` on the scroll body's
+  children) therefore sets the wrapper's height in pixels to the nearest vertically scrollable ancestor's `clientHeight`
+  minus any bottom-docked overlay sibling's height in that ancestor.
 
 #### 3.4.2 Appearance
 
-`src/client/appearance.ts` maps `ctx.theme.getSnapshot().active.colorScheme` to `data-theme` and
-`ctx.locale.getSnapshot().active` to `lang` (`zh` to `zh-CN`, anything else to `en`, the rule of
-`apps/web/src/i18n/locale.ts:36-43`). It subscribes to both inside `ctx.effect` and sets the attributes on the
-mounted element. The tab label "Estela" is a product name and is not translated.
+`src/client/appearance.ts` maps `ctx.theme.getTheme().active.colorScheme` to `data-theme` and
+`ctx.locale.getLocale().active` to `lang` (`zh` to `zh-CN`, anything else to `en`, the rule of
+`apps/web/src/i18n/locale.ts:36-43`). It subscribes to `ctx.on('theme/change', ...)` and
+`ctx.on('locale/change', ...)` inside `ctx.effect` and sets the attributes on the mounted element without writing
+`document.documentElement`. The tab label "Estela" is a product name and is not translated.
 
 ### 3.5 Package, manifest, and bundles
 
@@ -987,8 +990,8 @@ What neither verification covered. Each row says where it is settled.
 | Item | Type | Impact | Owner | Next step or deadline |
 |---|---|---|---|---|
 | A large load blocks dsh's event loop for longer than the smoke limit (T10). | risk | `dsh web` stalls its own requests while a session loads. | unconfirmed | Batch 8 measures it. A load that cannot stay under the limit gets a worker, designed in its own issue. |
-| The element's height inside dsh's View area (T25). | open question | A collapsed ledger, or a composer overlay over the inspector. | unconfirmed | Batch 7 measures it in dsh before the client half is written. |
-| `dsh.client.inject` with two packages, and `ctx.theme`, `ctx.locale` for a third-party client plugin. | open question | Theme and language would have to be read from dsh's document attributes instead. | unconfirmed | Batch 7, as a smoke scenario. |
+| The element's height inside dsh's View area (T25). | resolved | A collapsed ledger, or a composer overlay over the inspector. | batch 7 | Measured in batch 7 on dsh 0.2.2-rc.5: without height sizing the element expands to 4410 px and sits under the 128 px sticky composer seat. `src/client/view-height.ts` sizes the wrapper to the nearest scroll ancestor's `clientHeight` minus bottom overlay height. |
+| `dsh.client.inject` with two packages, and `ctx.theme`, `ctx.locale` for a third-party client plugin. | resolved | Theme and language would have to be read from dsh's document attributes instead. | batch 7 | Verified in batch 7 on dsh 0.2.2-rc.5: both packages inject `ctx.theme` (`getTheme()` / `theme/change`) and `ctx.locale` (`getLocale()` / `locale/change`) into a third-party client plugin and deliver live updates. |
 | The load path of the element (loading, ready, errors). | open question | Not run by A1. | unconfirmed | The tests of batch 4 and the suite of batch 5. |
 | Whether the handler's `signal` fires when the browser cancels. | open question | A load no one waits for runs to its end and is dropped. | unconfirmed | Accepted if it does not; noted in batch 7. |
 | dsh is a release candidate and its extension points promise no compatibility (D2). | risk | A dsh release can break the channel call, the View, or the bundle format. | unconfirmed | The pinned smoke job and the weekly `latest` run. |

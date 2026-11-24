@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/plans/0010-dsh-plugin.md 为准。
 
-<!-- source-blob: 9a6d1d2b363546a9d2c24e2a5707e05006f8108b -->
+<!-- source-blob: 99362448e3c33d153beb779b7e4ac970adce044e -->
 
 # Plan 0010：作为 dsh 插件的 Estela
 
@@ -460,19 +460,22 @@ core 通过 `present` 脱敏（`packages/server/src/store/trace-store.ts:76`）�
   `apply` 调用 `defineEstelaWorkspace()`，并在 `ctx.effect` 里注册 slot 条目，做法与 dsh 的 Statistics 插件相同。
 - slot 条目是 `{ name: 'conversation.view', id: 'estela', order: 60, label: 'Estela', inject: sessionId =>
   ({ sessionId }) }`。`order: 60` 使标签页排在 Trajectory 之后（A2，第 3 节）。
-- 它的组件（`src/client/estela-view.tsx`）渲染一个作为容器的 `div`，并通过 ref 在里面渲染 `<estela-workspace>`，每个
-  `sessionId` 只设置一次 `source`。这个 source 的 `open` 每次都为当前的 `sessionId` 调用 `session/open`，再用它返回的
-  id 调用 `trace/view`；被拒绝时以映射后的错误拒绝。`event` 用元素传入的 trace id 调用 `trace/event`。所以「重试」
-  和快照过期都会重新打开会话，而不重挂 View（3.2.1）。
-- 容器的高度（T25）：在元素最近的、可纵向滚动的祖先上放一个 `ResizeObserver`，把容器的高度设为该祖先的 client 高度
-  （像素）；当 dsh 的输入框浮层处在这个祖先里时，把它的高度扣掉。批次 7 先按 3.9 的做法在 dsh 里挂载元素并
-  测量；如果 dsh 的 View 区域已经把全部高度给了元素，就不加这个 observer。
+- 它的组件（`src/client/estela-view.ts`，按 T17 不写 JSX；上下文类型在 `src/client/types.ts`）渲染一个作为容器的
+  `div`，并通过 ref 在里面渲染 `<estela-workspace>`，每个 `sessionId` 只设置一次 `source`（`src/client/source.ts`）。
+  这个 source 的 `open` 每次都为当前的 `sessionId` 调用 `session/open`，再用它返回的 id 调用 `trace/view`；被拒绝时以
+  映射后的错误拒绝。`event` 用元素传入的 trace id 调用 `trace/event`。所以「重试」和快照过期都会重新打开会话，而不重挂
+  View（3.2.1）。
+- 容器的高度（T25，`src/client/view-height.ts`）：批次 7 在 dsh 0.2.2-rc.5 实测确认，dsh 的 View 区域（位于
+  `overflow-y: auto` 滚动容器内的 `flex: 1 0 auto`）不给元素定高，不加处理时元素会撑到 4410 px（导致账本虚拟滚动失效），
+  且被 128 px 的 sticky 输入框浮层盖住账本与检查器底部。因此通过 `ResizeObserver`（配合滚动容器子节点的
+  `MutationObserver`）把容器高度设为最近的纵向滚动祖先的 `clientHeight` 减去其中底部浮层的高度。
 
 #### 3.4.2 外观
 
-`src/client/appearance.ts` 把 `ctx.theme.getSnapshot().active.colorScheme` 映射为 `data-theme`，把
-`ctx.locale.getSnapshot().active` 映射为 `lang`（`zh` 映射为 `zh-CN`，其余映射为 `en`，规则同
-`apps/web/src/i18n/locale.ts:36-43`）。它在 `ctx.effect` 里订阅两者，并在已挂载的元素上设置属性。标签页名「Estela」是
+`src/client/appearance.ts` 把 `ctx.theme.getTheme().active.colorScheme` 映射为 `data-theme`，把
+`ctx.locale.getLocale().active` 映射为 `lang`（`zh` 映射为 `zh-CN`，其余映射为 `en`，规则同
+`apps/web/src/i18n/locale.ts:36-43`）。它在 `ctx.effect` 里订阅 `ctx.on('theme/change', ...)` 和
+`ctx.on('locale/change', ...)`，并在已挂载的元素上设置属性，不写 `document.documentElement`。标签页名「Estela」是
 产品名，不翻译。
 
 ### 3.5 包、清单与构建产物
@@ -921,8 +924,8 @@ PR #172，以 `44cb909` 合入：`close()` 停掉摘要队列，`redacts` 是会
 | 事项 | 类型 | 影响 | 负责人 | 下一步或期限 |
 |---|---|---|---|---|
 | 一次加载阻塞 dsh 事件循环的时间超过冒烟上限（T10）。 | 风险 | 会话加载期间 `dsh web` 自己的请求被卡住。 | unconfirmed | 批次 8 测量它。压不到上限之内的加载需要 worker，在它自己的 issue 里设计。 |
-| 元素在 dsh 的 View 区域里的高度（T25）。 | 未决问题 | 事件列表塌陷，或者输入框浮层盖住检查器。 | unconfirmed | 批次 7 在编写 client 半边之前，先在 dsh 里测量。 |
-| 带两个包的 `dsh.client.inject`，以及第三方 client 插件能否使用 `ctx.theme`、`ctx.locale`。 | 未决问题 | 主题和语言将不得不改为从 dsh 的 document 属性读取。 | unconfirmed | 批次 7，作为一个冒烟场景。 |
+| 元素在 dsh 的 View 区域里的高度（T25）。 | 已解决 | 事件列表塌陷，或者输入框浮层盖住检查器。 | 批次 7 | 已在批次 7 于 dsh 0.2.2-rc.5 实测：不加高度限制时元素撑到 4410 px 且被 128 px 的 sticky 输入框挡住，已由 `src/client/view-height.ts` 将容器高度设为最近纵向滚动祖先的 `clientHeight` 减去底部浮层高度。 |
+| 带两个包的 `dsh.client.inject`，以及第三方 client 插件能否使用 `ctx.theme`、`ctx.locale`。 | 已解决 | 主题和语言将不得不改为从 dsh 的 document 属性读取。 | 批次 7 | 已在批次 7 于 dsh 0.2.2-rc.5 实测：两个包均可注入 `ctx.theme`（`getTheme()` / `theme/change`）与 `ctx.locale`（`getLocale()` / `locale/change`）并正常触发实时更新。 |
 | 元素的加载路径（加载、就绪、错误）。 | 未决问题 | A1 没有运行过。 | unconfirmed | 批次 4 的测试和批次 5 的套件。 |
 | 浏览器取消时 handler 的 `signal` 是否触发。 | 未决问题 | 没人等待的加载会跑到结束，结果被丢弃。 | unconfirmed | 不触发也可以接受；在批次 7 里记下。 |
 | dsh 处于候选发布阶段，其扩展点不承诺兼容性（D2）。 | 风险 | 某个 dsh 版本可能破坏通道调用、View 或包格式。 | unconfirmed | 固定版本的冒烟 job 和针对 `latest` 的每周运行。 |

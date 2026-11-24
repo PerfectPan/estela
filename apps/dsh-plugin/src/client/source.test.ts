@@ -1,10 +1,16 @@
 import type { EventDetail, TraceViewResult } from '@rivus/estela-rpc/trace-store'
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { afterAll, describe, expect, it, vi } from 'vite-plus/test'
 
-vi.mock('@rivus/estela-web/embed', () => ({
-  NoLogError: class NoLogError extends Error {},
-  StaleError: class StaleError extends Error {},
-}))
+// `@rivus/estela-web/embed` defines `EstelaWorkspaceElement extends HTMLElement` and delegates
+// Solid click events on `window.document` at import time; supply minimal DOM stubs in Node.
+const stubbedDom = vi.hoisted(() => {
+  if (typeof globalThis.window === 'undefined') {
+    const doc = { addEventListener() {} }
+    Object.assign(globalThis, { window: { document: doc }, document: doc, HTMLElement: class {} })
+    return true
+  }
+  return false
+})
 
 import { NoLogError, StaleError } from '@rivus/estela-web/embed'
 import {
@@ -16,6 +22,14 @@ import {
 } from '../contract/channel.ts'
 import { createEstelaSource, mapChannelFailure } from './source.ts'
 import type { ClientRpc, ClientRpcResult } from './types.ts'
+
+afterAll(() => {
+  if (stubbedDom) {
+    Reflect.deleteProperty(globalThis, 'window')
+    Reflect.deleteProperty(globalThis, 'document')
+    Reflect.deleteProperty(globalThis, 'HTMLElement')
+  }
+})
 
 describe('mapChannelFailure', () => {
   it('maps estela/no-log to NoLogError and estela/stale to StaleError', () => {
