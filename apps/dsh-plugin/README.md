@@ -20,7 +20,7 @@ dsh plugin --profile web remove @rivus/dsh-estela
 
 - **Current session only**: opens the active conversation in `dsh web`. A blank session shows no View tabs until a turn starts.
 - **Read-only and local**: reads the session log inside `dsh`'s own process and sends nothing outside `dsh web`. Redaction is on by default (`ESTELA_REDACT=0` disables it).
-- **Snapshot**: reloads when you reload the page or switch sessions; live follow, a session browser, and "Export report" are not included in this plugin (use the `@rivus/estela` CLI for those).
+- **Snapshot**: reloads when you reload the page or switch sessions; live follow is not supported. A session browser and "Export report" are not included in this plugin (use the `@rivus/estela` CLI for those).
 
 ## License
 

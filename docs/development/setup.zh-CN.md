@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: 3157fa9fe2a89ddafa87f3aca330fffaec215c45 -->
+<!-- source-blob: a8b74b8ec257dce75e92e084979633345c264ebc -->
 
 # 开发
 
@@ -79,7 +79,7 @@ HOME=/tmp/estela-home node apps/cli/bin.mjs --no-auth --no-open
 - `dist/bin.mjs` 是包的 `bin` 入口，由 `apps/cli/bin.mjs` 构建而成。它检查 Node.js 版本并屏蔽 `node:sqlite` 的 ExperimentalWarning，然后导入 `dist/cli.mjs`（从源码运行时，同一文件导入 `src/main.ts`）。
 - `dist/cli.mjs` 打包了壳层、所有 `@rivus/*` workspace 包、`@clack/prompts` 和 `@bomb.sh/router`。`devframe` 和 `@devframes/agentic` 保留为外部依赖，作为该包仅有的两个运行时依赖。`@devframes/agentic` 声明了精确的 `devframe` peer dependency，因此两者保持相同版本。
 - `dist/web/` 是 `apps/web/dist` 的副本，`dist/fixtures/demo.trace.json` 是 `build` 与各导出命令的默认会话。当 pack 配置定义了 `ESTELA_BUNDLE` 时，`src/paths.ts` 使用这些路径；从源码（`node bin.mjs`）运行时，则使用 workspace 中的 `apps/web/dist` 和 `fixtures/`。
-- `dist/THIRD-PARTY-NOTICES.txt` 保存了打包进 `cli.mjs` 以及用于构建网页产物的 npm 包的许可证文本，其中包括经由 vite-plus-core 引入的 Vite 和 Rolldown；CLI 部分同样列出了 Rolldown，因为它提供了 `cli.mjs` 和 `bin.mjs` 中的运行时辅助代码（`apps/cli/scripts/third-party-notices.ts`，一个 Rolldown 插件）。
+- `dist/THIRD-PARTY-NOTICES.txt` 保存了打包进 `cli.mjs` 以及用于构建网页产物的 npm 包的许可证文本，其中包括经由 vite-plus-core 引入的 Vite 和 Rolldown；CLI 部分同样列出了 Rolldown，因为它提供了 `cli.mjs` 和 `bin.mjs` 中的运行时辅助代码（`scripts/third-party-notices.mjs`，一个 Rolldown 插件）。
 
 ```bash
 pnpm --filter '@rivus/estela...' run build

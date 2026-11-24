@@ -33,7 +33,8 @@ export default defineConfig({
   ],
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+    globalSetup: ['./test/global-setup.ts'],
     testTimeout: 120000,
   },
 })

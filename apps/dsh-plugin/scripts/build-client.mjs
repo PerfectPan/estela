@@ -1,5 +1,6 @@
+import { realpathSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import solid from 'vite-plugin-solid'
@@ -46,7 +47,7 @@ function wrapFactory(code) {
   ].join('\n')
 }
 
-export async function buildClient() {
+async function buildClient() {
   const result = await build({
     configFile: false,
     root: webSrc,
@@ -91,6 +92,16 @@ export async function buildClient() {
   return outFile
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  await buildClient()
+function isDirectEntry() {
+  const invoked = process.argv[1]
+  if (!invoked) {
+    return false
+  }
+  return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(resolve(invoked))
 }
+
+if (!isDirectEntry()) {
+  throw new Error('build-client.mjs must be run directly as a Node script')
+}
+
+await buildClient()

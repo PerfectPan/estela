@@ -17,25 +17,19 @@ export const CHANNEL_ERROR_CODES = [
 
 export type ChannelErrorCode = (typeof CHANNEL_ERROR_CODES)[number]
 
-/**
- * Builds the `zod/mini` input schemas for the `/estela` channel endpoints.
- * Constructed on demand so the client bundle, which imports only constants and types from this
- * contract, tree-shakes `zod/mini` (and its global config) out completely.
- */
-export function createChannelInputs() {
-  const boundedId = z.string().check(
-    z.minLength(1),
-    z.maxLength(256),
-    z.refine(value => !/\p{Cc}/u.test(value), { error: 'must not contain control characters' }),
-  )
-  return {
-    'session/open': z.object({ sessionId: boundedId }),
-    'trace/view': z.object({ traceId: boundedId }),
-    'trace/event': z.object({ traceId: boundedId, id: boundedId }),
-  } as const
-}
+const boundedId = z.string().check(
+  z.minLength(1),
+  z.maxLength(256),
+  z.refine(value => !/\p{Cc}/u.test(value), { error: 'must not contain control characters' }),
+)
 
-export type ChannelInputs = ReturnType<typeof createChannelInputs>
+export const channelInputs = {
+  'session/open': z.object({ sessionId: boundedId }),
+  'trace/view': z.object({ traceId: boundedId }),
+  'trace/event': z.object({ traceId: boundedId, id: boundedId }),
+} as const
+
+export type ChannelInputs = typeof channelInputs
 export type ChannelEndpoint = keyof ChannelInputs
 
 export interface ChannelResults {
