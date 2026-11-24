@@ -38,6 +38,7 @@ import type { Dictionary } from './dictionary.en.ts'
 export const zhCN = {
   common: {
     appName: 'Estela',
+    session: '会话',
     sessions: '会话',
     jumpTo: '跳转到事件、工具、文件…',
     themeSystem: '跟随系统',

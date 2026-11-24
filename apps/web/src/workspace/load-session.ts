@@ -3,7 +3,6 @@ import type { EventDetail, LoadProgress, LoadTraceResult, ReportTrace, TraceView
 import type { Trace } from '@rivus/estela-schema'
 import { createSignal, onCleanup } from 'solid-js'
 import { messageOf } from '@/lib/error-message.ts'
-import { devframeClient, scopedClient } from '@/shell/client.ts'
 
 /** Must match `LOAD_PROGRESS_CHANNEL` in `@rivus/estela-rpc` (the web app imports only its types). */
 const LOAD_PROGRESS_CHANNEL = 'load-progress'
@@ -62,21 +61,6 @@ export interface LoadClient {
   subscribe: (channel: string, id: string) => AsyncIterable<LoadProgress> & { cancel: () => void }
 }
 
-async function defaultClient(): Promise<LoadClient> {
-  const base = await devframeClient()
-  const ctx = await scopedClient()
-  return {
-    get status() {
-      return base.status
-    },
-    onStatus: listener => base.events.on('connection:status', status => listener(status)),
-    loadTrace: traceId => ctx.rpc.call('load-trace', { traceId }),
-    traceView: traceId => ctx.rpc.call('get-trace-view', { traceId }),
-    event: (traceId, id) => ctx.rpc.call('get-event', { traceId, id }),
-    subscribe: (channel, id) => ctx.rpc.streaming.subscribe<LoadProgress>(channel, id),
-  }
-}
-
 function lostFailure(): LoadFailure {
   return { reason: 'connection lost', lost: true }
 }
@@ -88,7 +72,7 @@ function lostFailure(): LoadFailure {
  * A closed DevFrame client never reconnects, by design, so a drop during the load ends it with
  * a "lost the connection" failure; the page offers a reload.
  */
-export function createSessionLoad(traceId: string, connect: () => Promise<LoadClient> = defaultClient) {
+export function createSessionLoad(traceId: string, connect: () => Promise<LoadClient>) {
   const [state, setState] = createSignal<LoadState>({ status: 'loading', bytesRead: 0, totalBytes: 0 })
   let reader: { cancel: () => void } | undefined
   let attempt = 0

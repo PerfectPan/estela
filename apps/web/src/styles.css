@@ -41,13 +41,35 @@
   --color-lane-link: var(--lane-link);
 }
 
-:root {
+/* In a shadow root `html` and `body` match nothing, so reset inherited host styles first and repeat the page defaults.
+   Declaring this before the theme token blocks keeps `all: initial` from resetting `:host`'s `color-scheme`. */
+:host {
+  all: initial;
+  display: block;
+  height: 100%;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  /* The design HTML uses the browser default, not Tailwind's 1.5. */
+  line-height: normal;
+  -webkit-font-smoothing: antialiased;
+  tab-size: 4;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* `:host` keeps same-named tokens of an outer host page out when rendered inside a shadow root. */
+:root,
+:host {
   --radius: 0.5rem;
 }
 
 /* Tokens from docs/design/README.md. Both themes share one layout; only these values change. */
 :root,
-html[data-theme="dark"] {
+:host,
+html[data-theme="dark"],
+:host([data-theme="dark"]) {
   --background: #0d1013;
   --secondary: #111519;
   --muted: #171c21;
@@ -96,7 +118,8 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
-html[data-theme="light"] {
+html[data-theme="light"],
+:host([data-theme="light"]) {
   --background: #fbfaf8;
   --secondary: #f4f3f0;
   --muted: #ffffff;

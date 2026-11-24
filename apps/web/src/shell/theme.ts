@@ -21,10 +21,7 @@ export { mode as themeMode }
 function apply(): void {
   const choice = mode()
   const resolved = choice === 'system' ? (media().matches ? 'dark' : 'light') : choice
-  const root = document.documentElement
-  root.dataset.theme = resolved
-  // Kobalte reads `data-kb-theme`.
-  root.dataset.kbTheme = resolved
+  document.documentElement.dataset.theme = resolved
 }
 
 export function initTheme(): void {

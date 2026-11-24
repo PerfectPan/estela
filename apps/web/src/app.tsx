@@ -1,6 +1,7 @@
 import type { ReportTrace } from '@rivus/estela-rpc'
 import { Match, Switch } from 'solid-js'
 import { SessionBrowser } from '@/browser/session-browser.tsx'
+import { AppShell } from '@/shell/app-shell.tsx'
 import { useRoute } from '@/shell/router.ts'
 import { Workspace } from '@/workspace/workspace.tsx'
 
@@ -15,7 +16,7 @@ export function App(props: { report?: ReportTrace }) {
     <Switch>
       <Match when={props.report}>{report => <Workspace traceId="" report={report()} />}</Match>
       <Match when={workspaceTraceId()} keyed>
-        {traceId => <Workspace traceId={traceId} />}
+        {traceId => <AppShell traceId={traceId} />}
       </Match>
       <Match when={route().name === 'browser'}>
         <SessionBrowser />

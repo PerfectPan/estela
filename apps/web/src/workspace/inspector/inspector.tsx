@@ -57,6 +57,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     }
   })
   const fetchEvent = createEventCache(id => state.session.event(id))
+  let tablist: HTMLDivElement | undefined
   function choose(next: InspectorTab): void {
     state.setTab(next)
   }
@@ -77,7 +78,8 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
     }
     event.preventDefault()
     choose(INSPECTOR_TABS[next]!.id)
-    document.getElementById(tabId(INSPECTOR_TABS[next]!.id))?.focus()
+    // The tablist is in the same tree as its tabs; `document.getElementById` stops at a shadow root.
+    tablist?.querySelector<HTMLElement>(`#${tabId(INSPECTOR_TABS[next]!.id)}`)?.focus()
   }
 
   const entry = () => state.selectedEntry()
@@ -234,6 +236,9 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
                 )}
               </Show>
               <div
+                ref={element => {
+                  tablist = element
+                }}
                 class="flex gap-[18px] border-b border-border text-[13px]"
                 role="tablist"
                 aria-label={t('inspector.label')}
