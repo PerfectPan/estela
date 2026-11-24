@@ -5,7 +5,8 @@
   "version": "0.0.0",
   "license": "GPL-3.0-only",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./core": "./src/core/estela-core.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

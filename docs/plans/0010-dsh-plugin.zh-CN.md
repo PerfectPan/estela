@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/plans/0010-dsh-plugin.md 为准。
 
-<!-- source-blob: c18f98473c5f9da7ec4146a1c979f2052e7c9686 -->
+<!-- source-blob: 9a6d1d2b363546a9d2c24e2a5707e05006f8108b -->
 
 # Plan 0010：作为 dsh 插件的 Estela
 
@@ -258,7 +258,7 @@ export interface EstelaCoreOptions {
 
 - core 创建平台和 TraceStore，返回 `store`、`seed(session, trace)` 和 `redact`（一个跟随 `redacts` 的文本脱敏器）。它既不导入 DevFrame，也不导入 `SessionCatalog`：会话目录经由会话索引到达 `node:sqlite`（`packages/server/src/catalog/session-catalog.ts:6`），而插件的 host 包不能带它。T6 的 lint 规则同时保证 `packages/server/src/core/**` 不从 `packages/server/src/catalog/` 导入。
 - `createEstelaServer` 在今天的位置构建会话目录（`estela-server.ts:81-88`），并把 `resolve: traceId => catalog.resolve(traceId)` 交给 core。`openLaunch`、`open` 和 `close` 留在组装处，所以会话目录的启动、摘要和关闭都留在原处，`EstelaServer` 的每个成员都保持不变。
-- core 重新导出 `traceIdOf`，供自己生成键的宿主使用。`packages/server/package.json` 增加 `"./core": "./src/core/estela-core.ts"`。
+- core 重新导出 `traceIdOf`，供自己生成键的宿主使用。`packages/server/package.json` 增加 `"./core": "./src/core/estela-core.ts"`。由于 `@rivus/estela-rpc` 根 barrel 导入 `devframe` 并在顶层调用 `devframe/rpc` 的 `createDefineWrapperWithContext()`（打包器无法将其树摇掉），`packages/rpc/package.json` 同步导出 `"./trace-store": "./src/trace-store.ts"`（包含 `TraceStore` 和 `CURRENT_TRACE_ID`），`packages/server/src/store/trace-store.ts` 与 `core/` 从 `@rivus/estela-rpc/trace-store` 导入，lint 规则同时覆盖 `core/**` 与 `store/**` 并禁止其中导入 `@rivus/estela-rpc` 根入口。
 - `sessions/redaction.ts:2` 从 `@rivus/estela-runtime-node` 的 barrel 导入 `homeDir`，而这个 barrel 同时导出会话索引。对构建产物的检查（3.5.2）才是打包器丢掉了索引的证明。如果没有丢掉，就给 `homeDir` 在 `packages/runtime-node` 里单开一个入口。
 
 ### 3.2 嵌入元素（`apps/web`）

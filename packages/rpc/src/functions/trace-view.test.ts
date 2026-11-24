@@ -8,8 +8,8 @@ import { fold } from '@rivus/estela-kernel'
 import { createStreamSink } from 'devframe/utils/streaming-channel'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import { createReportFunctions, createReportSource, createServerFunctions, createSessionPublisher } from '../index.ts'
-import { TraceStore } from '../trace-store.ts'
-import { CURRENT_TRACE_ID, SUBSCRIBE_GRACE_MS } from './trace-view.ts'
+import { CURRENT_TRACE_ID, TraceStore } from '../trace-store.ts'
+import { SUBSCRIBE_GRACE_MS } from './trace-view.ts'
 
 const SIZE = 1000
 

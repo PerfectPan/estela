@@ -33,12 +33,7 @@ export {
   type ReportSource,
 } from './functions/report.ts'
 export type { ServerServices } from './functions/service.ts'
-export {
-  CURRENT_TRACE_ID,
-  LOAD_PROGRESS_CHANNEL,
-  SUBSCRIBE_GRACE_MS,
-  type LoadTraceResult,
-} from './functions/trace-view.ts'
+export { LOAD_PROGRESS_CHANNEL, SUBSCRIBE_GRACE_MS, type LoadTraceResult } from './functions/trace-view.ts'
 export {
   emptySessionsSignal,
   SESSIONS_STATE,
@@ -52,6 +47,7 @@ export {
 export { createSessionPublisher, type SessionPublisher } from './publish.ts'
 export { buildReport, type ReportLocale, type ReportTrace } from './report.ts'
 export {
+  CURRENT_TRACE_ID,
   LoadCancelledError,
   TraceStore,
   type EventDetail,

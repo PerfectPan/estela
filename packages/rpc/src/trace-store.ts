@@ -13,6 +13,7 @@ import {
   type Reloadable,
 } from './original-reload.ts'
 
+export const CURRENT_TRACE_ID = 'current' // Trace id of the launch session.
 /** Loaded traces kept in memory, without originals. */
 const CAPACITY = 3
 /** The 12 MB budget covers the whole response; keep 64 KB for `summary` and the envelope. */

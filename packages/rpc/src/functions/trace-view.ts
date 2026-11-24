@@ -3,10 +3,8 @@ import type { RpcStreamingChannel, RpcStreamingChannelOptions } from 'devframe'
 import type { EventDetail, LoadProgress, TraceStore, TraceViewResult } from '../trace-store.ts'
 import { createDefineWrapperWithContext } from 'devframe/rpc'
 import * as z from 'zod/mini'
+import { CURRENT_TRACE_ID } from '../trace-store.ts'
 import { parseInput } from './parse-input.ts'
-
-/** Trace id of the session the CLI was started with. The shell's session catalog resolves every listed one. */
-export const CURRENT_TRACE_ID = 'current'
 
 /** Streaming channel for load progress (bare name; DevFrame prefixes the namespace). */
 export const LOAD_PROGRESS_CHANNEL = 'load-progress'

@@ -1,3 +1,4 @@
+export { createEstelaCore, traceIdOf, type EstelaCore, type EstelaCoreOptions } from './core/estela-core.ts'
 export { BASE_PATH, type EstelaApp } from './composition/definition.ts'
 export {
   createEstelaServer,
