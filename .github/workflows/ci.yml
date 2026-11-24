@@ -82,8 +82,11 @@ jobs:
       - name: CLI smoke on the installed tarball
         working-directory: apps/e2e
         run: pnpm run test:smoke
-      # Reuses the production build from the smoke step; generates its sessions into a temp directory and writes
-      # the measured-vs-budget table to the job summary. Budgets and their reasons: scripts/budgets/budgets.mjs.
+      # Builds the dsh plugin bundles (host and client) before measuring their sizes alongside the CLI.
+      - name: Build the dsh plugin before budgets
+        run: pnpm --filter '@rivus/dsh-estela...' run build
+      # Reuses the production builds from the smoke and plugin build steps; generates its sessions into a temp
+      # directory and writes the measured-vs-budget table to the job summary. Budgets and reasons: scripts/budgets/budgets.mjs.
       - name: Performance and size budgets
         timeout-minutes: 5
         run: node scripts/check-budgets.mjs
