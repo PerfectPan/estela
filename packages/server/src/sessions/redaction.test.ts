@@ -22,6 +22,19 @@ describe('home redaction', () => {
     expect(value.text).toBe('a\\/u\\/me\\/a.json and file:///srv/agents/b.json')
   })
 
+  it('hides the longer of two nested homes first, whatever order they come in', () => {
+    const users = '/srv/users'
+    const alice = '/srv/users/alice'
+    const text = 'in /srv/users/alice/notes and /srv/users/bob/notes, root /srv/users'
+    for (const redact of [homeRedaction(users, alice), homeRedaction(alice, users)]) {
+      expect(redact.text(text)).toBe('in ~/notes and ~/bob/notes, root ~')
+      expect(redact.value({ [`${alice}/notes`]: `${users}/bob`, nested: [{ path: alice }] })).toEqual({
+        '~/notes': '~/bob',
+        nested: [{ path: '~' }],
+      })
+    }
+  })
+
   it('gives a server the platform home and the process home', () => {
     const redact = serverRedaction('/u/platform')
     expect(redact.text(`from /u/platform/a.json and ${homedir()}/.ssh/id_rsa`)).toBe('from ~/a.json and ~/.ssh/id_rsa')

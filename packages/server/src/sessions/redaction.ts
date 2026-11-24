@@ -12,10 +12,11 @@ export interface HomeRedaction {
 
 /**
  * Redaction with every home in `homes`: one pass of the kit's `redact` per home, since its patterns cover one
- * home at a time.
+ * home at a time. A home that is inside another (`/srv/users/alice` in `/srv/users`) is replaced first: the
+ * other way its parent would already have turned `/srv/users/alice/notes` into `~/alice/notes`.
  */
 export function homeRedaction(...homes: readonly string[]): HomeRedaction {
-  const unique = [...new Set(homes)]
+  const unique = [...new Set(homes)].toSorted((a, b) => b.length - a.length)
   return {
     // Whole-value passes one after the other: the kit builds its patterns per home and keeps only the last
     // built, so a value walked string by string with alternating homes would rebuild them for each string.
