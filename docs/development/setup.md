@@ -147,7 +147,7 @@ dsh plugin (`@rivus/dsh-estela`):
 | DSH-7 | Large sessions load with virtualized rows while dsh's own `POST /api/session/list` latency stays within `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-8 | Views over the 12 MB budget shorten long strings and load full event text on selection | `packages/kernel/src/view.test.ts` |
 | DSH-9 | Appending to a running session leaves the open snapshot steady without error; reloading shows the new turn, and stale snapshots auto-reopen without mixing states | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/sessions.test.ts`, `apps/dsh-plugin/src/client/source.test.ts` |
-| DSH-10 | Default redaction replaces the home path and secrets; `ESTELA_REDACT=0` disables redaction | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/channel.test.ts` |
+| DSH-10 | Default redaction replaces the home path and secrets; `ESTELA_REDACT=0` disables redaction | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/lifecycle.test.ts` |
 | DSH-11 | Theme and language follow dsh (`ctx.theme` / `ctx.locale`) without writing `document.documentElement` | `dsh.smoke.ts`, `apps/dsh-plugin/src/client/appearance.test.ts` |
 | DSH-12 | Removing `@rivus/dsh-estela` while `dsh web` runs removes the tab, returns 405 on `/estela`, leaves listening sockets unchanged, and cleans the profile's `package.json` and `node_modules` | `dsh.smoke.ts` |
 | DSH-13 | An incompatible `engines.dsh` tarball is refused with exit 1, and a pre-installed incompatible copy is disabled at startup without showing the tab | `dsh.smoke.ts`, `apps/dsh-plugin/src/package.test.ts` |

@@ -3,8 +3,8 @@
 // conversation View tabs without calling a model. Built solely from the repository's
 // `fixtures/sessions/dsh/conformance/plain/session.v4.jsonl` fixture.
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -42,15 +42,36 @@ function loadPlainFixtureEvents() {
  * @param {number} [options.repeats] - number of fixture cycles to emit with contiguous seqs (for DSH-7)
  */
 export function seedSession(options) {
-  const { home, cwd, title = 'Estela smoke session', userText, repeats = 1 } = options
+  const { home, cwd: rawCwd, title = 'Estela smoke session', userText, repeats = 1 } = options
+  mkdirSync(rawCwd, { recursive: true })
+  const cwd = realpathSync(rawCwd)
   const fixtureEvents = loadPlainFixtureEvents()
   const now = Date.now()
   const id = `session-${randomUUID()}`
 
+  const SURFACE_TYPES = new Set([
+    'system/message',
+    'developer/message',
+    'user/message',
+    'assistant/message',
+    'tool/result',
+  ])
   let seq = -1
+  let systemSeq = null
   const push = (list, type, data) => {
     seq += 1
-    list.push({ type, seq, time: now + seq, data })
+    const entry = { type, seq, time: now + seq, data }
+    if (SURFACE_TYPES.has(type)) {
+      if (type === 'system/message' && systemSeq !== null) {
+        entry.surfaceOp = { op: 'replace', startSeq: systemSeq, endSeq: systemSeq }
+      } else {
+        entry.surfaceOp = 'append'
+      }
+      if (type === 'system/message') {
+        systemSeq = seq
+      }
+    }
+    list.push(entry)
   }
 
   const events = []
@@ -59,22 +80,52 @@ export function seedSession(options) {
   push(events, 'approval/policy', { policy: 'ask' })
 
   let turn = 0
+  let step = 0
+  let turnOpen = false
+  let stepOpen = false
   let replacedUser = false
+
+  const closeStep = () => {
+    if (stepOpen) {
+      push(events, 'step/end', { turn, step })
+      stepOpen = false
+    }
+  }
+  const closeTurn = () => {
+    closeStep()
+    if (turnOpen) {
+      push(events, 'turn/end', { turn, reason: { kind: 'completed' } })
+      turnOpen = false
+    }
+  }
+  const openTurnAndStep = () => {
+    closeTurn()
+    turn += 1
+    step = 1
+    push(events, 'turn/start', { turn })
+    turnOpen = true
+    push(events, 'step/start', { turn, step })
+    stepOpen = true
+  }
+
   for (let cycle = 0; cycle < repeats; cycle += 1) {
+    let sawUserInCycle = false
     for (const rawEvent of fixtureEvents) {
       if (rawEvent.type === 'session/title') {
         continue
       }
       if (rawEvent.type === 'system/message') {
-        if (turn > 0) {
-          push(events, 'turn/end', { turn, reason: { kind: 'completed' } })
-        }
-        turn += 1
-        push(events, 'turn/start', { turn })
+        openTurnAndStep()
+      } else if (rawEvent.type === 'user/message' && sawUserInCycle) {
+        openTurnAndStep()
       }
 
       const data = structuredClone(rawEvent.data)
+      if (rawEvent.type === 'request/header') {
+        data.reason = cycle === 0 ? 'initial' : 'series'
+      }
       if (rawEvent.type === 'user/message' && typeof data.id === 'string') {
+        sawUserInCycle = true
         data.id = `${data.id}-c${cycle}`
         if (
           userText !== undefined
@@ -87,8 +138,10 @@ export function seedSession(options) {
         }
       }
       if (rawEvent.type === 'assistant/message') {
-        if (typeof data.turn === 'number') {
-          data.turn = turn
+        data.turn = turn
+        data.step = step
+        if (!Array.isArray(data.stream)) {
+          data.stream = []
         }
         if (data.message && typeof data.message.id === 'string') {
           data.message.id = `${data.message.id}-c${cycle}`
@@ -102,26 +155,41 @@ export function seedSession(options) {
         }
       }
       if (rawEvent.type === 'tool/result') {
-        if (typeof data.turn === 'number') {
-          data.turn = turn
-        }
-        if (typeof data.toolCallId === 'string') {
-          data.toolCallId = `${data.toolCallId}-c${cycle}`
-        }
-        if (data.message && data.message.source && typeof data.message.source.callId === 'string') {
-          data.message.source.callId = `${data.message.source.callId}-c${cycle}`
+        data.turn = turn
+        data.step = step
+        if (data.message) {
+          data.message.id = `tr-${cycle}-${seq + 1}`
+          if (typeof data.message.toolCallId === 'string') {
+            const nextCallId = `${data.message.toolCallId}-c${cycle}`
+            data.message.toolCallId = nextCallId
+            if (data.message.source) {
+              data.message.source.callId = nextCallId
+            }
+            push(events, 'tool/call', {
+              turn,
+              step,
+              callId: nextCallId,
+              name: 'read',
+              arguments: '{"path":"/u/me/a"}',
+            })
+          }
         }
       }
-      if (rawEvent.type === 'system/message' && typeof data.turn === 'number') {
+      if (rawEvent.type === 'system/message') {
         data.turn = turn
+        data.step = step
+        if (data.message) {
+          data.message.id = `sys-c${cycle}`
+          data.message.source = { kind: 'system-prompt' }
+        }
       }
 
       push(events, rawEvent.type, data)
     }
   }
 
-  push(events, 'turn/end', { turn, reason: { kind: 'completed' } })
-  push(events, 'session/title', { title })
+  closeTurn()
+  push(events, 'session/title', { title, messageSeqs: [], source: { kind: 'user' } })
 
   const header = {
     type: 'session',
@@ -140,13 +208,40 @@ export function seedSession(options) {
   writeFileSync(logPath, Buffer.concat([compressFrame([header]), compressFrame(events)]))
 
   const storagePath = join(home, 'storages', 'workspace.json')
-  const workspaces = JSON.parse(readFileSync(storagePath, 'utf8'))
-  const workspace = Object.values(workspaces.tables.workspaces).find(entry => entry.path === cwd)
+  mkdirSync(dirname(storagePath), { recursive: true })
+  const nowIso = new Date(now).toISOString()
+  const workspaces = existsSync(storagePath)
+    ? JSON.parse(readFileSync(storagePath, 'utf8'))
+    : {
+        unit: { name: 'workspace', version: 2 },
+        global: {
+          initialized: true,
+          workspaceIds: [],
+          archivedSessionIds: [],
+          pinnedSessionIds: [],
+        },
+        tables: { workspaces: {} },
+      }
+  let workspace = Object.values(workspaces.tables.workspaces).find(entry => entry.path === cwd)
   if (workspace === undefined) {
-    throw new Error(`no workspace with path ${cwd} in ${storagePath}; start dsh web once first`)
+    const workspaceId = randomUUID()
+    workspace = {
+      path: cwd,
+      title: basename(cwd) || 'workspace',
+      sessionIds: [],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+    workspaces.tables.workspaces[workspaceId] = workspace
+    workspaces.global.workspaceIds.push(workspaceId)
+    if (workspaces.global.defaultWorkspaceId === undefined) {
+      workspaces.global.defaultWorkspaceId = workspaceId
+    }
+    workspaces.global.initialized = true
   }
   if (!workspace.sessionIds.includes(id)) {
     workspace.sessionIds.push(id)
+    workspace.updatedAt = nowIso
   }
   writeFileSync(storagePath, `${JSON.stringify(workspaces, null, 2)}\n`)
 
@@ -168,9 +263,20 @@ export function appendTurnFrame(logPath, options) {
   const { startSeq, turn, userText, assistantText = 'appended reply' } = options
   const now = Date.now()
   let seq = startSeq - 1
+  const SURFACE_TYPES = new Set([
+    'system/message',
+    'developer/message',
+    'user/message',
+    'assistant/message',
+    'tool/result',
+  ])
   const next = (type, data) => {
     seq += 1
-    return { type, seq, time: now + seq, data }
+    const entry = { type, seq, time: now + seq, data }
+    if (SURFACE_TYPES.has(type)) {
+      entry.surfaceOp = 'append'
+    }
+    return entry
   }
 
   const frameEvents = [
@@ -181,9 +287,11 @@ export function appendTurnFrame(logPath, options) {
       source: { kind: 'user' },
       id: `u-appended-${turn}`,
     }),
+    next('step/start', { turn, step: 1 }),
     next('assistant/message', {
       turn,
       step: 1,
+      stream: [],
       message: {
         role: 'assistant',
         content: [{ type: 'text', text: assistantText }],
@@ -192,6 +300,7 @@ export function appendTurnFrame(logPath, options) {
       },
       usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
     }),
+    next('step/end', { turn, step: 1 }),
     next('turn/end', { turn, reason: { kind: 'completed' } }),
   ]
 

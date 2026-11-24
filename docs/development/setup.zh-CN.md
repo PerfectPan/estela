@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: e36900c030563517312cba859946d65d02528a1b -->
+<!-- source-blob: eaddf21fa06349b4cec4b4b5a6d5402019bfc3fd -->
 
 # 开发
 
@@ -151,7 +151,7 @@ dsh 插件（`@rivus/dsh-estela`）：
 | DSH-7 | 大型会话账本保持虚拟化，同时 dsh 自身的 `POST /api/session/list` 延迟增幅不超过 `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-8 | 超过 12 MB 预算的视图会缩短长字符串，并在选中事件时加载完整文本 | `packages/kernel/src/view.test.ts` |
 | DSH-9 | 向运行中的会话追加新帧时，已打开的视图保持原快照且无报错；刷新页面后展示新内容，过期快照会自动重开且不混用状态 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/sessions.test.ts`、`apps/dsh-plugin/src/client/source.test.ts` |
-| DSH-10 | 默认脱敏替换主目录路径与敏感凭据；`ESTELA_REDACT=0` 关闭脱敏 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/channel.test.ts` |
+| DSH-10 | 默认脱敏替换主目录路径与敏感凭据；`ESTELA_REDACT=0` 关闭脱敏 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/lifecycle.test.ts` |
 | DSH-11 | 主题与语言跟随 dsh（`ctx.theme` / `ctx.locale`），不写 `document.documentElement` | `dsh.smoke.ts`、`apps/dsh-plugin/src/client/appearance.test.ts` |
 | DSH-12 | 在 `dsh web` 运行期间移除 `@rivus/dsh-estela` 后，标签页消失、`/estela` 返回 405、监听端口不变，且 profile 的 `package.json` 和 `node_modules` 清理干净 | `dsh.smoke.ts` |
 | DSH-13 | `engines.dsh` 不兼容的 tarball 安装以退出码 1 拒绝；已装不兼容副本在启动时被禁用且不显示标签页 | `dsh.smoke.ts`、`apps/dsh-plugin/src/package.test.ts` |

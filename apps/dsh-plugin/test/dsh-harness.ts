@@ -1,22 +1,254 @@
-import { chromium, type Browser, type Page } from '@playwright/test'
+import { chromium, type Browser } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { x } from 'tinyexec'
 import * as z from 'zod/mini'
 
 const pluginDir = dirname(dirname(fileURLToPath(import.meta.url)))
-
 const packJsonSchema = z.object({ filename: z.string() })
-const workspaceStorageSchema = z.object({
-  tables: z.object({
-    workspaces: z.record(z.string(), z.object({ path: z.string() })),
-  }),
-})
+
+export interface RunningDsh {
+  readonly pid: number
+  readonly url: string
+  readonly port: number
+  readonly token: string
+  output(): string
+  stop(): Promise<void>
+}
+
+interface ProcessTrackerState {
+  readonly activeDsh: Set<RunningDsh>
+  readonly activeChildren: Set<ChildProcess>
+  readonly trackedPids: Set<number>
+}
+
+function buildIsolatedEnv(homeDir: string, extra?: Record<string, string>): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      value === undefined
+      || /_API_KEY$/i.test(key)
+      || key === 'ESTELA_REDACT'
+      || key.startsWith('DSH_')
+      || key.toLowerCase().startsWith('npm_config_')
+    ) {
+      continue
+    }
+    env[key] = value
+  }
+  return Object.assign(
+    env,
+    {
+      HOME: homeDir,
+      USERPROFILE: homeDir,
+      XDG_CONFIG_HOME: join(homeDir, '.config'),
+      XDG_CACHE_HOME: join(homeDir, '.cache'),
+      npm_config_cache: join(homeDir, '.npm-cache'),
+      npm_config_userconfig: join(homeDir, '.npmrc'),
+      npm_config_audit: 'false',
+      npm_config_fund: 'false',
+    },
+    extra,
+  )
+}
+
+export function createDshEnv(
+  dshHome: string,
+  fakeHome: string,
+  extra?: Record<string, string>,
+): Record<string, string> {
+  return buildIsolatedEnv(fakeHome, { DSH_HOME: dshHome, ...extra })
+}
+
+async function waitForPidExit(pid: number, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0)
+    } catch {
+      return
+    }
+    await new Promise(resolveWait => setTimeout(resolveWait, 50))
+  }
+  throw new Error(`process ${pid} did not exit within ${timeoutMs}ms`)
+}
+
+async function terminateChild(child: ChildProcess): Promise<void> {
+  if (child.exitCode === null && child.signalCode === null) {
+    await new Promise<void>(resolveExit => {
+      let hardTimer: ReturnType<typeof setTimeout> | undefined
+      const killTimer = setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill('SIGKILL')
+        }
+      }, 5_000)
+      const done = () => {
+        clearTimeout(killTimer)
+        if (hardTimer !== undefined) {
+          clearTimeout(hardTimer)
+        }
+        resolveExit()
+      }
+      hardTimer = setTimeout(() => {
+        child.off('exit', done)
+        done()
+      }, 12_000)
+      child.once('exit', done)
+      child.kill('SIGTERM')
+    })
+  }
+  if (child.pid !== undefined) {
+    await waitForPidExit(child.pid)
+  }
+}
+
+interface SpawnCaptureOptions {
+  readonly env: Record<string, string>
+  readonly cwd?: string
+  readonly timeoutMs: number
+  readonly tracker?: ProcessTrackerState
+}
+
+function spawnCapture(
+  cmd: string,
+  args: readonly string[],
+  options: SpawnCaptureOptions,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolveCmd, rejectCmd) => {
+    // Use `child_process.spawn` directly with `options.env` so parent env vars are never merged back in.
+    const child = spawn(cmd, [...args], {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    if (options.tracker) {
+      options.tracker.activeChildren.add(child)
+      if (child.pid !== undefined) {
+        options.tracker.trackedPids.add(child.pid)
+      }
+    }
+
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    let settled = false
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8')
+    })
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8')
+    })
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      void terminateChild(child)
+    }, options.timeoutMs)
+
+    const finish = (err: Error | null, exitCode: number) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      clearTimeout(timer)
+      options.tracker?.activeChildren.delete(child)
+      if (err) {
+        rejectCmd(err)
+        return
+      }
+      if (timedOut) {
+        rejectCmd(
+          new Error(
+            `${cmd} ${args.join(' ')} timed out after ${options.timeoutMs}ms:\n${stdout.slice(-2000)}${stderr.slice(-2000)}`,
+          ),
+        )
+        return
+      }
+      resolveCmd({ exitCode, stdout, stderr })
+    }
+
+    child.on('error', err => finish(err, 1))
+    child.on('close', code => finish(null, code ?? 1))
+  })
+}
+
+export async function listListeningPorts(pid: number): Promise<string[]> {
+  const env = buildIsolatedEnv(dirname(pluginDir))
+  try {
+    const lsof = await spawnCapture('lsof', ['-a', '-p', String(pid), '-iTCP', '-sTCP:LISTEN', '-nP'], {
+      env,
+      timeoutMs: 10_000,
+    })
+    return lsof.stdout
+      .split('\n')
+      .slice(1)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const match = /TCP\s+(\S+)\s+\(LISTEN\)/.exec(line)
+        return match ? match[1]! : line
+      })
+      .toSorted()
+  } catch {
+    // Fall back to `ss` on minimal Linux images where `lsof` is not installed.
+  }
+  try {
+    const ss = await spawnCapture('ss', ['-ltnp'], { env, timeoutMs: 10_000 })
+    if (ss.exitCode === 0) {
+      return ss.stdout
+        .split('\n')
+        .filter(line => line.includes(`pid=${pid},`))
+        .map(line => line.trim().split(/\s+/)[3] ?? line)
+        .toSorted()
+    }
+  } catch {
+    return []
+  }
+  return []
+}
+
+async function assertNoListeningPorts(pids: Iterable<number>): Promise<void> {
+  const remaining: string[] = []
+  for (const pid of pids) {
+    const ports = await listListeningPorts(pid)
+    if (ports.length > 0) {
+      remaining.push(`pid ${pid}: ${ports.join(', ')}`)
+    }
+  }
+  if (remaining.length > 0) {
+    throw new Error(`dsh processes left listening sockets open: ${remaining.join('; ')}`)
+  }
+}
+
+export class ProcessTracker implements ProcessTrackerState {
+  readonly activeDsh = new Set<RunningDsh>()
+  readonly activeChildren = new Set<ChildProcess>()
+  readonly trackedPids = new Set<number>()
+
+  async cleanupAll(): Promise<void> {
+    const stops = [...this.activeDsh].map(async instance => {
+      try {
+        await instance.stop()
+      } finally {
+        this.activeDsh.delete(instance)
+      }
+    })
+    await Promise.allSettled(stops)
+
+    const kills = [...this.activeChildren].map(async child => {
+      await terminateChild(child)
+      this.activeChildren.delete(child)
+    })
+    await Promise.allSettled(kills)
+
+    for (const pid of this.trackedPids) {
+      await waitForPidExit(pid)
+    }
+    await assertNoListeningPorts(this.trackedPids)
+  }
+}
 
 export async function launchChromium(): Promise<Browser> {
   const channel = process.env.ESTELA_E2E_CHANNEL
@@ -33,39 +265,21 @@ export async function launchChromium(): Promise<Browser> {
   }
 }
 
-export function createDshEnv(
-  dshHome: string,
-  fakeHome: string,
-  extra?: Record<string, string>,
-): Record<string, string> {
-  const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value !== undefined) {
-      env[key] = value
-    }
-  }
-  const realHome = process.env.HOME ?? tmpdir()
-  env.DSH_HOME = dshHome
-  env.HOME = fakeHome
-  env.npm_config_cache = process.env.npm_config_cache ?? join(realHome, '.npm')
-  delete env.DEEPSEEK_API_KEY
-  delete env.OPENAI_API_KEY
-  delete env.ANTHROPIC_API_KEY
-  if (extra) {
-    Object.assign(env, extra)
-  }
-  return env
-}
-
-export async function installDsh(prefixDir: string, version: string): Promise<string> {
+export async function installDsh(
+  prefixDir: string,
+  version: string,
+  npmHomeDir: string,
+  tracker: ProcessTracker,
+): Promise<string> {
   await mkdir(prefixDir, { recursive: true })
-  const proc = await x(
+  await mkdir(npmHomeDir, { recursive: true })
+  const proc = await spawnCapture(
     'npm',
     ['i', '--prefix', prefixDir, `@deepseek-ai/dsh@${version}`, '--registry', 'https://registry.npmjs.org/'],
     {
-      nodeOptions: { env: { ...process.env, npm_config_audit: 'false', npm_config_fund: 'false' } },
-      nodePath: false,
-      throwOnError: false,
+      env: buildIsolatedEnv(npmHomeDir),
+      timeoutMs: 180_000,
+      tracker,
     },
   )
   if (proc.exitCode !== 0) {
@@ -76,12 +290,14 @@ export async function installDsh(prefixDir: string, version: string): Promise<st
   return join(prefixDir, 'node_modules/@deepseek-ai/dsh/lib/bin.js')
 }
 
-export async function packPlugin(outDir: string): Promise<string> {
+export async function packPlugin(outDir: string, npmHomeDir: string, tracker: ProcessTracker): Promise<string> {
   await mkdir(outDir, { recursive: true })
-  const proc = await x('pnpm', ['pack', '--json', '--pack-destination', outDir], {
-    nodeOptions: { cwd: pluginDir },
-    nodePath: false,
-    throwOnError: false,
+  await mkdir(npmHomeDir, { recursive: true })
+  const proc = await spawnCapture('pnpm', ['pack', '--json', '--pack-destination', outDir], {
+    cwd: pluginDir,
+    env: buildIsolatedEnv(npmHomeDir),
+    timeoutMs: 60_000,
+    tracker,
   })
   if (proc.exitCode !== 0) {
     throw new Error(`pnpm pack failed (exit ${proc.exitCode}):\n${proc.stdout}${proc.stderr}`)
@@ -90,9 +306,19 @@ export async function packPlugin(outDir: string): Promise<string> {
   return parsed.filename
 }
 
-export async function repackWithEnginesDsh(tarballPath: string, enginesDsh: string, outDir: string): Promise<string> {
+export async function repackWithEnginesDsh(
+  tarballPath: string,
+  enginesDsh: string,
+  outDir: string,
+  tracker: ProcessTracker,
+): Promise<string> {
   const work = await mkdtemp(join(outDir, 'repack-'))
-  const unpack = await x('tar', ['-xzf', tarballPath, '-C', work], { nodePath: false, throwOnError: false })
+  const env = buildIsolatedEnv(work)
+  const unpack = await spawnCapture('tar', ['-xzf', tarballPath, '-C', work], {
+    env,
+    timeoutMs: 30_000,
+    tracker,
+  })
   if (unpack.exitCode !== 0) {
     throw new Error(`tar extract failed: ${unpack.stderr}`)
   }
@@ -104,7 +330,11 @@ export async function repackWithEnginesDsh(tarballPath: string, enginesDsh: stri
   pkg.engines.dsh = enginesDsh
   await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8')
   const dest = join(outDir, 'incompatible-dsh-estela.tgz')
-  const repack = await x('tar', ['-czf', dest, '-C', work, 'package'], { nodePath: false, throwOnError: false })
+  const repack = await spawnCapture('tar', ['-czf', dest, '-C', work, 'package'], {
+    env,
+    timeoutMs: 30_000,
+    tracker,
+  })
   if (repack.exitCode !== 0) {
     throw new Error(`tar repack failed: ${repack.stderr}`)
   }
@@ -112,34 +342,22 @@ export async function repackWithEnginesDsh(tarballPath: string, enginesDsh: stri
   return dest
 }
 
-export async function runDshCli(
+export function runDshCli(
   dshBin: string,
   args: readonly string[],
   env: Record<string, string>,
+  tracker: ProcessTracker,
+  timeoutMs = 60_000,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const proc = await x(process.execPath, [dshBin, ...args], {
-    nodeOptions: { env },
-    nodePath: false,
-    throwOnError: false,
-  })
-  return { exitCode: proc.exitCode ?? 1, stdout: proc.stdout, stderr: proc.stderr }
-}
-
-export interface RunningDsh {
-  readonly pid: number
-  readonly url: string
-  readonly port: number
-  readonly token: string
-  output(): string
-  stop(): Promise<void>
+  return spawnCapture(process.execPath, [dshBin, ...args], { env, timeoutMs, tracker })
 }
 
 export async function startDshWeb(
   dshBin: string,
   env: Record<string, string>,
-  trackedPids: Set<number>,
+  tracker: ProcessTracker,
 ): Promise<RunningDsh> {
-  const child: ChildProcess = spawn(
+  const child = spawn(
     process.execPath,
     [dshBin, '--profile', 'web', '--no-open', '--host', '127.0.0.1', '--port', '0'],
     { env, stdio: ['ignore', 'pipe', 'pipe'] },
@@ -148,30 +366,23 @@ export async function startDshWeb(
   if (pid === undefined) {
     throw new Error('failed to spawn dsh web process')
   }
-  trackedPids.add(pid)
+  tracker.trackedPids.add(pid)
+  tracker.activeChildren.add(child)
 
   let combined = ''
-  child.stdout?.on('data', (chunk: Buffer) => {
+  child.stdout.on('data', (chunk: Buffer) => {
     combined += chunk.toString('utf8')
   })
-  child.stderr?.on('data', (chunk: Buffer) => {
+  child.stderr.on('data', (chunk: Buffer) => {
     combined += chunk.toString('utf8')
+  })
+  child.once('exit', () => {
+    tracker.activeChildren.delete(child)
   })
 
   const stop = async (): Promise<void> => {
-    if (child.exitCode === null) {
-      child.kill('SIGTERM')
-      await new Promise<void>(resolveStop => {
-        const timer = setTimeout(() => {
-          child.kill('SIGKILL')
-          resolveStop()
-        }, 5_000)
-        child.once('exit', () => {
-          clearTimeout(timer)
-          resolveStop()
-        })
-      })
-    }
+    await terminateChild(child)
+    tracker.activeChildren.delete(child)
   }
 
   let url = ''
@@ -193,43 +404,22 @@ export async function startDshWeb(
   }
 
   const parsed = new URL(url)
-  return {
+  const instance: RunningDsh = {
     pid,
     url,
     port: Number(parsed.port),
     token: parsed.searchParams.get('token') ?? '',
     output: () => combined,
-    stop,
+    stop: async () => {
+      try {
+        await stop()
+      } finally {
+        tracker.activeDsh.delete(instance)
+      }
+    },
   }
-}
-
-export async function readWorkspacePath(dshHome: string): Promise<string> {
-  const raw: unknown = JSON.parse(await readFile(join(dshHome, 'storages/workspace.json'), 'utf8'))
-  const storage = z.parse(workspaceStorageSchema, raw)
-  const first = Object.values(storage.tables.workspaces)[0]
-  if (!first) {
-    throw new Error(`no workspace entry found in ${join(dshHome, 'storages/workspace.json')}`)
-  }
-  return first.path
-}
-
-export async function dismissNotices(page: Page): Promise<void> {
-  await page
-    .getByRole('button', { name: /continue|继续/i })
-    .first()
-    .click({ force: true, timeout: 4_000 })
-    .catch(() => {})
-  await page.waitForTimeout(600)
-  const signIn = page.locator('[role=presentation]').filter({ hasText: /get started|开始使用/i })
-  if ((await signIn.count()) > 0) {
-    await signIn
-      .first()
-      .locator('button')
-      .first()
-      .click({ force: true, timeout: 4_000 })
-      .catch(() => {})
-    await page.waitForTimeout(600)
-  }
+  tracker.activeDsh.add(instance)
+  return instance
 }
 
 export interface HttpResponse {
@@ -290,51 +480,4 @@ export function rpcPost(
     headers.cookie = options.cookie
   }
   return httpRequest(port, 'POST', `${channel}/${endpoint}`, { headers, body })
-}
-
-export async function listListeningPorts(pid: number): Promise<string[]> {
-  try {
-    const lsof = await x('lsof', ['-a', '-p', String(pid), '-iTCP', '-sTCP:LISTEN', '-nP'], {
-      nodePath: false,
-      throwOnError: false,
-    })
-    return lsof.stdout
-      .split('\n')
-      .slice(1)
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => {
-        const match = /TCP\s+(\S+)\s+\(LISTEN\)/.exec(line)
-        return match ? match[1]! : line
-      })
-      .toSorted()
-  } catch {
-    // Fall back to `ss` on minimal Linux images where `lsof` is not installed.
-  }
-  try {
-    const ss = await x('ss', ['-ltnp'], { nodePath: false, throwOnError: false })
-    if (ss.exitCode === 0) {
-      return ss.stdout
-        .split('\n')
-        .filter(line => line.includes(`pid=${pid},`))
-        .map(line => line.trim().split(/\s+/)[3] ?? line)
-        .toSorted()
-    }
-  } catch {
-    return []
-  }
-  return []
-}
-
-export async function assertNoListeningPorts(pids: Iterable<number>): Promise<void> {
-  const remaining: string[] = []
-  for (const pid of pids) {
-    const ports = await listListeningPorts(pid)
-    if (ports.length > 0) {
-      remaining.push(`pid ${pid}: ${ports.join(', ')}`)
-    }
-  }
-  if (remaining.length > 0) {
-    throw new Error(`dsh processes left listening sockets open: ${remaining.join('; ')}`)
-  }
 }

@@ -69,6 +69,8 @@ async function buildClient() {
         fileName: () => 'client.js',
       },
       rolldownOptions: {
+        // Slow CI runners emit Rolldown's informational PLUGIN_TIMINGS hint, which is not a build defect.
+        checks: { bundlerTimings: false },
         external: ['react', 'react/jsx-runtime'],
         output: {
           codeSplitting: false,
