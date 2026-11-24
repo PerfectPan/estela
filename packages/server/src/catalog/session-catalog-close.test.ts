@@ -22,12 +22,17 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
 })
 
-/** Waits for a step that runs on its own, without a timer. */
+/**
+ * Waits for a step that runs on its own, without a timer: up to 10 s of the wall clock. A summary reads the
+ * disk in the thread pool, so a count of event loop turns runs out on a busy machine. `Date.now()` and
+ * `setImmediate` stay real where the tests fake `setTimeout`.
+ */
 async function until(condition: () => boolean): Promise<void> {
-  for (let turns = 0; turns < 500 && !condition(); turns++) {
+  const deadline = Date.now() + 10_000
+  while (!condition() && Date.now() < deadline) {
     await new Promise<void>(resolve => setImmediate(resolve))
   }
-  expect(condition()).toBe(true)
+  expect(condition(), 'the step did not run within 10 s').toBe(true)
 }
 
 /** Every event loop turn for a while, so that work already in flight gets to where it waits or ends. */

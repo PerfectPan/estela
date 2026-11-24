@@ -58,7 +58,10 @@ describe('one redaction source', () => {
     expect(read.cwd).toBe(join('~', 'work', 'secret'))
     expect(elsewhere.cwd).toBe(join('~', 'work', 'elsewhere'))
     namesNeitherHome(elsewhere.cwd!, home)
-    expect(refused.error?.file).toBe(join('~', '.claude', 'projects', 'bad', 'session.jsonl'))
+    // A working directory is recorded content, so it keeps the system's separators. The file of a read error is
+    // the path the kit listed the session under, which has `/` on every system: the kit turns a Windows home's
+    // `\` into `/` before it lists.
+    expect(refused.error?.file).toBe('~/.claude/projects/bad/session.jsonl')
     namesNeitherHome(JSON.stringify({ cwd: read.cwd, error: refused.error }), home)
     namesNeitherHome(JSON.stringify((await server.catalog!.listSessions()).agents), home)
     // The MCP tools redact whatever the server's `redacts` says.
