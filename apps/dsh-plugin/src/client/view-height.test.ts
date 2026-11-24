@@ -68,6 +68,7 @@ describe('observeViewHeight', () => {
       observe(target: unknown): void {
         observedTargets.push(target)
       }
+      unobserve(): void {}
       disconnect(): void {
         disconnected = true
       }
@@ -150,6 +151,98 @@ describe('observeViewHeight', () => {
       const disposeOrphan = observeViewHeight(orphan as unknown as HTMLElement)
       expect(orphan.style.height).toBe('')
       disposeOrphan()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('unobserves removed overlays across replacements and disconnects MutationObserver on dispose', () => {
+    const activeObserved = new Set<unknown>()
+    let resizeDisconnected = false
+    const mutationCallbacks: Array<() => void> = []
+    let mutationTarget: unknown
+    let mutationOptions: unknown
+    let mutationDisconnected = false
+
+    class TrackingResizeObserver {
+      observe(target: unknown): void {
+        activeObserved.add(target)
+      }
+      unobserve(target: unknown): void {
+        activeObserved.delete(target)
+      }
+      disconnect(): void {
+        resizeDisconnected = true
+        activeObserved.clear()
+      }
+    }
+
+    class TrackingMutationObserver {
+      constructor(cb: () => void) {
+        mutationCallbacks.push(cb)
+      }
+      observe(target: unknown, options: unknown): void {
+        mutationTarget = target
+        mutationOptions = options
+      }
+      disconnect(): void {
+        mutationDisconnected = true
+      }
+    }
+
+    const scroller = makeNode({
+      clientHeight: 824,
+      overflowY: 'auto',
+      rect: { top: 76, bottom: 900, height: 824 },
+    })
+    const viewArea = makeNode({ parent: scroller })
+    const wrapper = makeNode({ parent: viewArea })
+    const composer1 = makeNode({
+      parent: scroller,
+      position: 'sticky',
+      rect: { top: 772, bottom: 900, height: 128 },
+    })
+
+    vi.stubGlobal('getComputedStyle', (node: FakeNode) => node.computed)
+    vi.stubGlobal('ResizeObserver', TrackingResizeObserver)
+    vi.stubGlobal('MutationObserver', TrackingMutationObserver)
+
+    try {
+      const dispose = observeViewHeight(wrapper as unknown as HTMLElement)
+      expect(wrapper.style.height).toBe('696px')
+      expect(mutationTarget).toBe(scroller)
+      expect(mutationOptions).toEqual({ childList: true })
+      expect([...activeObserved]).toEqual([scroller, composer1])
+
+      // Replace the bottom overlay node twice and notify via MutationObserver.
+      scroller.children = [viewArea]
+      const composer2 = makeNode({
+        parent: scroller,
+        position: 'sticky',
+        rect: { top: 740, bottom: 900, height: 160 },
+      })
+      for (const cb of mutationCallbacks) {
+        cb()
+      }
+      expect(wrapper.style.height).toBe('664px')
+      expect([...activeObserved]).toEqual([scroller, composer2])
+
+      scroller.children = [viewArea]
+      const composer3 = makeNode({
+        parent: scroller,
+        position: 'sticky',
+        rect: { top: 800, bottom: 900, height: 100 },
+      })
+      for (const cb of mutationCallbacks) {
+        cb()
+      }
+      expect(wrapper.style.height).toBe('724px')
+      expect([...activeObserved]).toEqual([scroller, composer3])
+
+      dispose()
+      expect(resizeDisconnected).toBe(true)
+      expect(mutationDisconnected).toBe(true)
+      expect(wrapper.style.height).toBe('')
     } finally {
       vi.unstubAllGlobals()
     }

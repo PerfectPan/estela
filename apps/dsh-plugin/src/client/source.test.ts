@@ -148,4 +148,103 @@ describe('createEstelaSource', () => {
       'missing',
     )
   })
+
+  it('retries open() with a fresh session/open when trace/view returns estela/stale', async () => {
+    const calls: Array<{ endpoint: string; payload: unknown }> = []
+    let openCount = 0
+    let viewCount = 0
+    const fakeView = { traceId: 'trace-3', trace: {}, summary: {}, bytes: 10 } as unknown as TraceViewResult
+
+    const rpc: ClientRpc = {
+      async call<E extends ChannelEndpoint>(
+        _channel: typeof CHANNEL,
+        endpoint: E,
+        payload: ChannelInput<E>,
+      ): Promise<ClientRpcResult<ChannelResult<E>>> {
+        calls.push({ endpoint, payload })
+        if (endpoint === 'session/open') {
+          openCount += 1
+          return { ok: true, value: { traceId: `trace-${openCount}` } as ChannelResult<E> }
+        }
+        if (endpoint === 'trace/view') {
+          viewCount += 1
+          if (viewCount < 3) {
+            return { ok: false, error: { code: 'estela/stale', message: 'log changed before view' } }
+          }
+          const { traceId } = payload as ChannelInput<'trace/view'>
+          return { ok: true, value: { ...fakeView, traceId } as ChannelResult<E> }
+        }
+        return { ok: false, error: { code: 'estela/failed', message: 'unexpected endpoint' } }
+      },
+    }
+
+    const result = await createEstelaSource(rpc, 'sess-live').open()
+
+    expect(result.traceId).toBe('trace-3')
+    expect(calls).toEqual([
+      { endpoint: 'session/open', payload: { sessionId: 'sess-live' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-1' } },
+      { endpoint: 'session/open', payload: { sessionId: 'sess-live' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-2' } },
+      { endpoint: 'session/open', payload: { sessionId: 'sess-live' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-3' } },
+    ])
+  })
+
+  it('rejects with StaleError once open() exhausts its stale retry limit', async () => {
+    const calls: Array<{ endpoint: string; payload: unknown }> = []
+    let openCount = 0
+
+    const rpc: ClientRpc = {
+      async call<E extends ChannelEndpoint>(
+        _channel: typeof CHANNEL,
+        endpoint: E,
+        payload: ChannelInput<E>,
+      ): Promise<ClientRpcResult<ChannelResult<E>>> {
+        calls.push({ endpoint, payload })
+        if (endpoint === 'session/open') {
+          openCount += 1
+          return { ok: true, value: { traceId: `trace-${openCount}` } as ChannelResult<E> }
+        }
+        return { ok: false, error: { code: 'estela/stale', message: 'keeps changing' } }
+      },
+    }
+
+    await expect(createEstelaSource(rpc, 'sess-busy').open()).rejects.toBeInstanceOf(StaleError)
+    // 1 initial attempt + 3 retries, each re-calling session/open for a fresh traceId.
+    expect(calls).toEqual([
+      { endpoint: 'session/open', payload: { sessionId: 'sess-busy' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-1' } },
+      { endpoint: 'session/open', payload: { sessionId: 'sess-busy' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-2' } },
+      { endpoint: 'session/open', payload: { sessionId: 'sess-busy' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-3' } },
+      { endpoint: 'session/open', payload: { sessionId: 'sess-busy' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-4' } },
+    ])
+  })
+
+  it('does not retry non-stale trace/view refusals inside open()', async () => {
+    const calls: Array<{ endpoint: string; payload: unknown }> = []
+
+    const rpc: ClientRpc = {
+      async call<E extends ChannelEndpoint>(
+        _channel: typeof CHANNEL,
+        endpoint: E,
+        payload: ChannelInput<E>,
+      ): Promise<ClientRpcResult<ChannelResult<E>>> {
+        calls.push({ endpoint, payload })
+        if (endpoint === 'session/open') {
+          return { ok: true, value: { traceId: 'trace-1' } as ChannelResult<E> }
+        }
+        return { ok: false, error: { code: 'estela/failed', message: 'read failed' } }
+      },
+    }
+
+    await expect(createEstelaSource(rpc, 'sess-err').open()).rejects.toThrow('read failed')
+    expect(calls).toEqual([
+      { endpoint: 'session/open', payload: { sessionId: 'sess-err' } },
+      { endpoint: 'trace/view', payload: { traceId: 'trace-1' } },
+    ])
+  })
 })

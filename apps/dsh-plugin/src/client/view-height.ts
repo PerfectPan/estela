@@ -30,16 +30,24 @@ export function observeViewHeight(wrapper: HTMLElement): () => void {
 
   const observeOverlays = (): Element[] => {
     const overlays: Element[] = []
+    const current = new Set<Element>()
     for (const child of Array.from(scroller.children)) {
       if (child.contains(wrapper)) {
         continue
       }
       if (isOverlayPosition(getComputedStyle(child).position)) {
         overlays.push(child)
+        current.add(child)
         if (!observed.has(child)) {
           observed.add(child)
           resizeObserver?.observe(child)
         }
+      }
+    }
+    for (const stale of Array.from(observed)) {
+      if (!current.has(stale)) {
+        observed.delete(stale)
+        resizeObserver?.unobserve(stale)
       }
     }
     return overlays
@@ -77,6 +85,7 @@ export function observeViewHeight(wrapper: HTMLElement): () => void {
 
   return () => {
     resizeObserver.disconnect()
+    observed.clear()
     mutationObserver?.disconnect()
     wrapper.style.height = ''
   }
