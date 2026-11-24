@@ -46,6 +46,18 @@ const config = {
       // suite and the Publish check) must build the web app first.
       ignoreDependencies: ['@rivus/estela-web']
     },
+    'apps/dsh-plugin': {
+      entry: ['src/host/index.ts!', 'src/client/index.ts!', 'src/contract/channel.ts!'],
+      project: projectWithout(['scripts', 'test']),
+      // Build-time / type-only devDependencies pinned for the plugin's host and client halves.
+      ignoreDependencies: [
+        '@deepseek-ai/dsh-client-locale',
+        '@deepseek-ai/dsh-client-ui-theme',
+        '@rivus/estela-server',
+        '@rivus/estela-web',
+        '@types/react',
+      ]
+    },
     'apps/e2e': {
       entry: ['src/demo/*.ts!']
     },
