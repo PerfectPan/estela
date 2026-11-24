@@ -226,23 +226,31 @@ export async function launchChrome() {
   let ws
   let browserWs
   try {
+    // A loaded CI runner can take longer than 15 s to bring Chrome up. Chrome also writes the endpoint to
+    // `DevToolsActivePort` in the profile, which does not depend on when its stderr is flushed.
+    const portFile = path.join(userDataDir, 'DevToolsActivePort')
+    let stderr = ''
+    let timer
+    let poll
     const wsUrl = await new Promise((resolve, reject) => {
-      let stderr = ''
-      const timer = setTimeout(() => {
-        reject(new Error(`timed out waiting for Chrome DevTools:\n${stderr}`))
-      }, 15_000)
+      timer = setTimeout(() => reject(new Error(`timed out waiting for Chrome DevTools:\n${stderr}`)), 60_000)
+      poll = setInterval(() => {
+        const [port, browserPath] = existsSync(portFile) ? readFileSync(portFile, 'utf8').split('\n') : []
+        if (port && browserPath) {
+          resolve(`ws://127.0.0.1:${port}${browserPath}`)
+        }
+      }, 200)
       child.stderr.on('data', chunk => {
         stderr += chunk.toString()
         const match = /DevTools listening on (ws:\/\/\S+)/.exec(stderr)
         if (match) {
-          clearTimeout(timer)
           resolve(match[1])
         }
       })
-      child.once('exit', code => {
-        clearTimeout(timer)
-        reject(new Error(`Chrome exited (${code}):\n${stderr}`))
-      })
+      child.once('exit', code => reject(new Error(`Chrome exited (${code}):\n${stderr}`)))
+    }).finally(() => {
+      clearTimeout(timer)
+      clearInterval(poll)
     })
     const baseUrl = wsUrl.replace(/^ws:/, 'http:').replace(/\/devtools\/browser\/.*$/, '')
     const targets = await (await fetch(`${baseUrl}/json/list`)).json()
