@@ -434,4 +434,51 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     expect(viewSpy).not.toHaveBeenCalled()
     expect(eventSpy).not.toHaveBeenCalled()
   })
+
+  it('never returns a successful view when signal aborts while store.view is awaiting', async () => {
+    const home = await makeTempHome()
+    const file = join(home, 'session.v4.jsonl')
+    await writeFile(file, `${dshSessionText('cv', 'hello', home)}\n`)
+
+    const persistence: HostSessionPersistence = {
+      stat: async () => ({ location: { kind: 'jsonl', path: file } }),
+    }
+    let registry!: ReturnType<typeof createSessionRegistry>
+    const core = createEstelaCore({ platform: makePlatform(home), redacts: true, resolve: id => registry.resolve(id) })
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
+    const channel = createChannelHost({ core, sessions: registry })
+
+    const opened = await channel.handler('session/open', { sessionId: 'cv' }, new AbortController().signal, ownerPeer)
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) {
+      return
+    }
+    const { traceId } = z.parse(openValueSchema, opened.value)
+
+    let viewEntered!: () => void
+    const entered = new Promise<void>(resolve => {
+      viewEntered = resolve
+    })
+    let releaseView!: () => void
+    const viewGate = new Promise<void>(resolve => {
+      releaseView = resolve
+    })
+    const realView = core.store.view.bind(core.store)
+    vi.spyOn(core.store, 'view').mockImplementationOnce(async id => {
+      const result = await realView(id)
+      viewEntered()
+      await viewGate
+      return result
+    })
+
+    const ac = new AbortController()
+    const call = channel.handler('trace/view', { traceId }, ac.signal, ownerPeer)
+    await entered
+    ac.abort()
+    releaseView()
+
+    const res = await call
+    expect(res.ok).toBe(false)
+    expect(channel.activeHoldCount()).toBe(0)
+  })
 })

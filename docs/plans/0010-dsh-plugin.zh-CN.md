@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/plans/0010-dsh-plugin.md 为准。
 
-<!-- source-blob: 99362448e3c33d153beb779b7e4ac970adce044e -->
+<!-- source-blob: 32cc72dfe5662bd5f845b85514b583c4257552c7 -->
 
 # Plan 0010：作为 dsh 插件的 Estela
 
@@ -258,7 +258,7 @@ export interface EstelaCoreOptions {
 
 - core 创建平台和 TraceStore，返回 `store`、`seed(session, trace)` 和 `redact`（一个跟随 `redacts` 的文本脱敏器）。它既不导入 DevFrame，也不导入 `SessionCatalog`：会话目录经由会话索引到达 `node:sqlite`（`packages/server/src/catalog/session-catalog.ts:6`），而插件的 host 包不能带它。T6 的 lint 规则同时保证 `packages/server/src/core/**` 不从 `packages/server/src/catalog/` 导入。
 - `createEstelaServer` 在今天的位置构建会话目录（`estela-server.ts:81-88`），并把 `resolve: traceId => catalog.resolve(traceId)` 交给 core。`openLaunch`、`open` 和 `close` 留在组装处，所以会话目录的启动、摘要和关闭都留在原处，`EstelaServer` 的每个成员都保持不变。
-- core 重新导出 `traceIdOf`，供自己生成键的宿主使用。`packages/server/package.json` 增加 `"./core": "./src/core/estela-core.ts"`。由于 `@rivus/estela-rpc` 根 barrel 导入 `devframe` 并在顶层调用 `devframe/rpc` 的 `createDefineWrapperWithContext()`（打包器无法将其树摇掉），`packages/rpc/package.json` 同步导出 `"./trace-store": "./src/trace-store.ts"`（包含 `TraceStore` 和 `CURRENT_TRACE_ID`），`packages/server/src/store/trace-store.ts` 与 `core/` 从 `@rivus/estela-rpc/trace-store` 导入，lint 规则同时覆盖 `core/**` 与 `store/**` 并禁止其中导入 `@rivus/estela-rpc` 根入口。
+- core 重新导出 `traceIdOf`，供自己生成键的宿主使用。`packages/server/package.json` 增加 `"./core": "./src/core/estela-core.ts"`。由于 `@rivus/estela-rpc` 根 barrel 导入 `devframe` 并在顶层调用 `devframe/rpc` 的 `createDefineWrapperWithContext()`（打包器无法将其树摇掉），`packages/rpc/package.json` 同步导出 `"./trace-store": "./src/trace-store.ts"`（包含 `TraceStore`、`CURRENT_TRACE_ID` 和 `SnapshotChangedError`），`packages/server/src/store/trace-store.ts` 与 `core/` 从 `@rivus/estela-rpc/trace-store` 导入，lint 规则同时覆盖 `core/**` 与 `store/**` 并禁止其中导入 `@rivus/estela-rpc` 根入口。`ResolvedSession` 带有可选字段 `expect?: FileStamp`（`{ size, mtimeMs }`）；传入时，`TraceStore` 在 `entryOf` 之后、`remember` 之前检查 `target.path`，不一致时抛出 `SnapshotChangedError` 且不缓存，不传 `expect` 的调用方（开发服务器和会话目录）行为不变。
 - `sessions/redaction.ts:2` 从 `@rivus/estela-runtime-node` 的 barrel 导入 `homeDir`，而这个 barrel 同时导出会话索引。对构建产物的检查（3.5.2）才是打包器丢掉了索引的证明。如果没有丢掉，就给 `homeDir` 在 `packages/runtime-node` 里单开一个入口。
 
 ### 3.2 嵌入元素（`apps/web`）
@@ -429,6 +429,12 @@ session/open(sessionId)
   修改时间不同就回答 `estela/stale`，丢弃该 id，什么也不读：屏幕上的事件列表属于旧快照，从已经变化的日志里读出的
   事件不属于它。随后 client 重新调用 `session/open`（3.4.1）。一个测试让某个 id 被另外三个会话淘汰，改动文件，
   再请求一个事件。
+- 为把 `traceId ↔ 文件戳` 建成存储层不变量以覆盖各类竞态（冷重载、并发等待、取消后的重载，以及 `open` 与 `view`
+  之间的缓存淘汰），`resolve` 把签发时的文件戳作为 `ResolvedSession.expect` 附上。`TraceStore` 在 `entryOf` 之后、
+  `remember` 之前重新对 `target.path` 做 stat，戳不一致时拒绝缓存并抛出 `SnapshotChangedError`；host 将
+  `SnapshotChangedError` 映射为 `estela/stale` 并作废该 id。对于已缓存的 `trace/event`，当原记录无法回读
+  （`originalUnavailable`）且源文件戳已变化或文件已不存在时，host 同样返回 `estela/stale` 并作废该 id；文件未变时则
+  保留 `originalUnavailable`。
 - dsh 的持久层可能在 Estela 的读取器看到文件之前，就拒绝一个它读不了的格式代次的会话：`stat` 抛出
   `SessionFormatUnsupportedError`，它的消息已经带有原因和路径（`session-persistence/src/errors.ts:111-121`、
   `session-persistence-jsonl/src/index.ts:496`、`:1204`）。`session/open` 捕获它，用一个作用在 `name` 上的 `zod/mini`

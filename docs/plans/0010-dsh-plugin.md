@@ -268,7 +268,7 @@ export interface EstelaCoreOptions {
 
 - The core creates the platform and the TraceStore and returns `store`, `seed(session, trace)`, and `redact`, a text redactor that follows `redacts`. It imports neither DevFrame nor `SessionCatalog`: the catalog reaches `node:sqlite` through the session index (`packages/server/src/catalog/session-catalog.ts:6`), and the plugin's host bundle must not. The lint rule of T6 also keeps `packages/server/src/core/**` free of imports from `packages/server/src/catalog/`.
 - `createEstelaServer` builds the catalog where it does today (`estela-server.ts:81-88`) and hands the core `resolve: traceId => catalog.resolve(traceId)`. `openLaunch`, `open`, and `close` stay in the composition, so the catalog's start, summaries, and close stay where they are, and `EstelaServer` keeps every member it has.
-- The core re-exports `traceIdOf` for hosts that make their own keys. `packages/server/package.json` gets `"./core": "./src/core/estela-core.ts"`. Because `@rivus/estela-rpc`'s root barrel imports `devframe` and calls `createDefineWrapperWithContext()` from `devframe/rpc` at top level (which the bundler cannot tree-shake out), `packages/rpc/package.json` also exports `"./trace-store": "./src/trace-store.ts"` (holding `TraceStore` and `CURRENT_TRACE_ID`), `packages/server/src/store/trace-store.ts` and `core/` import from `@rivus/estela-rpc/trace-store`, and the lint rule covers both `core/**` and `store/**` and forbids the root `@rivus/estela-rpc` entry there.
+- The core re-exports `traceIdOf` for hosts that make their own keys. `packages/server/package.json` gets `"./core": "./src/core/estela-core.ts"`. Because `@rivus/estela-rpc`'s root barrel imports `devframe` and calls `createDefineWrapperWithContext()` from `devframe/rpc` at top level (which the bundler cannot tree-shake out), `packages/rpc/package.json` also exports `"./trace-store": "./src/trace-store.ts"` (holding `TraceStore`, `CURRENT_TRACE_ID`, and `SnapshotChangedError`), `packages/server/src/store/trace-store.ts` and `core/` import from `@rivus/estela-rpc/trace-store`, and the lint rule covers both `core/**` and `store/**` and forbids the root `@rivus/estela-rpc` entry there. `ResolvedSession` carries an optional `expect?: FileStamp` (`{ size, mtimeMs }`); when set, `TraceStore` checks `target.path` after `entryOf` and before `remember` and throws `SnapshotChangedError` without caching on a mismatch, leaving callers without `expect` (the dev server and catalog) unchanged.
 - `sessions/redaction.ts:2` imports `homeDir` from the `@rivus/estela-runtime-node` barrel, which also exports the session index. The check on the built bundle (3.5.2) is what shows that the bundler dropped the index. If it did not, `homeDir` gets its own entry in `packages/runtime-node`.
 
 ### 3.2 The embed element (`apps/web`)
@@ -454,6 +454,13 @@ session/open(sessionId)
   and reads nothing: the ledger on screen belongs to the old snapshot, and an event read from a changed log would
   not. The client then calls `session/open` again (3.4.1). A test evicts an id behind three other sessions, changes
   the file, and asks for an event.
+- To make the `traceId ↔ stamp` mapping a store invariant across races (cold reloads, concurrent waiters, aborted
+  reloads, and cache evictions between `open` and `view`), `resolve` attaches the issued file stamp as
+  `ResolvedSession.expect`. `TraceStore` re-stats `target.path` after `entryOf` and before `remember`, refusing to
+  cache the entry and throwing `SnapshotChangedError` whenever the stamp no longer matches; the host maps
+  `SnapshotChangedError` to `estela/stale` and drops the id. On a cached `trace/event` whose original cannot be read
+  back (`originalUnavailable`), the host also returns `estela/stale` and drops the id when the source file's stamp
+  changed or the file no longer exists, while keeping `originalUnavailable` when the file is still unchanged.
 - dsh's persistence can refuse a session whose format generation it does not read before Estela's reader sees the
   file: `stat` rejects with a `SessionFormatUnsupportedError` whose message already holds the reason and the path
   (`session-persistence/src/errors.ts:111-121`, `session-persistence-jsonl/src/index.ts:496`, `:1204`).

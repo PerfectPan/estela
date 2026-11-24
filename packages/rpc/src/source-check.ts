@@ -84,6 +84,16 @@ export async function stampFiles(trace: Trace, fs: SessionFs): Promise<Map<strin
   return stamps
 }
 
+/** True only when `path` exists and its current size and mtime still equal `expected`. */
+export async function stampMatches(fs: SessionFs, path: string, expected: FileStamp): Promise<boolean> {
+  try {
+    const info = await fs.stat(path, { followSymlinks: true })
+    return info !== undefined && info.size === expected.size && info.mtimeMs === expected.mtimeMs
+  } catch {
+    return false
+  }
+}
+
 export type OriginalResult = { original: unknown } | { unavailable: string }
 
 /** Reads one source pointer through the platform, for compressed files and SQLite rows. Throws when it cannot. */
@@ -135,7 +145,17 @@ export async function checkedOriginal(
   const changed = source.sqlite !== undefined || !stamp || now.size < stamp.size || now.mtimeMs !== stamp.mtimeMs
   if (!changed) {
     try {
-      return { original: await recordAt(fs, source, readOriginal) }
+      const original = await recordAt(fs, source, readOriginal)
+      // Catch a rewrite that landed between the `fs.stat` above and `recordAt`: re-stat only when the hash mismatches.
+      if (
+        fingerprint(original, completeFingerprint(source)) !== expected
+        && !(await stampMatches(fs, source.file, stamp))
+      ) {
+        return {
+          unavailable: `${source.file} changed since it was loaded; line ${source.line} holds a different record`,
+        }
+      }
+      return { original }
     } catch (error) {
       const reason = readOriginal === undefined ? '' : reasonOf(error)
       return { unavailable: `${source.file} could not be read; line ${source.line} is unavailable${reason}` }

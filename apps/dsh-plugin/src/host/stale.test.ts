@@ -1,6 +1,8 @@
-import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
+import { appendFile, cp, mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { zstdCompressSync } from 'node:zlib'
 import { createEstelaCore, type EstelaCore } from '@rivus/estela-server/core'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
 import * as z from 'zod/mini'
@@ -8,11 +10,14 @@ import { createChannelHost } from './channel.ts'
 import type { HostPeer, HostSessionPersistence } from './rpc.ts'
 import { createSessionRegistry } from './sessions.ts'
 
+const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
+const zstdFixture = join(repo, 'fixtures/sessions/dsh/conformance/plain/session.v4.jsonl.zstd')
+
 const ownerPeer: HostPeer = { principal: { kind: 'owner' } }
 const openSchema = z.object({ traceId: z.string() })
 const viewSchema = z.object({
   traceId: z.string(),
-  trace: z.object({ events: z.array(z.object({ id: z.string() })) }),
+  trace: z.object({ events: z.array(z.object({ id: z.string(), payload: z.unknown() })) }),
 })
 const eventSchema = z.object({
   id: z.string(),
@@ -268,5 +273,89 @@ describe('DSH-9 stale snapshot guarantees', () => {
     }
     expect(registry.resolve(nextId)).toBeDefined()
     expect(firstEventId).toBe(nextEventId)
+  })
+
+  it('relocated-file and zstd append: keeps old zstd events readable after frame append, and answers estela/stale when file relocates', async () => {
+    const home = await makeTempHome()
+    const oldDir = join(home, 'zstd-old')
+    const newDir = join(home, 'zstd-new')
+    await mkdir(oldDir, { recursive: true })
+    await mkdir(newDir, { recursive: true })
+    const oldFile = join(oldDir, 'session.v4.jsonl.zstd')
+    const newFile = join(newDir, 'session.v4.jsonl.zstd')
+    await cp(zstdFixture, oldFile)
+
+    let currentPath = oldFile
+    const persistence: HostSessionPersistence = {
+      stat: async () => ({ location: { kind: 'jsonl', path: currentPath } }),
+    }
+    let registry!: ReturnType<typeof createSessionRegistry>
+    const core = buildCore(home, id => registry.resolve(id))
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
+    const channel = createChannelHost({ core, sessions: registry })
+    const signal = new AbortController().signal
+
+    const opened = await channel.handler('session/open', { sessionId: 'z1' }, signal, ownerPeer)
+    expect(opened.ok).toBe(true)
+    if (!opened.ok) {
+      return
+    }
+    const { traceId } = z.parse(openSchema, opened.value)
+    const view = await channel.handler('trace/view', { traceId }, signal, ownerPeer)
+    expect(view.ok).toBe(true)
+    if (!view.ok) {
+      return
+    }
+    const events = z.parse(viewSchema, view.value).trace.events
+    const helloEvent = events.find(ev => JSON.stringify(ev.payload).includes('hello'))
+    expect(helloEvent).toBeDefined()
+
+    // 1. Append a valid zstd frame: old event must still read back with its original (with #183 in baseline).
+    const appendedLine = `${JSON.stringify({
+      type: 'user/message',
+      seq: 9,
+      time: 1767225609000,
+      data: {
+        role: 'user',
+        content: [{ type: 'text', text: 'appended zstd frame' }],
+        source: { kind: 'user' },
+        id: 'u-z',
+      },
+    })}\n`
+    await appendFile(oldFile, zstdCompressSync(Buffer.from(appendedLine, 'utf8')))
+    const bumped = new Date(Date.now() + 3000)
+    await utimes(oldFile, bumped, bumped)
+
+    const afterZstdAppend = await channel.handler('trace/event', { traceId, id: helloEvent!.id }, signal, ownerPeer)
+    expect(afterZstdAppend.ok).toBe(true)
+    if (afterZstdAppend.ok) {
+      const detail = z.parse(eventSchema, afterZstdAppend.value)
+      expect(detail.original).toBeDefined()
+      expect(detail.originalUnavailable).toBeUndefined()
+    }
+
+    // 2. Relocate the file to a new path and update persistence: old id must answer estela/stale and drop itself.
+    await rename(oldFile, newFile)
+    await writeFile(newFile, zstdCompressSync(Buffer.from(dshSession('z1', ['restored hello'], home), 'utf8')))
+    currentPath = newFile
+
+    const afterRelocate = await channel.handler('trace/event', { traceId, id: helloEvent!.id }, signal, ownerPeer)
+    expect(afterRelocate.ok).toBe(false)
+    if (!afterRelocate.ok) {
+      expect(afterRelocate.error.code).toBe('estela/stale')
+    }
+    expect(registry.resolve(traceId)).toBeUndefined()
+
+    const reopened = await channel.handler('session/open', { sessionId: 'z1' }, signal, ownerPeer)
+    expect(reopened.ok).toBe(true)
+    if (reopened.ok) {
+      const nextId = z.parse(openSchema, reopened.value).traceId
+      expect(nextId).not.toBe(traceId)
+      const nextView = await channel.handler('trace/view', { traceId: nextId }, signal, ownerPeer)
+      expect(nextView.ok).toBe(true)
+      if (nextView.ok) {
+        expect(JSON.stringify(nextView.value)).toContain('restored hello')
+      }
+    }
   })
 })

@@ -49,8 +49,10 @@ export { buildReport, type ReportLocale, type ReportTrace } from './report.ts'
 export {
   CURRENT_TRACE_ID,
   LoadCancelledError,
+  SnapshotChangedError,
   TraceStore,
   type EventDetail,
+  type FileStamp,
   type LoadedTrace,
   type LoadHandle,
   type LoadOpts,

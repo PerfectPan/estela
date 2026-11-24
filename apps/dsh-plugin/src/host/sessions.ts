@@ -1,4 +1,4 @@
-import type { ResolvedSession, TraceStore } from '@rivus/estela-rpc/trace-store'
+import type { FileStamp, ResolvedSession, TraceStore } from '@rivus/estela-rpc/trace-store'
 import { traceIdOf, type EstelaCore } from '@rivus/estela-server/core'
 import * as z from 'zod/mini'
 import type { ChannelErrorCode } from '../contract/channel.ts'
@@ -8,7 +8,7 @@ import type { HostSessionPersistence, RpcFailureResult } from './rpc.ts'
 const MAX_ISSUED_IDS = 16
 
 export const FIXED_FAILURE_MESSAGE = 'the session could not be read'
-const STALE_MESSAGE = 'the session log changed since it was opened'
+export const STALE_MESSAGE = 'the session log changed since it was opened'
 
 const formatUnsupportedErrorSchema = z.object({
   name: z.literal('SessionFormatUnsupportedError'),
@@ -16,27 +16,22 @@ const formatUnsupportedErrorSchema = z.object({
   location: z.optional(z.object({ path: z.string() })),
 })
 
-interface FileStamp {
-  readonly size: number
-  readonly mtimeMs: number
-}
-
-interface IssuedSession extends ResolvedSession {
-  readonly stamp: FileStamp
+export interface IssuedSession extends ResolvedSession {
+  readonly expect: FileStamp
 }
 
 type OpenSessionOutcome =
   | { readonly ok: true; readonly traceId: string }
   | { readonly ok: false; readonly result: RpcFailureResult }
 
-export interface ReadySession {
-  readonly session: IssuedSession
-  readonly cached: boolean
-}
-
 type ReadySessionOutcome =
-  | { readonly ok: true; readonly session: IssuedSession; readonly cached: boolean }
+  | { readonly ok: true; readonly session: IssuedSession }
   | { readonly ok: false; readonly result: RpcFailureResult }
+
+type StatOutcome =
+  | { readonly kind: 'ok'; readonly stamp: FileStamp }
+  | { readonly kind: 'missing' }
+  | { readonly kind: 'error' }
 
 interface SessionRegistryDeps {
   readonly persistence: HostSessionPersistence
@@ -49,14 +44,12 @@ export interface SessionRegistry {
   open: (sessionId: string, signal?: AbortSignal) => Promise<OpenSessionOutcome>
   checkReady: (traceId: string) => Promise<ReadySessionOutcome>
   /**
-   * Re-stats `session.target.path` after a read and invalidates `traceId` with `estela/stale`
-   * if the file stamp changed (or disappeared when `missingIsStale` is true).
+   * Called when `store.event` returns `originalUnavailable`: invalidates `traceId` with
+   * `estela/stale` if the source file changed or no longer exists, and preserves the unavailable
+   * result when the file is still unchanged at the same stamp.
    */
-  checkStillCurrent: (
-    traceId: string,
-    session: IssuedSession,
-    options: { readonly missingIsStale: boolean },
-  ) => Promise<RpcFailureResult | undefined>
+  checkUnavailableEvent: (traceId: string, session: IssuedSession) => Promise<RpcFailureResult | undefined>
+  invalidate: (traceId: string) => void
   resolve: (traceId: string) => ResolvedSession | undefined
   /** Keeps an in-flight load resolvable if concurrent opens push its id past the 16-id window. */
   pin: (traceId: string, session: IssuedSession) => () => void
@@ -84,21 +77,21 @@ function formatUnsupportedMessage(
   return `dsh: ${redact(rawPath)}:1: unknown format generation: ${redact(reason)}`
 }
 
-async function safeStat(fs: EstelaCore['platform']['fs'], path: string): Promise<FileStamp | undefined> {
+async function statFile(fs: EstelaCore['platform']['fs'], path: string): Promise<StatOutcome> {
   try {
     const info = await fs.stat(path, { followSymlinks: true })
     if (!info) {
-      return undefined
+      return { kind: 'missing' }
     }
-    return { size: info.size, mtimeMs: info.mtimeMs }
+    return { kind: 'ok', stamp: { size: info.size, mtimeMs: info.mtimeMs } }
   } catch {
-    return undefined
+    return { kind: 'error' }
   }
 }
 
 /**
  * Maps dsh session ids to opaque trace ids keyed by log path, size, and mtime, keeps the 16 most
- * recently issued ids, and refuses snapshots whose log changed on disk.
+ * recently issued ids, and attaches each id's expected stamp for TraceStore's cache invariant.
  */
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
   let closed = false
@@ -157,19 +150,19 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
         return { ok: false, result: refusal('estela/no-log', 'this session has no log on disk yet') }
       }
 
-      const info = await safeStat(deps.fs, path)
+      const info = await statFile(deps.fs, path)
       if (isClosed()) {
         return { ok: false, result: refusal('estela/closed', 'the plugin is closed') }
       }
-      if (!info) {
+      if (info.kind !== 'ok') {
         return { ok: false, result: refusal('estela/failed', FIXED_FAILURE_MESSAGE) }
       }
       if (signal?.aborted) {
         return { ok: false, result: refusal('estela/failed', FIXED_FAILURE_MESSAGE) }
       }
 
-      const traceId = traceIdOf({ agent: 'dsh', path, sessionId: `${info.size}:${info.mtimeMs}` })
-      remember(traceId, { key: traceId, target: { path }, stamp: info })
+      const traceId = traceIdOf({ agent: 'dsh', path, sessionId: `${info.stamp.size}:${info.stamp.mtimeMs}` })
+      remember(traceId, { key: traceId, target: { path }, expect: info.stamp })
       return { ok: true, traceId }
     },
 
@@ -179,33 +172,37 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
         return { ok: false, result: refusal('estela/unknown-trace', 'unknown trace') }
       }
       if (deps.store.cachedKeys().includes(entry.key)) {
-        return { ok: true, session: entry, cached: true }
+        return { ok: true, session: entry }
       }
-      const current = await safeStat(deps.fs, entry.target.path)
-      if (!current) {
+      const current = await statFile(deps.fs, entry.target.path)
+      if (current.kind !== 'ok') {
         return { ok: false, result: refusal('estela/failed', FIXED_FAILURE_MESSAGE) }
       }
-      if (current.size !== entry.stamp.size || current.mtimeMs !== entry.stamp.mtimeMs) {
+      if (current.stamp.size !== entry.expect.size || current.stamp.mtimeMs !== entry.expect.mtimeMs) {
         issued.delete(traceId)
         return { ok: false, result: refusal('estela/stale', STALE_MESSAGE) }
       }
-      return { ok: true, session: entry, cached: false }
+      return { ok: true, session: entry }
     },
 
-    async checkStillCurrent(traceId, session, options) {
-      const current = await safeStat(deps.fs, session.target.path)
-      if (!current) {
-        if (!options.missingIsStale) {
-          return undefined
-        }
-        issued.delete(traceId)
-        return refusal('estela/stale', STALE_MESSAGE)
+    async checkUnavailableEvent(traceId, session) {
+      const current = await statFile(deps.fs, session.target.path)
+      if (current.kind === 'error') {
+        return undefined
       }
-      if (current.size !== session.stamp.size || current.mtimeMs !== session.stamp.mtimeMs) {
+      if (
+        current.kind === 'missing'
+        || current.stamp.size !== session.expect.size
+        || current.stamp.mtimeMs !== session.expect.mtimeMs
+      ) {
         issued.delete(traceId)
         return refusal('estela/stale', STALE_MESSAGE)
       }
       return undefined
+    },
+
+    invalidate(traceId) {
+      issued.delete(traceId)
     },
 
     resolve(traceId) {
