@@ -49,13 +49,14 @@ const config = {
     'apps/dsh-plugin': {
       entry: ['src/host/index.ts!', 'src/client/index.ts!', 'src/contract/channel.ts!'],
       project: projectWithout(['scripts', 'test']),
-      // Build-time / type-only devDependencies pinned for the plugin's host and client halves.
+      // `react` is supplied by DeepSeek Harness at runtime through its module loader (kept external
+      // by build-client.mjs, no runtime dependency declared); `@rivus/estela-server` is pinned for
+      // the host half; in `--production` mode Knip drops devDependencies (including
+      // `vite-plugin-solid`, whose peer supplies `solid-js` for `tsconfig.json`'s `jsxImportSource`).
       ignoreDependencies: [
-        '@deepseek-ai/dsh-client-locale',
-        '@deepseek-ai/dsh-client-ui-theme',
         '@rivus/estela-server',
-        '@rivus/estela-web',
-        '@types/react',
+        'react',
+        ...(process.argv.includes('--production') ? ['solid-js'] : []),
       ]
     },
     'apps/e2e': {
