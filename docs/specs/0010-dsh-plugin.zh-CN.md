@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/specs/0010-dsh-plugin.md 为准。
 
-<!-- source-blob: ef222eb29b1139de3b8af3e0b27338d0a98dafd2 -->
+<!-- source-blob: 6d9b71d5b5438a2ece1d327500ecfe97986e15b2 -->
 
 # Spec 0010：作为 dsh 插件的 Estela
 
@@ -76,7 +76,8 @@ Estela 从磁盘读取 DeepSeek Harness（dsh）的会话日志，但 dsh 用户
 
 **DSH-5：无法读取的日志**
 
-- 给定当前会话的日志无法读取：文件缺失或不可读、格式代次未知，或者解压后的大小超过上限，
+- 给定当前会话的日志无法读取：文件缺失或不可读、格式代次是 Estela 的读取器或 dsh 自己不认识的，或者解压后的大小超过
+  上限，
 - 当 Estela 视图打开时，
 - 那么它显示「无法打开这个会话」和原因；错误指明代理、文件和行号时一并显示；并提供「重试」按钮。
 - 并且当原因是一次未知格式代次时，它显示与命令行相同的提示：「该代理可能更改了日志格式。请更新 Estela，或提交包含
@@ -87,10 +88,12 @@ Estela 从磁盘读取 DeepSeek Harness（dsh）的会话日志，但 dsh 用户
 
 **DSH-6：错误留在视图内部**
 
-- 给定 Estela 视图打开期间发生任何失败：对插件的调用失败、插件已被卸载，或者工作区绘制时出错，
+- 给定 Estela 视图挂载期间发生任何失败：对插件的调用失败（传输失败、调用被拒绝，或者调用进行中插件被卸载），或者
+  工作区绘制时出错，
 - 当该失败发生时，
 - 那么 Estela 视图说明它无法加载这个会话，并提供「重试」。
 - 并且失败留在视图内部：`dsh web` 不出现空白页，也不出现错误页，它的其他 View 继续工作。
+- 并且「重试」重新请求会话，所以原因消除之后它会成功。视图不会被重新挂载。
 
 ### 大会话与运行中的会话
 
@@ -99,7 +102,8 @@ Estela 从磁盘读取 DeepSeek Harness（dsh）的会话日志，但 dsh 用户
 - 给定会话日志需要一定时间才能读完，
 - 当 Estela 视图打开时，
 - 那么它显示「正在打开会话」和一个不显示进度的加载指示。
-- 并且在会话加载期间，`dsh web` 的其余部分仍可使用。
+- 并且在会话加载期间，`dsh web` 的其余部分仍可使用：`dsh web` 自己处理的请求，比没有加载时最多多等约 N ms。N 是
+  冒烟测试记录的数值。
 
 **DSH-8：超过 12 MB 预算的视图**
 
@@ -119,6 +123,8 @@ Estela 从磁盘读取 DeepSeek Harness（dsh）的会话日志，但 dsh 用户
 - 当视图在屏幕上时，
 - 那么它继续显示加载时的日志。它不跟随会话。
 - 当用户重新加载 `dsh web` 页面并再次打开 Estela 视图时，它显示当时磁盘上的日志。
+- 并且它从不把日志的两个状态混在一起：某个事件已经无法从屏幕上的快照读到时，视图改为加载当时磁盘上的日志，
+  而不是从已经变化的日志里显示这个事件。
 
 ### 脱敏
 
@@ -211,11 +217,11 @@ Estela 从磁盘读取 DeepSeek Harness（dsh）的会话日志，但 dsh 用户
 | DSH-2 | `dsh.smoke.ts`（DSH-2），使用由 `fixtures/sessions/dsh/conformance/` 播种出的会话；命令行的工作区测试保持不变（`apps/e2e` 中的 S2、S7、CD-S1），它们证明工作区本身；S7 和 CD-S1 在元素上再跑一遍（`apps/e2e/src/e2e/embed.e2e.ts`） |
 | DSH-3 | `dsh.smoke.ts`（DSH-3），在一个新会话上 |
 | DSH-4 | `apps/dsh-plugin/src/host/channel.test.ts`（DSH-4）；`apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-5 | `apps/dsh-plugin/src/host/channel.test.ts`（DSH-5），使用不可读的和未知格式代次的 dsh fixture；`apps/web/src/embed/estela-workspace.test.ts` 检查提示、链接以及没有返回链接 |
-| DSH-6 | `apps/e2e/src/e2e/embed.e2e.ts`，使用一个抛错的数据源；`dsh.smoke.ts`（DSH-6） |
-| DSH-7 | `apps/web/src/embed/estela-workspace.test.ts`，使用一个缓慢的数据源 |
+| DSH-5 | `apps/dsh-plugin/src/host/channel.test.ts`（DSH-5），使用不可读的和未知格式代次的 dsh fixture，以及 dsh 自己拒绝格式的情况；`apps/web/src/embed/estela-workspace.test.ts` 检查提示、链接以及没有返回链接 |
+| DSH-6 | `apps/e2e/src/e2e/embed.e2e.ts`，使用一个抛错的数据源和一个先拒绝一次的数据源；`dsh.smoke.ts`（DSH-6）：View 挂载期间的一次传输失败 |
+| DSH-7 | `apps/web/src/embed/estela-workspace.test.ts`，使用一个缓慢的数据源；`dsh.smoke.ts`（DSH-7）记录 N |
 | DSH-8 | `packages/kernel/src/view.test.ts`（`fitView`，已有）；Plan 中记录的测量，即 12 MB 的结果能通过 dsh 的通道 |
-| DSH-9 | `apps/dsh-plugin/src/host/sessions.test.ts`（DSH-9）：变化的日志得到新的 id 并被重新读取 |
+| DSH-9 | `apps/dsh-plugin/src/host/sessions.test.ts`（DSH-9）：变化的日志得到新的 id 并被重新读取；被淘汰的快照对应的文件变了，按过期拒绝 |
 | DSH-10 | `apps/dsh-plugin/src/host/channel.test.ts`（DSH-10），`ESTELA_REDACT` 取两种值；`dsh.smoke.ts`（DSH-10），使用一个文本中含有临时主目录路径的播种会话 |
 | DSH-11 | `apps/web/src/embed/estela-workspace.test.ts`（属性）；`apps/dsh-plugin/src/client/appearance.test.ts`；`dsh.smoke.ts`（DSH-11） |
 | DSH-12 | `dsh.smoke.ts`（DSH-12）：dsh 进程前后监听的套接字相同 |

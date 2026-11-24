@@ -78,8 +78,8 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 
 **DSH-5: A log that cannot be read**
 
-- Given the open session's log cannot be read: it is missing or unreadable, its format generation is unknown, or
-  its decompressed size is over the limit,
+- Given the open session's log cannot be read: it is missing or unreadable, its format generation is unknown to
+  Estela's reader or to dsh itself, or its decompressed size is over the limit,
 - When the Estela View opens,
 - Then it shows "Could not open this session" with the reason, with the agent, file, and line when the error names
   them, and a "Try again" button.
@@ -91,12 +91,13 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 
 **DSH-6: An error stays inside the View**
 
-- Given any failure while the Estela View is open: a call to the plugin fails, the plugin was removed, or the
-  workspace fails while drawing,
+- Given any failure while the Estela View is mounted: a call to the plugin fails (the transport fails, the call is
+  refused, or the plugin is removed while the call is running), or the workspace fails while drawing,
 - When the failure happens,
 - Then the Estela View says that it could not load the session and offers "Try again".
 - And the failure stays inside the View: `dsh web` shows no blank page and no error page, and its other Views keep
   working.
+- And "Try again" asks for the session again, so it succeeds once the cause is gone. The View is not remounted.
 
 ### Large sessions and running sessions
 
@@ -105,7 +106,8 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 - Given the session's log takes time to read,
 - When the Estela View opens,
 - Then it shows "Opening session" with a loading indicator that states no progress.
-- And the rest of `dsh web` stays usable while the session loads.
+- And the rest of `dsh web` stays usable while the session loads: a request that `dsh web` handles itself waits at
+  most about N ms longer than without the load. N is the figure the smoke test records.
 
 **DSH-8: A view over the 12 MB budget**
 
@@ -126,6 +128,8 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 - When the View is on screen,
 - Then it keeps showing the log as it was when it loaded. It does not follow the session.
 - When the user reloads the `dsh web` page and opens the Estela View again, it shows the log as it is on disk then.
+- And it never mixes two states of the log: an event that can no longer be read from the snapshot on screen makes
+  the View load the log as it is on disk then, instead of showing the event from a changed log.
 
 ### Redaction
 
@@ -229,11 +233,11 @@ with a pinned dsh, starts `dsh web` without calling a model, and drives the page
 | DSH-2 | `dsh.smoke.ts` (DSH-2) on a session seeded from `fixtures/sessions/dsh/conformance/`; the workspace tests of the command line unchanged (S2, S7, CD-S1 in `apps/e2e`), which prove the workspace itself; S7 and CD-S1 again on the element (`apps/e2e/src/e2e/embed.e2e.ts`) |
 | DSH-3 | `dsh.smoke.ts` (DSH-3) on a new session |
 | DSH-4 | `apps/dsh-plugin/src/host/channel.test.ts` (DSH-4); `apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-5 | `apps/dsh-plugin/src/host/channel.test.ts` (DSH-5) with the unreadable and unknown-generation dsh fixtures; `apps/web/src/embed/estela-workspace.test.ts` for the hint, the link, and the missing back link |
-| DSH-6 | `apps/e2e/src/e2e/embed.e2e.ts` with a source that throws; `dsh.smoke.ts` (DSH-6) |
-| DSH-7 | `apps/web/src/embed/estela-workspace.test.ts` with a slow source |
+| DSH-5 | `apps/dsh-plugin/src/host/channel.test.ts` (DSH-5) with the unreadable and unknown-generation dsh fixtures and with dsh's own format refusal; `apps/web/src/embed/estela-workspace.test.ts` for the hint, the link, and the missing back link |
+| DSH-6 | `apps/e2e/src/e2e/embed.e2e.ts` with a source that throws and with one that refuses once; `dsh.smoke.ts` (DSH-6): a transport failure while the View is mounted |
+| DSH-7 | `apps/web/src/embed/estela-workspace.test.ts` with a slow source; `dsh.smoke.ts` (DSH-7) records N |
 | DSH-8 | `packages/kernel/src/view.test.ts` (`fitView`, existing); the measurement recorded in the Plan that a 12 MB result crosses dsh's channel |
-| DSH-9 | `apps/dsh-plugin/src/host/sessions.test.ts` (DSH-9): a changed log gets a new id and is read again |
+| DSH-9 | `apps/dsh-plugin/src/host/sessions.test.ts` (DSH-9): a changed log gets a new id and is read again; an evicted snapshot whose file changed is refused as stale |
 | DSH-10 | `apps/dsh-plugin/src/host/channel.test.ts` (DSH-10), both values of `ESTELA_REDACT`; `dsh.smoke.ts` (DSH-10) on a seeded session whose text holds the temporary home path |
 | DSH-11 | `apps/web/src/embed/estela-workspace.test.ts` (the attributes); `apps/dsh-plugin/src/client/appearance.test.ts`; `dsh.smoke.ts` (DSH-11) |
 | DSH-12 | `dsh.smoke.ts` (DSH-12): the listening sockets of the dsh process are the same before and after |
