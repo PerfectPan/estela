@@ -1,23 +1,39 @@
 import type { RpcDefinitionsToFunctionsWithNamespace } from 'devframe/rpc'
-import { listSessions } from './functions/list-sessions.ts'
-import { exportReport, reportTrace } from './functions/report.ts'
-import { getEvent, getTraceView, loadTrace, reconstructAt } from './functions/trace-view.ts'
+import type { ServerServices } from './functions/service.ts'
+import { createListSessions } from './functions/list-sessions.ts'
+import { createExportReport, createReportTrace } from './functions/report.ts'
+import { createTraceFunctions } from './functions/trace-view.ts'
 
 export const NAMESPACE = 'estela'
 
-export const serverFunctions = [listSessions, loadTrace, getTraceView, getEvent, reconstructAt, exportReport] as const
+export function createServerFunctions(services: ServerServices) {
+  const { loadTrace, getTraceView, getEvent, reconstructAt } = createTraceFunctions(services.store)
+  return [
+    createListSessions(services),
+    loadTrace,
+    getTraceView,
+    getEvent,
+    reconstructAt,
+    createExportReport(services.exportReport),
+  ] as const
+}
+
 /** Registered only when DevFrame builds a static report: the one argument-free snapshot it bakes. */
-export const reportFunctions = [reportTrace] as const
+export function createReportFunctions(services: Pick<ServerServices, 'reportSource'>) {
+  return [createReportTrace(services.reportSource)] as const
+}
+
+export type ServerFunctions = ReturnType<typeof createServerFunctions>
+export type ReportFunctions = ReturnType<typeof createReportFunctions>
 
 export {
-  bindReportExporter,
-  bindReportSource,
+  createReportSource,
   type ExportReportInput,
   type ExportReportResult,
+  type ReportSource,
 } from './functions/report.ts'
-export { bindSessionService, type SessionService } from './functions/service.ts'
+export type { ServerServices } from './functions/service.ts'
 export {
-  bindTraceStore,
   CURRENT_TRACE_ID,
   LOAD_PROGRESS_CHANNEL,
   SUBSCRIBE_GRACE_MS,
@@ -33,7 +49,7 @@ export {
   type SessionListRow,
   type SessionsSignal,
 } from './list-types.ts'
-export { bindSessionPublisher, emitSessions } from './publish.ts'
+export { createSessionPublisher, type SessionPublisher } from './publish.ts'
 export { buildReport, type ReportLocale, type ReportTrace } from './report.ts'
 export {
   LoadCancelledError,
@@ -51,6 +67,6 @@ export {
 declare module 'devframe' {
   interface DevframeRpcServerFunctions extends RpcDefinitionsToFunctionsWithNamespace<
     typeof NAMESPACE,
-    readonly [...typeof serverFunctions, ...typeof reportFunctions]
+    readonly [...ServerFunctions, ...ReportFunctions]
   > {}
 }

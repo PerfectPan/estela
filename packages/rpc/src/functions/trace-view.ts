@@ -65,8 +65,6 @@ function subscribed(meta: { subscribedStreams?: Set<string> } | undefined, id: s
   return false
 }
 
-let store: TraceStore | undefined
-
 /**
  * The calling browser connection, or `undefined` outside a WebSocket/SSE call
  * (MCP and in-process calls, where DevFrame throws DF0007 instead).
@@ -77,17 +75,6 @@ function ownerOf(ctx: TraceRpcContext): { subscribedStreams?: Set<string> } | un
   } catch {
     return undefined
   }
-}
-
-export function bindTraceStore(next: TraceStore): void {
-  store = next
-}
-
-function requireStore(): TraceStore {
-  if (!store) {
-    throw new Error('trace store is not bound')
-  }
-  return store
 }
 
 const LOAD_TRACE_ID = 'load-trace needs a trace id'
@@ -118,8 +105,9 @@ export interface LoadTraceResult {
 }
 
 /**
- * Starts (or joins) the load of `traceId` and returns a progress stream id.
+ * Trace RPC definitions closing over one `TraceStore` instance.
  *
+ * `load-trace` starts (or joins) the load of `traceId` and returns a progress stream id.
  * Browser contract: subscribe to `load-progress` with `loadId` immediately
  * (within `SUBSCRIBE_GRACE_MS`), then call `get-trace-view`. Two calls, because
  * DevFrame rejects a subscribe to a stream id that does not exist yet (DF0030).
@@ -127,100 +115,104 @@ export interface LoadTraceResult {
  * `load-trace` again from the same connection releases this hold; the last
  * release aborts the load.
  */
-export const loadTrace = defineTraceFunction({
-  name: 'load-trace',
-  type: 'action',
-  jsonSerializable: true,
-  setup: (ctx: TraceRpcContext) => {
-    let channel: LoadProgressChannel | undefined
-    const progressChannel = (): LoadProgressChannel => {
-      // Qualified with the rpc NAMESPACE (`estela`); the scoped client subscribes by the bare name.
-      channel ??= ctx.rpc.streaming.create(`estela:${LOAD_PROGRESS_CHANNEL}`, { replayWindow: 1 })
-      return channel
-    }
-    return {
-      handler: async (input: { traceId: string }): Promise<LoadTraceResult> => {
-        const { traceId } = parseInput(loadTraceInput, input)
-        const owner = ownerOf(ctx)
-        const handle = await requireStore().open(traceId, owner)
-        const sink = progressChannel().start()
-        const first = handle.progress()
-        sink.write(first)
-        let last = Date.now()
-        const off = handle.onProgress(progress => {
-          const now = Date.now()
-          if (now - last < PROGRESS_INTERVAL_MS) {
-            return
-          }
-          last = now
-          sink.write(progress)
-        })
-        const grace = setTimeout(() => {
-          if (!subscribed(owner, sink.id)) {
-            sink.abort('not subscribed')
-          }
-        }, SUBSCRIBE_GRACE_MS)
-        grace.unref()
-        sink.signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(grace)
-            off()
-            handle.release()
-          },
-          { once: true },
-        )
-        handle.done.then(
-          () => {
-            off()
-            if (!sink.closed) {
-              sink.write(handle.progress())
-              sink.close()
+export function createTraceFunctions(store: TraceStore) {
+  const loadTrace = defineTraceFunction({
+    name: 'load-trace',
+    type: 'action',
+    jsonSerializable: true,
+    setup: (ctx: TraceRpcContext) => {
+      let channel: LoadProgressChannel | undefined
+      const progressChannel = (): LoadProgressChannel => {
+        // Qualified with the rpc NAMESPACE (`estela`); the scoped client subscribes by the bare name.
+        channel ??= ctx.rpc.streaming.create(`estela:${LOAD_PROGRESS_CHANNEL}`, { replayWindow: 1 })
+        return channel
+      }
+      return {
+        handler: async (input: { traceId: string }): Promise<LoadTraceResult> => {
+          const { traceId } = parseInput(loadTraceInput, input)
+          const owner = ownerOf(ctx)
+          const handle = await store.open(traceId, owner)
+          const sink = progressChannel().start()
+          const first = handle.progress()
+          sink.write(first)
+          let last = Date.now()
+          const off = handle.onProgress(progress => {
+            const now = Date.now()
+            if (now - last < PROGRESS_INTERVAL_MS) {
+              return
             }
-          },
-          (error: unknown) => {
-            off()
-            sink.error(error)
-          },
-        )
-        return { loadId: sink.id, cached: handle.cached, totalBytes: first.totalBytes }
+            last = now
+            sink.write(progress)
+          })
+          const grace = setTimeout(() => {
+            if (!subscribed(owner, sink.id)) {
+              sink.abort('not subscribed')
+            }
+          }, SUBSCRIBE_GRACE_MS)
+          grace.unref()
+          sink.signal.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(grace)
+              off()
+              handle.release()
+            },
+            { once: true },
+          )
+          handle.done.then(
+            () => {
+              off()
+              if (!sink.closed) {
+                sink.write(handle.progress())
+                sink.close()
+              }
+            },
+            (error: unknown) => {
+              off()
+              sink.error(error)
+            },
+          )
+          return { loadId: sink.id, cached: handle.cached, totalBytes: first.totalBytes }
+        },
+      }
+    },
+  })
+
+  const getTraceView = defineTraceFunction({
+    name: 'get-trace-view',
+    type: 'query',
+    jsonSerializable: true,
+    setup: (ctx: TraceRpcContext) => ({
+      handler: async (input: { traceId: string }): Promise<TraceViewResult> =>
+        store.view(parseInput(traceViewInput, input).traceId, ownerOf(ctx)),
+    }),
+  })
+
+  const getEvent = defineTraceFunction({
+    name: 'get-event',
+    type: 'query',
+    jsonSerializable: true,
+    setup: (ctx: TraceRpcContext) => ({
+      handler: async (input: { traceId: string; id: string }): Promise<EventDetail> => {
+        const { traceId, id } = parseInput(eventInput, input)
+        return store.event(traceId, id, ownerOf(ctx))
       },
-    }
-  },
-})
+    }),
+  })
 
-export const getTraceView = defineTraceFunction({
-  name: 'get-trace-view',
-  type: 'query',
-  jsonSerializable: true,
-  setup: (ctx: TraceRpcContext) => ({
-    handler: async (input: { traceId: string }): Promise<TraceViewResult> =>
-      requireStore().view(parseInput(traceViewInput, input).traceId, ownerOf(ctx)),
-  }),
-})
+  const reconstructAt = defineTraceFunction({
+    name: 'reconstruct',
+    type: 'query',
+    jsonSerializable: true,
+    // Not an agent tool: `estela_reconstruct` is registered by the server's agent tools, which give it a named input
+    // schema and bound its result. No owner: a reconstruct takes its own hold.
+    setup: () => ({
+      handler: async (input: { traceId?: string; eventId: string }): Promise<ReconstructResult> => {
+        const { traceId, eventId } = parseInput(reconstructInput, input)
+        return store.reconstruct(traceId ?? CURRENT_TRACE_ID, eventId)
+      },
+    }),
+  })
 
-export const getEvent = defineTraceFunction({
-  name: 'get-event',
-  type: 'query',
-  jsonSerializable: true,
-  setup: (ctx: TraceRpcContext) => ({
-    handler: async (input: { traceId: string; id: string }): Promise<EventDetail> => {
-      const { traceId, id } = parseInput(eventInput, input)
-      return requireStore().event(traceId, id, ownerOf(ctx))
-    },
-  }),
-})
-
-export const reconstructAt = defineTraceFunction({
-  name: 'reconstruct',
-  type: 'query',
-  jsonSerializable: true,
-  // Not an agent tool: `estela_reconstruct` is registered by the server's agent tools, which give it a named input
-  // schema and bound its result. No owner: a reconstruct takes its own hold.
-  setup: () => ({
-    handler: async (input: { traceId?: string; eventId: string }): Promise<ReconstructResult> => {
-      const { traceId, eventId } = parseInput(reconstructInput, input)
-      return requireStore().reconstruct(traceId ?? CURRENT_TRACE_ID, eventId)
-    },
-  }),
-})
+  return { loadTrace, getTraceView, getEvent, reconstructAt }
+}

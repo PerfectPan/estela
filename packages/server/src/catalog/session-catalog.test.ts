@@ -1,5 +1,6 @@
 import type { SessionAdapter } from '@rivus/agent-kit/sessions'
 import type { Transcript } from '@rivus/agent-kit/transcript'
+import type { SessionsSignal } from '@rivus/estela-rpc'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { err, ok } from '@rivus/agent-kit/catalog'
 import { existsSync } from 'node:fs'
@@ -252,5 +253,35 @@ describe('session catalog', () => {
     expect(delta.removed).toEqual([gone?.traceId])
     expect((await second.listSessions()).rows).toHaveLength(1)
     second.close()
+  })
+
+  it('announces updates only through its own announce callback', async () => {
+    const homeA = await tempHome()
+    const homeB = await tempHome()
+    const claude = join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')
+    await mkdir(join(homeA, '.claude/projects/a'), { recursive: true })
+    await cp(claude, join(homeA, '.claude/projects/a/session.jsonl'))
+    const signalsA: SessionsSignal[] = []
+    const signalsB: SessionsSignal[] = []
+    const catalogA = new SessionCatalog({
+      platform: createNodePlatform({ home: homeA, env: {} }),
+      noIndex: true,
+      announce: signal => signalsA.push(signal),
+    })
+    const catalogB = new SessionCatalog({
+      platform: createNodePlatform({ home: homeB, env: {} }),
+      noIndex: true,
+      announce: signal => signalsB.push(signal),
+    })
+    await catalogA.whenIdle()
+    expect(signalsA.length).toBeGreaterThan(0)
+    expect(signalsA.at(-1)?.pending).toBe(0)
+    expect(signalsB).toEqual([])
+    const countA = signalsA.length
+    await catalogB.whenIdle()
+    expect(signalsA).toHaveLength(countA)
+    expect(signalsB.length).toBeGreaterThan(0)
+    catalogA.close()
+    catalogB.close()
   })
 })

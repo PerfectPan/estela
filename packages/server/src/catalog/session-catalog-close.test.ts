@@ -3,7 +3,6 @@ import type { IndexHead, IndexRow, SessionIndex, StoredSummary } from '@rivus/es
 import type { SessionsSignal } from '@rivus/estela-rpc'
 import { ok } from '@rivus/agent-kit/catalog'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { bindSessionPublisher } from '@rivus/estela-rpc'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -151,7 +150,11 @@ function fakeAdapter(options: FakeAdapter): SessionAdapter {
 }
 
 /** A catalog over the session index in memory, with `count` session files under its home. */
-async function catalogOf(count: number, adapter: Partial<FakeAdapter> = {}) {
+async function catalogOf(
+  count: number,
+  adapter: Partial<FakeAdapter> = {},
+  announce?: (signal: SessionsSignal) => void,
+) {
   const home = await mkdtemp(join(tmpdir(), 'catalog-close-'))
   dirs.push(home)
   const root = join(home, 'sessions')
@@ -165,6 +168,7 @@ async function catalogOf(count: number, adapter: Partial<FakeAdapter> = {}) {
     adapters: { fake: fakeAdapter({ root, loads, ...adapter }) },
     platform: createNodePlatform({ home, env: {} }),
     index,
+    announce,
   })
   catalogs.push(catalog)
   return { catalog, calls, loads }
@@ -197,9 +201,10 @@ describe('closing the session catalog', () => {
   it('drops a summary that ends after close(): no index write, no flush timer, no announcement', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const announcements: SessionsSignal[] = []
-    bindSessionPublisher(signal => announcements.push(signal))
     const loading = gate()
-    const { catalog, calls, loads } = await catalogOf(1, { loading: loading.passed })
+    const { catalog, calls, loads } = await catalogOf(1, { loading: loading.passed }, signal =>
+      announcements.push(signal),
+    )
     await catalog.discovered()
     await until(() => loads.length === 1)
     catalog.close()
@@ -220,8 +225,7 @@ describe('closing the session catalog', () => {
   it('writes, flushes on its timer, and announces a summary that ends while the catalog is open', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const announcements: SessionsSignal[] = []
-    bindSessionPublisher(signal => announcements.push(signal))
-    const { catalog, calls, loads } = await catalogOf(1)
+    const { catalog, calls, loads } = await catalogOf(1, {}, signal => announcements.push(signal))
     await catalog.discovered()
     await until(() => loads.length === 1 && vi.getTimerCount() === 1)
     await vi.advanceTimersByTimeAsync(1_000)
@@ -233,9 +237,8 @@ describe('closing the session catalog', () => {
 
   it('resolves a whenIdle() that waits on a running summary when the catalog closes, without announcing', async () => {
     const announcements: SessionsSignal[] = []
-    bindSessionPublisher(signal => announcements.push(signal))
     const loading = gate()
-    const { catalog, loads } = await catalogOf(1, { loading: loading.passed })
+    const { catalog, loads } = await catalogOf(1, { loading: loading.passed }, signal => announcements.push(signal))
     const idle = catalog.whenIdle()
     await until(() => loads.length === 1)
     catalog.close()
@@ -248,9 +251,10 @@ describe('closing the session catalog', () => {
 
   it('indexes, queues, and announces nothing for a discover pass that ends after close()', async () => {
     const announcements: SessionsSignal[] = []
-    bindSessionPublisher(signal => announcements.push(signal))
     const listing = gate()
-    const { catalog, calls, loads } = await catalogOf(1, { listing: listing.passed })
+    const { catalog, calls, loads } = await catalogOf(1, { listing: listing.passed }, signal =>
+      announcements.push(signal),
+    )
     // The pass is in flight here: it cannot list a session before `listing` opens.
     const started = catalog.start()
     catalog.close()

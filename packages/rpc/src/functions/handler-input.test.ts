@@ -3,10 +3,7 @@ import type { ExportReportInput } from './report.ts'
 import { describe, expect, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { fixture, storeOf } from '../../testing/store-fixture.ts'
-import { listSessions } from './list-sessions.ts'
-import { bindReportExporter, exportReport } from './report.ts'
-import { bindSessionService } from './service.ts'
-import { bindTraceStore, getEvent, getTraceView, loadTrace, reconstructAt } from './trace-view.ts'
+import { createReportFunctions, createReportSource, createServerFunctions } from '../index.ts'
 
 /**
  * A definition's `setup` read as DevFrame runs it: its handler takes whatever the client sent, since the parameter
@@ -25,9 +22,16 @@ async function wire(definition: { setup?: unknown }) {
   return (await setup({ rpc: { getCurrentRpcSession: () => ({ meta: owner }) } })).handler
 }
 
+function emptyStore() {
+  const f = fixture()
+  return storeOf({ fs: f.fs, parse: f.parse }).store
+}
+
 describe('list-sessions input', () => {
   const seen: ListSessionsQuery[] = []
-  bindSessionService({
+  const [listSessions] = createServerFunctions({
+    store: emptyStore(),
+    reportSource: createReportSource(),
     listSessions: async query => {
       seen.push(query)
       return { agents: [], rows: [], complete: true, pending: 0, revision: 0, pricesVersion: 'test-prices' }
@@ -66,9 +70,13 @@ describe('list-sessions input', () => {
 
 describe('export-report input', () => {
   const seen: ExportReportInput[] = []
-  bindReportExporter(async input => {
-    seen.push(input)
-    return { path: '~/report/index.html', included: 0, total: 0 }
+  const [, , , , , exportReport] = createServerFunctions({
+    store: emptyStore(),
+    reportSource: createReportSource(),
+    exportReport: async input => {
+      seen.push(input)
+      return { path: '~/report/index.html', included: 0, total: 0 }
+    },
   })
 
   it('ignores a locale it does not know', async () => {
@@ -88,12 +96,32 @@ describe('export-report input', () => {
   })
 })
 
+describe('absent optional services', () => {
+  it('throws the documented error when a server omits optional services or has not set a report source', async () => {
+    const reportSource = createReportSource()
+    const [listSessions, , , , , exportReport] = createServerFunctions({
+      store: emptyStore(),
+      reportSource,
+    })
+    const [reportTrace] = createReportFunctions({ reportSource })
+
+    await expect((await wire(listSessions))()).rejects.toThrow('list-sessions is not available')
+    await expect((await wire(exportReport))({ traceId: 'a' })).rejects.toThrow(
+      'export-report is available only on the dev server',
+    )
+    await expect((await wire(reportTrace))()).rejects.toThrow('report-trace is bound only while build writes a report')
+  })
+})
+
 describe('trace handler input', () => {
   const f = fixture()
   f.write('/logs/a.jsonl', [{ id: 'e1', kind: 'user', text: 'hi' }])
   f.write('/logs/current.jsonl', [{ id: 'e1', kind: 'user', text: 'launch' }])
   const { store } = storeOf({ fs: f.fs, parse: f.parse })
-  bindTraceStore(store)
+  const [, loadTrace, getTraceView, getEvent, reconstructAt] = createServerFunctions({
+    store,
+    reportSource: createReportSource(),
+  })
 
   it.each([
     [loadTrace, undefined, 'load-trace needs a trace id'],

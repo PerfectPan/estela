@@ -1,11 +1,12 @@
-import { mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createNodePlatform } from '@rivus/agent-kit/node'
-import { CURRENT_TRACE_ID, NAMESPACE } from '@rivus/estela-rpc'
+import { CURRENT_TRACE_ID, NAMESPACE, SESSIONS_STATE, type SessionsSignal } from '@rivus/estela-rpc'
 import { createDevServer } from 'devframe/adapters/dev'
 import { resolveWsUrl } from 'devframe/client'
+import { createHostContext } from 'devframe/node'
 import { createRpcClient } from 'devframe/rpc/client'
 import { createWsRpcChannel } from 'devframe/rpc/transports/ws-client'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
@@ -14,6 +15,7 @@ import { BASE_PATH, createEstelaServer, type EstelaServer } from '../src/index.t
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 const fixture = join(repo, 'fixtures/sessions/claude-code/conformance/plain/session.jsonl')
+const compaction = join(repo, 'fixtures/sessions/claude-code/conformance/compaction/session.jsonl')
 
 /** The slice of each RPC result this test reads. */
 const loaded = z.object({ loadId: z.string(), cached: z.boolean() })
@@ -110,5 +112,83 @@ describe('the Estela server from its factory alone', () => {
     expect(trace.events.length).toBe(launched.trace.events.length)
     const { rows } = z.parse(listed, await call('list-sessions', {}))
     expect(rows).toEqual([])
+  })
+})
+
+describe('two Estela servers in one process', () => {
+  it('keep each server’s store, RPC handlers, and session announcements isolated', async () => {
+    const homeA = await mkdtemp(join(tmpdir(), 'estela-iso-a-'))
+    const homeB = await mkdtemp(join(tmpdir(), 'estela-iso-b-'))
+    // Give server A one discovered session so its catalog advances its revision while server B stays at 0.
+    await mkdir(join(homeA, '.claude/projects/a'), { recursive: true })
+    await cp(fixture, join(homeA, '.claude/projects/a/session.jsonl'))
+    const makeCtx = (home: string) =>
+      createHostContext({
+        cwd: home,
+        mode: 'dev',
+        host: {
+          mountStatic: () => {},
+          resolveOrigin: () => 'http://localhost',
+          getStorageDir: () => join(home, '.devframe'),
+        },
+        importMetaUrl: import.meta.url,
+      })
+    const app = (home: string) => ({
+      packageName: '@rivus/estela',
+      version: '0.0.0-test',
+      homepage: 'https://example.invalid',
+      description: 'test',
+      clientAssets: home,
+    })
+    const serverA = createEstelaServer({
+      app: app(homeA),
+      platform: createNodePlatform({ home: homeA, env: {} }),
+      catalog: { index: false },
+      launch: { path: fixture },
+      redacts: true,
+    })
+    const serverB = createEstelaServer({
+      app: app(homeB),
+      platform: createNodePlatform({ home: homeB, env: {} }),
+      catalog: { index: false },
+      launch: { path: compaction },
+      redacts: true,
+    })
+    try {
+      const ctxA = await makeCtx(homeA)
+      const ctxB = await makeCtx(homeB)
+      await serverA.definition.setup(ctxA, { flags: {} })
+      await serverB.definition.setup(ctxB, { flags: {} })
+      await serverA.catalog!.whenIdle()
+      await serverB.catalog!.whenIdle()
+
+      const launchedA = (await serverA.openLaunch())!
+      const launchedB = (await serverB.openLaunch())!
+      expect(launchedA.traceId).not.toBe(launchedB.traceId)
+
+      const viewA = await ctxA.rpc.invokeLocal(`${NAMESPACE}:get-trace-view`, { traceId: CURRENT_TRACE_ID })
+      const viewB = await ctxB.rpc.invokeLocal(`${NAMESPACE}:get-trace-view`, { traceId: CURRENT_TRACE_ID })
+      expect(viewA.trace.session.id).toBe(launchedA.trace.session.id)
+      expect(viewB.trace.session.id).toBe(launchedB.trace.session.id)
+      expect(viewA.trace.session.id).not.toBe(viewB.trace.session.id)
+      expect(viewA.trace.events.length).toBe(launchedA.trace.events.length)
+      expect(viewB.trace.events.length).toBe(launchedB.trace.events.length)
+      await expect(ctxA.rpc.invokeLocal(`${NAMESPACE}:get-trace-view`, { traceId: launchedB.traceId })).rejects.toThrow(
+        'unknown trace id',
+      )
+      await expect(ctxB.rpc.invokeLocal(`${NAMESPACE}:get-trace-view`, { traceId: launchedA.traceId })).rejects.toThrow(
+        'unknown trace id',
+      )
+
+      const stateA = await ctxA.scope(NAMESPACE).rpc.sharedState<SessionsSignal>(SESSIONS_STATE)
+      const stateB = await ctxB.scope(NAMESPACE).rpc.sharedState<SessionsSignal>(SESSIONS_STATE)
+      expect(stateA.value().revision).toBeGreaterThan(0)
+      expect(stateA.value().pending).toBe(0)
+      expect(stateB.value()).toEqual({ revision: 0, pending: 0 })
+    } finally {
+      serverA.close()
+      serverB.close()
+      await Promise.all([rm(homeA, { recursive: true, force: true }), rm(homeB, { recursive: true, force: true })])
+    }
   })
 })
