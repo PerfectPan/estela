@@ -16,8 +16,7 @@ const HELP = `Usage:
   node scripts/check-budgets.mjs [--help]
 
 Runs the built CLI (apps/cli/dist) and measures the built dsh plugin
-(apps/dsh-plugin/dist; run "pnpm build" and
-"pnpm --filter '@rivus/dsh-estela...' run build" first) on synthetic data
+(apps/dsh-plugin/dist; run "pnpm build" first) on synthetic data
 generated into a temp directory, and checks the numbers against the budgets in
 scripts/budgets/budgets.mjs:
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Checks that a change to the public interface reference carries the matching release changeset(s):
-// lines under the dsh plugin section (`@rivus/dsh-estela`) need a release changeset for `@rivus/dsh-estela`;
-// lines anywhere else in docs/reference/public-interface.md need one for `@rivus/estela`; edits to both
-// regions need both. Which level is right stays with review, by the version policy in that document;
-// this check catches only a missing release changeset.
+// lines under the dsh plugin section (`dsh plugin (\`@rivus/dsh-estela\`)`) need a release changeset for
+// `@rivus/dsh-estela`; lines anywhere else in docs/reference/public-interface.md need one for
+// `@rivus/estela`; edits to both regions need both. Which level is right stays with review, by the
+// version policy in that document; this check catches only a missing release changeset.
 // See CONTRIBUTING.md#release-intent.
 //
 // Usage: node scripts/check-release-intent.mjs [base]
@@ -14,10 +14,12 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { parseChangesetFile } from '@changesets/parse'
 
 const INTERFACE = 'docs/reference/public-interface.md'
 const CLI_PACKAGE = '@rivus/estela'
 const PLUGIN_PACKAGE = '@rivus/dsh-estela'
+const PLUGIN_HEADING = 'dsh plugin (`@rivus/dsh-estela`)'
 const RELEASE = new Set(['patch', 'minor', 'major'])
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/
 const HEADING = /^(#{1,6})\s+(.+?)\s*#*$/
@@ -28,28 +30,26 @@ function git(args, cwd) {
 }
 
 function showFile(rev, path, cwd) {
-  try {
-    return git(['show', `${rev}:${path}`], cwd)
-  } catch {
-    return ''
-  }
+  return git(['show', `${rev}:${path}`], cwd)
 }
 
-/** Package bumps declared in a changeset file's front matter. */
+/** Package bumps declared in a changeset file's front matter, parsed by Changesets itself. */
 export function bumpsOf(content) {
   const bumps = new Map()
-  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)
-  for (const line of front?.[1].split(/\r?\n/) ?? []) {
-    const entry = /^\s*(['"]?)([^'":]+)\1\s*:\s*(\w+)\s*$/.exec(line)
-    if (entry) {
-      bumps.set(entry[2], entry[3])
-    }
+  let parsed
+  try {
+    parsed = parseChangesetFile(content)
+  } catch {
+    return bumps
+  }
+  for (const release of parsed.releases) {
+    bumps.set(release.name, release.type)
   }
   return bumps
 }
 
-/** Maps each 1-based line number of `text` to the package owning its nearest enclosing heading. */
-export function lineOwners(text) {
+/** Maps each 1-based line number of `text` to the package owning its nearest enclosing section. */
+function lineOwners(text) {
   const lines = text.split(/\r?\n/)
   const owners = [CLI_PACKAGE]
   let fenceChar
@@ -71,10 +71,13 @@ export function lineOwners(text) {
       const heading = HEADING.exec(line)
       if (heading) {
         const level = heading[1].length
-        if (heading[2].includes(PLUGIN_PACKAGE)) {
+        const title = heading[2].trim()
+        if (pluginLevel !== undefined) {
+          if (level <= pluginLevel) {
+            pluginLevel = title === PLUGIN_HEADING ? level : undefined
+          }
+        } else if (title === PLUGIN_HEADING) {
           pluginLevel = level
-        } else if (pluginLevel !== undefined && level <= pluginLevel) {
-          pluginLevel = undefined
         }
       }
     }
@@ -131,21 +134,27 @@ export function requiredPackages(oldText, newText, diffText) {
 }
 
 function main(argv = process.argv.slice(2), cwd = process.cwd()) {
-  // `git diff --name-only` names files from the repository root, wherever the script runs.
+  // `git diff --name-status` names files from the repository root, wherever the script runs.
   const root = git(['rev-parse', '--show-toplevel'], cwd).trim()
   const base = argv[0] ?? git(['merge-base', 'origin/main', 'HEAD'], root).trim()
-  const changed = git(['diff', '--name-only', '--diff-filter=ACMR', base, 'HEAD'], root)
-    .trim()
-    .split('\n')
-    .filter(Boolean)
+  // `--no-renames` reports a rename of the interface doc as a deletion at its canonical path.
+  const statusLine = git(['diff', '--name-status', '--no-renames', base, 'HEAD', '--', INTERFACE], root).trim()
 
-  if (!changed.includes(INTERFACE)) {
+  if (!statusLine) {
     console.log(`release intent: ${INTERFACE} unchanged`)
     return 0
   }
 
-  const diffText = git(['diff', '--unified=0', base, 'HEAD', '--', INTERFACE], root)
-  const needed = requiredPackages(showFile(base, INTERFACE, root), showFile('HEAD', INTERFACE, root), diffText)
+  const status = statusLine[0]
+  const oldText = status === 'A' ? '' : showFile(base, INTERFACE, root)
+  const newText = status === 'D' ? '' : showFile('HEAD', INTERFACE, root)
+  const diffText = git(['diff', '--no-renames', '--unified=0', base, 'HEAD', '--', INTERFACE], root)
+  const needed = requiredPackages(oldText, newText, diffText)
+
+  const changed = git(['diff', '--name-only', '--diff-filter=ACMR', base, 'HEAD'], root)
+    .trim()
+    .split('\n')
+    .filter(Boolean)
   const changesets = changed.filter(path => /^\.changeset\/[^/]+\.md$/.test(path) && path !== '.changeset/README.md')
   const releasedBy = new Map()
   for (const path of changesets) {

@@ -45,8 +45,10 @@ jobs:
         uses: PerfectPan/gh-repo-checks@v1
         with:
           check: release-plan
-      # A pull request that changes docs/reference/public-interface.md must add a changeset that releases
-      # @rivus/estela. HEAD is GitHub's merge commit, so HEAD^1 to HEAD is the pull request's change.
+      # A pull request that changes docs/reference/public-interface.md must add release changeset(s) for the
+      # affected package(s). HEAD is GitHub's merge commit, so HEAD^1 to HEAD is the pull request's change.
+      - name: Release intent check tests
+        run: node --test scripts/check-release-intent.test.mjs
       - name: Release intent of public interface changes
         if: github.event_name == 'pull_request'
         run: node scripts/check-release-intent.mjs HEAD^1
