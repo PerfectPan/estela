@@ -1,6 +1,6 @@
 # Public interface and compatibility
 
-Audience: users who script Estela or connect it to other tools, and maintainers who decide a release's version bump. This document lists what semantic versioning covers for `@rivus/estela`, what is experimental, and what is excluded. A change to a covered surface updates this document and the [user guide](../guide/README.md) in the same pull request.
+Audience: users who script Estela or connect it to other tools, and maintainers who decide a release's version bump. This document lists what semantic versioning covers for `@rivus/estela` and `@rivus/dsh-estela`, what is experimental, and what is excluded. A change to a covered surface updates this document and the [user guide](../guide/README.md) in the same pull request.
 
 ## Version policy
 
@@ -78,13 +78,28 @@ The mapping in [Export formats](export-formats.md#atif), pinned to ATIF v1.8, in
 
 Cost numbers depend on the price snapshot bundled with each release; every cost names its snapshot. A new snapshot that changes amounts is not breaking.
 
+### dsh plugin (`@rivus/dsh-estela`)
+
+The DeepSeek Harness plugin is published as `@rivus/dsh-estela` for the `web` profile (see [DeepSeek Harness plugin](../guide/dsh-plugin.md)). Covered:
+
+- The package name (`@rivus/dsh-estela`), installing with `dsh plugin --profile web add @rivus/dsh-estela`, and removing with `dsh plugin --profile web remove @rivus/dsh-estela`.
+- The conversation View tab labeled "Estela" beside Chat and Trajectory for sessions that have started.
+- The supported DeepSeek Harness version range in `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`) and Node.js range in `engines.node` (`>=24.9.0`).
+- Redaction on by default, with `ESTELA_REDACT=0` in the `dsh` process environment disabling redaction.
+- No plugin configuration.
+
+Its version policy is the same 0.x policy as `@rivus/estela`: a breaking change to a covered surface ships in a minor release before 1.0 (and a major release from 1.0), and a fix ships in a patch release. Narrowing the `engines.dsh` range is breaking and ships in a minor release.
+
+Tests: `apps/dsh-plugin/src/package.test.ts` (manifest fields and `engines.dsh`), `apps/dsh-plugin/src/host/channel.test.ts` (redaction, owner-only access, failure modes), `apps/dsh-plugin/src/host/sessions.test.ts` and `stale.test.ts` (snapshot guarantees), and `apps/dsh-plugin/test/package-artifacts.test.ts` (packed tarball and bundle boundaries).
+
 ## Experimental
 
 - **OTLP export.** `export-otlp` pins the OpenTelemetry GenAI semantic conventions `gen-ai-dev/1.42.0-dev`, a development version with no release. Attribute names follow that version and will change when a released version is pinned, possibly in a minor release even after 1.0. The command and its options are covered; the span and attribute mapping is not. Tests: `packages/kernel/src/export-otlp.test.ts`.
 
 ## Not covered
 
-- **Workspace packages.** `@rivus/estela-server`, `-rpc`, `-kernel`, `-schema`, `-runtime-node`, and `-web` are private and bundled into the CLI; `@rivus/estela` exports no programmatic API.
+- **Workspace packages.** `@rivus/estela-server`, `-rpc`, `-kernel`, `-schema`, `-runtime-node`, and `-web` are private and bundled into the CLI and dsh plugin; `@rivus/estela` exports no programmatic API.
+- **dsh plugin internals.** The plugin's RPC channel and endpoint names, the `<estela-workspace>` custom element and its `source` property, the files inside the `@rivus/dsh-estela` package, and the wording of notices inside the View.
 - **The canonical trace JSON format** (`schema: "estela"`). It has no version field and changes in place; no command writes it, and a file from another version may not load.
 - **The session index** (`index.sqlite`): a cache, rebuilt on any layout or version change.
 - **DevFrame's RPC** between the bundled server and web app, its shared state, and its files (`~/.devframe/instances/`, `~/.estela/devframe/`).

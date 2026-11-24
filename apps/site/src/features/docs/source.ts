@@ -33,6 +33,7 @@ const GUIDE_PAGES = [
   'supported-agents',
   'exports',
   'mcp',
+  'dsh-plugin',
   'privacy',
   'troubleshooting',
   '...',

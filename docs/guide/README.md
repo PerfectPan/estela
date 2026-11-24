@@ -13,6 +13,7 @@ Then, as needed:
 - [Supported agents](supported-agents.md): where each agent's sessions are found and what each agent's log records.
 - [Reports and exports](exports.md): a static report to share, and ATIF and OTLP files for other tools.
 - [MCP tools](mcp.md): let an agent inspect earlier sessions.
+- [DeepSeek Harness plugin](dsh-plugin.md): view the current session inside `dsh web` without running the CLI.
 - [Privacy and redaction](privacy.md): what stays local, what redaction covers, what a report still contains.
 - [Troubleshooting](troubleshooting.md): Node version, ports, unreadable files, the index cache.
 

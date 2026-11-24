@@ -51,6 +51,15 @@ If you started Estela with an explicit `--host` such as `127.0.0.1` or `[::1]`, 
 
 On the main command, a bare word that names a command (`build`, `mcp`, `export-atif`, `export-otlp`) is read as that command. Write a host named like a command as `--host=build`, and a session file named like one as `./build`.
 
+## dsh says the plugin is incompatible
+
+`@rivus/dsh-estela` declares the DeepSeek Harness versions it supports in `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`; see [DeepSeek Harness plugin](dsh-plugin.md#version-range)).
+
+- **During install:** if your `dsh` version is outside `engines.dsh`, `dsh` refuses before installing anything, exits with status 1, and prints which requirement was not met.
+- **After upgrading or downgrading `dsh`:** if the plugin is already in the `web` profile and `dsh` is now outside `engines.dsh`, `dsh` starts without the plugin, prints one line on stderr explaining why it disabled the plugin, and `dsh web` shows no Estela tab.
+
+Use a `dsh` version inside `engines.dsh`, or update `@rivus/dsh-estela` once a release supports your `dsh` version. If you want to accept the risk explicitly for one exact plugin version on one exact `dsh` version, use `dsh plugin allow-version` as noted in `dsh`'s error message.
+
 ## Upgrading from `@rivus/agent-trace`
 
 Estela was published as `@rivus/agent-trace` up to 0.1.0. The new version does not read the old names: rename `AGENT_TRACE_PATH` and `AGENT_TRACE_REDACT` to `ESTELA_PATH` and `ESTELA_REDACT`. The index moved to `rivus-estela`; the old `rivus-agent-trace` cache folder can be deleted. Theme and language choices reset once.

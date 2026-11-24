@@ -7,7 +7,7 @@ Requires DeepSeek Harness `>=0.2.2-rc.5 <0.3.0-0` and Node.js `>=24.9.0`.
 ## Install
 
 ```sh
-dsh plugin --profile web install @rivus/dsh-estela
+dsh plugin --profile web add @rivus/dsh-estela
 ```
 
 Remove it at any time:
