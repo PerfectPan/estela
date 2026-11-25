@@ -87,6 +87,31 @@ describe('<estela-workspace>', () => {
     }
   })
 
+  it('labels each count of exactly one in the singular and any other count in the plural', async () => {
+    const metrics = async (summary: TraceViewResult['summary']) => {
+      const el = mountElement({
+        open: async () => ({ ...viewResult(), summary }),
+        event: async () => {
+          throw new Error('unexpected event')
+        },
+      })
+      await tick()
+      const pairs = [...el.shadowRoot!.querySelectorAll('[data-testid="embedded-header"] dt')].map(
+        dt => `${dt.parentElement?.querySelector('dd')?.textContent} ${dt.textContent}`,
+      )
+      el.remove()
+      return pairs
+    }
+
+    // Mixed counts: each label follows its own number, not a neighbour's.
+    expect(await metrics({ turns: 1, requests: 3, compactions: 2, subagents: 1, failedTools: 1 })).toEqual(
+      expect.arrayContaining(['1 turn', '3 requests', '2 compactions', '1 subagent', '1 failed tool call']),
+    )
+    expect(await metrics({ turns: 3, requests: 1, compactions: 1, subagents: 2, failedTools: 2 })).toEqual(
+      expect.arrayContaining(['3 turns', '1 request', '1 compaction', '2 subagents', '2 failed tool calls']),
+    )
+  })
+
   it('tracks theme and lang attributes without modifying document.documentElement', async () => {
     document.documentElement.dataset.theme = 'host-theme'
     document.documentElement.lang = 'fr'
