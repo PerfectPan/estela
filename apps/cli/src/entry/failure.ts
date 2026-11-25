@@ -1,9 +1,22 @@
 import { stripVTControlCharacters } from 'node:util'
 import * as z from 'zod/mini'
-import { errorMessage, oneLine } from '@rivus/estela-server'
+import { homeDir } from '@rivus/estela-runtime-node'
+import { errorMessage, oneLine, serverRedaction } from '@rivus/estela-server'
 
 const SESSION_FIX = 'Pass a canonical Estela JSON file, or a session path a registered agent adapter accepts.'
 const REPORT_ISSUE_URL = 'https://github.com/PerfectPan/estela/issues/new/choose'
+/**
+ * Session folders and files are shown with `~`, under the catalog's rule, whatever `ESTELA_REDACT` says. The rule
+ * is made when an `index` failure is first shown, not when this module loads: commands that need no session
+ * (`--help`, `--version`) must run on a system that cannot resolve a home directory, where getting one throws.
+ */
+let homeRedaction: ReturnType<typeof serverRedaction> | undefined
+
+function redactHome(text: string): string {
+  homeRedaction ??= serverRedaction(homeDir())
+  return homeRedaction.text(text)
+}
+
 const UNKNOWN_FORMAT_FIX = `Update Estela (npx @rivus/estela@latest), or report the agent name, version, and reason line at ${REPORT_ISSUE_URL}.`
 
 function isUnknownFormatGeneration(message: string): boolean {
@@ -152,7 +165,7 @@ export function failureReport(failure: CliFailure): FailureReport {
     case 'index':
       return {
         message: {
-          cause: `Could not index sessions: ${sanitizeInline(errorMessage(failure.cause))}`,
+          cause: `Could not index sessions: ${sanitizeInline(redactHome(errorMessage(failure.cause)))}`,
           fix: 'Check the agent session directories, or pass --no-index.',
         },
         exitCode: 1,

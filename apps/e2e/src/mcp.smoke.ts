@@ -5,71 +5,17 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { expectCleanOutput, lanAddress, openLogPath, smokeEnv, start, waitFor, type Server } from './cli-process.ts'
+import { callResult, mcpClient, reply, sessions, toolList } from './mcp-client.ts'
 import { buildFixtureHome } from './fixture-home.ts'
 import { repo } from './prepare-run.ts'
 
 const ctx = inject('smoke')
 
-const reply = z.object({ id: z.number(), result: z.optional(z.unknown()), error: z.optional(z.unknown()) })
-const toolList = z.object({
-  tools: z.array(
-    z.object({
-      name: z.string(),
-      description: z.string(),
-      inputSchema: z.object({ type: z.literal('object'), properties: z.record(z.string(), z.unknown()) }),
-    }),
-  ),
-})
-const callResult = z.object({
-  isError: z.optional(z.boolean()),
-  content: z.array(z.object({ type: z.literal('text'), text: z.string() })),
-})
-const sessions = z.object({
-  sessions: z.array(z.object({ traceId: z.string(), title: z.optional(z.string()) })),
-  total: z.number(),
-})
 const turns = z.object({
   turns: z.array(z.object({ promptEventId: z.optional(z.string()), failedToolEventIds: z.array(z.string()) })),
 })
 const requests = z.object({ requests: z.array(z.object({ id: z.string() })) })
 const surface = z.object({ eventId: z.string(), visibleIds: z.array(z.string()), completeness: z.string() })
-
-/** An MCP client over the CLI's stdin and stdout: newline-delimited JSON-RPC, as the stdio transport speaks it. */
-function mcpClient(server: Server) {
-  let next = 0
-  const lines = () =>
-    server
-      .output()
-      .stdout.split('\n')
-      .filter(text => text.trim().length > 0)
-  const request = async (method: string, params: unknown): Promise<unknown> => {
-    next += 1
-    const id = next
-    server.send(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
-    const mine = (line: string) => line.includes(`"id":${id},`) || line.endsWith(`"id":${id}}`)
-    await waitFor(`mcp reply ${id}`, () => lines().some(mine))
-    const message = z.parse(reply, JSON.parse(lines().find(mine)!))
-    expect(message.error).toBeUndefined()
-    return message.result
-  }
-  return {
-    lines,
-    async initialize() {
-      await request('initialize', {
-        protocolVersion: '2025-11-25',
-        capabilities: {},
-        clientInfo: { name: 'estela-smoke', version: '0.0.0' },
-      })
-      server.send(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`)
-    },
-    tools: async () => z.parse(toolList, await request('tools/list', {})).tools,
-    /** The tool's reply text: a JSON result, or the error message when `isError`. */
-    async call(name: string, args: unknown): Promise<{ isError: boolean; text: string }> {
-      const result = z.parse(callResult, await request('tools/call', { name, arguments: args }))
-      return { isError: result.isError === true, text: result.content[0]!.text }
-    },
-  }
-}
 
 describe('mcp without a path: the session catalog', () => {
   let home: string

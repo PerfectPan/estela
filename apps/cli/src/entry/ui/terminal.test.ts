@@ -122,6 +122,43 @@ describe('startSessionIndex', () => {
     index.finish()
     expect(chunks.join('')).toBe('Claude Code: 2/2 files read\nCodex: 0 files, checked ~/.codex/sessions\n')
   })
+
+  it('names a root that could not be read on its agent’s line instead of counting 0/0 files', () => {
+    const chunks: string[] = []
+    stdout.isTTY = false
+    delete process.env.NO_COLOR
+    stdout.write = (chunk: string | Uint8Array) => {
+      chunks.push(String(chunk))
+      return true
+    }
+    const index = startSessionIndex()
+    index.tick([
+      { name: 'Claude Code', read: 0, done: false },
+      { name: 'Codex', read: 0, done: false },
+      { name: 'Grok', read: 1, total: 1, done: false },
+    ])
+    expect(chunks).toEqual([])
+    index.tick([
+      { name: 'Claude Code', read: 0, done: true, unreadable: '~/.claude/projects' },
+      {
+        name: 'Codex',
+        read: 0,
+        done: true,
+        checked: '~/.codex/archived_sessions',
+        unreadable: '~/.codex/sessions',
+      },
+      { name: 'Grok', read: 1, total: 1, done: true, unreadable: '~/.grok/old' },
+      { name: 'Pi', read: 2, done: true, unreadable: '~/.pi/agent/sessions' },
+    ])
+    index.finish()
+    expect(chunks.join('')).toBe(
+      'Claude Code: 0 files, could not read ~/.claude/projects\n'
+        + 'Codex: 0 files, checked ~/.codex/archived_sessions, could not read ~/.codex/sessions\n'
+        + 'Grok: 1/1 files read, could not read ~/.grok/old\n'
+        // Sessions read before the root failed are counted, although no root was listed for a total.
+        + 'Pi: 2 files read, could not read ~/.pi/agent/sessions\n',
+    )
+  })
 })
 
 describe('installPlainFilter', () => {

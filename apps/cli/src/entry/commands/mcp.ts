@@ -4,6 +4,7 @@ import { createEstelaServer } from '../../server.ts'
 import { closeOnSignal } from '../close-on-signal.ts'
 import { CliError } from '../failure.ts'
 import { sayMcpReady, sayStoreWarning } from '../ui/terminal.ts'
+import { sayUnreadableRoots, unreadableRootLine } from '../ui/unreadable-roots.ts'
 
 export interface McpInput {
   /** The session given on the command line or in ESTELA_PATH; `undefined` serves every discovered session. */
@@ -39,6 +40,7 @@ export async function runMcp(input: McpInput): Promise<void> {
     } catch (cause) {
       throw new CliError({ kind: 'index', cause })
     }
+    sayUnreadableRoots(catalog, root => sayStoreWarning(`session folder unreadable: ${unreadableRootLine(root)}`))
   }
   // Only once the start succeeded: a failed start throws above, and the process exits with its code.
   closeOnSignal(() => server.close())
