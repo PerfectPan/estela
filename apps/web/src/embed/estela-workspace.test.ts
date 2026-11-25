@@ -87,8 +87,8 @@ describe('<estela-workspace>', () => {
     }
   })
 
-  it('labels a count of exactly one in the singular and any other count in the plural', async () => {
-    const labels = async (summary: TraceViewResult['summary']) => {
+  it('labels each count of exactly one in the singular and any other count in the plural', async () => {
+    const metrics = async (summary: TraceViewResult['summary']) => {
       const el = mountElement({
         open: async () => ({ ...viewResult(), summary }),
         event: async () => {
@@ -96,16 +96,19 @@ describe('<estela-workspace>', () => {
         },
       })
       await tick()
-      const terms = [...el.shadowRoot!.querySelectorAll('[data-testid="embedded-header"] dt')].map(dt => dt.textContent)
+      const pairs = [...el.shadowRoot!.querySelectorAll('[data-testid="embedded-header"] dt')].map(
+        dt => `${dt.parentElement?.querySelector('dd')?.textContent} ${dt.textContent}`,
+      )
       el.remove()
-      return terms
+      return pairs
     }
 
-    expect(await labels({ turns: 1, requests: 1, compactions: 1, subagents: 1, failedTools: 1 })).toEqual(
-      expect.arrayContaining(['turn', 'request', 'compaction', 'subagent', 'failed tool call']),
+    // Mixed counts: each label follows its own number, not a neighbour's.
+    expect(await metrics({ turns: 1, requests: 3, compactions: 2, subagents: 1, failedTools: 1 })).toEqual(
+      expect.arrayContaining(['1 turn', '3 requests', '2 compactions', '1 subagent', '1 failed tool call']),
     )
-    expect(await labels({ turns: 2, requests: 3, compactions: 2, subagents: 2, failedTools: 2 })).toEqual(
-      expect.arrayContaining(['turns', 'requests', 'compactions', 'subagents', 'failed tool calls']),
+    expect(await metrics({ turns: 3, requests: 1, compactions: 1, subagents: 2, failedTools: 2 })).toEqual(
+      expect.arrayContaining(['3 turns', '1 request', '1 compaction', '2 subagents', '2 failed tool calls']),
     )
   })
 
