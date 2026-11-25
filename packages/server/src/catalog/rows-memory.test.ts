@@ -159,6 +159,10 @@ describe('withinDirectory', () => {
       expect(withinDirectory(recorded, '~', [trailing], 'linux')).toBe(true)
     }
     expect(withinDirectory('C:/work/app', '~/work/app', ['C:/'], 'win32')).toBe(true)
+    expect(withinDirectory('C:\\Users\\me\\work\\app', '~/work/app', ['C:\\Users\\me\\'], 'win32')).toBe(true)
+    // On POSIX a trailing backslash is part of the home's name, not a separator.
+    expect(withinDirectory('/sample/team\\/work/app', '~/work/app', ['/sample/team\\'], 'linux')).toBe(true)
+    expect(withinDirectory('/sample/team/work/app', '~/work/app', ['/sample/team\\'], 'linux')).toBe(false)
     // An empty directory names no session, on either platform.
     expect(withinDirectory(`${home}/work/app`, '', homes, 'linux')).toBe(false)
     expect(withinDirectory(`${home}/work/app`, '', homes, 'win32')).toBe(false)

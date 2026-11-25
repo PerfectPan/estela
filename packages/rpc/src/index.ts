@@ -45,9 +45,11 @@ export {
   type SessionsSignal,
 } from './list-types.ts'
 export { createSessionPublisher, type SessionPublisher } from './publish.ts'
-export { buildReport, type ReportLocale, type ReportTrace } from './report.ts'
+export { buildReport, loadedReport, type ReportLocale, type ReportSettings, type ReportTrace } from './report.ts'
 export {
   CURRENT_TRACE_ID,
+  type EventRead,
+  type LoadedEvents,
   LoadCancelledError,
   SnapshotChangedError,
   TraceStore,

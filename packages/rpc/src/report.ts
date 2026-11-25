@@ -1,6 +1,9 @@
 import type { SessionSummary } from '@rivus/agent-kit/transcript'
 import type { Trace } from '@rivus/estela-schema'
-import type { EventDetail, TraceRedaction, TraceViewResult } from './trace-store.ts'
+import type { EventDetail, TraceRedaction, TraceStore } from './trace-store.ts'
+import { VIEW_BYTES } from './trace-store-types.ts'
+import { fitView, fold, summaryOf } from '@rivus/estela-kernel'
+import { withoutOriginals } from './original-reload.ts'
 import { TraceIds } from './trace-ids.ts'
 
 /** A report holds the originals of at most the first 2,000 events or 20 MB, whichever is smaller. */
@@ -29,17 +32,21 @@ export interface ReportTrace {
 }
 
 export interface ReportInput {
-  view: TraceViewResult
   /**
-   * Full events (with `original`) for ids as the view shows them, in the same order. Each comes as `get-event`
-   * shows it, or as recorded where nothing redacts: the report shows and redacts what is still recorded.
+   * The session as loaded, every string whole. The report builds its own view from it, so an id is given its
+   * alias before anything is cut short; originals are ignored.
    */
+  trace: Trace
+  /** Full events (with `original`) for ids as recorded, in the same order; not shown. */
   full: (ids: readonly string[]) => Promise<EventDetail[]>
   /** Always applied, whatever the server does: the report is redacted, and its ids are shown with it. */
   redact: TraceRedaction
   locale?: ReportLocale
   maxEvents?: number
   maxBytes?: number
+  /** The view's starting string cap, and where a view over budget is reported; as the store was given them. */
+  maxString?: number
+  log?: (line: string) => void
 }
 
 const encoder = new TextEncoder()
@@ -52,12 +59,17 @@ function jsonBytes(value: unknown): number {
 export async function buildReport(input: ReportInput): Promise<ReportTrace> {
   const maxEvents = input.maxEvents ?? REPORT_MAX_EVENTS
   const maxBytes = input.maxBytes ?? REPORT_MAX_BYTES
-  // The report's own aliases, whether or not the server redacted the view: the report is redacted always, and
-  // two ids that redact to the same text must still name different events in it.
-  const ids = new TraceIds(input.view.trace, id => input.redact.text(id) === id)
-  const trace = input.redact.value(ids.shown(input.view.trace))
-  // Asked by the view's own ids, not the shown ones: they name events in the store, which may not redact.
-  const asked = input.view.trace.events.map(event => event.id)
+  // The report's own aliases, from the whole trace: a reference the view cuts short still meets its event, and
+  // two ids that redact to the same text still name different events, whether or not the server redacted a view.
+  const ids = new TraceIds(input.trace, id => input.redact.text(id) === id)
+  const shown = input.redact.value(ids.shown(withoutOriginals(input.trace)))
+  const view = fitView(shown, { maxString: input.maxString, maxBytes: VIEW_BYTES })
+  if (view.trace.view?.withinBudget === false) {
+    input.log?.(`a report view is ${view.bytes} bytes at the 256-character floor, over the ${VIEW_BYTES}-byte budget`)
+  }
+  const trace = view.trace
+  // Asked for as recorded: an alias is the report's own, which the reader does not know.
+  const asked = trace.events.map(event => ids.findEvent(event.id) ?? event.id)
   const events: EventDetail[] = []
   let eventBytes = 0
   let full = false
@@ -77,10 +89,21 @@ export async function buildReport(input: ReportInput): Promise<ReportTrace> {
   }
   return {
     trace,
-    summary: input.redact.value(input.view.summary),
+    summary: input.redact.value(summaryOf(fold(input.trace))),
     events,
     total: asked.length,
     truncated: events.length < asked.length,
     locale: input.locale,
   }
+}
+
+/** What a report is given besides the session: its redaction, and the limits a test may lower. */
+export type ReportSettings = Pick<ReportInput, 'redact'>
+  & Partial<Pick<ReportInput, 'locale' | 'maxEvents' | 'maxBytes'>>
+
+/** The report of the session `traceId` as the store has it loaded: its view and its full events from one snapshot. */
+export async function loadedReport(store: TraceStore, traceId: string, input: ReportSettings): Promise<ReportTrace> {
+  return store.withEvents(traceId, loaded =>
+    buildReport({ ...loaded, ...input, trace: loaded.trace, full: loaded.read }),
+  )
 }

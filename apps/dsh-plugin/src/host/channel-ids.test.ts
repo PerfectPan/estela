@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createEstelaCore } from '@rivus/estela-server/core'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
@@ -33,9 +33,18 @@ async function makeTempHome(): Promise<string> {
   return home
 }
 
+/**
+ * Neither home, in any spelling an output could carry: as the system writes it, with Windows separators
+ * (`path.win32`), with forward slashes, and each JSON-escaped. Compared without case, as the kit hides a home.
+ */
 function namesNeitherHome(text: string, home: string): void {
-  for (const needle of [home, JSON.stringify(home).slice(1, -1), processHome]) {
-    expect(text).not.toContain(needle)
+  const spellings = (path: string): string[] => {
+    const forms = [path, win32.normalize(path), path.replaceAll('\\', '/')]
+    return forms.flatMap(one => [one, JSON.stringify(one).slice(1, -1)])
+  }
+  const shown = text.toLowerCase()
+  for (const needle of [home, processHome].flatMap(spellings)) {
+    expect(shown).not.toContain(needle.toLowerCase())
   }
 }
 
@@ -47,10 +56,10 @@ async function parentWithNamedChild(home: string): Promise<string> {
     (await readFile(join(conformance, from), 'utf8')).replace(before, after)
   await mkdir(dirname(parent), { recursive: true })
   await mkdir(dirname(child), { recursive: true })
-  await writeFile(
-    parent,
-    await renamed('parent/session.v4.jsonl', '"childId":"spawn-child"', '"childId":"spawn child"'),
-  )
+  // The first prompt names the process home, so the output has that home to hide too.
+  const prompt = JSON.stringify(`delegate work from ${join(processHome, 'notes.md')}`).slice(1, -1)
+  const parentText = await renamed('parent/session.v4.jsonl', '"childId":"spawn-child"', '"childId":"spawn child"')
+  await writeFile(parent, parentText.replace('"text":"delegate work"', `"text":"${prompt}"`))
   await writeFile(child, await renamed('spawn-child/session.v4.jsonl', '"id":"spawn-child"', '"id":"spawn child"'))
   return parent
 }
@@ -107,6 +116,13 @@ describe('dsh host channel and event ids', () => {
     }
     // The main lane's ids are the log's own name and line, and are shown as they are.
     expect(view).toContain('"id":"session.v4.jsonl:2"')
+    // An alias no event has is refused, and the refusal says which, without a home.
+    const beyond = `@e${JSON.parse(z.string().parse(view)).trace.events.length}`
+    const missing = await call('trace/event', { traceId, id: beyond })
+    expect(missing).toEqual({
+      ok: false,
+      error: { code: 'estela/failed', message: `no event ${beyond} in ${traceId}`, details: {} },
+    })
     channel.dispose()
   })
 })

@@ -1,7 +1,6 @@
 import type { ReportTrace } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { SessionTarget } from '@rivus/agent-kit/transcript'
-import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
 import { checkReportOutDir, reportOf, sessionTargetLabel } from '@rivus/estela-server'
 import { createEstelaServer } from '../../server.ts'
 import { CliError } from '../failure.ts'
@@ -31,9 +30,10 @@ export async function runBuild(input: BuildInput, packageVersion: string): Promi
         return `${trace.events.length} events`
       },
       redact: async () => {
-        // Asked by the ids the view shows, the originals come from the trace already loaded.
-        const full = async (ids: readonly string[]) => server.store.presented(trace!, ids)
-        report = await reportOf(server.store, CURRENT_TRACE_ID, full)
+        // One load per build: the view and the originals come from the trace already loaded.
+        const loaded = trace!
+        const read = async (ids: readonly string[]) => server.store.fromLoaded(loaded, ids)
+        report = await reportOf({ trace: loaded, read })
         const included = report.truncated ? `; original records for the first ${report.events.length}` : ''
         return `redacted ${report.total} events${included}`
       },

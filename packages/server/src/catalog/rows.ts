@@ -92,9 +92,10 @@ export function withinDirectory(
   const asked = fold(directory)
   // `~` alone and `~/…` name a home; the rest after `~` is empty for the first.
   const rest = asked === '~' ? '' : /^~\/(.*)$/.exec(asked)?.[1]
-  // A home that ends in a separator (`/`, `C:/`) brings it already.
+  // A home that ends in a separator (`/`, `C:\`) brings it already. On POSIX a backslash is part of the name.
+  const separators = platform === 'win32' ? /[/\\]+$/ : /\/+$/
   const roots =
-    rest === undefined ? [asked] : homes.map(home => `${home.replace(/[/\\]+$/, '')}${rest === '' ? '' : `/${rest}`}`)
+    rest === undefined ? [asked] : homes.map(home => `${home.replace(separators, '')}${rest === '' ? '' : `/${rest}`}`)
   const recorded = withoutSlashes(fold(cwd))
   return roots.some(path => {
     const root = withoutSlashes(fold(path))

@@ -107,7 +107,7 @@ export function sessionSummary(
           failedTools: lane.markers.filter(marker => marker.kind === 'failed-tool').length,
           compactions: lane.markers.filter(marker => marker.kind === 'compaction').length,
         }
-        put(item, 'parentId', lane.parentId === undefined ? undefined : ids.lane(lane.parentId))
+        put(item, 'parentId', lane.parentId === undefined ? undefined : ids.laneReference(lane.parentId))
         if (lane.title !== undefined) {
           const title = shown(lane.title, TITLE_CHARS, redaction)
           item.title = title.text

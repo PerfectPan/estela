@@ -52,8 +52,9 @@ export interface EventResult {
 /**
  * One event whose ids the store showed already, every string cut to `maxChars` and the result kept under its size
  * bound: the cap is lowered in steps of 0.75 down to 256, then the original record (when asked for) and then the
- * payload are left out. Everything is redacted before anything is cut, so a cut never leaves part of a home path or
- * token behind. `mainLane` is the main lane's id as the tools show it.
+ * payload are left out, and every string is cut to the cap, the id references among them. Everything is redacted
+ * before anything is cut, so a cut never leaves part of a home path or token behind. `mainLane` is the main lane's
+ * id as the tools show it.
  */
 export function eventResult(
   traceId: string,
@@ -71,13 +72,6 @@ export function eventResult(
     lane: detail.agentId ?? mainLane,
     source: { file: shown(detail.source.file, PATH_CHARS, redaction).text, line: detail.source.line },
   }
-  put(fields, 'parentId', detail.parentId)
-  put(
-    fields,
-    'requestId',
-    detail.requestId === undefined ? undefined : shown(detail.requestId, FIELD_CHARS, redaction).text,
-  )
-  put(fields, 'shadowedBy', detail.shadowedBy)
   if (options.original && detail.originalUnavailable !== undefined) {
     fields.originalUnavailable = shown(detail.originalUnavailable, PROMPT_CHARS, redaction).text
   }
@@ -96,6 +90,20 @@ export function eventResult(
     }
     if (parts.original !== undefined && !omitted.includes('original')) {
       event.original = capped('original', parts.original)
+    }
+    // A reference to another event is a string like any other: cut to the cap, and listed when it was.
+    for (const [field, id, bound] of [
+      ['parentId', detail.parentId, max],
+      ['shadowedBy', detail.shadowedBy, max],
+      ['requestId', detail.requestId, Math.min(FIELD_CHARS, max)],
+    ] as const) {
+      if (id !== undefined) {
+        const cut = shown(id, bound, redaction)
+        event[field] = cut.text
+        if (cut.cut) {
+          truncated.push([field])
+        }
+      }
     }
     if (truncated.length > 0) {
       event.truncated = truncated

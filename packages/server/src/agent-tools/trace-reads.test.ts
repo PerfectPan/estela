@@ -50,6 +50,27 @@ describe('trace reads', () => {
     expect(summary.truncated).toEqual([['title']])
   })
 
+  it('shows a lane whose parent is no lane of the trace as the view shows it: as recorded, or `@l?` when it reads like an alias', () => {
+    const withOrphans: Trace = {
+      ...trace,
+      agents: [
+        { id: 'main' },
+        { id: 'orphan', parentId: 'missing lane' },
+        { id: 'shaped', parentId: '@l7' },
+        { id: 'named lane!', parentId: 'gone lane' },
+      ],
+    }
+    const summary = sessionSummary(withOrphans, 't1', new TraceIds(withOrphans, () => true), plain)
+    expect(summary.lanes.map(lane => [lane.id, lane.parentId])).toEqual([
+      ['main', undefined],
+      ['orphan', 'missing lane'],
+      // A safe id is shown as written; `@l7` reads like an alias of this trace, so it is `@l?`.
+      ['shaped', '@l?'],
+      ['@l3', 'gone lane'],
+      ['sub', undefined],
+    ])
+  })
+
   it('marks a subagent lane whose log is missing as unavailable', () => {
     const withMissing: Trace = {
       ...trace,

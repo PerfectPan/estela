@@ -1,4 +1,5 @@
 import type { SessionSummary, SessionTarget } from '@rivus/agent-kit/transcript'
+import { VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import type { SessionFs } from '@rivus/estela-kernel'
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import type { FileStamp, ReadOriginal } from './source-check.ts'
@@ -47,6 +48,20 @@ export interface EventRead {
    * the server shows the browser unredacted. The ids of the result are shown already; the caller shows nothing more.
    */
   redact?: TraceRedaction
+}
+
+/** What a view may take of the 12 MB budget, leaving the rest for `summary` and the envelope. */
+export const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024
+
+/** One loaded trace as a report reads it: its view is built from `trace`, its full events come from `read`. */
+export interface LoadedEvents {
+  /** The trace as cached: every string whole, no originals. */
+  trace: Trace
+  /** The view's starting string cap the store was given, and where its warnings go; either may be left out. */
+  maxString?: number
+  log?: (line: string) => void
+  /** Full events (with `original`, or `originalUnavailable`) for ids as recorded, in the order asked; not shown. */
+  read: (ids: readonly string[]) => Promise<EventDetail[]>
 }
 
 export interface LoadedTrace {

@@ -54,6 +54,26 @@ describe('eventResult', () => {
     expect(jsonChars(result)).toBeLessThanOrEqual(RESULT_CHARS)
   })
 
+  it('cuts an id reference like any other string, so one event stays within the size bound', () => {
+    // A dangling parent id far over the bound: nothing else in the event is long enough to matter.
+    const event: TraceEvent = { ...userEvent('u1', 'short'), parentId: 'p'.repeat(40_001), shadowedBy: 's'.repeat(300) }
+    const result = eventResult('t', event, 'main', { maxChars: 256, original: false }, plain)
+    expect(jsonChars(result)).toBeLessThanOrEqual(RESULT_CHARS)
+    // The payload was kept, and the references were cut and said so, instead of the whole event growing past the bound.
+    expect(result).toMatchObject({ maxChars: 256, event: { payload: { text: 'short' } } })
+    expect(result.event.parentId).toBe('p'.repeat(256))
+    expect(result.event.shadowedBy).toBe('s'.repeat(256))
+    expect(result.event.truncated).toEqual([['parentId'], ['shadowedBy']])
+    expect(result.event.omitted).toBeUndefined()
+  })
+
+  it('lists a request id cut to its own bound, like any other cut string', () => {
+    const event: TraceEvent = { ...userEvent('u1', 'short'), requestId: 'r'.repeat(300) }
+    const result = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)
+    expect(result.event.requestId).toBe('r'.repeat(128))
+    expect(result.event.truncated).toEqual([['requestId']])
+  })
+
   it('keeps every key of the original record, `__proto__` as a key among them', () => {
     const original = JSON.parse('{"__proto__": "plain text", "other": "kept"}')
     const event: TraceEvent = { ...userEvent('u1', 'short'), original }

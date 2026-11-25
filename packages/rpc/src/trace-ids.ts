@@ -77,6 +77,11 @@ export class TraceIds {
     return index === undefined ? '@l?' : `@l${index}`
   }
 
+  /** Whether `id` has a form `event` gives out: `@e<seq>`, or `@e?` for an id no event has. */
+  isShown(id: string): boolean {
+    return /^@e\d+$/.test(id) || id === '@e?'
+  }
+
   /** The recorded event id a shown id (an id as written, or an alias) names; `undefined` when none. */
   findEvent(shown: string): string | undefined {
     const alias = /^@e(\d+)$/.exec(shown)
