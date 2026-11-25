@@ -136,7 +136,7 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
     expect(lightZh.hasNav).toBe(false)
     expect(lightZh.hasH1).toBe(false)
     expect(lightZh.header).toContain('轮次')
-    expect(lightZh.header).toContain('跳转')
+    expect(lightZh.header).toContain('转到事件列表')
 
     // Explicit `--estela-host-*` tokens override the shadow palette while hostile `:root` vars stay ignored.
     const hostAdopted = await page.evaluate(() => {
@@ -155,7 +155,7 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
   })
 })
 
-test('A7, A8, B8: Jump to, inspector arrow keys, failed load, and Try again never reload or change the host URL', async ({
+test('A7, A8, B8: Go to events, inspector arrow keys, failed load, and Try again never reload or change the host URL', async ({
   page,
 }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {
@@ -180,8 +180,8 @@ test('A7, A8, B8: Jump to, inspector arrow keys, failed load, and Try again neve
     await expect(ws.getByTestId('language-switch')).toHaveCount(0)
     await expect(ws.getByTestId('export-report')).toHaveCount(0)
 
-    // Jump to button and Ctrl+K shortcut focus the ledger inside the shadow root without touching location.href.
-    await ws.getByRole('button', { name: /Jump to/ }).click()
+    // Go to events button and Ctrl+K shortcut focus the ledger inside the shadow root without touching location.href.
+    await ws.getByRole('button', { name: 'Go to events' }).click()
     const focusedLedger = await page.evaluate(() =>
       document.getElementById('ws')?.shadowRoot?.activeElement?.getAttribute('data-testid'),
     )
