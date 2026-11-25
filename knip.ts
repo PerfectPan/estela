@@ -47,7 +47,12 @@ const config = {
       ignoreDependencies: ['@rivus/estela-web']
     },
     'apps/dsh-plugin': {
-      entry: ['src/host/index.ts!', 'src/client/index.ts!', 'src/contract/channel.ts!'],
+      entry: [
+        'src/host/index.ts!',
+        'src/client/index.ts!',
+        'src/contract/channel.ts!',
+        'scripts/capture-screenshots.ts',
+      ],
       project: projectWithout(['scripts', 'test']),
       // `react` is supplied by DeepSeek Harness at runtime through its module loader (kept external
       // by build-client.mjs, no runtime dependency declared); in `--production` mode Knip drops

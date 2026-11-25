@@ -30,6 +30,171 @@ function loadPlainFixtureEvents() {
     .map(line => JSON.parse(line))
 }
 
+function registerSessionInWorkspace(home, cwd, id, now) {
+  const storagePath = join(home, 'storages', 'workspace.json')
+  mkdirSync(dirname(storagePath), { recursive: true })
+  const nowIso = new Date(now).toISOString()
+  const workspaces = existsSync(storagePath)
+    ? JSON.parse(readFileSync(storagePath, 'utf8'))
+    : {
+        unit: { name: 'workspace', version: 2 },
+        global: {
+          initialized: true,
+          workspaceIds: [],
+          archivedSessionIds: [],
+          pinnedSessionIds: [],
+        },
+        tables: { workspaces: {} },
+      }
+  let workspace = Object.values(workspaces.tables.workspaces).find(entry => entry.path === cwd)
+  if (workspace === undefined) {
+    const workspaceId = randomUUID()
+    workspace = {
+      path: cwd,
+      title: basename(cwd) || 'workspace',
+      sessionIds: [],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+    workspaces.tables.workspaces[workspaceId] = workspace
+    workspaces.global.workspaceIds.push(workspaceId)
+    if (workspaces.global.defaultWorkspaceId === undefined) {
+      workspaces.global.defaultWorkspaceId = workspaceId
+    }
+    workspaces.global.initialized = true
+  }
+  if (!workspace.sessionIds.includes(id)) {
+    workspace.sessionIds.push(id)
+    workspace.updatedAt = nowIso
+  }
+  writeFileSync(storagePath, `${JSON.stringify(workspaces, null, 2)}\n`)
+}
+
+function jsonEscapeInner(text) {
+  return JSON.stringify(text).slice(1, -1)
+}
+
+function shiftEventTimestamps(event, deltaMs) {
+  if (typeof event.time === 'number') {
+    event.time += deltaMs
+  }
+  if (event.type === 'assistant/message' && event.data && Array.isArray(event.data.stream)) {
+    for (const item of event.data.stream) {
+      if (item && typeof item.time === 'number') {
+        item.time += deltaMs
+      }
+      if (item && typeof item.time0 === 'number') {
+        item.time0 += deltaMs
+      }
+    }
+  }
+  return event
+}
+
+function writeProjectionCache(home, header, cwd, { lastSeq, titleText, lastPromptAt }) {
+  const cachePath = join(home, 'storages', 'session_projcache', 'sessions', `${header.id}.json`)
+  mkdirSync(dirname(cachePath), { recursive: true })
+  const rows = {
+    sessionListMetadata: {
+      ver: 1,
+      seq: lastSeq,
+      val: { blank: false, lastPromptAt },
+    },
+  }
+  if (titleText) {
+    rows.title = { ver: 1, seq: lastSeq, val: titleText }
+  }
+  const doc = {
+    version: 7,
+    record: {
+      identity: {
+        formatVersion: header.version,
+        createdAt: header.createdAt,
+        cwd,
+        isSeeded: Boolean(header.isSeeded),
+        inheritedEventCount: 0,
+      },
+      rows,
+    },
+  }
+  writeFileSync(cachePath, `${JSON.stringify(doc, null, 2)}\n`)
+}
+
+function seedFromFixture({ home, cwd, fixturePath, title }) {
+  const rawTextLines = readFileSync(fixturePath, 'utf8').split('\n').filter(Boolean)
+  const rawHeader = rawTextLines[0] ? JSON.parse(rawTextLines[0]) : undefined
+  if (!rawHeader || rawHeader.type !== 'session') {
+    throw new Error(`fixture ${fixturePath} must start with a dsh session header`)
+  }
+  const sourceCwd = typeof rawHeader.cwd === 'string' && rawHeader.cwd.length > 0 ? rawHeader.cwd : undefined
+  const id = `session-${randomUUID()}`
+  // Only used by the screenshot script with macOS/Linux temporary paths that contain no quotes or backslashes.
+  const escapedFrom = sourceCwd ? jsonEscapeInner(sourceCwd) : undefined
+  const escapedTo = jsonEscapeInner(cwd)
+  const parsedEvents = rawTextLines.slice(1).map(line => {
+    const rewritten = escapedFrom ? line.replaceAll(escapedFrom, escapedTo) : line
+    const event = JSON.parse(rewritten)
+    if (title !== undefined && event.type === 'session/title' && event.data) {
+      event.data.title = title
+    }
+    return event
+  })
+
+  // Shift fixture timestamps so the session appears to have finished ~3 minutes ago in dsh's sidebar.
+  const rawMaxTime = parsedEvents.reduce(
+    (max, event) => (typeof event.time === 'number' ? Math.max(max, event.time) : max),
+    typeof rawHeader.createdAt === 'number' ? rawHeader.createdAt : Date.now(),
+  )
+  const targetEnd = Date.now() - 3 * 60 * 1000
+  const deltaMs = targetEnd - rawMaxTime
+
+  const header = {
+    ...rawHeader,
+    id,
+    cwd,
+    createdAt: (typeof rawHeader.createdAt === 'number' ? rawHeader.createdAt : rawMaxTime) + deltaMs,
+  }
+  const events = parsedEvents.map(event => shiftEventTimestamps(event, deltaMs))
+
+  const lastSeq = events.reduce((max, event) => (typeof event.seq === 'number' ? Math.max(max, event.seq) : max), -1)
+  const lastTurn = events.reduce(
+    (max, event) => (event.data && typeof event.data.turn === 'number' ? Math.max(max, event.data.turn) : max),
+    0,
+  )
+  let titleText = title
+  let lastPromptAt = null
+  for (const event of events) {
+    if (event.type === 'session/title' && event.data && typeof event.data.title === 'string') {
+      titleText = event.data.title
+    }
+    if (
+      event.type === 'user/message'
+      && event.data
+      && event.data.source
+      && event.data.source.kind === 'user'
+      && typeof event.time === 'number'
+    ) {
+      lastPromptAt = event.time
+    }
+  }
+
+  const sessionDir = join(home, 'sessions', encodeWorkspaceDir(cwd), id)
+  mkdirSync(sessionDir, { recursive: true })
+  const logPath = join(sessionDir, 'session.v4.jsonl.zstd')
+  writeFileSync(logPath, Buffer.concat([compressFrame([header]), compressFrame(events)]))
+  registerSessionInWorkspace(home, cwd, id, header.createdAt)
+  writeProjectionCache(home, header, cwd, { lastSeq, titleText, lastPromptAt })
+
+  return {
+    id,
+    logPath,
+    sessionDir,
+    eventCount: events.length,
+    lastSeq,
+    lastTurn,
+  }
+}
+
 /**
  * Seeds one started dsh session into `home` and registers it in `storages/workspace.json`
  * under `cwd`.
@@ -40,11 +205,16 @@ function loadPlainFixtureEvents() {
  * @param {string} [options.title] - session title recorded in `session/title`
  * @param {string} [options.userText] - replaces the first user prompt text (e.g. with fake HOME for DSH-10)
  * @param {number} [options.repeats] - number of fixture cycles to emit with contiguous seqs (for DSH-7)
+ * @param {string} [options.fixturePath] - complete dsh v4 JSONL fixture to seed verbatim (with `cwd` rewritten)
  */
 export function seedSession(options) {
-  const { home, cwd: rawCwd, title = 'Estela smoke session', userText, repeats = 1 } = options
+  const { home, cwd: rawCwd, title, userText, repeats = 1, fixturePath } = options
   mkdirSync(rawCwd, { recursive: true })
   const cwd = realpathSync(rawCwd)
+  if (fixturePath !== undefined) {
+    return seedFromFixture({ home, cwd, fixturePath, title })
+  }
+  const effectiveTitle = title ?? 'Estela smoke session'
   const fixtureEvents = loadPlainFixtureEvents()
   const now = Date.now()
   const id = `session-${randomUUID()}`
@@ -189,7 +359,7 @@ export function seedSession(options) {
   }
 
   closeTurn()
-  push(events, 'session/title', { title, messageSeqs: [], source: { kind: 'user' } })
+  push(events, 'session/title', { title: effectiveTitle, messageSeqs: [], source: { kind: 'user' } })
 
   const header = {
     type: 'session',
@@ -206,44 +376,7 @@ export function seedSession(options) {
   mkdirSync(sessionDir, { recursive: true })
   const logPath = join(sessionDir, 'session.v4.jsonl.zstd')
   writeFileSync(logPath, Buffer.concat([compressFrame([header]), compressFrame(events)]))
-
-  const storagePath = join(home, 'storages', 'workspace.json')
-  mkdirSync(dirname(storagePath), { recursive: true })
-  const nowIso = new Date(now).toISOString()
-  const workspaces = existsSync(storagePath)
-    ? JSON.parse(readFileSync(storagePath, 'utf8'))
-    : {
-        unit: { name: 'workspace', version: 2 },
-        global: {
-          initialized: true,
-          workspaceIds: [],
-          archivedSessionIds: [],
-          pinnedSessionIds: [],
-        },
-        tables: { workspaces: {} },
-      }
-  let workspace = Object.values(workspaces.tables.workspaces).find(entry => entry.path === cwd)
-  if (workspace === undefined) {
-    const workspaceId = randomUUID()
-    workspace = {
-      path: cwd,
-      title: basename(cwd) || 'workspace',
-      sessionIds: [],
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    }
-    workspaces.tables.workspaces[workspaceId] = workspace
-    workspaces.global.workspaceIds.push(workspaceId)
-    if (workspaces.global.defaultWorkspaceId === undefined) {
-      workspaces.global.defaultWorkspaceId = workspaceId
-    }
-    workspaces.global.initialized = true
-  }
-  if (!workspace.sessionIds.includes(id)) {
-    workspace.sessionIds.push(id)
-    workspace.updatedAt = nowIso
-  }
-  writeFileSync(storagePath, `${JSON.stringify(workspaces, null, 2)}\n`)
+  registerSessionInWorkspace(home, cwd, id, now)
 
   return {
     id,
@@ -316,12 +449,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       title: { type: 'string' },
       'user-text': { type: 'string' },
       repeats: { type: 'string' },
+      fixture: { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   })
   if (values.help || !values.home || !values.cwd) {
     process.stdout.write(
-      'Usage: node test/seed-session.mjs --home <DSH_HOME> --cwd <workspace path> [--title <t>] [--user-text <text>] [--repeats <n>]\n',
+      'Usage: node test/seed-session.mjs --home <DSH_HOME> --cwd <workspace path> [--title <t>] [--user-text <text>] [--repeats <n>] [--fixture <jsonl>]\n',
     )
     process.exit(values.help ? 0 : 1)
   }
@@ -331,6 +465,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     title: values.title,
     userText: values['user-text'],
     repeats: values.repeats ? Number(values.repeats) : 1,
+    fixturePath: values.fixture,
   })
   process.stdout.write(`${JSON.stringify(seeded)}\n`)
 }

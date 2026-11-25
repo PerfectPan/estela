@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vite-plus/test'
@@ -115,5 +116,25 @@ describe('@rivus/dsh-estela manifest', () => {
     const height = icon.readUInt32BE(20)
     expect(width).toBeGreaterThan(0)
     expect(width).toBe(height)
+  })
+
+  it('declares 1-8 existing local WebP screenshots (<= 400 KB) in screenshots.json', async () => {
+    const raw: unknown = JSON.parse(await readFile(join(pluginDir, 'screenshots.json'), 'utf8'))
+    const paths = z.parse(z.array(z.string()), raw)
+    expect(paths.length).toBeGreaterThanOrEqual(1)
+    expect(paths.length).toBeLessThanOrEqual(8)
+    for (const rel of paths) {
+      expect(rel.startsWith('/')).toBe(false)
+      expect(rel.split('/').includes('..')).toBe(false)
+      const full = join(pluginDir, rel)
+      expect(existsSync(full), `missing screenshot ${rel}`).toBe(true)
+      const info = await stat(full)
+      expect(info.isFile(), `screenshot ${rel} must be a regular file`).toBe(true)
+      expect(info.size).toBeLessThanOrEqual(400 * 1024)
+      const bytes = await readFile(full)
+      // RIFF....WEBP container header signature.
+      expect(bytes.subarray(0, 4).toString('ascii'), `screenshot ${rel} must start with RIFF`).toBe('RIFF')
+      expect(bytes.subarray(8, 12).toString('ascii'), `screenshot ${rel} must carry WEBP signature`).toBe('WEBP')
+    }
   })
 })
