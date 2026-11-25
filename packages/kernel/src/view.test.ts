@@ -223,4 +223,12 @@ describe('capStrings', () => {
     expect(capped.value).toEqual({ text: 'abcd', list: ['xy', 'long'], abcd: 1, n: 5 })
     expect(capped.truncated).toEqual([['text'], ['list', 1], ['abcd']])
   })
+
+  it('keeps a `__proto__` key as a key with its value, as a log record read by JSON.parse can hold', () => {
+    const value = JSON.parse('{"__proto__": "plain text", "other": "kept"}')
+    const capped = capStrings(value, 4096)
+    // Serialized, an own key is told from one that merely set the prototype.
+    expect(JSON.stringify(capped.value)).toBe('{"__proto__":"plain text","other":"kept"}')
+    expect(capped.truncated).toEqual([])
+  })
 })

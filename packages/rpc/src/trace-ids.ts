@@ -12,8 +12,9 @@ const SAFE_ID = /^[\w.:-]{1,128}$/
  * Event and lane ids as a redacting reader shows them. Ids are written by whatever wrote the log (Claude Code's `uuid`,
  * a subagent's id) and come back as input, so they cannot be clipped or redacted like other text. An id that is not
  * safe to show (too long, other characters, or one redaction would change) is shown as an alias instead: `@e<seq>` for
- * the event at that index, `@l<n>` for the lane at that position. Readers accept both forms. The TraceStore shows the
- * ids of everything it sends out this way, and the agent tools those of their results.
+ * the event at that index, `@l<n>` for the lane at that position. Readers accept both forms. An id is resolved and
+ * shown once, at the boundary that sends it out: the TraceStore for everything the browser, a report source, and
+ * `estela_get_event` read, the other agent tools for the traces they read unshown.
  */
 export class TraceIds {
   private readonly trace: Trace
@@ -43,12 +44,7 @@ export class TraceIds {
       return id
     }
     const index = this.eventIndex.get(id)
-    if (index !== undefined) {
-      return `@e${index}`
-    }
-    // An alias this trace gave out comes back as it is: the store hands the agent tools an event whose ids are
-    // already shown, and the tools show them once more.
-    return this.findEvent(id) === undefined ? '@e?' : id
+    return index === undefined ? '@e?' : `@e${index}`
   }
 
   events(ids: readonly string[]): string[] {
@@ -58,12 +54,19 @@ export class TraceIds {
   /** A field that names an event (`parentId`, `shadowedBy`): as `event` shows it. An id no event has, such as a
    * record that became no event, is left as recorded for the text redaction of everything else. */
   reference(id: string): string {
-    return this.eventIndex.has(id) ? this.event(id) : id
+    if (this.eventIndex.has(id)) {
+      return this.event(id)
+    }
+    // No event has this id: it must not read as an alias that names one.
+    return /^@e\d+$/.test(id) ? '@e?' : id
   }
 
   /** A field that names a lane (`agents[].parentId`): as `lane` shows it; left as recorded when no lane has that id. */
   laneReference(id: string): string {
-    return this.laneIndex.has(id) ? this.lane(id) : id
+    if (this.laneIndex.has(id)) {
+      return this.lane(id)
+    }
+    return /^@l\d+$/.test(id) ? '@l?' : id
   }
 
   lane(id: string): string {
@@ -71,10 +74,7 @@ export class TraceIds {
       return id
     }
     const index = this.laneIndex.get(id)
-    if (index !== undefined) {
-      return `@l${index}`
-    }
-    return this.findLane(id) === undefined ? '@l?' : id
+    return index === undefined ? '@l?' : `@l${index}`
   }
 
   /** The recorded event id a shown id (an id as written, or an alias) names; `undefined` when none. */
@@ -162,26 +162,25 @@ export class TraceIds {
 }
 
 /**
- * The `TraceIds` of each trace one redacting reader sends, built once per trace. Without a redaction there are none:
- * ids are sent as recorded and looked up as recorded.
+ * The `TraceIds` of each loaded trace a reader sends, built once per trace and redaction: the reader's own, or
+ * one a caller names. Without a redaction there are none: ids are sent as recorded and looked up as recorded.
  */
 export class TraceIdMaps {
-  private readonly redact: TraceRedaction | undefined
-  private readonly maps = new WeakMap<Trace, TraceIds>()
+  private readonly maps = new Map<TraceRedaction | undefined, WeakMap<Trace, TraceIds>>()
 
-  constructor(redact: TraceRedaction | undefined) {
-    this.redact = redact
-  }
-
-  of(trace: Trace): TraceIds | undefined {
-    const redact = this.redact
+  of(trace: Trace, redact: TraceRedaction | undefined): TraceIds | undefined {
     if (!redact) {
       return undefined
     }
-    let ids = this.maps.get(trace)
+    let traces = this.maps.get(redact)
+    if (!traces) {
+      traces = new WeakMap<Trace, TraceIds>()
+      this.maps.set(redact, traces)
+    }
+    let ids = traces.get(trace)
     if (!ids) {
       ids = new TraceIds(trace, id => redact.text(id) === id)
-      this.maps.set(trace, ids)
+      traces.set(trace, ids)
     }
     return ids
   }

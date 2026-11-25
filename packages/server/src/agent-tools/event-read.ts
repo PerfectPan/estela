@@ -1,6 +1,6 @@
 import type { EventDetail, TraceIds } from '@rivus/estela-rpc'
-import type { ContextTokens, ReconstructResult, Trace, TruncatedPath } from '@rivus/estela-schema'
-import { capStrings, mainAgentId } from '@rivus/estela-kernel'
+import type { ContextTokens, ReconstructResult, TruncatedPath } from '@rivus/estela-schema'
+import { capStrings } from '@rivus/estela-kernel'
 import {
   FIELD_CHARS,
   iso,
@@ -50,34 +50,34 @@ export interface EventResult {
 }
 
 /**
- * One event, every string cut to `maxChars` and the result kept under its size bound: the cap is lowered in steps of
- * 0.75 down to 256, then the original record (when asked for) and then the payload are left out. Everything is
- * redacted before anything is cut, so a cut never leaves part of a home path or token behind.
+ * One event whose ids the store showed already, every string cut to `maxChars` and the result kept under its size
+ * bound: the cap is lowered in steps of 0.75 down to 256, then the original record (when asked for) and then the
+ * payload are left out. Everything is redacted before anything is cut, so a cut never leaves part of a home path or
+ * token behind. `mainLane` is the main lane's id as the tools show it.
  */
 export function eventResult(
-  trace: Trace,
   traceId: string,
   detail: EventDetail,
-  ids: TraceIds,
+  mainLane: string,
   options: { maxChars: number; original: boolean },
   redaction: Redaction,
 ): EventResult {
   const { $truncated: _view, ...payload }: Record<string, unknown> = detail.payload
   const fields: Omit<ShownEvent, 'payload' | 'original' | 'truncated'> = {
-    id: ids.event(detail.id),
+    id: detail.id,
     seq: detail.seq,
     ts: iso(detail.ts),
     kind: detail.kind,
-    lane: ids.lane(detail.agentId ?? mainAgentId(trace)),
+    lane: detail.agentId ?? mainLane,
     source: { file: shown(detail.source.file, PATH_CHARS, redaction).text, line: detail.source.line },
   }
-  put(fields, 'parentId', detail.parentId === undefined ? undefined : ids.event(detail.parentId))
+  put(fields, 'parentId', detail.parentId)
   put(
     fields,
     'requestId',
     detail.requestId === undefined ? undefined : shown(detail.requestId, FIELD_CHARS, redaction).text,
   )
-  put(fields, 'shadowedBy', detail.shadowedBy === undefined ? undefined : ids.event(detail.shadowedBy))
+  put(fields, 'shadowedBy', detail.shadowedBy)
   if (options.original && detail.originalUnavailable !== undefined) {
     fields.originalUnavailable = shown(detail.originalUnavailable, PROMPT_CHARS, redaction).text
   }

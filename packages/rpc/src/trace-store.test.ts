@@ -1,6 +1,6 @@
 import type { EventOf, Trace } from '@rivus/estela-schema'
 import type { LoadProgress } from './trace-store.ts'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { deferred, fixture, HOME, redact, recordOf, storeOf } from '../testing/store-fixture.ts'
 import { LoadCancelledError, TraceStore } from './trace-store.ts'
 
@@ -233,11 +233,70 @@ describe('TraceStore', () => {
     expect((await store.reconstruct('a', 'end')).removedIds).toEqual(['note'])
     // What `build` does: events with their originals from the trace it loaded itself, shown as `get-event` shows them.
     const loaded = parse('/logs/a.jsonl')
+    const indexing = vi.spyOn(loaded.events, 'map')
     const [found, safe] = store.presented(loaded, ['@e1', 'spawn'])
     expect(found).toMatchObject({ id: '@e1', agentId: '@l1', parentId: 'spawn', original: { id: '~/ids/child' } })
     expect(safe!.id).toBe('spawn')
     expect(() => store.presented(loaded, ['@e9'])).toThrow('no event @e9')
     expect(() => store.presented(loaded, ['gone'])).toThrow('no event gone')
+    // Indexed once for the trace, however many batches ask: `build` reads 250 events at a time.
+    expect(indexing).toHaveBeenCalledTimes(1)
+    for (let batch = 0; batch < 8; batch++) {
+      store.presented(loaded, ['spawn'])
+    }
+    expect(indexing).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves an id once, so a recorded id that merely looks like an alias names its own event', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [
+      { id: '@e1', kind: 'user', text: 'first' },
+      { id: 'blue', kind: 'user', text: 'second' },
+    ])
+    // The server shows the browser unredacted text, as with ESTELA_REDACT=0; a caller that always redacts names
+    // its own rule, and gets the event shown with it.
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
+    expect((await store.view('a')).trace.events.map(event => event.id)).toEqual(['@e1', 'blue'])
+    const first = await store.event('a', '@e0', { redact })
+    expect(first).toMatchObject({ id: '@e0', seq: 0, payload: { text: 'first' }, original: { id: '@e1' } })
+    expect((await store.event('a', 'blue', { redact })).payload).toEqual({ text: 'second' })
+    await expect(store.event('a', '@e0')).rejects.toThrow('no event @e0')
+    // With the store's own redaction, the view's id and the event's are one resolution too.
+    const shown = storeOf({ fs: f.fs, parse: f.parse, redact })
+    const [alias] = (await shown.store.view('a')).trace.events.map(event => event.id)
+    expect([alias, (await shown.store.event('a', alias!)).seq]).toEqual(['@e0', 0])
+  })
+
+  it('never shows a reference to no event under a form that reads as an alias of one', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [
+      { id: 'first', kind: 'user', text: 'kept' },
+      { id: `${HOME}/ids/compaction`, kind: 'user', text: 'summary' },
+      { id: 'laneless', kind: 'user' },
+    ])
+    const parse = (file: string): Trace => {
+      const [first, compaction, other] = f.parse(file).events as EventOf<'user'>[]
+      return {
+        ...f.parse(file),
+        agents: [{ id: 'main' }, { id: 'orphan', parentId: '@l7' }],
+        // The log points at `@e1`, which no recorded id equals; the compaction below is shown as `@e1`.
+        events: [
+          { ...first!, shadowedBy: '@e1' },
+          { ...compaction!, kind: 'compaction', payload: {} },
+          { ...other!, parentId: '@e9' },
+        ],
+      }
+    }
+    const { store } = storeOf({ fs: f.fs, parse, redact })
+    const { trace } = await store.view('a')
+    expect(trace.agents[1]).toEqual({ id: 'orphan', parentId: '@l?' })
+    expect(trace.events.map(event => [event.id, event.shadowedBy, event.parentId])).toEqual([
+      ['first', '@e?', undefined],
+      ['@e1', undefined, undefined],
+      ['laneless', undefined, '@e?'],
+    ])
+    // The alias still names the compaction alone.
+    expect((await store.event('a', '@e1')).payload).toEqual({})
   })
 
   it('sends ids as recorded, and looks them up as recorded, without a redaction', async () => {

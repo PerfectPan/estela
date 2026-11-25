@@ -3,7 +3,7 @@ import type { Trace } from '@rivus/estela-schema'
 import type { AgentToolInput, DevframeAgentHost } from 'devframe'
 import type * as z from 'zod/mini'
 import { CURRENT_TRACE_ID, TraceIds } from '@rivus/estela-rpc'
-import { reconstruct } from '@rivus/estela-kernel'
+import { mainAgentId, reconstruct } from '@rivus/estela-kernel'
 import type { HomeRedaction } from '../sessions/redaction.ts'
 import type { Redaction } from './bounds.ts'
 import { DEFAULT_MAX_CHARS, eventResult, surfaceResult } from './event-read.ts'
@@ -159,16 +159,14 @@ export function registerAgentTools(host: AgentToolHost, deps: AgentToolDeps): st
     input: getEventInput,
     run: async input => {
       const traceId = traceOf(input.traceId)
-      const { trace, recorded } = await deps.store.withTrace(traceId, trace => ({
-        trace,
-        recorded: eventOf(trace, traceId, input.eventId),
-      }))
-      const detail = await deps.store.event(traceId, recorded)
+      // The store resolves the id and shows the ids of the event, once, with the tools' redaction: the same rule
+      // as the store's when the server redacts, and the tools' own when it shows the browser unredacted text.
+      const mainLane = await deps.store.withTrace(traceId, trace => idsOf(trace).lane(mainAgentId(trace)))
+      const detail = await deps.store.event(traceId, input.eventId, { redact: deps.redact })
       return eventResult(
-        trace,
         traceId,
         detail,
-        idsOf(trace),
+        mainLane,
         { maxChars: input.maxChars ?? DEFAULT_MAX_CHARS, original: input.original === true },
         redaction,
       )

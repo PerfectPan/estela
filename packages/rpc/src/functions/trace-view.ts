@@ -193,7 +193,7 @@ export function createTraceFunctions(store: TraceStore) {
     setup: (ctx: TraceRpcContext) => ({
       handler: async (input: { traceId: string; id: string }): Promise<EventDetail> => {
         const { traceId, id } = parseInput(eventInput, input)
-        return store.event(traceId, id, ownerOf(ctx))
+        return store.event(traceId, id, { owner: ownerOf(ctx) })
       },
     }),
   })

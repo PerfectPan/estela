@@ -247,7 +247,11 @@ export class SessionCatalog {
     const rows = this.sortedRows()
       .filter(row => since === undefined || row.revision > since)
       // Against the recorded directory: two directories can redact to the same text.
-      .filter(row => cwd === undefined || withinDirectory(row.rawCwd, cwd, this.redaction.homes))
+      .filter(
+        row =>
+          cwd === undefined
+          || withinDirectory(row.rawCwd, cwd, this.redaction.homes, this.platform.os ?? process.platform),
+      )
       .map(row => publicRow(row, redact))
     const removed =
       since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([traceId]) => traceId)

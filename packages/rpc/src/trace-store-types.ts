@@ -38,6 +38,17 @@ export interface TraceRedaction {
   text: (text: string) => string
 }
 
+/** How one read of an event names it. */
+export interface EventRead {
+  /** The calling connection. Its reads ride on its own `open` of the same session, so its supersede or cancel also ends them. */
+  owner?: object
+  /**
+   * Resolves and shows ids with this redaction instead of the store's own, for a caller that always redacts while
+   * the server shows the browser unredacted. The ids of the result are shown already; the caller shows nothing more.
+   */
+  redact?: TraceRedaction
+}
+
 export interface LoadedTrace {
   trace: Trace
   /** Canonical JSON: originals live inside the file, so `event` reloads it instead of reading the source pointer. */

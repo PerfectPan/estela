@@ -68,7 +68,8 @@ export function currentSummary(summary: StoredSummary | undefined): StoredSummar
 }
 
 /**
- * Whether a session recorded in `cwd` ran in `directory` or inside it. `directory` is absolute or starts with `~`,
+ * Whether a session recorded in `cwd` ran in `directory` or inside it, on `platform` (the one the sessions were
+ * read for). `directory` is absolute or starts with `~`,
  * which names each of `homes`: rows show the home the agent ran under and the server user's home alike as `~`.
  * A POSIX path is compared as recorded, case and all. Windows paths are compared with `/` for a backslash and
  * without case: discovery names a path with `/`, a user often writes a backslash, and the file system ignores case.
@@ -77,7 +78,7 @@ export function withinDirectory(
   cwd: string | undefined,
   directory: string,
   homes: readonly string[],
-  platform: NodeJS.Platform = process.platform,
+  platform: NodeJS.Platform,
 ): boolean {
   // An empty directory names none.
   if (!cwd || !directory) {
@@ -91,7 +92,9 @@ export function withinDirectory(
   const asked = fold(directory)
   // `~` alone and `~/…` name a home; the rest after `~` is empty for the first.
   const rest = asked === '~' ? '' : /^~\/(.*)$/.exec(asked)?.[1]
-  const roots = rest === undefined ? [asked] : homes.map(home => `${home}${rest === '' ? '' : `/${rest}`}`)
+  // A home that ends in a separator (`/`, `C:/`) brings it already.
+  const roots =
+    rest === undefined ? [asked] : homes.map(home => `${home.replace(/[/\\]+$/, '')}${rest === '' ? '' : `/${rest}`}`)
   const recorded = withoutSlashes(fold(cwd))
   return roots.some(path => {
     const root = withoutSlashes(fold(path))

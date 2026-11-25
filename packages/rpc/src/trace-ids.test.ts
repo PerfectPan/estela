@@ -42,13 +42,29 @@ describe('TraceIds', () => {
     expect(ids.findLane('other')).toBeUndefined()
   })
 
-  it('shows an alias of this trace as it is when one comes back, and none for an id it never gave', () => {
-    // The store hands the agent tools an event whose ids are shown already; the tools show them once more.
-    expect([ids.event('@e1'), ids.event('@e2'), ids.lane('@l1')]).toEqual(['@e1', '@e2', '@l1'])
-    expect([ids.event('@e3'), ids.event('@e?'), ids.lane('@l5')]).toEqual(['@e?', '@e?', '@l?'])
-    // An earlier event of a duplicate id has no alias, so its index names nothing.
-    const twice = new TraceIds({ ...trace, events: [eventOf('dup id', 0), eventOf('dup id', 2)] }, () => true)
-    expect([twice.event('@e0'), twice.findEvent('@e0')]).toEqual(['@e?', undefined])
+  it('shows an id no event has as @e? or @l?, and never an unsafe id written out', () => {
+    // Also when it has the shape of an alias: nothing may read as naming an event of this trace by position.
+    expect([ids.event('@e1'), ids.event('@e3'), ids.event('@e?'), ids.lane('@l1'), ids.lane('no lane!')]).toEqual([
+      '@e?',
+      '@e?',
+      '@e?',
+      '@l?',
+      '@l?',
+    ])
+  })
+
+  it('keeps a reference to no event as recorded, unless it reads as an alias', () => {
+    expect([ids.reference('u1'), ids.reference('gone!'), ids.reference('@e1'), ids.reference('@e?')]).toEqual([
+      'u1',
+      'gone!',
+      '@e?',
+      '@e?',
+    ])
+    expect([ids.laneReference('main'), ids.laneReference('no lane'), ids.laneReference('@l1')]).toEqual([
+      'main',
+      'no lane',
+      '@l?',
+    ])
   })
 
   it('aliases a recorded id that only looks like an alias by its own index', () => {

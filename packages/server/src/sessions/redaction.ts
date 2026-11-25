@@ -13,11 +13,19 @@ export interface HomeRedaction {
   homes: readonly string[]
 }
 
-/** The first of `shown`, `shown#2`, `shown#3`, … that `taken` does not hold yet, which is then taken. */
-function freeKey(shown: string, taken: Set<string>): string {
+/**
+ * `shown` itself, or the first of `shown#2`, `shown#3`, … that `taken` does not hold yet; either way, then taken.
+ * `next` is where the search for `shown` ended, so many keys that redact to one text each take one step
+ * instead of one for every key before them.
+ */
+function freeKey(shown: string, taken: Set<string>, next: Map<string, number>): string {
   let key = shown
-  for (let suffix = 2; taken.has(key); suffix++) {
-    key = `${shown}#${suffix}`
+  if (taken.has(key)) {
+    let suffix = next.get(shown) ?? 2
+    while (taken.has(key)) {
+      key = `${shown}#${suffix++}`
+    }
+    next.set(shown, suffix)
   }
   taken.add(key)
   return key
@@ -41,7 +49,10 @@ function everyString<T>(value: T, text: Redactor): T {
     }
     if (isPlainObject(item)) {
       const taken = new Set<string>()
-      return Object.fromEntries(Object.entries(item).map(([key, field]) => [freeKey(text(key), taken), walk(field)]))
+      const next = new Map<string, number>()
+      return Object.fromEntries(
+        Object.entries(item).map(([key, field]) => [freeKey(text(key), taken, next), walk(field)]),
+      )
     }
     return item
   }

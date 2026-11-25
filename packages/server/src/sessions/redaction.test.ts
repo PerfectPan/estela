@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
-import { describe, expect, it } from 'vite-plus/test'
+import { win32 } from 'node:path'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { homeRedaction, serverRedaction } from './redaction.ts'
 
 describe('home redaction', () => {
@@ -50,6 +51,32 @@ describe('home redaction', () => {
     const shown = redact.value(parsed)
     expect(Object.getPrototypeOf(shown)).toBe(Object.prototype)
     expect(Object.entries(shown)).toEqual([['~/[redacted]/__proto__', '~/x']])
+  })
+
+  it('finds a free key for each of many that redact to one text in one step each', () => {
+    const redact = homeRedaction('/u/me')
+    const count = 3000
+    const value = Object.fromEntries(
+      Array.from({ length: count }, (_, index) => [`/u/me/sk-aaaaaaaa${index}/x.ts`, index]),
+    )
+    const has = vi.spyOn(Set.prototype, 'has')
+    try {
+      const shown = redact.value(value)
+      expect(Object.values(shown)).toEqual(Array.from({ length: count }, (_, index) => index))
+      expect(Object.keys(shown).at(-1)).toBe(`~/[redacted]/x.ts#${count}`)
+      // Linear in the number of keys. Starting each search over at `#2` asks once for every key before it.
+      expect(has.mock.calls.length).toBeLessThan(count * 100)
+    } finally {
+      has.mockRestore()
+    }
+  })
+
+  it('shows a key written with `/` the same on either system', () => {
+    // A Windows home, however it is spelled, hides as `~`; the separators after it are the record's own.
+    const windows = win32.join('C:\\Users', 'runner')
+    const redact = homeRedaction(windows)
+    expect(redact.text(`${windows}/sk-aaaaaaaaaaaaaaaa/x.ts`)).toBe('~/[redacted]/x.ts')
+    expect(redact.text(win32.join(windows, 'sk-aaaaaaaaaaaaaaaa', 'x.ts'))).toBe('~\\[redacted]\\x.ts')
   })
 
   it('hides every home it is given, in text and in a value', () => {

@@ -1,7 +1,8 @@
-import type { ReconstructResult, Trace } from '@rivus/estela-schema'
+import type { ReconstructResult, Trace, TraceEvent } from '@rivus/estela-schema'
 import type { FileStamp } from './source-check.ts'
 import type {
   EventDetail,
+  EventRead,
   LoadedTrace,
   LoadHandle,
   LoadOpts,
@@ -14,7 +15,7 @@ import type {
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import { TraceCache, type TraceEntry } from './trace-cache.ts'
 import { checkedOriginal, stampMatches } from './source-check.ts'
-import { TraceIdMaps } from './trace-ids.ts'
+import { TraceIdMaps, type TraceIds } from './trace-ids.ts'
 import { canonicalRecord, compressedRecord, reloadOnce, reloadShared } from './original-reload.ts'
 
 export type {
@@ -71,8 +72,10 @@ export class TraceStore {
   private readonly deps: TraceStoreDeps
   /** The last traces loaded, without originals. */
   private readonly cache: TraceCache
-  /** Per loaded trace, the aliases a redacting store gives its ids. */
-  private readonly ids: TraceIdMaps
+  /** The aliases of each loaded trace: the store's own, and those of any redaction a caller names. */
+  private readonly ids = new TraceIdMaps()
+  /** Each trace a caller kept whole, by event id, for `presented`. */
+  private readonly indexOf = new WeakMap<Trace, Map<string, TraceEvent>>()
   private readonly pending = new Map<string, Pending>()
   private readonly owners = new WeakMap<object, { key: string; handle: LoadHandle }>()
   /** Latest `open` per owner, counted before any await, so a slower earlier open cannot win. */
@@ -81,7 +84,6 @@ export class TraceStore {
   constructor(deps: TraceStoreDeps) {
     this.deps = deps
     this.cache = new TraceCache(deps.fs)
-    this.ids = new TraceIdMaps(deps.redact)
   }
 
   /** Keys of cached traces, least recently used first. */
@@ -137,7 +139,7 @@ export class TraceStore {
       const entry = await this.entryFor(traceId, owner)
       if (!entry.view) {
         // Ids are shown before the text is redacted, since a shown id must come from the recorded one.
-        const ids = this.ids.of(entry.trace)
+        const ids = this.ids.of(entry.trace, this.deps.redact)
         entry.view = fitView(this.show(ids?.shown(entry.trace) ?? entry.trace), {
           maxString: this.deps.maxString,
           maxBytes: VIEW_BYTES,
@@ -152,34 +154,16 @@ export class TraceStore {
     })
   }
 
-  /** The full event `id` names (an id as recorded, or an alias the store gave out), with `original` read back from its
-   * source pointer (or `originalUnavailable`). */
-  async event(traceId: string, id: string, owner?: object): Promise<EventDetail> {
+  /**
+   * The full event `id` names (an id as recorded, or an alias), with `original` read back from its source
+   * pointer (or `originalUnavailable`). Ids are resolved here once and shown here once, by the aliases of
+   * `read.redact` when the caller names one and else of the store's own redaction.
+   */
+  async event(traceId: string, id: string, read: EventRead = {}): Promise<EventDetail> {
     return this.guard(async () => {
-      const entry = await this.entryFor(traceId, owner)
-      const ids = this.ids.of(entry.trace)
-      const index = entry.byId.get(ids?.findEvent(id) ?? id)
-      if (index === undefined) {
-        throw new Error(`no event ${id} in ${traceId}`)
-      }
-      const event = ids?.eventShown(entry.trace.events[index]!) ?? entry.trace.events[index]!
-      if (entry.canonical) {
-        return this.show({
-          ...event,
-          original: await canonicalRecord(await reloadShared(entry, () => this.loadAgain(entry)), entry.trace, index),
-        })
-      }
-      const checked = await checkedOriginal(
-        this.deps.fs,
-        this.deps.readOriginal,
-        event,
-        entry.stamps.get(event.source.file),
-        entry.prints[index]!,
-      )
-      if ('unavailable' in checked) {
-        return this.show({ ...event, originalUnavailable: checked.unavailable })
-      }
-      return this.show({ ...event, original: checked.original })
+      const entry = await this.entryFor(traceId, read.owner)
+      const ids = this.ids.of(entry.trace, read.redact ?? this.deps.redact)
+      return this.shown(await this.detail(traceId, entry, id, ids), ids)
     })
   }
 
@@ -187,7 +171,9 @@ export class TraceStore {
    * `run` reads several events in full, in the order asked (the report's first events). Source
    * pointers are read a few at a time, so a long read never runs out of file handles. A canonical
    * file is reloaded once for all of `run`'s reads, and a compressed log is decompressed once for
-   * them; both are dropped when `run` ends.
+   * them; both are dropped when `run` ends. Ids are asked for as the view shows them, and each event
+   * comes back as `get-event` shows it. A report, which redacts whatever the server does, gives the ids
+   * that are still recorded its own aliases. Errors leave redacted like every other read.
    */
   async withEvents<T>(
     traceId: string,
@@ -202,7 +188,7 @@ export class TraceStore {
       const reload = reloadOnce(() => this.guard(() => reloadShared(entry, () => this.loadAgain(entry))))
       const read = async (ids: readonly string[]): Promise<EventDetail[]> => {
         if (entry.canonical) {
-          return Promise.all(ids.map(id => this.event(traceId, id, owner)))
+          return Promise.all(ids.map(id => this.presentedEvent(traceId, entry, id)))
         }
         const trace = entry.compressed ? await reload() : undefined
         const out: EventDetail[] = []
@@ -213,7 +199,7 @@ export class TraceStore {
                 .slice(start, start + READ_BATCH)
                 .map(id =>
                   trace === undefined
-                    ? this.event(traceId, id, owner)
+                    ? this.presentedEvent(traceId, entry, id)
                     : this.guard(async () => this.compressedEvent(entry, trace, id, traceId)),
                 ),
             )),
@@ -234,35 +220,49 @@ export class TraceStore {
   async reconstruct(traceId: string, eventId: string, owner?: object): Promise<ReconstructResult> {
     return this.guard(async () => {
       const entry = await this.entryFor(traceId, owner)
-      const ids = this.ids.of(entry.trace)
+      const ids = this.ids.of(entry.trace, this.deps.redact)
       const surface = reconstruct(entry.trace, ids?.findEvent(eventId) ?? eventId)
       return this.show(ids?.surface(surface) ?? surface)
     })
   }
 
   /**
-   * `get-event`'s results for `shown`, ids as the view shows them, with the events and their originals taken from
-   * `loaded`: a trace the caller loaded and kept whole, as `build` does, so no file is read again. Unlike
-   * `get-event`, nothing checks that the source still holds the record.
+   * `get-event`'s results for `shown`, ids as the view shows them, with the events and their originals from
+   * `loaded`: a trace the caller loaded and kept whole, as `build` does, so no file is read again. Nothing
+   * checks that the source still holds the record, as `get-event` does.
    */
   presented(loaded: Trace, shown: readonly string[]): EventDetail[] {
-    const ids = this.ids.of(loaded)
-    const byId = new Map(loaded.events.map(event => [event.id, event]))
+    const ids = this.ids.of(loaded, this.deps.redact)
+    let byId = this.indexOf.get(loaded)
+    if (!byId) {
+      byId = new Map(loaded.events.map(event => [event.id, event]))
+      this.indexOf.set(loaded, byId)
+    }
     return shown.map(id => {
       const event = byId.get(ids?.findEvent(id) ?? id)
       if (!event) {
         throw new Error(this.show(`no event ${id}`))
       }
-      return this.show(ids?.eventShown(event) ?? event)
+      return this.shown(event, ids)
     })
   }
 
   /**
    * Runs `read` over the loaded trace of `traceId` (originals dropped), through its own hold like an MCP read.
-   * What `read` returns is not presented: the caller presents it. Errors leave redacted like every other read.
+   * What `read` returns is not shown: the caller shows it. Errors leave redacted like every other read.
    */
   async withTrace<T>(traceId: string, read: (trace: Trace) => T): Promise<T> {
     return this.guard(async () => read((await this.entryFor(traceId)).trace))
+  }
+
+  /** An event of a cache entry, as `get-event` shows it. */
+  private async presentedEvent(traceId: string, entry: TraceEntry, id: string): Promise<EventDetail> {
+    const ids = this.ids.of(entry.trace, this.deps.redact)
+    return this.guard(async () => this.shown(await this.detail(traceId, entry, id, ids), ids))
+  }
+
+  private shown(detail: EventDetail, ids: TraceIds | undefined): EventDetail {
+    return this.show(ids?.eventShown(detail) ?? detail)
   }
 
   private show<T>(value: T): T {
@@ -459,13 +459,41 @@ export class TraceStore {
     return this.deps.load(entry.session, { signal: entry.evicted.signal, onProgress: () => {} })
   }
 
+  /** Shown like `get-event`: the cached event still carries the recorded ids. */
   private compressedEvent(entry: TraceEntry, trace: Trace, id: string, traceId: string): EventDetail {
-    const ids = this.ids.of(entry.trace)
+    const ids = this.ids.of(entry.trace, this.deps.redact)
     const found = compressedRecord(entry.trace, trace, entry.byId, entry.prints, ids?.findEvent(id) ?? id, traceId)
-    // Shown like `event`: the cached event still carries the recorded ids.
-    const event = ids?.eventShown(found.event) ?? found.event
-    return 'unavailable' in found
-      ? this.show({ ...event, originalUnavailable: found.unavailable })
-      : this.show({ ...event, original: found.original })
+    const detail =
+      'unavailable' in found
+        ? { ...found.event, originalUnavailable: found.unavailable }
+        : { ...found.event, original: found.original }
+    return this.shown(detail, ids)
+  }
+
+  /**
+   * The event `shown` names, as the view shows it, read whole from its source pointer (or with
+   * `originalUnavailable`); not shown. `ids` resolve `shown` once: what they give is a recorded id, looked up
+   * as itself. Left out, the ids are looked up as recorded.
+   */
+  private async detail(traceId: string, entry: TraceEntry, shown: string, ids?: TraceIds): Promise<EventDetail> {
+    const index = entry.byId.get(ids?.findEvent(shown) ?? shown)
+    if (index === undefined) {
+      throw new Error(`no event ${shown} in ${traceId}`)
+    }
+    const event = entry.trace.events[index]!
+    if (entry.canonical) {
+      const reloaded = await reloadShared(entry, () => this.loadAgain(entry))
+      return { ...event, original: canonicalRecord(reloaded, entry.trace, index) }
+    }
+    const checked = await checkedOriginal(
+      this.deps.fs,
+      this.deps.readOriginal,
+      event,
+      entry.stamps.get(event.source.file),
+      entry.prints[index]!,
+    )
+    return 'unavailable' in checked
+      ? { ...event, originalUnavailable: checked.unavailable }
+      : { ...event, original: checked.original }
   }
 }

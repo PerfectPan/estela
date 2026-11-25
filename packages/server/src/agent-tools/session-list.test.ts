@@ -33,7 +33,7 @@ function sourceOf(rows: SessionListRow[], matches: string[] = []): SessionSource
       ],
       // As the catalog does: against the recorded directory, before any redaction.
       rows: rows.filter(
-        row => query.cwd === undefined || withinDirectory(recorded[row.traceId], query.cwd, [LIST_HOME]),
+        row => query.cwd === undefined || withinDirectory(recorded[row.traceId], query.cwd, [LIST_HOME], 'linux'),
       ),
       complete: true,
       pricesVersion: 'test-prices',

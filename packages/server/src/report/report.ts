@@ -31,7 +31,7 @@ export async function reportOf(
   locale?: ReportLocale,
   redact: HomeRedaction = homeRedaction(homeDir()),
 ): Promise<ReportTrace> {
-  return buildReport({ view: await store.view(traceId), full, redact: redact.value, locale })
+  return buildReport({ view: await store.view(traceId), full, redact, locale })
 }
 
 /** One report at a time per server instance: its `report-trace` slot serves one build, and DevFrame replaces `outDir`. */

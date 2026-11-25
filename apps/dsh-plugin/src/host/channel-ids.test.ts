@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,16 +10,17 @@ import type { HostPeer, HostSessionPersistence, RpcHandlerResult } from './rpc.t
 import { createSessionRegistry } from './sessions.ts'
 
 /**
- * The dsh reader names an event after its log file and line, and a dsh log is always `session.v4.jsonl`: a main-lane
- * id is `session.v4.jsonl:2`, which no redaction changes. So the plugin never shows an alias in a view, but its
- * channel carries one back: `trace/event` takes the `@e<seq>` form the TraceStore gives unsafe ids elsewhere.
+ * The dsh reader names a main-lane event after its log file and line, and a dsh log is always `session.v4.jsonl`, so
+ * a subagent lane's events are named `<child session id>:session.v4.jsonl:<line>`. A child id with a space in it is
+ * a legal one that redaction cannot show as written: the plugin's channel gives it an alias and takes the alias back.
  */
+const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
+const conformance = join(repo, 'fixtures/sessions/dsh/conformance')
 const processHome = homedir()
 const ownerPeer: HostPeer = { principal: { kind: 'owner' } }
 const dirs: string[] = []
 
 const openValue = z.object({ traceId: z.string() })
-const viewValue = z.object({ traceId: z.string(), trace: z.object({ events: z.array(z.object({ id: z.string() })) }) })
 const eventValue = z.object({ id: z.string(), original: z.unknown() })
 
 afterEach(async () => {
@@ -38,15 +39,27 @@ function namesNeitherHome(text: string, home: string): void {
   }
 }
 
+/** The parent session of the conformance fixtures beside its spawn child, under a name with a space in it. */
+async function parentWithNamedChild(home: string): Promise<string> {
+  const parent = join(home, 'project', 'dsh-parent', 'session.v4.jsonl')
+  const child = join(home, 'project', 'spawn child', 'session.v4.jsonl')
+  const renamed = async (from: string, before: string, after: string): Promise<string> =>
+    (await readFile(join(conformance, from), 'utf8')).replace(before, after)
+  await mkdir(dirname(parent), { recursive: true })
+  await mkdir(dirname(child), { recursive: true })
+  await writeFile(
+    parent,
+    await renamed('parent/session.v4.jsonl', '"childId":"spawn-child"', '"childId":"spawn child"'),
+  )
+  await writeFile(child, await renamed('spawn-child/session.v4.jsonl', '"id":"spawn-child"', '"id":"spawn child"'))
+  return parent
+}
+
 describe('dsh host channel and event ids', () => {
-  it('serves recorded ids as they are, and reads an event back by the alias form too', async () => {
+  it('shows a subagent lane and its events under aliases, and reads an event back by one', async () => {
     const home = await makeTempHome()
-    const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
-    const file = join(home, 's', 'session.v4.jsonl')
-    await mkdir(dirname(file))
-    // The conformance log of a plain session: several events, under the fixed name the reader knows.
-    await cp(join(repo, 'fixtures/sessions/dsh/conformance/plain/session.v4.jsonl'), file)
-    const persistence: HostSessionPersistence = { stat: async () => ({ location: { kind: 'jsonl', path: file } }) }
+    const parent = await parentWithNamedChild(home)
+    const persistence: HostSessionPersistence = { stat: async () => ({ location: { kind: 'jsonl', path: parent } }) }
     const base = createEstelaCore({ redacts: false }).platform
     let registry!: ReturnType<typeof createSessionRegistry>
     const core = createEstelaCore({
@@ -54,12 +67,7 @@ describe('dsh host channel and event ids', () => {
       redacts: true,
       resolve: id => registry.resolve(id),
     })
-    registry = createSessionRegistry({
-      persistence,
-      fs: core.platform.fs,
-      store: core.store,
-      redact: core.redact,
-    })
+    registry = createSessionRegistry({ persistence, fs: core.platform.fs, store: core.store, redact: core.redact })
     const channel = createChannelHost({ core, sessions: registry })
     const call = (endpoint: string, payload: unknown): Promise<RpcHandlerResult> =>
       channel.handler(endpoint, payload, new AbortController().signal, ownerPeer)
@@ -75,36 +83,30 @@ describe('dsh host channel and event ids', () => {
     if (!viewRes.ok) {
       return
     }
-    const view = z.parse(viewValue, viewRes.value)
-    expect(view.traceId).toBe(traceId)
-    const ids = view.trace.events.map(event => event.id)
-    expect(ids.length).toBeGreaterThan(1)
-    // Recorded ids: the log's fixed name and a line number, with a request prefix or a part after it.
-    expect(ids.every(id => /^(request:)?session\.v4\.jsonl:\d+(:\d+)?$/.test(id))).toBe(true)
-    // The text is redacted as on the dev server.
-    namesNeitherHome(JSON.stringify(view), home)
+    // On the whole answer as it leaves the channel: a field a schema would drop could carry a home too.
+    const view = JSON.stringify(viewRes.value)
+    expect(view).toContain('"id":"@l1"')
+    expect(view).toContain('"id":"@e3"')
+    namesNeitherHome(view, home)
+    const ids: string[] = JSON.parse(z.string().parse(view))
+      .trace.events.filter((event: { agentId?: string }) => event.agentId === '@l1')
+      .map((event: { id: string }) => event.id)
+    expect(ids).toContain('@e3')
+    expect(ids.every(id => /^@e\d+$/.test(id))).toBe(true)
 
-    for (const [index, id] of ids.entries()) {
-      // By the id the view shows, and by the alias of the same position.
-      for (const asked of [id, `@e${index}`]) {
-        const eventRes = await call('trace/event', { traceId, id: asked })
-        expect(eventRes.ok).toBe(true)
-        if (!eventRes.ok) {
-          return
-        }
-        const event = z.parse(eventValue, eventRes.value)
-        // A safe id is shown as recorded, whichever form named it.
-        expect(event.id).toBe(id)
-        expect(event.original).toBeDefined()
-        namesNeitherHome(JSON.stringify(event), home)
+    for (const id of ids) {
+      const eventRes = await call('trace/event', { traceId, id })
+      expect(eventRes.ok).toBe(true)
+      if (!eventRes.ok) {
+        return
       }
+      const event = z.parse(eventValue, eventRes.value)
+      expect(event.id).toBe(id)
+      expect(event.original).toBeDefined()
+      namesNeitherHome(JSON.stringify(eventRes.value), home)
     }
-    const beyond = `@e${ids.length}`
-    const missing = await call('trace/event', { traceId, id: beyond })
-    expect(missing).toEqual({
-      ok: false,
-      error: { code: 'estela/failed', message: `no event ${beyond} in ${traceId}`, details: {} },
-    })
+    // The main lane's ids are the log's own name and line, and are shown as they are.
+    expect(view).toContain('"id":"session.v4.jsonl:2"')
     channel.dispose()
   })
 })

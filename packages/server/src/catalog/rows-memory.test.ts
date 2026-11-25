@@ -150,6 +150,15 @@ describe('withinDirectory', () => {
     expect(withinDirectory(`${other}/work/app`, `${home}/work/app`, homes, 'linux')).toBe(false)
     expect(withinDirectory(`${home}`, '~', homes, 'linux')).toBe(true)
     expect(withinDirectory(`${home}/work/app`, `${home}/work/app/`, homes, 'linux')).toBe(true)
+    // A home that ends in a separator, a drive root, or the root itself: `~` still names it.
+    for (const [recorded, trailing] of [
+      [`${home}/work/app`, `${home}/`],
+      ['/work/app', '/'],
+    ] as const) {
+      expect(withinDirectory(recorded, '~/work/app', [trailing], 'linux')).toBe(true)
+      expect(withinDirectory(recorded, '~', [trailing], 'linux')).toBe(true)
+    }
+    expect(withinDirectory('C:/work/app', '~/work/app', ['C:/'], 'win32')).toBe(true)
     // An empty directory names no session, on either platform.
     expect(withinDirectory(`${home}/work/app`, '', homes, 'linux')).toBe(false)
     expect(withinDirectory(`${home}/work/app`, '', homes, 'win32')).toBe(false)

@@ -30,15 +30,7 @@ const tilde = {
 describe('eventResult', () => {
   it('redacts before cutting and lists the cut paths', () => {
     const event = userEvent('u1', `/h/a ${'x'.repeat(400)}`)
-    const trace = traceOf([event])
-    const result = eventResult(
-      trace,
-      't',
-      event,
-      new TraceIds(trace, () => true),
-      { maxChars: 256, original: false },
-      tilde,
-    )
+    const result = eventResult('t', event, 'main', { maxChars: 256, original: false }, tilde)
     expect(result.event.payload).toEqual({ text: `~/a ${'x'.repeat(252)}` })
     expect(result.event.truncated).toEqual([['payload', 'text']])
     expect(result.event.source).toEqual({ file: '~/log.jsonl', line: 1 })
@@ -47,9 +39,7 @@ describe('eventResult', () => {
   it('lowers the cap, then leaves out the original, to stay under the size bound', () => {
     const many = Array.from({ length: 400 }, () => 'z'.repeat(300))
     const event: TraceEvent = { ...userEvent('u1', 'short'), original: { many } }
-    const trace = traceOf([event])
-    const ids = new TraceIds(trace, () => true)
-    const result = eventResult(trace, 't', event, ids, { maxChars: 20_000, original: true }, plain)
+    const result = eventResult('t', event, 'main', { maxChars: 20_000, original: true }, plain)
     expect(result.maxChars).toBe(256)
     expect(result.event.omitted).toEqual(['original'])
     expect(result.event.payload).toEqual({ text: 'short' })
@@ -59,17 +49,19 @@ describe('eventResult', () => {
   it('leaves out only the parts it holds', () => {
     const many = Array.from({ length: 400 }, () => 'z'.repeat(300))
     const event: TraceEvent = { ...userEvent('u1', 'short'), kind: 'user', payload: { text: 'short', many } }
-    const trace = traceOf([event])
-    const result = eventResult(
-      trace,
-      't',
-      event,
-      new TraceIds(trace, () => true),
-      { maxChars: 2000, original: false },
-      plain,
-    )
+    const result = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)
     expect(result.event.omitted).toEqual(['payload'])
     expect(jsonChars(result)).toBeLessThanOrEqual(RESULT_CHARS)
+  })
+
+  it('keeps every key of the original record, `__proto__` as a key among them', () => {
+    const original = JSON.parse('{"__proto__": "plain text", "other": "kept"}')
+    const event: TraceEvent = { ...userEvent('u1', 'short'), original }
+    for (const maxChars of [2000, 256]) {
+      const shown = eventResult('t', event, 'main', { maxChars, original: true }, plain).event.original
+      // Serialized, an own key is told from one that merely set the prototype.
+      expect(JSON.stringify(shown)).toBe('{"__proto__":"plain text","other":"kept"}')
+    }
   })
 })
 

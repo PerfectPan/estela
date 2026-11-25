@@ -7,11 +7,14 @@ import { disposeAll, exportBound, namesNeitherHome, start, tempDir } from './sup
 
 afterEach(disposeAll)
 
-/** Two keys under the home that redact to the same text, and one that redacts to no other key's text. */
+/**
+ * Two keys under the home that redact to the same text, and one that redacts to no other key's text. A log
+ * record keeps the separators it was written with, so the keys join with `/` on every system.
+ */
 const keys = (home: string): Record<string, number> => ({
-  [join(home, 'sk-aaaaaaaaaaaaaaaa/x.ts')]: 1,
-  [join(home, 'sk-bbbbbbbbbbbbbbbb/x.ts')]: 2,
-  [join(home, 'y.ts')]: 3,
+  [`${home}/sk-aaaaaaaaaaaaaaaa/x.ts`]: 1,
+  [`${home}/sk-bbbbbbbbbbbbbbbb/x.ts`]: 2,
+  [`${home}/y.ts`]: 3,
 })
 /** The same keys, redacted: the later one of two that meet keeps its value under `#2`. */
 const shownKeys: Record<string, number> = { '~/[redacted]/x.ts': 1, '~/[redacted]/x.ts#2': 2, '~/y.ts': 3 }
@@ -20,8 +23,9 @@ const shownKeys: Record<string, number> = { '~/[redacted]/x.ts': 1, '~/[redacted
 const tokenDirs = { one: 'sk-cccccccccccccccc', two: 'sk-dddddddddddddddd' } as const
 
 /**
- * Three Claude Code sessions: one whose event id names the home and whose tool call holds `keys`, and one in each
- * directory of `tokenDirs`. Their records are written at run time, since no literal home path sits in the repository.
+ * Four Claude Code sessions: one whose event id names the home and whose tool call holds `keys`, one in each
+ * directory of `tokenDirs`, and one whose first event id has the shape of an alias. Their records are written at
+ * run time, since no literal home path sits in the repository.
  */
 async function keyedSessions(home: string): Promise<void> {
   const projects = join(home, '.claude/projects')
@@ -45,6 +49,24 @@ async function keyedSessions(home: string): Promise<void> {
         content: [{ type: 'tool_use', id: 'call-ids', name: 'Read', input: keys(home) }],
       },
     }),
+  )
+  // The first id reads like the alias of the second event; the tools must still name each event by itself.
+  await mkdir(join(projects, 'aliases'), { recursive: true })
+  await writeFile(
+    join(projects, 'aliases/session.jsonl'),
+    ['@e1', 'blue']
+      .map((uuid, index) =>
+        line({
+          ...base,
+          sessionId: 's-aliases',
+          cwd: join(home, 'work/aliases'),
+          type: 'user',
+          uuid,
+          timestamp: `2026-02-01T00:00:0${index}.000Z`,
+          message: { role: 'user', content: `message ${index}` },
+        }),
+      )
+      .join(''),
   )
   for (const [name, dir] of Object.entries(tokenDirs)) {
     await mkdir(join(projects, name), { recursive: true })
@@ -73,6 +95,12 @@ function recordInput(original: unknown): Record<string, number> {
 const tooled = z.object({
   event: z.object({ id: z.string(), payload: z.object({ args: z.unknown() }), original: z.optional(z.unknown()) }),
 })
+const messaged = z.object({
+  event: z.object({ id: z.string(), seq: z.number(), payload: z.unknown(), original: z.unknown() }),
+})
+const turned = z.object({ turns: z.array(z.object({ firstEventId: z.string(), lastEventId: z.string() })) })
+/** `~` and the parts, with this system's separator after the home directory, as a row shows a working directory. */
+const tilde = (...parts: string[]): string => join('~', ...parts)
 const page = z.object({
   sessions: z.array(z.object({ traceId: z.string(), title: z.optional(z.string()), cwd: z.optional(z.string()) })),
 })
@@ -138,12 +166,39 @@ describe('redaction keeps what is looked up by', () => {
     )
     const alias = turns.turns[0]!.lastEventId
     expect(alias).toMatch(/^@e\d+$/)
-    // `estela mcp` and the dev server redact what the store sends; the tools show those ids once more.
+    // The store resolves the alias and shows the event's ids with the tools' redaction; the tool adds no mapping.
     const got = z.parse(tooled, await tool(ctx, 'get_event', { traceId: row.traceId, eventId: alias, original: true }))
     expect(got.event.id).toBe(alias)
     expect(z.parse(numbers, got.event.payload.args)).toEqual(shownKeys)
     expect(recordInput(got.event.original)).toEqual(shownKeys)
     namesNeitherHome(JSON.stringify(got), home)
+  })
+
+  it('reads back the event an alias names when a recorded id itself has the shape of an alias', async () => {
+    const home = await tempDir('redacted-keys')
+    await keyedSessions(home)
+    // `redacts: false` is ESTELA_REDACT=0 on the dev server: the view shows recorded ids, the tools still alias.
+    for (const redacts of [true, false]) {
+      const { ctx } = await start(home, { redacts })
+      const row = z
+        .parse(page, await tool(ctx, 'list_sessions', {}))
+        .sessions.find(one => one.cwd === tilde('work', 'aliases'))!
+      const turns = z.parse(turned, await tool(ctx, 'list_turns', { traceId: row.traceId }))
+      // Each message is a turn of its own.
+      expect(turns.turns.map(turn => turn.lastEventId)).toEqual(['@e0', 'blue'])
+      // Resolved once, by the store: `@e0` is the first message, whatever its recorded id reads like.
+      const first = z.parse(
+        messaged,
+        await tool(ctx, 'get_event', { traceId: row.traceId, eventId: '@e0', original: true }),
+      )
+      expect(first.event).toMatchObject({ id: '@e0', seq: 0, payload: { text: 'message 0' } })
+      expect(z.parse(z.object({ uuid: z.string() }), first.event.original).uuid).toBe('@e1')
+      const second = z.parse(
+        z.object({ event: z.object({ id: z.string(), payload: z.unknown() }) }),
+        await tool(ctx, 'get_event', { traceId: row.traceId, eventId: 'blue' }),
+      )
+      expect(second.event).toMatchObject({ id: 'blue', payload: { text: 'message 1' } })
+    }
   })
 
   it('filters the agent tools by the working directory as recorded, which two directories redact to the same text', async () => {
@@ -154,18 +209,27 @@ describe('redaction keeps what is looked up by', () => {
       z.parse(page, await tool(ctx, 'list_sessions', { cwd })).sessions.map(one => one.title)
     const [one, two] = [join(home, 'work', tokenDirs.one), join(home, 'work', tokenDirs.two)]
     // What the rows show cannot tell the two directories apart.
-    expect(z.parse(page, await tool(ctx, 'list_sessions', {})).sessions.map(one => one.cwd)).toEqual([
-      join('~', 'work', 'ids'),
-      join('~', 'work', '[redacted]'),
-      join('~', 'work', '[redacted]'),
-    ])
+    const byName = (one: string | undefined, another: string | undefined): number =>
+      (one ?? '').localeCompare(another ?? '')
+    const shownDirs = z
+      .parse(page, await tool(ctx, 'list_sessions', {}))
+      .sessions.map(one => one.cwd)
+      .toSorted(byName)
+    expect(shownDirs).toEqual(
+      [
+        join('~', 'work', 'aliases'),
+        join('~', 'work', 'ids'),
+        join('~', 'work', '[redacted]'),
+        join('~', 'work', '[redacted]'),
+      ].toSorted(byName),
+    )
     expect(await titles(one)).toEqual(['hi one'])
     expect(await titles(two)).toEqual(['hi two'])
     expect(await titles(join('~', 'work', tokenDirs.two))).toEqual(['hi two'])
     expect(await titles(`${one}/`)).toEqual(['hi one'])
     // A directory that holds both still lists each.
     const both = await titles(join(home, 'work'))
-    expect(both).toHaveLength(3)
+    expect(both).toHaveLength(4)
     expect(both).toEqual(expect.arrayContaining(['hi one', 'hi two']))
     const found = await tool(ctx, 'search_sessions', { query: 'hi', cwd: join('~', 'work', tokenDirs.two) })
     expect(z.parse(page, found).sessions.map(one => one.title)).toEqual(['hi two'])
