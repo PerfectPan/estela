@@ -2,6 +2,12 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.6.1
+
+### Patch Changes
+
+- [#190](https://github.com/PerfectPan/estela/pull/190) [`6b452eb`](https://github.com/PerfectPan/estela/commit/6b452ebd1496c6dceb4bc6ea98e4772410238e35) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Use the singular label for a count of one in the session header ("1 turn", "1 request", "1 subagent", "1 failed tool call") and in the session browser's failed tool call flag, as the compaction count already did.
+
 ## 0.6.0
 
 ### Minor Changes

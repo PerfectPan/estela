@@ -1,6 +1,6 @@
 {
   "name": "@rivus/dsh-estela",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Estela view of the current DeepSeek Harness session: ledger, Model saw, Compare, and cost.",
   "homepage": "https://github.com/PerfectPan/estela",
