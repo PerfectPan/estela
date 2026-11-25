@@ -10,12 +10,12 @@ The Estela View renders the workspace for the active DeepSeek Harness session, c
 
 - **Model saw:** reconstructs the context the model received at any request (system prompt, tool schemas, compaction summary, earlier messages, and current turn) alongside recorded token counts.
 - **Compare:** compares the context of two requests on the same lane, showing input token delta, per-slot event changes, events that entered the context, and events removed by a compaction between them.
-- **Compaction visibility:** marks compactions on the timeline with tokens before and after when recorded, lists events hidden by compaction in **Model saw** and **Compare**, and lets you dim shadowed events in the ledger.
-- **Timeline and event ledger:** one bar per request sized by recorded input tokens, one row per lane, failed tool markers, and an ordered event ledger grouped by turn or by agent, with filters for requests, tools, and failures.
-- **List-price cost:** prices recorded tokens per request, turn, lane, and session (with cache hit rate) using the bundled LiteLLM model price snapshot; requests without recorded tokens, a model name, or a snapshot price are labeled as unavailable with the reason rather than `$0` or an estimate.
+- **Compaction visibility:** marks compactions on the timeline, lists events hidden by compaction in **Model saw** and **Compare**, and lets you dim shadowed events in the ledger.
+- **Timeline and event ledger:** one bar per request, its height the request's context tokens, one row per lane, failed tool markers, and an ordered event ledger grouped by turn or by agent, with filters for requests, tools, and failures.
+- **List-price cost:** prices recorded tokens per request, turn, lane, and session (with cache hit rate) using the bundled LiteLLM model price snapshot; requests without recorded tokens, a model name, or a snapshot price are left unpriced with the reason stated (`Cost unavailable: <reason>`), never `$0` and never estimated.
 - **Raw:** loads the original log record on disk for any selected event.
 
-Anything the session log does not record is shown as `unavailable` or `—`, never estimated or invented.
+Missing data is never estimated or invented.
 
 ![Compare tab showing context changes across a compaction on the same lane](https://raw.githubusercontent.com/PerfectPan/estela/main/apps/dsh-plugin/screenshots/compare-light.webp)
 
@@ -23,7 +23,7 @@ Anything the session log does not record is shown as `unavailable` or `—`, nev
 
 ## How it differs from Trajectory
 
-Estela does not replace `dsh`'s built-in **Trajectory** view; it sits beside Chat and Trajectory and reads the session log that `dsh` already wrote to disk (including sessions created before the plugin was installed). It adds per-request **Model saw** context reconstruction, **Compare** diffs across compactions, and list-price cost breakdowns, without intercepting traffic or modifying session messages.
+`dsh`'s built-in **Trajectory** view follows a running session live, shows first-token latency and decode time, and renders `dsh`-specific content such as `run_code` source and live tool output. **Estela** sits beside Chat and Trajectory as a snapshot view read from the log on disk (including sessions created before the plugin was installed), adding the full reconstructed context at any request (**Model saw**), before-and-after compaction diffs, side-by-side context comparison between two requests (**Compare**), and list-price cost.
 
 ## Install
 
@@ -54,10 +54,10 @@ The View follows `dsh`'s appearance setting (light, dark, or system) and languag
 
 ## Privacy
 
-- Runs inside `dsh`'s own process: starts no extra process, listens on no extra port, registers no HTTP route of its own, and sends nothing over the network.
+- Runs inside `dsh`'s own process: starts no extra process, listens on no extra port, and registers no HTTP route of its own.
 - Read-only: writes nothing to disk (not to session logs, not to `dsh` files, and not to Estela's session index).
-- Serves session content over `dsh`'s existing connection only to `dsh`'s admitted owner.
-- Redaction is on by default across the View and error messages, replacing home directory paths and common token patterns. Start `dsh` with `ESTELA_REDACT=0` to view recorded session text unredacted.
+- Reads the session log from disk and serves session content over `dsh`'s existing connection, only to `dsh`'s admitted owner.
+- Redaction is on by default across the View and error messages, replacing home directory paths and the token patterns listed in [Privacy and redaction](https://perfectpan.github.io/estela/docs/guide/privacy/#what-redaction-covers). Start `dsh` with `ESTELA_REDACT=0` to view recorded session text unredacted.
 
 ## Uninstall
 

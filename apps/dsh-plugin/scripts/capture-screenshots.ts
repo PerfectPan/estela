@@ -99,10 +99,30 @@ async function capturePngToWebp(
   return { path: webpPath, bytes }
 }
 
+async function alignLedgerTopRow(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const ledger = document.querySelector('estela-workspace')?.shadowRoot?.querySelector('[data-testid="ledger"]')
+    if (!ledger) {
+      return
+    }
+    const top = ledger.getBoundingClientRect().top
+    const rows = Array.from(ledger.querySelectorAll('[role=option], [data-row-type]'))
+    const clipped = rows.find(row => {
+      const rect = row.getBoundingClientRect()
+      return rect.top < top - 0.5 && rect.bottom > top + 0.5
+    })
+    if (clipped) {
+      ledger.scrollTop += Math.ceil(clipped.getBoundingClientRect().bottom - top)
+    }
+  })
+  await page.waitForTimeout(200)
+}
+
 async function openModelSawAfterCompaction(page: Page): Promise<void> {
   await clickFirstRequestAfterCompaction(page)
   await page.locator('estela-workspace [data-testid="inspector"] [role=tab]').filter({ hasText: 'Model saw' }).click()
   await page.locator('estela-workspace [data-testid="model-saw"]').waitFor({ state: 'visible', timeout: 10_000 })
+  await alignLedgerTopRow(page)
 }
 
 async function openEstelaDemo(browser: Browser, url: string, sessionId: string, colorScheme: 'light' | 'dark') {
