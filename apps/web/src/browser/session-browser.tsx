@@ -152,7 +152,7 @@ export function SessionBrowser() {
 
   return (
     <div class="flex h-full min-h-0 flex-col bg-background text-foreground">
-      <TopBar onJump={() => searchBox?.focus()} />
+      <TopBar jumpLabel="browser.searchSessions" searchIcon onJump={() => searchBox?.focus()} />
       <div class="flex min-h-0 flex-1">
         <Rail
           agents={store.agents()}

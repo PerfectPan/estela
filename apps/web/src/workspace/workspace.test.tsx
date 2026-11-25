@@ -95,7 +95,7 @@ describe('Workspace shell split', () => {
     expect(withExport.querySelector('[data-testid="export-report"]')).not.toBeNull()
   })
 
-  it('focuses the ledger inside its own shadow root when Jump to is clicked or Ctrl+K is pressed', async () => {
+  it('focuses the ledger inside its own shadow root when Go to events is clicked or Ctrl+K is pressed', async () => {
     const host = document.body.appendChild(document.createElement('div'))
     const shadow = host.attachShadow({ mode: 'open' })
     mount(() => <Workspace traceId="t1" connect={fakeConnect()} embedded />, shadow)
@@ -118,6 +118,17 @@ describe('Workspace shell split', () => {
     hostInput.focus()
     hostInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
     expect(document.activeElement).toBe(hostInput)
+  })
+  it('labels the top bar button with what it does, draws no search icon, and focuses the ledger from it in page mode', async () => {
+    const page = mount(() => <Workspace traceId="t1" connect={fakeConnect()} />)
+    await tick()
+    const buttons = [...page.querySelectorAll<HTMLButtonElement>('header button')]
+    const jump = buttons.find(button => button.textContent.includes('Go to events'))
+    expect(buttons.filter(button => button.textContent.includes('⌘K'))).toEqual([jump])
+    expect(jump?.textContent).toContain('⌘K')
+    expect(jump?.querySelector('svg')).toBeNull()
+    jump!.click()
+    expect(document.activeElement).toBe(page.querySelector('[data-testid="ledger"]'))
   })
   it('moves inspector tab focus with arrow keys inside a shadow root', () => {
     const host = document.body.appendChild(document.createElement('div'))
@@ -146,7 +157,7 @@ describe('Workspace shell split', () => {
 })
 
 describe('embedded mode (B8)', () => {
-  it('Workspace omits TopBar and session h1 when embedded, keeping compact stats and Jump to, while page mode keeps TopBar', async () => {
+  it('Workspace omits TopBar and session h1 when embedded, keeping compact stats and Go to events, while page mode keeps TopBar', async () => {
     const embedded = mount(() => <Workspace traceId="t1" connect={fakeConnect()} embedded />)
     await tick()
     expect(embedded.querySelector('nav')).toBeNull()
