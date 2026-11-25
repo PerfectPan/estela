@@ -12,7 +12,12 @@ import { createWorkspaceState } from './workspace-state.ts'
 /** The default string cap of the view trace (`toView`); a lower cap means `fitView` shortened more to fit 12 MB. */
 const DEFAULT_MAX_STRING = 4096
 
-export function SessionView(props: { session: LoadedSession; report: boolean }) {
+export function SessionView(props: {
+  session: LoadedSession
+  report: boolean
+  embedded?: boolean
+  onJump?: () => void
+}) {
   const state = createWorkspaceState(props.session)
   const view = () => props.session.trace.view
   const start = state.timeline.start
@@ -25,7 +30,13 @@ export function SessionView(props: { session: LoadedSession; report: boolean }) 
   }
   return (
     <div class="flex min-h-0 flex-1 flex-col">
-      <SessionHeader trace={props.session.trace} summary={props.session.summary} cost={state.cost} />
+      <SessionHeader
+        trace={props.session.trace}
+        summary={props.session.summary}
+        cost={state.cost}
+        embedded={props.embedded}
+        onJump={props.onJump}
+      />
       <Show when={view() && (view()!.withinBudget === false || view()!.maxString < DEFAULT_MAX_STRING)}>
         <p
           class="m-0 shrink-0 border-b border-border bg-secondary px-5 py-1.5 text-[12px] text-muted-foreground"
@@ -49,8 +60,8 @@ export function SessionView(props: { session: LoadedSession; report: boolean }) 
         onCompare={state.compareWith}
       />
       <div class="flex min-h-0 flex-1">
-        <Ledger state={state} start={start} />
-        <Inspector state={state} start={start} />
+        <Ledger state={state} start={start} embedded={props.embedded} />
+        <Inspector state={state} start={start} embedded={props.embedded} />
       </div>
     </div>
   )

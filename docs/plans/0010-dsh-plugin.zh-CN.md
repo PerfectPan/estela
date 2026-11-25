@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/plans/0010-dsh-plugin.md 为准。
 
-<!-- source-blob: 32cc72dfe5662bd5f845b85514b583c4257552c7 -->
+<!-- source-blob: 3ebbf4b0f707de6df134f2d652741b9d5cc4b324 -->
 
 # Plan 0010：作为 dsh 插件的 Estela
 
@@ -180,13 +180,13 @@ owner 的决定，录自 issue #109（2026-11-24）：
 | T10 | 加载时显示不确定进度的指示。没有进度端点。一次加载最多阻塞 dsh 的事件循环约 N ms；N 由冒烟测试测得（3.9）。 | 页面上没有流（A2，第 5 节）。100 MB 的日志在笔记本上加载需要 0.5 到 0.9 秒，12 MB 的视图过通道约 0.1 秒，所以每 200 ms 轮询一次只能画出几次更新。轮询没有测过。加载面板已经有这个状态（`load-screen.tsx:27`）。加载本身跑在 dsh 的事件循环上：平台在那里解压（`packages/server/src/sessions/node-platform.ts:59`），内核在那里拟合视图（`packages/kernel/src/view.ts:273`）。把这部分工作挪到 worker，不在本 Plan 里设计。 |
 | T11 | host 半边在 `inject` 里列出 `webServer`，并自己调用 `rpc` 的 getter（3.3.1）。它不注册自己的路由。`engines.dsh` 从 0.2.2-rc.5 起。 | 在 rc.5 上，按文档的写法插件无法激活（A2，第 1.2 节）。插件自己注册的路由在 rc.5 上可用，在 alpha.2 上回答 400（A2，第 1.3 节）。rc.1 到 rc.4 没有运行过，所以不声明它们（D2）。 |
 | T12 | handler 检查对等方：principal 不是 `owner` 的一律拒绝。它不让任何异常到达 dsh，自己写的消息里不含路径。 | 这条路由仅靠 dsh 的准入（A2，第 5 节），而非 owner 的对等方能否到达它没有测过。dsh 会把抛出的异常消息原样发给调用方，而存储层之外的错误可能带有路径。 |
-| T13 | 元素的主题和语言来自属性；client 半边用 `ctx.theme` 和 `ctx.locale` 设置它们。元素不绘制切换按钮。 | 用户已经在 dsh 里选过这两项。只有明暗跟随 dsh：Estela 的配色保持自己的，事件列表的固定行高和时间线的文本测量依赖的是它的字号。字体用系统的（T19）。 |
+| T13 | 元素的主题（`data-theme`）、语言（`lang`）以及可选的宿主设计令牌（`--estela-host-*` 自定义属性）由 client 半边从 `ctx.theme` 和 `ctx.locale` 传入。元素不绘制切换按钮、Estela 顶栏和重复的会话 `h1` 标题，改为绘制单行紧凑统计栏加「跳转」入口（`⌘K` / `Ctrl+K`）。 | 用户已经在 dsh 里选过主题、语言和当前会话。通过 `--estela-host-*` 承接 dsh 实时的 `--dsw-*` 表面、边框、文字、强调色、字体族和圆角令牌，可以让视图自然融入 Chat 与 Trajectory 标签页，同时不硬编码色值、不放进宿主页同名 `:root` 变量；Estela 保留自己的事件类别色（`--kind-*`）、字号和固定事件列表行高，保证虚拟滚动与时间线测量准确。 |
 | T14 | 首版不提供「导出报告」。只有在宿主提供时元素才绘制这个按钮，而没有任何宿主提供。 | 报告需要独立的 web 构建和 DevFrame 的 `createBuild` 在 dsh 进程里运行，这一点未经验证，而且它会把带有绝对输出路径的构建日志打印到 dsh 的终端（`packages/server/src/report/report.ts:140-143`）。它还会让插件提供的浏览器代码大约翻倍。dsh 没有选择目录的途径，所以文件会落在用户没有选过的地方。命令行的 `build` 和「导出报告」仍是获取报告的途径。 |
 | T15 | 插件只显示当前会话。dsh 内没有会话浏览器，空白会话也没有入口。 | dsh 的会话列表两次点击就能到达每个已开始的会话。会话浏览器需要在 dsh 里运行会话目录和会话索引、在元素里再加一个界面，以及一个 `conversation.view` 以外的入口，而没有任何验证运行过这样的入口。 |
 | T16 | 首版没有 `/estela` 命令。owner 已于 2026-11-24 决定。 | 在 rc.5 上，命令无法选中 View：选中的 View 是 conversation store 的 `view`，只有 slot 组件能访问它（`ui-conversation/src/client/skeleton/DefaultConversationViews.tsx:19-20`）；`ctx.conversation` 和 `ctx.uiConversation` 都不能选中它，`binding.activate` 只是把一个 target 标记为需要组装。标签页就在一次点击之外。靠点击 dsh 标签页 DOM 的命令会依赖 dsh 没有承诺的标记结构。以后再加命令是纯新增。 |
 | T17 | client 半边是一个不用 JSX 的 React 18 组件。它拥有 `<estela-workspace>` 元素，通过 ref 设置 `source` 和各属性；Solid 只运行在元素的 shadow root 里。`react` 来自 factory 的 `require`。 | dsh 的 shell 是 React 18，它的 slot 系统渲染 React 组件。Solid 和 React 从不共享一棵树：React 拥有宿主元素的属性和特性，Solid 拥有它的 shadow root。用 `createElement` 避免在一个包里出现两套 JSX 运行时。 |
 | T18 | embed 代码是 `client.js` 的一部分。没有第二个文件。 | dsh 加载插件额外文件的机制和分块加载都没有验证过（A2，第 9 节）。单个脚本是唯一实际运行过的交付方式。它的代价是 dsh 每次页面加载最多多出约 122 kB gzip，即今天 web 构建产物的大小；embed 只会让它更小，不会更大。T24 的预算看住它。 |
-| T19 | document 级的规则放进一个只装 `@property` 规则的 `<style>` 元素，在第一个元素连接时添加，在最后一个元素断开时移除。embed 不注入 `@font-face`：它的文字使用 `--font-sans` 和 `--font-mono` 的回退字体族。owner 已于 2026-11-24 决定。 | `<style>` 和 `CSS.registerProperty` 渲染结果相同（A1，第 2.2 节），而且构建已经把这些规则产出为文本。在该 tag 上检索 dsh 的 web 服务器、web 客户端和 connection 包的源码，找不到 `Content-Security-Policy` 头。不带 web 字体，每次 dsh 页面加载少约 120 kB gzip，插件也不往宿主页的字体命名空间里加东西。A1 的 `none` 变体说明回退字体下布局不坏：带上代码改动之后，与页面的差异只有文字像素。 |
+| T19 | document 级的规则放进一个只装 `@property` 规则的 `<style>` 元素，在第一个元素连接时添加，在最后一个元素断开时移除。embed 不注入 `@font-face`：在 dsh 内通过 `--estela-host-font-sans` / `--estela-host-font-mono` 承接 `--dsw-font-family` 和 `--ds-font-family-code`，这些宿主变量不存在时回退到系统字体族。owner 于 2026-11-24 决定不带 web 字体，2026-11-25 补充轻量承接宿主令牌。 | `<style>` 和 `CSS.registerProperty` 渲染结果相同（A1，第 2.2 节），而且构建已经把这些规则产出为文本。在该 tag 上检索 dsh 的 web 服务器、web 客户端和 connection 包的源码，找不到 `Content-Security-Policy` 头。不带 web 字体，每次 dsh 页面加载少约 120 kB gzip，插件也不往宿主页的字体命名空间里加东西。承接 dsh 字体族让排版与 Chat、Trajectory 一致，同时保持 Estela 自己的字号和固定事件列表行高。 |
 | T20 | `engines`：`{ "dsh": ">=0.2.2-rc.5 <0.3.0-0", "node": ">=24.9.0" }`。没有 `peerDependencies`。 | 下限是冒烟测试运行的版本（D2）。上限排除下一个 minor；在 0.2.3-alpha.2 上，通道、View 和包格式仍然可用（A2，第 8 节）。Node 范围是 dsh 在 rc.5 上自己的要求，所以它永远不会成为拒绝的原因。插件在运行时不导入任何 `@deepseek-ai/*` 包，所以没有需要共享的实例，也没有会与预发布版本冲突的 peer 范围。 |
 | T21 | 冒烟测试是 `apps/dsh-plugin/test/dsh.smoke.ts`，由它自己的 CI job `dsh-plugin` 在 Linux 上运行，固定版本的 dsh 装在一个临时前缀里。每周一次和手动的运行使用 dsh 的 `latest` 标签。 | dsh 安装后是 1.3 GB；作为 workspace 的 devDependency，它会进入每一次安装。`latest` 的运行是 D2 需要的信号。 |
 | T22 | 插件可以依赖 `@rivus/estela-server`（其 `core` 入口）和 `@rivus/estela-web`（其 `embed` 入口，构建时），可以使用 `@rivus/agent-kit`、`@rivus/estela-rpc` 和 `@rivus/estela-schema` 的类型。 | 它通过 core 读会话，并提供元素；运行时不导入其他任何东西。 |
@@ -304,7 +304,7 @@ export class StaleError extends Error {}
 |---|---|---|---|---|
 | A1 | `styles.css:4-8`（fontsource 的导入） | embed 里不做：它不注入 `@font-face`，使用回退字体族（T19）。Chrome 不应用 shadow root 里的 `@font-face`，所以文字用回退字体绘制。 | 实测（`none`） | 4 |
 | A2 | Tailwind 生成的 `@property` 规则 | 同样处理。没有它们，`box-shadow` 和工具类的边框宽度会失去初始值。 | 实测 | 4 |
-| A3 | `styles.css:44`、`:49-50`、`:99` | token 选择器同时匹配 `:host` 和 `:host([data-theme="…"])`；`color-scheme` 在同一个块里。宿主页的同名 token 因此进不来。 | 实测 | 3 |
+| A3 | `styles.css:44`、`:49-50`、`:99` | token 选择器同时匹配 `:host` 和 `:host([data-theme="…"])`；`color-scheme` 在同一个块里。宿主页的同名 token 继续进不来，而 `:host` 通过显式的 `--estela-host-*` 变量承接宿主的表面、文字、边框、强调色、圆角和字体族（`:root` / `html[data-theme]` 保持不动，确保 CLI 零像素变化）。 | 实测 | 3 |
 | A4 | `shell/theme.ts:21-28` | `apply()` 同时把 `data-theme` 写到元素上。 | 实测 | 3 |
 | A5 | `i18n/locale.ts:46-49` | `applyLocale()` 同时把 `lang` 写到元素上，这样内部的 `:lang()` 不再跟随宿主页。 | 实测 | 3 |
 | A6 | `main.tsx:14` | embed 入口把元素的 shadow root 作为挂载节点。 | 实测 | 4 |
@@ -318,7 +318,7 @@ export class StaleError extends Error {}
 | B5 | `workspace/inspector/inspector.tsx:80` | 方向键聚焦在标签列表里找到的下一个标签，不通过 `document.getElementById`。 | 实测 | 3 |
 | B6 | `shell/theme.ts:27` | 删除 `root.dataset.kbTheme`；没有任何地方读它。 | 实测 | 3 |
 | B7 | `workspace/export-report.tsx:73` | 不改。该组件不在 embed 入口里。 | 只读 | — |
-| B8 | `shell/connection-lost.tsx:19`、`browser/session-browser.tsx:211`、`shell/top-bar.tsx:31`、`:40`、`workspace/error-panel.tsx:47` | 元素里没有 `location.reload()`，也没有 `#/"` 链接：`TopBar` 和 `ErrorPanel` 接收一个 `embedded` 标志，在链接的位置绘制纯文本；另外两个文件不在 embed 入口里。 | 只读 | 3、5 |
+| B8 | `shell/connection-lost.tsx:19`、`browser/session-browser.tsx:211`、`workspace/workspace.tsx`、`workspace/session-header.tsx`、`workspace/error-panel.tsx:47` | 元素里没有 `location.reload()`、`#/` 链接、Estela `TopBar` 和重复的会话 `h1`：`embedded` 模式下 `Workspace` 省略 `TopBar`、在底部用 `border-b border-border` 与 dsh 输入区干净分隔并绑定 `⌘K` / `Ctrl+K`（跳过宿主可编辑输入控件），`SessionHeader` 绘制单行紧凑统计栏加「跳转」按钮；`ErrorPanel` 省略返回链接和刷新；另外两个文件不在 embed 入口里。 | 只读 + 冒烟 | 3、5 |
 | B9 | `shell/report.ts:62` | 不改。报告模式不在 embed 入口里。 | 只读 | — |
 | B10 | embed 入口 | document 级的一个 `<style>` 元素，只装 `@property` 规则（T19）。 | 实测，两种方式都测了 | 4 |
 
@@ -480,9 +480,12 @@ core 通过 `present` 脱敏（`packages/server/src/store/trace-store.ts:76`）�
 
 `src/client/appearance.ts` 把 `ctx.theme.getTheme().active.colorScheme` 映射为 `data-theme`，把
 `ctx.locale.getLocale().active` 映射为 `lang`（`zh` 映射为 `zh-CN`，其余映射为 `en`，规则同
-`apps/web/src/i18n/locale.ts:36-43`）。它在 `ctx.effect` 里订阅 `ctx.on('theme/change', ...)` 和
-`ctx.on('locale/change', ...)`，并在已挂载的元素上设置属性，不写 `document.documentElement`。标签页名「Estela」是
-产品名，不翻译。
+`apps/web/src/i18n/locale.ts:36-43`），并把 dsh 实时的 `--dsw-*` / `--ds-*` 令牌（优先读取
+`snapshot.active.tokens` 里的主题覆写，其余通过 `var(--dsw-...)` 动态引用，不硬编码色值）写入
+`<estela-workspace>` 的 `--estela-host-*` 自定义属性（背景、次级/检查器表面、选中芯片底色、悬停底色、边框、文字层级、
+链接与选中强调色、错误色、正文字体族与等宽字体族、控件圆角）。某个宿主变量不存在时，CSS 自动回退到 `:host` 自带的
+Estela 配色。它在 `ctx.effect` 里订阅 `ctx.on('theme/change', ...)` 和 `ctx.on('locale/change', ...)`，销毁时清除
+`--estela-host-*` 属性，从不写 `document.documentElement`。标签页名「Estela」是产品名，不翻译。
 
 ### 3.5 包、清单与构建产物
 

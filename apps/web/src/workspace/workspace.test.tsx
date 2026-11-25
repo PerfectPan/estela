@@ -95,17 +95,29 @@ describe('Workspace shell split', () => {
     expect(withExport.querySelector('[data-testid="export-report"]')).not.toBeNull()
   })
 
-  it('focuses the ledger inside its own shadow root when Jump to is clicked', async () => {
+  it('focuses the ledger inside its own shadow root when Jump to is clicked or Ctrl+K is pressed', async () => {
     const host = document.body.appendChild(document.createElement('div'))
     const shadow = host.attachShadow({ mode: 'open' })
     mount(() => <Workspace traceId="t1" connect={fakeConnect()} embedded />, shadow)
     await tick()
-    const jump = [...shadow.querySelectorAll('button')].find(button => button.textContent.includes('⌘K'))
+    const jump = shadow.querySelector<HTMLButtonElement>('[data-testid="jump-to"]')
     const ledger = shadow.querySelector('[data-testid="ledger"]')
-    expect(jump).toBeDefined()
+    expect(jump).not.toBeNull()
+    expect(jump!.textContent).toContain('⌘K')
     expect(ledger).not.toBeNull()
-    jump?.click()
+    jump!.click()
     expect(shadow.activeElement).toBe(ledger)
+
+    jump!.focus()
+    expect(shadow.activeElement).toBe(jump)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
+    expect(shadow.activeElement).toBe(ledger)
+
+    // Typing inside a host input (such as a composer) must not be hijacked by ⌘K.
+    const hostInput = document.body.appendChild(document.createElement('input'))
+    hostInput.focus()
+    hostInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+    expect(document.activeElement).toBe(hostInput)
   })
   it('moves inspector tab focus with arrow keys inside a shadow root', () => {
     const host = document.body.appendChild(document.createElement('div'))
@@ -134,12 +146,16 @@ describe('Workspace shell split', () => {
 })
 
 describe('embedded mode (B8)', () => {
-  it('TopBar omits #/ links and theme/language switches when embedded, and keeps them on a page', () => {
-    const embedded = mount(() => <TopBar crumbs={['proj', 'title']} embedded />)
+  it('Workspace omits TopBar and session h1 when embedded, keeping compact stats and Jump to, while page mode keeps TopBar', async () => {
+    const embedded = mount(() => <Workspace traceId="t1" connect={fakeConnect()} embedded />)
+    await tick()
+    expect(embedded.querySelector('nav')).toBeNull()
+    expect(embedded.querySelector('h1')).toBeNull()
     expect(embedded.querySelectorAll('a').length).toBe(0)
     expect(embedded.querySelector('[data-testid="theme-switch"]')).toBeNull()
     expect(embedded.querySelector('[data-testid="language-switch"]')).toBeNull()
-    expect(embedded.querySelector('nav')?.textContent).toContain('Session')
+    expect(embedded.querySelector('[data-testid="embedded-header"]')).not.toBeNull()
+    expect(embedded.querySelector('[data-testid="jump-to"]')).not.toBeNull()
     dispose?.()
 
     const page = mount(() => <TopBar crumbs={['proj', 'title']} />)

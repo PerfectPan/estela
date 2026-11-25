@@ -20,6 +20,7 @@ import {
   type RunningDsh,
 } from './dsh-harness.ts'
 import {
+  assertEmbeddedChromeAndJump,
   assertProfileHasNoPlugin,
   assertWorkspaceHeightBounds,
   cookieHeaderOf,
@@ -158,7 +159,7 @@ describe('@rivus/dsh-estela smoke on dsh web', () => {
       expect(tabs).toContain('Estela')
       expect(tabs.indexOf('Estela')).toBeGreaterThan(tabs.indexOf('Trajectory'))
 
-      // DSH-2 + T25 + DSH-10: verify workspace, full available height, redaction, and untouched <html>.
+      // DSH-2 + T25 + DSH-10: verify compact embedded header, host token adoption, height, redaction, and untouched <html>.
       const geometry = await readWorkspaceGeometry(page)
       expect(geometry.hasTimeline).toBe(true)
       expect(geometry.hasLedger).toBe(true)
@@ -169,6 +170,7 @@ describe('@rivus/dsh-estela smoke on dsh web', () => {
       expect(geometry.shadowText.includes('~/projects/app')).toBe(true)
       expect(geometry.htmlDataTheme).toBeNull()
       assertWorkspaceHeightBounds(geometry)
+      await assertEmbeddedChromeAndJump(page, geometry)
 
       // Click a request row and confirm all 5 inspector tabs render cleanly.
       await page.locator('estela-workspace [data-testid="ledger"] [role=option]').nth(1).click({ timeout: 5_000 })
@@ -369,6 +371,9 @@ describe('@rivus/dsh-estela smoke on dsh web', () => {
         const state = await readWorkspaceGeometry(page)
         expect(state.theme).toBe('light')
         expect(state.lang).toBe('zh-CN')
+        expect(state.background).toBe(state.bodyBackground)
+        expect(state.hasTopBar).toBe(false)
+        expect(state.hasEmbeddedHeader).toBe(true)
         expect(state.htmlLang).toBe(htmlBefore.lang)
         expect(state.htmlDataTheme).toBe(htmlBefore.dataTheme)
         expect(state.htmlStyle).toBe(htmlBefore.style)

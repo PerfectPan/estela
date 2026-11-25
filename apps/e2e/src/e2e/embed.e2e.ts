@@ -124,14 +124,31 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
         hostLang: document.documentElement.lang,
         hostTheme: document.documentElement.dataset.theme,
         background: getComputedStyle(el).backgroundColor,
-        nav: el.shadowRoot!.querySelector('nav')?.textContent ?? '',
+        hasNav: el.shadowRoot!.querySelector('nav') !== null,
+        hasH1: el.shadowRoot!.querySelector('h1') !== null,
+        header: el.shadowRoot!.querySelector('[data-testid="embedded-header"]')?.textContent ?? '',
       }
     })
 
     expect(lightZh.hostLang).toBe('fr')
     expect(lightZh.hostTheme).toBe('host-page')
     expect(lightZh.background).toBe('rgb(251, 250, 248)')
-    expect(lightZh.nav).toContain('会话')
+    expect(lightZh.hasNav).toBe(false)
+    expect(lightZh.hasH1).toBe(false)
+    expect(lightZh.header).toContain('轮次')
+    expect(lightZh.header).toContain('跳转')
+
+    // Explicit `--estela-host-*` tokens override the shadow palette while hostile `:root` vars stay ignored.
+    const hostAdopted = await page.evaluate(() => {
+      const el = document.getElementById('ws')!
+      el.style.setProperty('--estela-host-bg', 'rgb(255, 255, 255)')
+      const adopted = getComputedStyle(el).backgroundColor
+      el.style.removeProperty('--estela-host-bg')
+      const restored = getComputedStyle(el).backgroundColor
+      return { adopted, restored }
+    })
+    expect(hostAdopted.adopted).toBe('rgb(255, 255, 255)')
+    expect(hostAdopted.restored).toBe('rgb(251, 250, 248)')
 
     await page.evaluate(() => window.__embed!.disconnect())
     await expect.poll(() => page.evaluate(() => document.querySelectorAll('style[data-estela-shared]').length)).toBe(0)
@@ -154,18 +171,27 @@ test('A7, A8, B8: Jump to, inspector arrow keys, failed load, and Try again neve
     expect(page.url()).toBe(opened.url)
     expect(opened.navigations()).toBe(1)
 
-    // Embedded chrome omits #/ links, theme/language switches, and Export report.
+    // Embedded chrome omits TopBar, session h1, #/ links, theme/language switches, and Export report.
+    await expect(ws.locator('nav')).toHaveCount(0)
+    await expect(ws.locator('h1')).toHaveCount(0)
+    await expect(ws.getByTestId('embedded-header')).toBeVisible()
     await expect(ws.locator('a[href^="#"]')).toHaveCount(0)
     await expect(ws.getByTestId('theme-switch')).toHaveCount(0)
     await expect(ws.getByTestId('language-switch')).toHaveCount(0)
     await expect(ws.getByTestId('export-report')).toHaveCount(0)
 
-    // Jump to focuses the ledger inside the shadow root without touching location.href.
+    // Jump to button and Ctrl+K shortcut focus the ledger inside the shadow root without touching location.href.
     await ws.getByRole('button', { name: /Jump to/ }).click()
     const focusedLedger = await page.evaluate(() =>
       document.getElementById('ws')?.shadowRoot?.activeElement?.getAttribute('data-testid'),
     )
     expect(focusedLedger).toBe('ledger')
+    await ws.getByTestId('jump-to').focus()
+    await page.keyboard.press('Control+k')
+    const focusedByShortcut = await page.evaluate(() =>
+      document.getElementById('ws')?.shadowRoot?.activeElement?.getAttribute('data-testid'),
+    )
+    expect(focusedByShortcut).toBe('ledger')
     expect(page.url()).toBe(opened.url)
     expect(opened.navigations()).toBe(1)
 
