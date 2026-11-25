@@ -4,13 +4,15 @@ import type { SessionsSignal } from '@rivus/estela-rpc'
 import { createNodePlatform } from '@rivus/agent-kit/node'
 import { err, ok } from '@rivus/agent-kit/catalog'
 import { existsSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import process from 'node:process'
 import { openSessionIndex } from '@rivus/estela-runtime-node'
+import type { ShellPlatform } from '../sessions/load-session.ts'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
-import { SessionCatalog } from './session-catalog.ts'
+import { SessionCatalog, type AgentProgress } from './session-catalog.ts'
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '../../../..')
 const dirs: string[] = []
@@ -88,6 +90,92 @@ describe('session catalog', () => {
     expect(cachedPlain?.pending).toBe(false)
     expect(cachedPlain?.requests).toBe(plain?.requests)
     index.close()
+  })
+
+  // chmod cannot make a directory unreadable on Windows.
+  it.skipIf(process.platform === 'win32').each([
+    // The root's parent has no search permission: the `stat` of the root fails.
+    { locked: '.claude', syscall: 'stat' },
+    // The root itself has no read permission: the kit's `discover` fails for the root.
+    { locked: '.claude/projects', syscall: 'scandir' },
+  ])('lists the other agents when $locked cannot be read, and says that root', async ({ locked, syscall }) => {
+    const home = await tempHome()
+    const root = join(home, '.claude/projects')
+    await mkdir(root, { recursive: true })
+    await cp(join(repo, 'fixtures/sessions/grok/conformance/plain'), join(home, '.grok/sessions/plain'), {
+      recursive: true,
+    })
+    const index = openSessionIndex({ summaryVersion: 1, file: join(home, 'index.sqlite') })
+    const lockedDir = join(home, locked)
+    await chmod(lockedDir, 0o000)
+    try {
+      const catalog = new SessionCatalog({ platform: createNodePlatform({ home, env: {} }), index })
+      let progress: readonly AgentProgress[] = []
+      await catalog.start(agents => {
+        progress = agents
+      })
+      const listed = await catalog.listSessions()
+      expect(listed.rows.filter(row => row.agent === 'grok')).toHaveLength(1)
+      const reason = `EACCES: permission denied, ${syscall} '~/.claude/projects'`
+      expect(listed.rows.filter(row => row.agent === 'claude-code')).toMatchObject([
+        { pending: false, error: { reason, file: '~/.claude/projects' } },
+      ])
+      expect(catalog.unreadableRoots).toEqual([
+        { agent: 'claude-code', displayName: 'Claude Code', path: '~/.claude/projects', reason, code: 'EACCES' },
+      ])
+      expect(JSON.stringify([listed, catalog.unreadableRoots])).not.toContain(home)
+      // The per-agent progress line names the root too.
+      expect(progress.find(agent => agent.name === 'Claude Code')).toMatchObject({
+        done: true,
+        unreadable: '~/.claude/projects',
+      })
+      catalog.close()
+    } finally {
+      await chmod(lockedDir, 0o700)
+    }
+  })
+
+  it('still fails the start for a failure outside reading the agent roots', async () => {
+    const home = await tempHome()
+    const root = join(home, 'sessions')
+    await mkdir(root)
+    const file = join(root, '1.jsonl')
+    await writeFile(file, 'x')
+    const adapter: SessionAdapter = {
+      specificationVersion: 'sessions-v1',
+      agent: 'fake',
+      displayName: 'Fake',
+      home: { defaultPath: [] },
+      capabilities: ['requests'],
+      roots: () => [root],
+      // The head is yielded without a stat, so the catalog's own stat of the file is the first one.
+      async *discover() {
+        yield { ref: { agent: 'fake', path: file }, lastActiveAt: 1_000, sizeBytes: 1 }
+      },
+      async detect() {
+        return false
+      },
+      async load() {
+        return ok(transcript(file, 'prompt'))
+      },
+    }
+    const real = createNodePlatform({ home, env: {} })
+    // The root reads; the `stat` of the session file, made for its cache key, fails.
+    const failing: ShellPlatform = {
+      ...real,
+      fs: {
+        ...real.fs,
+        stat: (path, options) => {
+          if (path === file) {
+            throw Object.assign(new Error("EIO: i/o error, stat '1.jsonl'"), { code: 'EIO' })
+          }
+          return real.fs.stat(path, options)
+        },
+      },
+    }
+    const catalog = new SessionCatalog({ adapters: { fake: adapter }, platform: failing, noIndex: true })
+    await expect(catalog.start()).rejects.toThrow("EIO: i/o error, stat '1.jsonl'")
+    catalog.close()
   })
 
   it('redacts titles and prompts by default, or with the caller’s rule when one is passed', async () => {

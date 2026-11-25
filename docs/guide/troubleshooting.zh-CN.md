@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/troubleshooting.md 为准。
 
-<!-- source-blob: 57c5dd06ee81e38466e1ef99d389100583e0dea7 -->
+<!-- source-blob: 8c136b5ce4937cc3258c677ecc3cfaba6c49bfb8 -->
 
 # 故障排查
 
@@ -28,6 +28,10 @@ CLI 在加载其他任何模块前会先检查 Node.js 版本。运行 `node --v
 ## 显示 0 个会话的代理
 
 侧栏会显示 Estela 检查过的目录。如果你的会话位于其他路径，请在 Estela 的运行环境中设置对应代理的主目录覆盖变量（`ANTIGRAVITY_GEMINI_DIR`、`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`DSH_HOME`、`DIMCODE_HOME`、`GEMINI_CLI_HOME`、`GROK_HOME`、`KIMI_CODE_HOME`、`XDG_DATA_HOME`、`PI_CODING_AGENT_DIR`、`QODER_CONFIG_DIR`、`ZCODE_STORAGE_DIR`；见[支持的代理](supported-agents.zh-CN.md)），或通过路径直接打开该会话。
+
+## “会话目录不可读”
+
+Estela 无法读取某个代理的会话目录，例如权限设置使当前用户无法访问的 `~/.claude`。Estela 会启动并列出其他代理的会话。该代理的列表中会显示一条「无法读取」的记录及其原因，终端会说明是哪个目录、原因是什么（目录显示为 `~`）。请为当前用户授予读取该目录及其上级目录的权限，或将该代理的主目录覆盖变量（见上文）指向你能读取的目录，然后重新启动。`--no-index` 对此没有帮助：无论是否使用索引，Estela 都要读取这些目录来列出会话。
 
 ## 索引问题
 

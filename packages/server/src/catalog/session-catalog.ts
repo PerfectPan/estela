@@ -10,7 +10,14 @@ import type { Trace } from '@rivus/estela-schema'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
 import { openSessionIndex } from '@rivus/estela-runtime-node'
-import { agentState, discoverRows, progressOf, type AgentProgress, type AgentState } from './discover.ts'
+import {
+  agentState,
+  discoverRows,
+  progressOf,
+  type AgentProgress,
+  type AgentState,
+  type UnreadableRoot,
+} from './discover.ts'
 import {
   activityLabel,
   indexHeadOf,
@@ -31,7 +38,7 @@ import { SummaryQueue } from './summary-queue.ts'
 import { snapshotPricing } from '@rivus/estela-kernel'
 import { adapterDisplayName, builtinAdapters, keepsSessionsInDatabase } from '../sessions/adapters.ts'
 
-export type { AgentProgress } from './discover.ts'
+export type { AgentProgress, UnreadableRoot } from './discover.ts'
 
 const CONCURRENCY = 4
 /** A file at least this large is summarized alone (a 355 MB Codex log loads to about 3 GB). */
@@ -150,6 +157,22 @@ export class SessionCatalog {
   get indexUnavailable(): string | undefined {
     // The reason names the cache path: always `~`, whatever the server's `redacts` says.
     return this.index.unavailable ? this.redaction.text(this.index.unavailable) : undefined
+  }
+
+  /**
+   * The roots the `discover` pass could not read as a whole, empty before it has run. Each is also a "could not
+   * read" row of its agent; the terminal says them with `~`, whatever the server's `redacts` says.
+   */
+  get unreadableRoots(): UnreadableRoot[] {
+    return this.agentStates.flatMap(state =>
+      state.unreadable.map(root => ({
+        agent: state.adapter.agent,
+        displayName: adapterDisplayName(state.adapter),
+        path: this.redaction.text(root.path),
+        reason: this.redaction.text(root.message),
+        code: root.code,
+      })),
+    )
   }
 
   /** `true` when `start` served rows from the index while `discover` runs. */

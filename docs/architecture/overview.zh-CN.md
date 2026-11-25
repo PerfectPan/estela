@@ -55,7 +55,7 @@ one session (build <path>, or export-report on the dev server)
 
 ## 会话索引与会话目录
 
-`packages/server/src/catalog/session-catalog.ts` 是会话目录。它为每个内置 kit 适配器调用 `roots(home)` 和 `discover`，对每个文件执行 stat 以获取缓存键，并通过 `list-sessions` 提供列表行。不存在的根目录会生成一条 `count: 0` 并附带已检查路径的代理条目。`discover` 或 `summarize` 无法读取的文件会成为带有 `error`（原因、文件、行号）的行。Claude Code 的子代理文件由 kit 适配器折入其父会话。
+`packages/server/src/catalog/session-catalog.ts` 是会话目录。它为每个内置 kit 适配器调用 `roots(home)` 和 `discover`，对每个文件执行 stat 以获取缓存键，并通过 `list-sessions` 提供列表行。不存在的根目录会生成一条 `count: 0` 并附带已检查路径的代理条目。`discover` 或 `summarize` 无法读取的文件会成为带有 `error`（原因、文件、行号）的行。`stat` 失败的根目录（进程无法访问的代理目录）会成为该根目录的一条这样的行；其他根目录和代理仍会列出，入口层会在终端说明该根目录。Claude Code 的子代理文件由 kit 适配器折入其父会话。
 
 摘要按最近活动从新到旧每次并发 4 个运行；`list-sessions({ first })` 会将屏幕上的行移到队列前端，64 MB 及以上的文件单独运行。每次摘要都调用 kit 的 `summarizeSession`：如果适配器有有界遍历就使用它（在不持有转录的前提下统计数字和主代理上的用户提示词供搜索），否则执行折叠加载。提示词仅包含用户自身输入：kit 的规则会跳过压缩摘要、元说明、斜杠命令包装、中断以及代理注入的文本。完成的摘要每批次在单个事务中写入，并通过 DevFrame 共享状态 `estela:sessions`（`{ revision, pending }`）广播；浏览器随后请求 `list-sessions({ since })` 获取发生变更的行。搜索通过 `list-sessions({ query })` 发起并在索引中运行；当指定 `--no-index`、索引不可用或索引繁忙时，在内存中对标题和首条提示词运行相同的子串匹配规则。
 

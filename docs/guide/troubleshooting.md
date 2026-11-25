@@ -25,6 +25,10 @@ A single line that is not JSON does not cause this: it is skipped and the rest o
 
 The rail shows the folder Estela checked. If your sessions are elsewhere, set the agent's home override in the environment Estela runs in (`ANTIGRAVITY_GEMINI_DIR`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `DIMCODE_HOME`, `GEMINI_CLI_HOME`, `GROK_HOME`, `KIMI_CODE_HOME`, `XDG_DATA_HOME`, `PI_CODING_AGENT_DIR`, `QODER_CONFIG_DIR`, `ZCODE_STORAGE_DIR`; see [Supported agents](supported-agents.md)), or open the session by path.
 
+## "Session folder unreadable"
+
+Estela could not read one of an agent's session folders, for example a `~/.claude` whose permissions keep your user out. Estela starts and lists the other agents. That agent's list shows one "Could not read" row with the reason, and the terminal names the folder and the reason (the folder as `~`). Give your user permission to read that folder and the folders above it, or set the agent's home override (see above) to a folder you can read, then start again. `--no-index` does not help: Estela reads these folders to list sessions, with or without the index.
+
 ## Index problems
 
 The [session index](privacy.md#the-session-index) is only a cache. If it cannot be opened (for example a read-only cache folder), Estela prints one warning and runs without it. If indexing fails at startup it exits with `Could not index sessions: <reason>` and suggests `--no-index`.

@@ -14,6 +14,7 @@ import { createServerOriginGate, dialableOrigin, secureDevframeDir, unbracketHos
 import { mcpAuthorization } from '../mcp-authorization.ts'
 import { openBrowser } from '../open-browser.ts'
 import { sayIndexFromCache, startSessionIndex } from '../ui/index-progress.ts'
+import { sayUnreadableRoots, unreadableRootLine } from '../ui/unreadable-roots.ts'
 import { pickSession, sayMcpRoute, sayReady, sayStart, sayStoreWarning, sayWarning, startLoad } from '../ui/terminal.ts'
 
 export interface DevInput {
@@ -246,6 +247,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     }
 
     await indexSessions(catalog)
+    sayUnreadableRoots(catalog, root => sayWarning(`Session folder unreadable: ${unreadableRootLine(root)}`))
 
     if (input.pick) {
       await catalog.discovered()

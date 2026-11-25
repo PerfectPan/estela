@@ -1,3 +1,4 @@
+import * as z from 'zod/mini'
 import {
   isSessionHead,
   sessionAdapterHome,
@@ -15,6 +16,14 @@ import { errorRow, rowFromHead, type LiveRow } from './rows.ts'
 /** Parallel `stat` calls while building rows. */
 const STAT_BATCH = 64
 
+const errnoShape = z.object({ code: z.optional(z.string()) })
+
+/** The errno code of a caught I/O error, when it carries one. */
+function errnoOf(error: unknown): string | undefined {
+  const parsed = z.safeParse(errnoShape, error)
+  return parsed.success ? parsed.data.code : undefined
+}
+
 export interface AgentState {
   adapter: SessionAdapter
   /** Files whose head and tail were read. */
@@ -24,6 +33,22 @@ export interface AgentState {
   done: boolean
   found: string[]
   missing: string[]
+  /** Roots the pass could not read as a whole: the path, the failure's message, and its errno code. */
+  unreadable: { path: string; message: string; code: string | undefined }[]
+}
+
+/** An agent root the `discover` pass could not read as a whole: its sessions are not listed. */
+export interface UnreadableRoot {
+  /** The agent's id, as its rows carry it. */
+  agent: string
+  /** The product name the rail shows. */
+  displayName: string
+  /** The root, with `~` for the home directory. */
+  path: string
+  /** The failure, with `~` for the home directory. */
+  reason: string
+  /** The failure's errno code, when it carries one. */
+  code: string | undefined
 }
 
 export interface AgentProgress {
@@ -34,21 +59,26 @@ export interface AgentProgress {
   done: boolean
   /** Set when no root exists: the paths that were checked, with `~`. */
   checked?: string
+  /** Set once the agent is done and a root could not be reached: those paths, with `~`. */
+  unreadable?: string
 }
 
 export function agentState(adapter: SessionAdapter): AgentState {
-  return { adapter, read: 0, done: false, found: [], missing: [] }
+  return { adapter, read: 0, done: false, found: [], missing: [], unreadable: [] }
 }
 
 export function progressOf(states: readonly AgentState[], redact: Redactor): AgentProgress[] {
   return states.map(state => {
     const checked = state.done && state.found.length === 0 ? state.missing.map(redact).join(', ') : undefined
+    const unreadable =
+      state.done && state.unreadable.length > 0 ? state.unreadable.map(root => redact(root.path)).join(', ') : undefined
     return {
       name: adapterDisplayName(state.adapter),
       read: state.read,
       ...(state.total !== undefined ? { total: state.total } : {}),
       done: state.done,
       ...(checked ? { checked } : {}),
+      ...(unreadable ? { unreadable } : {}),
     }
   })
 }
@@ -56,7 +86,8 @@ export function progressOf(states: readonly AgentState[], redact: Redactor): Age
 /**
  * One `discover` pass over every agent: roots → head/tail reads → rows keyed by trace id.
  * Agents run side by side; each adapter's own `discover` stays sequential.
- * A missing root is recorded on the agent (S3). An unreadable file becomes an error row (S4).
+ * A missing root is recorded on the agent (S3). An unreadable file becomes an error row (S4), and so does
+ * a root that cannot be read: it fails its agent only, never the pass.
  */
 export async function discoverRows(
   states: readonly AgentState[],
@@ -75,9 +106,28 @@ export async function discoverRows(
       const heads: SessionHead[] = []
       const failed: { target: SessionRef; error: SessionListError; mtimeMs?: number }[] = []
       const home = sessionAdapterHome(state.adapter, { env: platform.env, home: platform.home })
+      /** Remembers a root the pass could not read as a whole, for the terminal: its reason and errno code. */
+      const rootUnreadable = (root: string, message: string, code: string | undefined): void => {
+        state.unreadable.push({ path: root, message, code })
+      }
+      /** The "could not read" row of a root that a failure kept from being read at all. */
+      const rootFailure = (root: string, message: string) => ({
+        target: { agent: state.adapter.agent, path: root },
+        error: { _tag: 'ReadFailed' as const, path: root, message },
+      })
       for (const root of state.adapter.roots(home)) {
-        // Symlinks resolved: the session files' own stat is the cache key.
-        const info = await platform.fs.stat(root, { followSymlinks: true })
+        let info: Awaited<ReturnType<ShellPlatform['fs']['stat']>>
+        try {
+          // Symlinks resolved: the session files' own stat is the cache key.
+          info = await platform.fs.stat(root, { followSymlinks: true })
+        } catch (error) {
+          // The kit's `stat` returns `undefined` for a missing root and throws for one it cannot reach,
+          // such as a `~/.claude` without search permission: that root is unreadable, and the pass goes on.
+          const message = errorMessage(error)
+          rootUnreadable(root, message, errnoOf(error))
+          failed.push(rootFailure(root, message))
+          continue
+        }
         if (info === undefined || info.kind !== 'dir') {
           state.missing.push(root)
           continue
@@ -100,6 +150,10 @@ export async function discoverRows(
               continue
             }
             const target = item.ref
+            // The kit's own failure for the root: the folder exists but could not be listed.
+            if (target.path === root) {
+              rootUnreadable(root, item.error.message, errnoOf(item.error.cause))
+            }
             // A directory failure keeps its error row but is not a file read: `read` counts
             // head-and-tail reads, and `total` lists files, so counting dirs shows 12/11.
             const probed = await platform.fs.stat(target.path, { followSymlinks: true })
@@ -114,10 +168,9 @@ export async function discoverRows(
             }
           }
         } catch (error) {
-          failed.push({
-            target: { agent: state.adapter.agent, path: root },
-            error: { _tag: 'ReadFailed', path: root, message: errorMessage(error) },
-          })
+          const message = errorMessage(error)
+          rootUnreadable(root, message, errnoOf(error))
+          failed.push(rootFailure(root, message))
         }
       }
       const perFile = new Map<string, number>()

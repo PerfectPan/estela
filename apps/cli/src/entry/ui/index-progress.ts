@@ -9,14 +9,22 @@ function count(agent: AgentProgress): string {
 
 /** Plain mode, one line per agent when done: `Claude Code: 4/4 files read`. */
 function formatIndexLine(agent: AgentProgress): string {
+  const unreadable = agent.unreadable ? `, could not read ${agent.unreadable}` : ''
   if (agent.checked) {
-    return `${agent.name}: 0 files, checked ${agent.checked}`
+    return `${agent.name}: 0 files, checked ${agent.checked}${unreadable}`
   }
-  return `${agent.name}: ${count(agent)} files read`
+  // No root was listed, so there is no total to count against.
+  if (agent.unreadable && agent.total === undefined) {
+    return `${agent.name}: 0 files${unreadable}`
+  }
+  return `${agent.name}: ${count(agent)} files read${unreadable}`
 }
 
 function formatTick(agent: AgentProgress): string {
-  return agent.checked ? `${agent.name} 0` : `${agent.name} ${count(agent)}`
+  if (agent.checked || (agent.unreadable && agent.total === undefined)) {
+    return `${agent.name} 0`
+  }
+  return `${agent.name} ${count(agent)}`
 }
 
 const TICK_MS = 80
