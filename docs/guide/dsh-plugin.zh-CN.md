@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/dsh-plugin.md 为准。
 
-<!-- source-blob: 607c0b91f3c9da55968082a724a0a4e7fd197644 -->
+<!-- source-blob: c82ecdba1f4f8e642deb62e5e363c17fb5385d34 -->
 
 # DeepSeek Harness 插件
 
@@ -19,6 +19,8 @@ dsh plugin --profile web add @rivus/dsh-estela
 仅支持 `web` profile；不支持 dsh Desktop 和 TUI profile。
 
 ## 视图显示的内容
+
+![dsh web 中的 Estela 视图：展示请求时间线、事件列表、上下文压缩标记与模型所见检查器](../assets/dsh-plugin-overview-light.webp)
 
 在 `dsh web` 的对话中切换到 **Estela** 标签页时，视图会显示该会话的工作区——与 `estela` 命令行对同一日志文件展示的内容一致：
 

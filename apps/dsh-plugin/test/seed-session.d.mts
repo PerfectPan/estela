@@ -4,6 +4,7 @@ export interface SeedSessionOptions {
   title?: string
   userText?: string
   repeats?: number
+  fixturePath?: string
 }
 
 export interface SeededSession {

@@ -16,6 +16,8 @@ Only the `web` profile is supported; dsh Desktop and the TUI profile are not sup
 
 ## What the View shows
 
+![Estela View inside dsh web showing the request timeline, event ledger, compaction marker, and Model saw inspector](../assets/dsh-plugin-overview-light.webp)
+
 When you select the **Estela** tab on a conversation in `dsh web`, the View shows the workspace for that session — the same content the `estela` command line shows for the same log file:
 
 - One row of session numbers above the timeline: duration, turns, requests, tokens, and list-price cost, plus compactions, subagents, and failed tool calls when the session has any. `dsh` already shows the session title, so the View does not repeat it.
