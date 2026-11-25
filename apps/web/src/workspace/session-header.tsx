@@ -5,6 +5,7 @@ import { Show } from 'solid-js'
 import { AgentMark } from '@/browser/agent-mark.tsx'
 import { SearchIcon } from '@/components/icons.tsx'
 import { Metric } from '@/components/metric.tsx'
+import type { MessageKey } from '@/i18n/locale.ts'
 import { locale, translate as t } from '@/i18n/locale.ts'
 import { escapeBidi } from '@/lib/preview.ts'
 import { formatDuration, formatInOut, formatNumber, formatOptional, formatPercent, formatStart } from '@/lib/format.ts'
@@ -16,6 +17,8 @@ import { costBasisText, costHeadline, totalCostDetail } from '@/lib/cost-text.ts
  * A number whose capability the agent does not declare is `undefined` and shows "—".
  */
 const dash = () => t('common.dash')
+/** The singular label for exactly one; a count the agent does not record ("—") keeps the plural. */
+const countLabel = (count: number | undefined, one: MessageKey, many: MessageKey) => t(count === 1 ? one : many)
 
 export function SessionHeader(props: {
   trace: Trace
@@ -43,26 +46,41 @@ export function SessionHeader(props: {
   const metrics = (compact: boolean) => (
     <>
       <Metric term compact={compact} value={duration()} label={t('workspace.duration')} />
-      <Metric term compact={compact} value={num(props.summary.turns)} label={t('workspace.turns')} />
-      <Metric term compact={compact} value={num(props.summary.requests)} label={t('workspace.requests')} />
+      <Metric
+        term
+        compact={compact}
+        value={num(props.summary.turns)}
+        label={countLabel(props.summary.turns, 'workspace.turn', 'workspace.turns')}
+      />
+      <Metric
+        term
+        compact={compact}
+        value={num(props.summary.requests)}
+        label={countLabel(props.summary.requests, 'workspace.request', 'workspace.requests')}
+      />
       <Metric term compact={compact} value={tokens()} label={t('workspace.tokensInOut')} />
       <Show when={!compact || compactions() > 0}>
         <Metric
           term
           compact={compact}
           value={num(props.summary.compactions)}
-          label={t(props.summary.compactions === 1 ? 'workspace.compaction' : 'workspace.compactions')}
+          label={countLabel(props.summary.compactions, 'workspace.compaction', 'workspace.compactions')}
         />
       </Show>
       <Show when={!compact || subagents() > 0}>
-        <Metric term compact={compact} value={num(props.summary.subagents)} label={t('workspace.subagents')} />
+        <Metric
+          term
+          compact={compact}
+          value={num(props.summary.subagents)}
+          label={countLabel(props.summary.subagents, 'workspace.subagent', 'workspace.subagents')}
+        />
       </Show>
       <Show when={!compact || failed() > 0}>
         <Metric
           term
           compact={compact}
           value={num(props.summary.failedTools)}
-          label={t('workspace.failedTools')}
+          label={countLabel(props.summary.failedTools, 'workspace.failedTool', 'workspace.failedTools')}
           failed={failed() > 0}
         />
       </Show>

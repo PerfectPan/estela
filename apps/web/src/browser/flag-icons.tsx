@@ -1,5 +1,5 @@
 import { Show } from 'solid-js'
-import { translate as t } from '@/i18n/locale.ts'
+import { plural, translate as t } from '@/i18n/locale.ts'
 
 export function FlagIcons(props: { compactions?: number; subagents?: number; failedTools?: number }) {
   return (
@@ -45,7 +45,7 @@ export function FlagIcons(props: { compactions?: number; subagents?: number; fai
       <Show when={(props.failedTools ?? 0) > 0}>
         <span
           class="flex items-center gap-[3px] text-destructive"
-          title={t('browser.failedTools', { count: props.failedTools ?? 0 })}
+          title={plural(props.failedTools ?? 0, 'browser.failedToolsOne', 'browser.failedTools')}
         >
           <svg
             width="13"
