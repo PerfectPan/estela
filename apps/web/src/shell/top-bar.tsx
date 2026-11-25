@@ -94,13 +94,17 @@ export function TopBar(props: {
         <button
           type="button"
           class="flex h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-[13px] whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-keyshortcuts="Meta+K Control+K"
           onClick={() => props.onJump?.()}
         >
           <Show when={props.searchIcon}>
             <SearchIcon />
           </Show>
           <span>{t(props.jumpLabel ?? 'common.goToEvents')}</span>
-          <kbd class="rounded border border-input px-[5px] py-px font-mono text-[11px] leading-none text-subtle">
+          <kbd
+            aria-hidden="true"
+            class="rounded border border-input px-[5px] py-px font-mono text-[11px] leading-none text-subtle"
+          >
             ⌘K
           </kbd>
         </button>

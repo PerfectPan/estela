@@ -150,12 +150,15 @@ export function SessionHeader(props: {
           <button
             type="button"
             class="flex h-[26px] shrink-0 items-center gap-2 rounded-[var(--radius)] border border-input bg-background px-2.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
-            title={t('common.goToEvents')}
             data-testid="jump-to"
+            aria-keyshortcuts="Meta+K Control+K"
             onClick={() => props.onJump?.()}
           >
             <span>{t('common.goToEvents')}</span>
-            <kbd class="rounded border border-input px-1 py-px font-mono text-[10.5px] leading-none text-subtle">
+            <kbd
+              aria-hidden="true"
+              class="rounded border border-input px-1 py-px font-mono text-[10.5px] leading-none text-subtle"
+            >
               ⌘K
             </kbd>
           </button>

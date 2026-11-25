@@ -181,7 +181,7 @@ test('A7, A8, B8: Go to events, inspector arrow keys, failed load, and Try again
     await expect(ws.getByTestId('export-report')).toHaveCount(0)
 
     // Go to events button and Ctrl+K shortcut focus the ledger inside the shadow root without touching location.href.
-    await ws.getByRole('button', { name: 'Go to events' }).click()
+    await ws.getByRole('button', { name: 'Go to events', exact: true }).click()
     const focusedLedger = await page.evaluate(() =>
       document.getElementById('ws')?.shadowRoot?.activeElement?.getAttribute('data-testid'),
     )

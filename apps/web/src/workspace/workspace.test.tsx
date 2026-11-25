@@ -113,11 +113,14 @@ describe('Workspace shell split', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))
     expect(shadow.activeElement).toBe(ledger)
 
-    // Typing inside a host input (such as a composer) must not be hijacked by ⌘K.
+    // Typing inside a host input (such as a composer) must not be hijacked by ⌘K: the focus stays
+    // and the host's own key handling still receives the event.
     const hostInput = document.body.appendChild(document.createElement('input'))
     hostInput.focus()
-    hostInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+    const hostKey = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true })
+    hostInput.dispatchEvent(hostKey)
     expect(document.activeElement).toBe(hostInput)
+    expect(hostKey.defaultPrevented).toBe(false)
   })
   it('labels the top bar button with what it does, draws no search icon, and focuses the ledger from it in page mode', async () => {
     const page = mount(() => <Workspace traceId="t1" connect={fakeConnect()} />)
