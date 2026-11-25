@@ -4,7 +4,7 @@ import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
 import * as z from 'zod/mini'
 import { openLogPath, smokeEnv, start, waitFor, type CliHome, type Server } from './cli-process.ts'
-import { mcpClient, sessions } from './mcp-client.ts'
+import { isProtocolMessage, mcpClient, sessions } from './mcp-client.ts'
 import { repo } from './prepare-run.ts'
 
 const ctx = inject('smoke')
@@ -13,8 +13,6 @@ const warning = (syscall: 'stat' | 'scandir'): string =>
   `Session folder unreadable: Claude Code ~/.claude/projects (EACCES: permission denied, ${syscall} '~/.claude/projects'); `
   + 'its sessions could not be read. '
   + 'Check that your user has read permission (r) on this folder and enter permission (x) on it and on the folders above it.'
-
-const protocolMessage = z.object({ jsonrpc: z.string() })
 
 /** `Ready: <url>#/`. No session is launched, so `readyUrl`, which reads a launched session's id, does not match. */
 function ready(output: { stdout: string }): boolean {
@@ -72,13 +70,19 @@ describe.skipIf(cannotLock)('#171: one agent folder that cannot be read', () => 
 
   afterAll(async () => {
     // The permissions first, on their own: a server that fails to stop must not leave a mode 000 folder behind.
+    let unrestored: string[] = []
     try {
       // Settled: one folder that cannot be restored must not keep the others at mode 000.
-      await Promise.allSettled(locked.map(dir => chmod(dir, 0o700)))
+      const restored = await Promise.allSettled(locked.map(dir => chmod(dir, 0o700)))
+      unrestored = locked.filter((_, index) => restored[index]?.status === 'rejected')
     } finally {
       for (const server of servers) {
         await server.stop()
       }
+    }
+    // Raised once the processes are gone too, naming the folders that are still locked.
+    if (unrestored.length > 0) {
+      throw new Error(`could not restore the permissions of: ${unrestored.join(', ')}`)
     }
   })
 
@@ -125,10 +129,14 @@ describe.skipIf(cannotLock)('#171: one agent folder that cannot be read', () => 
     await client.initialize()
     const listed = await client.call('estela_list_sessions', { agent: 'grok' })
     expect(listed.isError).toBe(false)
-    expect(z.parse(sessions, JSON.parse(listed.text)).sessions).toHaveLength(1)
-    // Every stdout line is a JSON-RPC message, and stderr has no escape sequences.
+    const rows = z.parse(sessions, JSON.parse(listed.text)).sessions
+    // The Grok session, and not a "could not read" row.
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ agent: 'grok' })
+    expect(rows[0]?.error).toBeUndefined()
+    // Every stdout line is a whole JSON-RPC message, and stderr has no escape sequences.
     for (const line of client.lines()) {
-      expect(z.parse(protocolMessage, JSON.parse(line)).jsonrpc, line).toBe('2.0')
+      expect(isProtocolMessage(line), line).toBe(true)
     }
     expect(server.output().stderr).not.toContain('\u001B')
     expectRedacted(server.output(), home.home)

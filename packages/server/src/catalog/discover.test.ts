@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vite-plus/test'
 import type { ShellPlatform } from '../sessions/load-session.ts'
+import { homeRedaction } from '../sessions/redaction.ts'
 import { SessionCatalog, type AgentProgress } from './session-catalog.ts'
 
 const dirs: string[] = []
@@ -64,6 +65,9 @@ const head = (agent: string, path: string, lastActiveAt: number) => ({
   lastActiveAt,
   sizeBytes: 1,
 })
+
+/** The path as the catalog shows it: this platform's separators, with `~` for the home directory. */
+const shown = (home: string, path: string): string => homeRedaction(home).text(path)
 
 /** An I/O error as Node reports it, with its errno code. */
 function ioError(message: string, code: string): Error {
@@ -145,9 +149,67 @@ describe('discover pass', () => {
     }
     await new Promise(resolve => setImmediate(resolve))
     release()
-    expect(await rootsWhenThePassFailed).toEqual(['~/.claude/projects'])
+    expect(await rootsWhenThePassFailed).toEqual([shown(home, unreadable)])
     // The failure still ends the start.
     await expect(started).rejects.toThrow("EIO: i/o error, stat '1.jsonl'")
+    catalog.close()
+  })
+
+  it('throws the failure that happened first, not the one of the first agent in the list', async () => {
+    const home = await tempHome()
+    // Listed first, fails second; listed second, fails first.
+    const later = join(home, 'later')
+    const sooner = join(home, 'sooner')
+    const fileOf = (dir: string) => join(dir, 'session.jsonl')
+    for (const dir of [later, sooner]) {
+      await mkdir(dir)
+      await writeFile(fileOf(dir), 'x')
+    }
+    let release!: () => void
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    const laterError = ioError("EACCES: permission denied, stat 'later/session.jsonl'", 'EACCES')
+    const soonerError = ioError("EIO: i/o error, stat 'sooner/session.jsonl'", 'EIO')
+    let soonerFailed = false
+    const platform = platformFailingAt(home, path => {
+      if (path === fileOf(later)) {
+        return gate.then(() => laterError)
+      }
+      if (path === fileOf(sooner)) {
+        soonerFailed = true
+        return soonerError
+      }
+      return undefined
+    })
+    const adapters = {
+      later: adapter(
+        'later',
+        'Later',
+        () => [later],
+        async function* () {
+          yield head('later', fileOf(later), 1_000)
+        },
+      ),
+      sooner: adapter(
+        'sooner',
+        'Sooner',
+        () => [sooner],
+        async function* () {
+          yield head('sooner', fileOf(sooner), 1_000)
+        },
+      ),
+    }
+    const catalog = new SessionCatalog({ adapters, platform, noIndex: true })
+    const started = catalog.start()
+    while (!soonerFailed) {
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    await new Promise(resolve => setImmediate(resolve))
+    release()
+    const thrown: unknown = await started.catch(error => error)
+    // The very error object, as `Promise.all` would have thrown it.
+    expect(thrown).toBe(soonerError)
     catalog.close()
   })
 
@@ -181,7 +243,7 @@ describe('discover pass', () => {
     const listed = await catalog.listSessions()
     expect(listed.rows.filter(row => !row.error).map(row => row.agent)).toEqual(['fake'])
     expect(listed.rows.filter(row => row.error)).toMatchObject([
-      { agent: 'fake', error: { reason: "EIO: i/o error, stat '2.jsonl'", file: '~/sessions' } },
+      { agent: 'fake', error: { reason: "EIO: i/o error, stat '2.jsonl'", file: shown(home, root) } },
     ])
     expect(catalog.unreadableRoots).toEqual([])
     expect(progress.find(agent => agent.name === 'Fake')).toMatchObject({ read: 1, done: true })
@@ -249,7 +311,7 @@ describe('discover pass', () => {
     const listed = await catalog.listSessions()
     expect(catalog.unreadableRoots).toHaveLength(1)
     expect(listed.rows.filter(row => row.error)).toHaveLength(1)
-    expect(progress.find(agent => agent.name === 'Claude Code')?.unreadable).toBe('~/.claude/projects')
+    expect(progress.find(agent => agent.name === 'Claude Code')?.unreadable).toBe(shown(home, root))
     catalog.close()
   })
 })
