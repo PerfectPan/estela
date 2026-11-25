@@ -13,16 +13,18 @@ function formatIndexLine(agent: AgentProgress): string {
   if (agent.checked) {
     return `${agent.name}: 0 files, checked ${agent.checked}${unreadable}`
   }
-  // No root was listed, so there is no total to count against.
+  // No root was listed, so there is no total to count against: the sessions read stand alone.
   if (agent.unreadable && agent.total === undefined) {
-    return `${agent.name}: 0 files${unreadable}`
+    return agent.read === 0
+      ? `${agent.name}: 0 files${unreadable}`
+      : `${agent.name}: ${agent.read} files read${unreadable}`
   }
   return `${agent.name}: ${count(agent)} files read${unreadable}`
 }
 
 function formatTick(agent: AgentProgress): string {
   if (agent.checked || (agent.unreadable && agent.total === undefined)) {
-    return `${agent.name} 0`
+    return `${agent.name} ${agent.unreadable ? agent.read : 0}`
   }
   return `${agent.name} ${count(agent)}`
 }

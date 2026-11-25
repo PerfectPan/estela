@@ -11,11 +11,11 @@ const claude: UnreadableRoot = {
 }
 
 describe('unreadableRootLine', () => {
-  it('names the agent and the root with `~`, the reason, and the permission fix: never --no-index', () => {
+  it('names the agent and the root with `~`, the reason, and the permission fix for reading and entering: never --no-index', () => {
     const line = unreadableRootLine(claude)
     expect(line).toBe(
       "Claude Code ~/.claude/projects (EACCES: permission denied, stat '~/.claude/projects'); "
-        + 'its sessions are not listed. Check that your user can read this folder and the ones above it.',
+        + 'its sessions could not be read. Check that your user has read permission (r) on this folder and enter permission (x) on it and on the folders above it.',
     )
   })
 
@@ -24,8 +24,8 @@ describe('unreadableRootLine', () => {
     const unknown = unreadableRootLine({ ...claude, code: undefined })
     for (const line of [loop, unknown]) {
       expect(line).toContain('~/.claude/projects')
-      expect(line).toMatch(/; its sessions are not listed\. Check that this folder can be reached\.$/)
-      expect(line).not.toContain('read this folder')
+      expect(line).toMatch(/; its sessions could not be read\. Check that this folder can be reached\.$/)
+      expect(line).not.toContain('read permission')
     }
   })
 })

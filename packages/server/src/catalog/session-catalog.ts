@@ -160,8 +160,10 @@ export class SessionCatalog {
   }
 
   /**
-   * The roots the `discover` pass could not read as a whole, empty before it has run. Each is also a "could not
-   * read" row of its agent; the terminal says them with `~`, whatever the server's `redacts` says.
+   * The roots the `discover` pass could not read at all, empty before it has run. When the pass succeeds, each is
+   * also a "could not read" row of its agent; when it fails, no row of the pass is shown, so the terminal line is
+   * the only place the root is named. Paths are `~`, whatever the server's `redacts` says. Complete once the pass
+   * has ended, whether it succeeded or failed.
    */
   get unreadableRoots(): UnreadableRoot[] {
     return this.agentStates.flatMap(state =>

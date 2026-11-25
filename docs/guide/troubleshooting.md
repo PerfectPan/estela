@@ -27,7 +27,7 @@ The rail shows the folder Estela checked. If your sessions are elsewhere, set th
 
 ## "Session folder unreadable"
 
-Estela could not read one of an agent's session folders, for example a `~/.claude` whose permissions keep your user out. Estela starts and lists the other agents. That agent's list shows one "Could not read" row with the reason, and the terminal names the folder and the reason (the folder as `~`). Give your user permission to read that folder and the folders above it, or set the agent's home override (see above) to a folder you can read, then start again. `--no-index` does not help: Estela reads these folders to list sessions, with or without the index.
+Estela could not read one of an agent's session folders, for example a `~/.claude` your user cannot enter. Estela starts and lists the other agents. That agent's list shows one "Could not read" row with the reason, and the terminal names the folder and the reason (the folder as `~`). Every agent reports it when the folder above the session folder cannot be entered. When the session folder itself cannot be read, how an agent reports it is up to its reader: OpenCode, ZCode, and DimCode show the "Could not read" row but print no warning, and Kimi Code and Antigravity CLI report nothing, so they show 0 sessions, the folder Estela checked, and no warning. For those five, check the folder's permissions yourself when it shows no sessions. Give your user read permission (r) on that folder and enter permission (x) on it and on the folders above it, or set the agent's home override (see above) to a folder you can read, then start again. `--no-index` does not help: Estela reads these folders to list sessions, with or without the index.
 
 ## Index problems
 

@@ -1,0 +1,214 @@
+import type { SessionAdapter } from '@rivus/agent-kit/sessions'
+import type { Transcript } from '@rivus/agent-kit/transcript'
+import { createNodePlatform } from '@rivus/agent-kit/node'
+import { ok } from '@rivus/agent-kit/catalog'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
+import type { ShellPlatform } from '../sessions/load-session.ts'
+import { SessionCatalog, type AgentProgress } from './session-catalog.ts'
+
+const dirs: string[] = []
+
+afterEach(async () => {
+  await Promise.all(dirs.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
+})
+
+async function tempHome(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'discover-home-'))
+  dirs.push(dir)
+  return dir
+}
+
+const source = { file: 'fixture', offset: 0, length: 1, line: 1 }
+
+/** An adapter with the given roots and `discover`; its sessions load a two-event transcript. */
+function adapter(
+  agent: string,
+  displayName: string,
+  roots: () => string[],
+  discover: SessionAdapter['discover'],
+): SessionAdapter {
+  return {
+    specificationVersion: 'sessions-v1',
+    agent,
+    displayName,
+    // The adapter ignores its home; the rule only satisfies `sessionAdapterHome`.
+    home: { defaultPath: [] },
+    capabilities: ['requests'],
+    roots,
+    discover,
+    async detect() {
+      return false
+    },
+    async load(_platform, ref) {
+      const transcript: Transcript = {
+        agent,
+        session: { id: ref.path },
+        capabilities: ['requests'],
+        agents: [{ id: 'main' }],
+        events: [
+          { id: 'u', seq: 0, ts: 1, kind: 'user', payload: { text: 'prompt' }, source },
+          { id: 'r', seq: 1, ts: 2, kind: 'request', payload: { usage: { inputTokens: 1, outputTokens: 1 } }, source },
+        ],
+        skipped: [],
+      }
+      return ok(transcript)
+    },
+  }
+}
+
+const head = (agent: string, path: string, lastActiveAt: number) => ({
+  ref: { agent, path },
+  lastActiveAt,
+  sizeBytes: 1,
+})
+
+/** An I/O error as Node reports it, with its errno code. */
+function ioError(message: string, code: string): Error {
+  return Object.assign(new Error(message), { code })
+}
+
+/** `stat` as the real platform does it, except for the paths `failing` returns an error for. */
+function platformFailingAt(home: string, failing: (path: string) => Promise<Error> | Error | undefined): ShellPlatform {
+  const real = createNodePlatform({ home, env: {} })
+  return {
+    ...real,
+    fs: {
+      ...real.fs,
+      async stat(path, options) {
+        const error = await failing(path)
+        if (error) {
+          throw error
+        }
+        return real.fs.stat(path, options)
+      },
+    },
+  }
+}
+
+describe('discover pass', () => {
+  it('knows every root that could not be read before a failure elsewhere ends the pass', async () => {
+    const home = await tempHome()
+    const unreadable = join(home, '.claude/projects')
+    const readable = join(home, 'sessions')
+    const file = join(home, '1.jsonl')
+    await mkdir(unreadable, { recursive: true })
+    await mkdir(readable)
+    await writeFile(file, 'x')
+    // The unreadable root answers only once the other agent has already failed.
+    let release!: () => void
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    let otherFailed = false
+    const platform = platformFailingAt(home, path => {
+      if (path === unreadable) {
+        return gate.then(() => ioError(`EACCES: permission denied, stat '${unreadable}'`, 'EACCES'))
+      }
+      if (path === file) {
+        otherFailed = true
+        return ioError("EIO: i/o error, stat '1.jsonl'", 'EIO')
+      }
+      return undefined
+    })
+    const adapters = {
+      claude: adapter(
+        'claude-code',
+        'Claude Code',
+        () => [unreadable],
+        async function* () {},
+      ),
+      other: adapter(
+        'other',
+        'Other',
+        () => [readable],
+        async function* () {
+          yield head('other', file, 1_000)
+        },
+      ),
+    }
+    const catalog = new SessionCatalog({ adapters, platform, noIndex: true })
+    const started = catalog.start()
+    const rootsWhenThePassFailed = started.then(
+      () => [],
+      () => catalog.unreadableRoots.map(root => root.path),
+    )
+    while (!otherFailed) {
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    await new Promise(resolve => setImmediate(resolve))
+    release()
+    expect(await rootsWhenThePassFailed).toEqual(['~/.claude/projects'])
+    // The failure still ends the start.
+    await expect(started).rejects.toThrow("EIO: i/o error, stat '1.jsonl'")
+    catalog.close()
+  })
+
+  it('keeps the sessions read before `discover` failed, without calling the root unreadable', async () => {
+    const home = await tempHome()
+    const root = join(home, 'sessions')
+    const first = join(root, '1.jsonl')
+    const second = join(root, '2.jsonl')
+    await mkdir(root)
+    await writeFile(first, 'x')
+    await writeFile(second, 'x')
+    const failed = adapter(
+      'fake',
+      'Fake',
+      () => [root],
+      async function* () {
+        yield head('fake', first, 1_000)
+        // The second session's `stat` is refused inside the kit's reader.
+        throw ioError("EIO: i/o error, stat '2.jsonl'", 'EIO')
+      },
+    )
+    const catalog = new SessionCatalog({
+      adapters: { fake: failed },
+      platform: createNodePlatform({ home, env: {} }),
+      noIndex: true,
+    })
+    let progress: readonly AgentProgress[] = []
+    await catalog.start(agents => {
+      progress = agents
+    })
+    const listed = await catalog.listSessions()
+    expect(listed.rows.filter(row => !row.error).map(row => row.agent)).toEqual(['fake'])
+    expect(listed.rows.filter(row => row.error)).toMatchObject([
+      { agent: 'fake', error: { reason: "EIO: i/o error, stat '2.jsonl'", file: '~/sessions' } },
+    ])
+    expect(catalog.unreadableRoots).toEqual([])
+    expect(progress.find(agent => agent.name === 'Fake')).toMatchObject({ read: 1, done: true })
+    expect(progress.find(agent => agent.name === 'Fake')?.unreadable).toBeUndefined()
+    catalog.close()
+  })
+
+  it('says a root once when it is reported more than once', async () => {
+    const home = await tempHome()
+    const root = join(home, '.claude/projects')
+    await mkdir(root, { recursive: true })
+    const platform = platformFailingAt(home, path =>
+      path === root ? ioError(`EACCES: permission denied, stat '${root}'`, 'EACCES') : undefined,
+    )
+    // The same root listed twice: each `stat` fails.
+    const adapters = {
+      claude: adapter(
+        'claude-code',
+        'Claude Code',
+        () => [root, root],
+        async function* () {},
+      ),
+    }
+    const catalog = new SessionCatalog({ adapters, platform, noIndex: true })
+    let progress: readonly AgentProgress[] = []
+    await catalog.start(agents => {
+      progress = agents
+    })
+    const listed = await catalog.listSessions()
+    expect(catalog.unreadableRoots).toHaveLength(1)
+    expect(listed.rows.filter(row => row.error)).toHaveLength(1)
+    expect(progress.find(agent => agent.name === 'Claude Code')?.unreadable).toBe('~/.claude/projects')
+    catalog.close()
+  })
+})

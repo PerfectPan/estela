@@ -33,11 +33,15 @@ export interface AgentState {
   done: boolean
   found: string[]
   missing: string[]
-  /** Roots the pass could not read as a whole: the path, the failure's message, and its errno code. */
+  /**
+   * Roots that could not be read at all, once each: the path, the failure's message, and its errno code. Only a
+   * root whose `stat` fails or that the kit itself reports unreadable is here; a `discover` that fails halfway
+   * keeps its error row and no more.
+   */
   unreadable: { path: string; message: string; code: string | undefined }[]
 }
 
-/** An agent root the `discover` pass could not read as a whole: its sessions are not listed. */
+/** An agent root the `discover` pass could not read at all: its sessions could not be read. */
 export interface UnreadableRoot {
   /** The agent's id, as its rows carry it. */
   agent: string
@@ -59,7 +63,7 @@ export interface AgentProgress {
   done: boolean
   /** Set when no root exists: the paths that were checked, with `~`. */
   checked?: string
-  /** Set once the agent is done and a root could not be reached: those paths, with `~`. */
+  /** Set once the agent is done and a root could not be read: those paths, once each, with `~`. */
   unreadable?: string
 }
 
@@ -87,7 +91,8 @@ export function progressOf(states: readonly AgentState[], redact: Redactor): Age
  * One `discover` pass over every agent: roots → head/tail reads → rows keyed by trace id.
  * Agents run side by side; each adapter's own `discover` stays sequential.
  * A missing root is recorded on the agent (S3). An unreadable file becomes an error row (S4), and so does
- * a root that cannot be read: it fails its agent only, never the pass.
+ * a root that cannot be read: it fails its agent only, never the pass. Every agent runs to its end before a
+ * failure elsewhere ends the pass, so the roots that could not be read are all known by then.
  */
 export async function discoverRows(
   states: readonly AgentState[],
@@ -101,14 +106,16 @@ export async function discoverRows(
       rows.set(row.traceId, row)
     }
   }
-  await Promise.all(
+  const passes = await Promise.allSettled(
     states.map(async state => {
       const heads: SessionHead[] = []
       const failed: { target: SessionRef; error: SessionListError; mtimeMs?: number }[] = []
       const home = sessionAdapterHome(state.adapter, { env: platform.env, home: platform.home })
-      /** Remembers a root the pass could not read as a whole, for the terminal: its reason and errno code. */
+      /** Remembers a root the pass could not read, once, for the terminal: its reason and errno code. */
       const rootUnreadable = (root: string, message: string, code: string | undefined): void => {
-        state.unreadable.push({ path: root, message, code })
+        if (!state.unreadable.some(known => known.path === root)) {
+          state.unreadable.push({ path: root, message, code })
+        }
       }
       /** The "could not read" row of a root that a failure kept from being read at all. */
       const rootFailure = (root: string, message: string) => ({
@@ -168,9 +175,8 @@ export async function discoverRows(
             }
           }
         } catch (error) {
-          const message = errorMessage(error)
-          rootUnreadable(root, message, errnoOf(error))
-          failed.push(rootFailure(root, message))
+          // Sessions read before the failure are kept, so the root is not recorded as unreadable.
+          failed.push(rootFailure(root, errorMessage(error)))
         }
       }
       const perFile = new Map<string, number>()
@@ -215,5 +221,9 @@ export async function discoverRows(
       report()
     }),
   )
+  const failed = passes.find((pass): pass is PromiseRejectedResult => pass.status === 'rejected')
+  if (failed) {
+    throw failed.reason
+  }
   return rows
 }

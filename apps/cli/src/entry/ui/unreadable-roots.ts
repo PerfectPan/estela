@@ -3,19 +3,19 @@ import { sanitizeInline } from '../failure.ts'
 
 const PERMISSION_CODES: ReadonlySet<string> = new Set(['EACCES', 'EPERM'])
 
-/** `<agent> <root> (<reason>); its sessions are not listed.` followed by the fix for that reason. */
+/** `<agent> <root> (<reason>); its sessions could not be read.` followed by the fix for that reason. */
 export function unreadableRootLine(root: UnreadableRoot): string {
   const denied = root.code !== undefined && PERMISSION_CODES.has(root.code)
   const fix = denied
-    ? 'Check that your user can read this folder and the ones above it.'
+    ? 'Check that your user has read permission (r) on this folder and enter permission (x) on it and on the folders above it.'
     : 'Check that this folder can be reached.'
-  return `${sanitizeInline(root.displayName)} ${sanitizeInline(root.path)} (${sanitizeInline(root.reason)}); its sessions are not listed. ${fix}`
+  return `${sanitizeInline(root.displayName)} ${sanitizeInline(root.path)} (${sanitizeInline(root.reason)}); its sessions could not be read. ${fix}`
 }
 
 /**
- * Says each agent root the `discover` pass could not reach. The paths come from the catalog with `~`.
+ * Says each agent root the `discover` pass could not read. The paths come from the catalog with `~`.
  * When the rows came from the index, the pass runs on behind the ready line, so they are said once it
- * is done; a pass that fails there says the roots it had reached, as the list keeps the index's rows.
+ * is done; a pass that fails there has still run every agent to its end, and the list keeps the index's rows.
  */
 export function sayUnreadableRoots(
   catalog: Pick<SessionCatalog, 'startedFromIndex' | 'unreadableRoots' | 'discovered'>,

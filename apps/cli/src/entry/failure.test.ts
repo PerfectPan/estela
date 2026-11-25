@@ -1,3 +1,4 @@
+import { homeDir } from '@rivus/estela-runtime-node'
 import { describe, expect, it } from 'vite-plus/test'
 import { failureReport, isListenFailure } from './failure.ts'
 
@@ -53,6 +54,23 @@ describe('failureReport sanitization', () => {
     )
     expect(report.message?.fix).toContain('https://github.com/PerfectPan/estela/issues/new/choose')
     expect(report.message?.fix).toContain('npx @rivus/estela@latest')
+  })
+})
+
+describe('index failures', () => {
+  it('shows the home directory as `~`, under the rule the catalog reports session folders with', () => {
+    const report = failureReport({
+      kind: 'index',
+      cause: Object.assign(
+        new Error(`EIO: i/o error, stat '${homeDir()}/.codex/sessions/2026/01/01/rollout-plain.jsonl'`),
+        { code: 'EIO' },
+      ),
+    })
+    expect(report.exitCode).toBe(1)
+    expect(report.message?.cause).toBe(
+      "Could not index sessions: EIO: i/o error, stat '~/.codex/sessions/2026/01/01/rollout-plain.jsonl'",
+    )
+    expect(report.message?.cause).not.toContain(homeDir())
   })
 })
 

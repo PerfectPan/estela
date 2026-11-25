@@ -2,14 +2,19 @@ import { chmod, cp, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vite-plus/test'
+import * as z from 'zod/mini'
 import { openLogPath, smokeEnv, start, waitFor, type CliHome, type Server } from './cli-process.ts'
+import { mcpClient, sessions } from './mcp-client.ts'
 import { repo } from './prepare-run.ts'
 
 const ctx = inject('smoke')
 
 const warning = (syscall: 'stat' | 'scandir'): string =>
   `Session folder unreadable: Claude Code ~/.claude/projects (EACCES: permission denied, ${syscall} '~/.claude/projects'); `
-  + 'its sessions are not listed. Check that your user can read this folder and the ones above it.'
+  + 'its sessions could not be read. '
+  + 'Check that your user has read permission (r) on this folder and enter permission (x) on it and on the folders above it.'
+
+const protocolMessage = z.object({ jsonrpc: z.string() })
 
 /** `Ready: <url>#/`. No session is launched, so `readyUrl`, which reads a launched session's id, does not match. */
 function ready(output: { stdout: string }): boolean {
@@ -43,10 +48,12 @@ function expectRedacted(output: { stdout: string; stderr: string }, home: string
   expect(text).not.toContain('--no-index')
 }
 
-describe.skipIf(process.platform === 'win32')('#171: one agent folder that cannot be read', () => {
-  // chmod cannot make a folder unreadable on Windows.
+// chmod cannot make a folder unreadable on Windows, nor for a user (root) the mode bits do not stop.
+const cannotLock = process.platform === 'win32' || process.getuid?.() === 0
+
+describe.skipIf(cannotLock)('#171: one agent folder that cannot be read', () => {
   let home: CliHome
-  let locked: string[] = []
+  const locked: string[] = []
   const servers: Server[] = []
   const launch = (where: CliHome, args: string[], options: { input?: boolean } = {}) => {
     const server = start(ctx.node, [ctx.bin, ...args], {
@@ -64,21 +71,26 @@ describe.skipIf(process.platform === 'win32')('#171: one agent folder that canno
   })
 
   afterAll(async () => {
-    for (const server of servers) {
-      await server.stop()
-    }
-    for (const dir of locked) {
-      await chmod(dir, 0o700)
+    // The permissions first, on their own: a server that fails to stop must not leave a mode 000 folder behind.
+    try {
+      // Settled: one folder that cannot be restored must not keep the others at mode 000.
+      await Promise.allSettled(locked.map(dir => chmod(dir, 0o700)))
+    } finally {
+      for (const server of servers) {
+        await server.stop()
+      }
     }
   })
 
   it('the dev server starts without the index and lists the other agents, saying that folder', async () => {
     const server = launch(home, ['--no-open', '--no-index', '--port', '0'])
-    await waitFor('the Ready line', () => ready(server.output()))
+    await waitFor(
+      'the Ready line and the warning',
+      () => ready(server.output()) && server.output().stderr.includes(warning('stat')),
+    )
     const output = server.output()
     expect(output.stdout).toMatch(/^Grok: 1\/1 files read$/m)
     expect(output.stdout).toContain('Claude Code: 0 files, could not read ~/.claude/projects\n')
-    expect(output.stderr).toContain(warning('stat'))
     expectRedacted(output, home.home)
   })
 
@@ -96,7 +108,7 @@ describe.skipIf(process.platform === 'win32')('#171: one agent folder that canno
     expectRedacted(server.output(), home.home)
   })
 
-  it('mcp starts over the session catalog, with the warning on stderr only', async () => {
+  it('mcp starts over the session catalog, serves the sessions it can read, and keeps stdout to the protocol', async () => {
     const server = launch(home, ['mcp'], { input: true })
     await waitFor('the MCP server and its warning', () => {
       const { stderr } = server.output()
@@ -104,23 +116,35 @@ describe.skipIf(process.platform === 'win32')('#171: one agent folder that canno
         stderr.includes('[devframe]') && stderr.includes('session folder unreadable: Claude Code ~/.claude/projects')
       )
     })
-    const output = server.output()
-    expect(output.stderr).toContain(
+    // Nothing was asked yet: stdout is empty, and the warning is on stderr.
+    expect(server.output().stdout).toBe('')
+    expect(server.output().stderr).toContain(
       `estela: session folder unreadable: ${warning('stat').replace(/^Session folder unreadable: /, '')}`,
     )
-    expect(output.stdout).toBe('')
-    expectRedacted(output, home.home)
+    const client = mcpClient(server)
+    await client.initialize()
+    const listed = await client.call('estela_list_sessions', { agent: 'grok' })
+    expect(listed.isError).toBe(false)
+    expect(z.parse(sessions, JSON.parse(listed.text)).sessions).toHaveLength(1)
+    // Every stdout line is a JSON-RPC message, and stderr has no escape sequences.
+    for (const line of client.lines()) {
+      expect(z.parse(protocolMessage, JSON.parse(line)).jsonrpc, line).toBe('2.0')
+    }
+    expect(server.output().stderr).not.toContain('\u001B')
+    expectRedacted(server.output(), home.home)
   })
 
   it('the dev server says a session folder it cannot list, where the folder above it can be read', async () => {
     const { where, locked: dir } = await unreadableClaudeHome('root')
     locked.push(dir)
     const server = launch(where, ['--no-open', '--no-index', '--port', '0'])
-    await waitFor('the Ready line', () => ready(server.output()))
+    await waitFor(
+      'the Ready line and the warning',
+      () => ready(server.output()) && server.output().stderr.includes(warning('scandir')),
+    )
     const output = server.output()
     expect(output.stdout).toMatch(/^Grok: 1\/1 files read$/m)
     expect(output.stdout).toContain('Claude Code: 0 files, could not read ~/.claude/projects\n')
-    expect(output.stderr).toContain(warning('scandir'))
     expectRedacted(output, where.home)
   })
 })

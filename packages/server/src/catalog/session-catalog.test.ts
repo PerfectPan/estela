@@ -92,8 +92,8 @@ describe('session catalog', () => {
     index.close()
   })
 
-  // chmod cannot make a directory unreadable on Windows.
-  it.skipIf(process.platform === 'win32').each([
+  // chmod cannot make a directory unreadable on Windows, nor for a user (root) the mode bits do not stop.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0).each([
     // The root's parent has no search permission: the `stat` of the root fails.
     { locked: '.claude', syscall: 'stat' },
     // The root itself has no read permission: the kit's `discover` fails for the root.
