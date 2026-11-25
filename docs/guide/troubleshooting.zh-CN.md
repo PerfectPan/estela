@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/troubleshooting.md 为准。
 
-<!-- source-blob: a6eabf392211081fae52110dc00e9191192ee7fa -->
+<!-- source-blob: 57c5dd06ee81e38466e1ef99d389100583e0dea7 -->
 
 # 故障排查
 
@@ -54,6 +54,19 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 ## 用作参数值的命令名
 
 在主命令下，与命令同名的裸词（`build`、`mcp`、`export-atif`、`export-otlp`）会被识别为该命令。与命令同名的主机名需写作 `--host=build`，同名的会话文件需写作 `./build`。
+
+## dsh 提示插件不兼容
+
+`@rivus/dsh-estela` 在 `engines.dsh` 中声明其支持的 DeepSeek Harness 版本范围（`>=0.2.2-rc.5 <0.3.0-0`；见[DeepSeek Harness 插件](dsh-plugin.zh-CN.md#版本范围)）。
+
+- **安装时：**如果当前 `dsh` 版本不在 `engines.dsh` 范围内，`dsh` 会在安装任何文件前拒绝操作、以状态码 1 退出，并打印未满足的版本要求。
+- **升级或降级 `dsh` 后：**如果插件已安装在 `web` profile 中，而 `dsh` 版本落到了 `engines.dsh` 范围之外，`dsh` 会跳过该插件启动、在 stderr 打印一行说明禁用原因，且 `dsh web` 不再显示 Estela 标签页。
+
+请使用在 `engines.dsh` 范围内的 `dsh` 版本，或在支持该 `dsh` 版本的 `@rivus/dsh-estela` 发布后更新插件。如果你希望明确接受风险、仅在某一个确切的 `dsh` 版本上允许某一个确切的插件版本运行，请运行：
+
+```sh
+dsh plugin --profile web allow-version @rivus/dsh-estela@<plugin-version> --dsh-version <current-dsh-version> --accept-risk
+```
 
 ## 从 `@rivus/agent-trace` 升级
 

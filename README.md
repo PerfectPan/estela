@@ -51,6 +51,7 @@ Anything a log does not record is shown as `unavailable`, never estimated.
 - **Cost.** The list price of the recorded tokens per request, turn, subagent, and session, with cache shares; partial sums say how many requests they leave out.
 - **Reports and exports.** One redacted `index.html` to share, an ATIF v1.8 trajectory for Harbor, and an OTLP/JSON trace for Langfuse, LangSmith, or Phoenix.
 - **MCP tools.** `estela mcp` lets an agent find an earlier session and read what its model saw at a failing request.
+- **DeepSeek Harness plugin.** Install `@rivus/dsh-estela` into `dsh web` to open the Estela workspace for the current session beside Chat and Trajectory; see [DeepSeek Harness plugin](docs/guide/dsh-plugin.md).
 
 ## Supported agents
 
@@ -73,11 +74,11 @@ Each agent's home override is honored. What each agent's log records (system pro
 
 ## Privacy
 
-Estela runs locally, binds `localhost`, and only reads the session logs. It keeps an unredacted cache of session titles, paths, numbers, and up to 200 of your prompts per session in `~/.cache/rivus-estela/`, which you can delete at any time. Redaction replaces your home directory, some token shapes, and the values of labelled credentials such as `PASSWORD=`, but not every secret, and a report still contains session text and file contents: read a report before you share it. Details in [Privacy and redaction](docs/guide/privacy.md).
+Estela runs locally and only reads session logs. The CLI dev server (`@rivus/estela`) binds `localhost` and keeps an unredacted cache of session titles, paths, numbers, and up to 200 of your prompts per session in `~/.cache/rivus-estela/`, which you can delete at any time; the DeepSeek Harness plugin (`@rivus/dsh-estela`) reads logs inside `dsh` without opening a port or creating that index. Redaction replaces your home directory, some token shapes, and the values of labelled credentials such as `PASSWORD=`, but not every secret, and a report still contains session text and file contents: read a report before you share it. Details in [Privacy and redaction](docs/guide/privacy.md).
 
 ## Documentation
 
-- [User guide](docs/guide/README.md): getting started, concepts, the workspace, reports and exports, MCP tools, troubleshooting.
+- [User guide](docs/guide/README.md): getting started, concepts, the workspace, reports and exports, MCP tools, DeepSeek Harness plugin, troubleshooting.
 - [Public interface](docs/reference/public-interface.md): commands, options, exit codes, environment variables, and what semver covers.
 - [Export formats](docs/reference/export-formats.md): the ATIF and OTLP mappings.
 - [Architecture](docs/architecture/overview.md), [development setup](docs/development/setup.md), [visual design](docs/design/README.md), [contributing](CONTRIBUTING.md), and [security](SECURITY.md).

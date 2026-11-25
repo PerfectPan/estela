@@ -13,6 +13,14 @@ const manifestSchema = z.object({
   license: z.string(),
   type: z.string(),
   private: z.optional(z.boolean()),
+  repository: z.object({
+    type: z.string(),
+    url: z.string(),
+    directory: z.string(),
+  }),
+  publishConfig: z.object({
+    access: z.string(),
+  }),
   engines: z.object({
     dsh: z.string(),
     node: z.string(),
@@ -38,7 +46,14 @@ const EXPECTED_MANIFEST = {
   description: 'Estela view of the current DeepSeek Harness session: ledger, Model saw, Compare, and cost.',
   license: 'GPL-3.0-only',
   type: 'module',
-  private: true,
+  repository: {
+    type: 'git',
+    url: 'git+https://github.com/PerfectPan/estela.git',
+    directory: 'apps/dsh-plugin',
+  },
+  publishConfig: {
+    access: 'public',
+  },
   engines: {
     dsh: `>=${DSH_VERSION} <0.3.0-0`,
     node: '>=24.9.0',
@@ -78,7 +93,9 @@ describe('@rivus/dsh-estela manifest', () => {
     expect(manifest.description).toBe(EXPECTED_MANIFEST.description)
     expect(manifest.license).toBe(EXPECTED_MANIFEST.license)
     expect(manifest.type).toBe(EXPECTED_MANIFEST.type)
-    expect(manifest.private).toBe(EXPECTED_MANIFEST.private)
+    expect(manifest.private).toBeUndefined()
+    expect(manifest.repository).toEqual(EXPECTED_MANIFEST.repository)
+    expect(manifest.publishConfig).toEqual(EXPECTED_MANIFEST.publishConfig)
     expect(manifest.engines).toEqual(EXPECTED_MANIFEST.engines)
     expect(manifest.engines.dsh.startsWith(`>=${DSH_VERSION}`)).toBe(true)
     expect(manifest.exports).toEqual(EXPECTED_MANIFEST.exports)

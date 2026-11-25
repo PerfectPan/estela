@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 README.md 为准。
 
-<!-- source-blob: da7c32ecc1dc4e347589277edf986ae39949c585 -->
+<!-- source-blob: d1d9970101f7160dbf9be1b32c9a90dda2293ac6 -->
 
 <p align="center">
   <a href="README.md">English</a> · <strong>简体中文</strong>
@@ -55,6 +55,7 @@ npx @rivus/estela
 - **花费。** 按请求、轮次、子代理和会话显示所记录 Token 的目录价，以及缓存占比；不完整的合计会说明遗漏了多少个请求。
 - **报告与导出。** 一个可分享的已脱敏 `index.html`，一个供 Harbor 使用的 ATIF v1.8 轨迹，一个供 Langfuse、LangSmith 或 Phoenix 使用的 OTLP/JSON trace。
 - **MCP 工具。** `estela mcp` 让代理找到之前的会话，并读取某个失败请求时模型看到的内容。
+- **DeepSeek Harness 插件。** 在 `dsh web` 中安装 `@rivus/dsh-estela`，即可在 Chat 和 Trajectory 旁直接打开当前会话的 Estela 工作区；见[DeepSeek Harness 插件](docs/guide/dsh-plugin.zh-CN.md)。
 
 ## 支持的代理
 
@@ -77,11 +78,11 @@ npx @rivus/estela
 
 ## 隐私
 
-Estela 在本地运行，绑定 `localhost`，只读取会话日志。它在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除。脱敏会替换你的主目录、部分令牌形式以及 `PASSWORD=` 这类带名称凭据的值，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
+Estela 在本地运行，只读取会话日志。CLI 开发服务器（`@rivus/estela`）绑定 `localhost`，并在 `~/.cache/rivus-estela/` 中保存一份未脱敏的缓存，包含会话标题、路径、数字，以及每个会话最多 200 条你输入的提示词，可随时删除；DeepSeek Harness 插件（`@rivus/dsh-estela`）在 `dsh` 内部读取日志，不监听端口，也不会建立这个索引。脱敏会替换你的主目录、部分令牌形式以及 `PASSWORD=` 这类带名称凭据的值，但不会覆盖所有密钥；报告中仍包含会话文本和文件内容：分享报告前请先阅读。详见[隐私与脱敏](docs/guide/privacy.zh-CN.md)。
 
 ## 文档
 
-- [用户指南](docs/guide/README.zh-CN.md)：入门、概念、工作区、报告与导出、MCP 工具、故障排查。
+- [用户指南](docs/guide/README.zh-CN.md)：入门、概念、工作区、报告与导出、MCP 工具、DeepSeek Harness 插件、故障排查。
 - [公共接口](docs/reference/public-interface.zh-CN.md)：命令、选项、退出码、环境变量，以及 semver 覆盖的范围。
 - [导出格式](docs/reference/export-formats.zh-CN.md)：ATIF 和 OTLP 的映射。
 - [架构](docs/architecture/overview.zh-CN.md)、[开发设置](docs/development/setup.zh-CN.md)、[视觉设计](docs/design/README.md)、[贡献指南](CONTRIBUTING.md)和[安全策略](SECURITY.md)。

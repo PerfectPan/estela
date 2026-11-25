@@ -82,8 +82,9 @@ The `reconstruct` RPC takes `{ traceId?, eventId }`; without a trace id it reads
 | `packages/runtime-node` (`@rivus/estela-runtime-node`) | home directory, session index (`node:sqlite`) |
 | `packages/rpc` (`@rivus/estela-rpc`) | `list-sessions` over an injected session service; `load-trace`, `get-trace-view`, `get-event`, `reconstruct` over `TraceStore` with an injected resolver; `export-report` over an injected writer; `buildReport`; `report-trace`, registered only in DevFrame's build mode |
 | `packages/server` (`@rivus/estela-server`) | `createEstelaCore` (`./core`): the DevFrame-free hardened platform, TraceStore over Node reads, and redaction without the session catalog; `createEstelaServer`: adds the session catalog, per-instance RPC definitions, the report writer, the MCP agent tools (`src/agent-tools/`), and the DevFrame definition whose `setup` registers and starts them; session reading through the kit |
-| `apps/web` (`@rivus/estela-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<traceId>` (workspace), report mode, design tokens, `en` / `zh-CN` dictionaries |
-| `apps/cli` (`@rivus/estela`) | The command line, terminal output, browser opening, and the ATIF and OTLP exports; starts `dev`, `build`, and `mcp` from `createEstelaServer`; the only published package |
+| `apps/web` (`@rivus/estela-web`) | Solid SPA: hash routes `#/` (session browser) and `#/s/<traceId>` (workspace), report mode, `<estela-workspace>` custom element (`./embed`), design tokens, `en` / `zh-CN` dictionaries |
+| `apps/cli` (`@rivus/estela`) | The command line, terminal output, browser opening, and the ATIF and OTLP exports; starts `dev`, `build`, and `mcp` from `createEstelaServer`; published as `@rivus/estela` |
+| `apps/dsh-plugin` (`@rivus/dsh-estela`) | DeepSeek Harness plugin: host half (`src/host/`) over `createEstelaCore`, client half (`src/client/`) over `<estela-workspace>`, channel contract (`src/contract/`), manifest and `cordis.patch.yml`, and the two bundles (`dist/host.mjs`, `dist/client.js`); published as `@rivus/dsh-estela` |
 | `apps/e2e` (`@rivus/estela-e2e`) | Private: CLI smoke and Playwright suites against the installed tarball |
 
 ## Server composition
@@ -154,7 +155,7 @@ Session files stay on disk. The dev server binds localhost. The index holds titl
 
 [Public interface](../reference/public-interface.md) lists what semver covers and what it does not. The canonical trace file format, the index, the RPC between the bundled server and web app, and the workspace packages' exports are not stable: they change in place, with no compatibility layer or reader for an older shape. Names from before the rename to Estela (`@rivus/agent-trace`, `AGENT_TRACE_*`, `schema: 'agent-trace'`, the `rivus-agent-trace` cache) are not read; they remain only in the released `apps/cli/CHANGELOG.md` entries, `.changeset/ledger.yaml`, and the `v0.1.0` tag.
 
-`@rivus/estela` exports no programmatic API: `createEstelaServer` is reachable only inside the workspace. A public `@rivus/estela/server` entry waits for a declaration build that works (TypeScript 7 emits no declarations for workspace sources reached through pnpm links, and the declarations would have to inline `@rivus/agent-kit` types, a devDependency) and for its first outside consumer.
+`@rivus/estela` exports no programmatic API: `createEstelaServer` and `createEstelaCore` are reachable only inside the workspace.
 
 ## Out of the current viewer
 

@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 93a9d04fa28063524b4274280252b3b3836e571f -->
+<!-- source-blob: 5b3e624d3f006ec053eaf95b904c8b50f03bab0c -->
 
 # 架构
 
@@ -86,8 +86,9 @@ one session (build <path>, or export-report on the dev server)
 | `packages/runtime-node`（`@rivus/estela-runtime-node`） | 主目录、会话索引（`node:sqlite`） |
 | `packages/rpc`（`@rivus/estela-rpc`） | 基于注入会话服务的 `list-sessions`；基于 `TraceStore` 与注入解析器的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`；基于注入写入器的 `export-report`；`buildReport`；仅在 DevFrame 构建模式下注册的 `report-trace` |
 | `packages/server`（`@rivus/estela-server`） | `createEstelaCore`（`./core`）：不含 DevFrame 与会话目录的加固平台、基于 Node 读取的 TraceStore 和脱敏；`createEstelaServer`：在其上加入会话目录、按实例构建的 RPC 定义、报告写入器、MCP 代理工具（`src/agent-tools/`）以及由 `setup` 负责注册和启动的 DevFrame 定义；通过 kit 读取会话 |
-| `apps/web`（`@rivus/estela-web`） | Solid SPA：哈希路由 `#/`（会话浏览器）和 `#/s/<traceId>`（工作区）、报告模式、设计 token、`en` / `zh-CN` 词典 |
-| `apps/cli`（`@rivus/estela`） | 命令行、终端输出、打开浏览器，以及 ATIF 和 OTLP 导出；基于 `createEstelaServer` 启动 `dev`、`build` 和 `mcp`；唯一发布的包 |
+| `apps/web`（`@rivus/estela-web`） | Solid SPA：哈希路由 `#/`（会话浏览器）和 `#/s/<traceId>`（工作区）、报告模式、`<estela-workspace>` 自定义元素（`./embed`）、设计 token、`en` / `zh-CN` 词典 |
+| `apps/cli`（`@rivus/estela`） | 命令行、终端输出、打开浏览器，以及 ATIF 和 OTLP 导出；基于 `createEstelaServer` 启动 `dev`、`build` 和 `mcp`；以 `@rivus/estela` 发布 |
+| `apps/dsh-plugin`（`@rivus/dsh-estela`） | DeepSeek Harness 插件：基于 `createEstelaCore` 的宿主端（`src/host/`）、基于 `<estela-workspace>` 的客户端（`src/client/`）、通道契约（`src/contract/`）、清单与 `cordis.patch.yml`，以及两份产物（`dist/host.mjs`、`dist/client.js`）；以 `@rivus/dsh-estela` 发布 |
 | `apps/e2e`（`@rivus/estela-e2e`） | 私有包：针对已安装 tarball 的 CLI 冒烟测试和 Playwright 测试套件 |
 
 ## 服务器组装
@@ -158,7 +159,7 @@ SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/repor
 
 [公共接口](../reference/public-interface.zh-CN.md)列出了 semver 覆盖与不覆盖的内容。规范 trace 文件格式、索引、打包后的服务器与网页应用之间的 RPC，以及各 workspace 包的导出均不保证稳定：它们会就地修改，不提供兼容层也不读取旧格式。更名为 Estela 之前的旧名称（`@rivus/agent-trace`、`AGENT_TRACE_*`、`schema: 'agent-trace'`、`rivus-agent-trace` 缓存）不再读取；它们仅保留在已发布的 `apps/cli/CHANGELOG.md` 条目、`.changeset/ledger.yaml` 以及 `v0.1.0` 标签中。
 
-`@rivus/estela` 不导出编程 API：`createEstelaServer` 仅在 workspace 内部可访问。对外提供 `@rivus/estela/server` 入口尚需等待可用的声明文件构建（TypeScript 7 对通过 pnpm 链接访问的 workspace 源码不生成声明文件，且声明文件还必须内联作为 devDependency 的 `@rivus/agent-kit` 类型），以及首位外部使用方的出现。
+`@rivus/estela` 不导出编程 API：`createEstelaServer` 和 `createEstelaCore` 仅在 workspace 内部可访问。
 
 ## 当前查看器范围之外
 
