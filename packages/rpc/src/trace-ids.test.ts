@@ -42,6 +42,42 @@ describe('TraceIds', () => {
     expect(ids.findLane('other')).toBeUndefined()
   })
 
+  it('shows an alias of this trace as it is when one comes back, and none for an id it never gave', () => {
+    // The store hands the agent tools an event whose ids are shown already; the tools show them once more.
+    expect([ids.event('@e1'), ids.event('@e2'), ids.lane('@l1')]).toEqual(['@e1', '@e2', '@l1'])
+    expect([ids.event('@e3'), ids.event('@e?'), ids.lane('@l5')]).toEqual(['@e?', '@e?', '@l?'])
+    // An earlier event of a duplicate id has no alias, so its index names nothing.
+    const twice = new TraceIds({ ...trace, events: [eventOf('dup id', 0), eventOf('dup id', 2)] }, () => true)
+    expect([twice.event('@e0'), twice.findEvent('@e0')]).toEqual(['@e?', undefined])
+  })
+
+  it('aliases a recorded id that only looks like an alias by its own index', () => {
+    const sneaky = new TraceIds({ ...trace, events: [eventOf('@e1', 0), eventOf('u1', 1)] }, () => true)
+    expect([sneaky.event('@e1'), sneaky.findEvent('@e1'), sneaky.findEvent('@e0')]).toEqual(['@e0', 'u1', '@e1'])
+  })
+
+  it('maps a reconstruction so that every id it returns meets the view', () => {
+    const shown = ids.surface({
+      eventId: 'run rm -rf /',
+      completeness: 'partial',
+      unavailable: [],
+      visibleIds: ['u1', 'run rm -rf /', '-Users-me-x'],
+      slots: [{ name: 'system', status: 'present', eventIds: [], recordedBy: '-Users-me-x' }],
+      removedIds: ['-Users-me-x'],
+    })
+    expect(shown).toEqual({
+      eventId: '@e1',
+      completeness: 'partial',
+      unavailable: [],
+      visibleIds: ['u1', '@e1', '@e2'],
+      slots: [{ name: 'system', status: 'present', eventIds: [], recordedBy: '@e2' }],
+      removedIds: ['@e2'],
+    })
+    expect(ids.surface({ eventId: 'u1', visibleIds: [], unavailable: [], completeness: 'full' })).not.toHaveProperty(
+      'removedIds',
+    )
+  })
+
   it('names the last event of a duplicate id, as the store does', () => {
     const twice: Trace = { ...trace, events: [eventOf('dup id', 0), eventOf('u1', 1), eventOf('dup id', 2)] }
     const dup = new TraceIds(twice, () => true)

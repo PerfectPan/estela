@@ -20,12 +20,22 @@ export interface TraceStoreDeps {
   fs: SessionFs
   /** Reads one original through its source pointer (compressed files, SQLite rows); defaults to a raw file range. */
   readOriginal?: ReadOriginal
-  /** Applied to everything sent out: view trace, events, and error messages. Redaction lives here. */
-  present?: <T>(value: T) => T
+  /**
+   * Redaction of everything sent out: view trace, events, reconstructions, and error messages. Omit to send
+   * recorded values. An event or lane id `text` would change is shown as an alias (`@e<seq>`, `@l<n>`), and every
+   * id input takes an alias back.
+   */
+  redact?: TraceRedaction
   /** Server log, for conditions the operator should see (a view over budget). */
   log?: (message: string) => void
   /** The view's starting string cap: 4,096 characters by default; `fitView` raises a value below 256 to 256. */
   maxString?: number
+}
+
+/** How a reader redacts: a whole value (every string in it) or one string. */
+export interface TraceRedaction {
+  value: <T>(value: T) => T
+  text: (text: string) => string
 }
 
 export interface LoadedTrace {

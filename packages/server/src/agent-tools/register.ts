@@ -2,7 +2,7 @@ import type { TraceStore } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import type { AgentToolInput, DevframeAgentHost } from 'devframe'
 import type * as z from 'zod/mini'
-import { CURRENT_TRACE_ID } from '@rivus/estela-rpc'
+import { CURRENT_TRACE_ID, TraceIds } from '@rivus/estela-rpc'
 import { reconstruct } from '@rivus/estela-kernel'
 import type { HomeRedaction } from '../sessions/redaction.ts'
 import type { Redaction } from './bounds.ts'
@@ -19,7 +19,6 @@ import {
   sessionSummaryInput,
 } from './inputs.ts'
 import { listSessionPage, type SessionSource } from './session-list.ts'
-import { TraceIds } from './trace-ids.ts'
 import { listRequests, listTurns, sessionSummary } from './trace-reads.ts'
 
 /** Tool ids are `estela:<name>`; DevFrame's MCP adapter turns `:` into `_`, so clients call `estela_<name>`. */

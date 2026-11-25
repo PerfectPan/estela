@@ -1,7 +1,7 @@
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { describe, expect, it } from 'vite-plus/test'
-import { TraceIds } from './trace-ids.ts'
+import { TraceIds } from '@rivus/estela-rpc'
 import { listRequests, listTurns, sessionSummary } from './trace-reads.ts'
 
 const source = (line: number) => ({ file: 'f', offset: 0, length: 1, line })

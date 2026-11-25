@@ -1,4 +1,4 @@
-import type { EventDetail } from '@rivus/estela-rpc'
+import type { EventDetail, TraceIds } from '@rivus/estela-rpc'
 import type { ContextTokens, ReconstructResult, Trace, TruncatedPath } from '@rivus/estela-schema'
 import { capStrings, mainAgentId } from '@rivus/estela-kernel'
 import {
@@ -13,7 +13,6 @@ import {
   SURFACE_IDS,
   type Redaction,
 } from './bounds.ts'
-import type { TraceIds } from './trace-ids.ts'
 
 /** The view's floor: below this a string says too little to be worth returning. */
 const MIN_CHARS = 256

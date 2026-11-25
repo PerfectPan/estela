@@ -1,6 +1,7 @@
+import type { EventOf, Trace } from '@rivus/estela-schema'
 import type { LoadProgress } from './trace-store.ts'
 import { describe, expect, it } from 'vite-plus/test'
-import { deferred, fixture, HOME, present, recordOf, storeOf } from '../testing/store-fixture.ts'
+import { deferred, fixture, HOME, redact, recordOf, storeOf } from '../testing/store-fixture.ts'
 import { LoadCancelledError, TraceStore } from './trace-store.ts'
 
 const encoder = new TextEncoder()
@@ -31,7 +32,7 @@ describe('TraceStore', () => {
   it('returns the full payload in get-event while the view is capped and presented', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: `${HOME} ${'x'.repeat(300)}` }])
-    const { store } = storeOf({ fs: f.fs, parse: f.parse, present, maxString: 256 })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, redact, maxString: 256 })
     const view = await store.view('a')
     expect(view.trace.events[0]!.payload).toEqual({ text: `~ ${'x'.repeat(254)}`, $truncated: [['text']] })
     expect(view.summary).toMatchObject({ requests: 0 })
@@ -165,14 +166,89 @@ describe('TraceStore', () => {
     const f = fixture()
     const id = `${HOME}/u1`
     f.write('/logs/a.jsonl', [{ id, kind: 'user', text: 'hi' }])
-    const { store } = storeOf({ fs: f.fs, parse: f.parse, present })
-    const surface = await store.reconstruct('a', id)
-    expect(surface.eventId).toBe('~/u1')
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, redact })
+    const surface = await store.reconstruct('a', '@e0')
+    expect(surface).toMatchObject({ eventId: '@e0', visibleIds: ['@e0'] })
+    // The recorded id still names the event.
+    expect(await store.reconstruct('a', id)).toEqual(surface)
     expect(JSON.stringify(surface)).not.toContain(HOME)
     const events = await store.withTrace('a', trace => trace.events)
     expect(events.map(event => event.id)).toEqual([id])
     expect(events[0]).not.toHaveProperty('original')
     await expect(store.withTrace('missing', trace => trace)).rejects.toThrow('unknown trace id: missing')
+  })
+
+  it('shows an id the redaction would change as an alias, in every reference to it, and takes the alias back', async () => {
+    const f = fixture()
+    const lane = `${HOME}/agents/sub`
+    const child = `${HOME}/ids/child`
+    f.write('/logs/a.jsonl', [
+      { id: 'spawn', kind: 'user', text: 'start' },
+      { id: child, kind: 'user', text: 'found' },
+      { id: 'note', kind: 'user', text: 'kept' },
+      { id: 'summary', kind: 'user', text: 'summed up' },
+      { id: 'end', kind: 'user', text: 'after' },
+    ])
+    const parse = (file: string): Trace => {
+      const trace = f.parse(file)
+      const [spawn, found, note, summary, end] = trace.events as EventOf<'user'>[]
+      return {
+        ...trace,
+        agents: [{ id: 'main' }, { id: lane, parentId: 'main' }, { id: 'orphan', parentId: 'gone lane' }],
+        events: [
+          spawn!,
+          { ...found!, agentId: lane, parentId: 'spawn' },
+          { ...note!, parentId: `${HOME}/records/gone`, shadowedBy: 'summary' },
+          { ...summary!, kind: 'compaction', payload: { summaryEventId: child } },
+          end!,
+        ],
+      }
+    }
+    const { store } = storeOf({ fs: f.fs, parse, redact })
+    const { trace } = await store.view('a')
+    // Safe ids stay; one redaction changes is `@e<seq>` wherever it appears, in events and lanes alike.
+    // A lane whose parent is no lane of this trace keeps the reference for the text redaction.
+    expect(trace.agents).toEqual([
+      { id: 'main' },
+      { id: '@l1', parentId: 'main' },
+      { id: 'orphan', parentId: 'gone lane' },
+    ])
+    expect(trace.events.map(event => [event.id, event.agentId, event.parentId, event.shadowedBy])).toEqual([
+      ['spawn', undefined, undefined, undefined],
+      ['@e1', '@l1', 'spawn', undefined],
+      ['note', undefined, '~/records/gone', 'summary'],
+      ['summary', undefined, undefined, undefined],
+      ['end', undefined, undefined, undefined],
+    ])
+    expect(trace.events[3]!.payload).toEqual({ summaryEventId: '@e1' })
+
+    const event = await store.event('a', '@e1')
+    expect(event).toMatchObject({ id: '@e1', agentId: '@l1', parentId: 'spawn', payload: { text: 'found' } })
+    expect(event.original).toEqual({ id: '~/ids/child', kind: 'user', text: 'found' })
+    // The original is redacted as text: its `id` names the home, which is hidden.
+    expect(JSON.stringify(event)).not.toContain(HOME)
+    expect((await store.event('a', child)).id).toBe('@e1')
+    await expect(store.event('a', '~/ids/child')).rejects.toThrow('no event ~/ids/child')
+    // What a compaction removed is named by its shown id.
+    expect((await store.reconstruct('a', 'end')).removedIds).toEqual(['note'])
+    // What `build` does: events with their originals from the trace it loaded itself, shown as `get-event` shows them.
+    const loaded = parse('/logs/a.jsonl')
+    const [found, safe] = store.presented(loaded, ['@e1', 'spawn'])
+    expect(found).toMatchObject({ id: '@e1', agentId: '@l1', parentId: 'spawn', original: { id: '~/ids/child' } })
+    expect(safe!.id).toBe('spawn')
+    expect(() => store.presented(loaded, ['@e9'])).toThrow('no event @e9')
+    expect(() => store.presented(loaded, ['gone'])).toThrow('no event gone')
+  })
+
+  it('sends ids as recorded, and looks them up as recorded, without a redaction', async () => {
+    const f = fixture()
+    const id = `${HOME}/ids/u1`
+    f.write('/logs/a.jsonl', [{ id, kind: 'user', text: 'hi' }])
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
+    expect((await store.view('a')).trace.events[0]!.id).toBe(id)
+    expect((await store.event('a', id)).id).toBe(id)
+    await expect(store.event('a', '@e0')).rejects.toThrow('no event @e0')
+    expect(store.presented(f.parse('/logs/a.jsonl'), [id])[0]!.id).toBe(id)
   })
 
   it('withEvents reads source pointers in the order asked', async () => {

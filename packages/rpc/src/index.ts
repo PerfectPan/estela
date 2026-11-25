@@ -58,9 +58,11 @@ export {
   type LoadOpts,
   type LoadProgress,
   type ResolvedSession,
+  type TraceRedaction,
   type TraceStoreDeps,
   type TraceViewResult,
 } from './trace-store.ts'
+export { TraceIds } from './trace-ids.ts'
 
 declare module 'devframe' {
   interface DevframeRpcServerFunctions extends RpcDefinitionsToFunctionsWithNamespace<

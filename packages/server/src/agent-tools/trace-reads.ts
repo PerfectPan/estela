@@ -1,5 +1,6 @@
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { fold, projectLanes, projectRequests, projectTurns, summaryOf } from '@rivus/estela-kernel'
+import type { TraceIds } from '@rivus/estela-rpc'
 import {
   FIELD_CHARS,
   ITEM_IDS,
@@ -15,7 +16,6 @@ import {
   TITLE_CHARS,
   type Redaction,
 } from './bounds.ts'
-import type { TraceIds } from './trace-ids.ts'
 
 const NUMBERS = [
   'turns',

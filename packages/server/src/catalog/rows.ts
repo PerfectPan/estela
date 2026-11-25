@@ -1,13 +1,13 @@
 import { priceRequestUsage, snapshotPricing, summaryOf } from '@rivus/estela-kernel'
 import type { IndexCost, IndexHead, IndexRow, StoredSummary } from '@rivus/estela-runtime-node'
-import type { SessionError, SessionListRow } from '@rivus/estela-rpc'
+import type { ListSessionsQuery, SessionError, SessionListRow } from '@rivus/estela-rpc'
 import type { SessionAdapters, SessionHead, SessionRef } from '@rivus/agent-kit/sessions'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/estela-runtime-node'
 import { summarizeSession } from '@rivus/agent-kit/transcript'
 import type { ShellPlatform } from '../sessions/load-session.ts'
 import { serverRedaction, type Redactor } from '../sessions/redaction.ts'
 import { loadFailure } from '../sessions/read-failure.ts'
-import { projectName, traceIdOf, sessionTargetLabel } from '../sessions/session-target.ts'
+import { projectName, toKitPath, traceIdOf, sessionTargetLabel } from '../sessions/session-target.ts'
 import { keepsSessionsInDatabase, sessionProviders } from '../sessions/adapters.ts'
 
 /** Server-side row. `path` never leaves the server; the browser gets `traceId`. */
@@ -67,6 +67,38 @@ export function currentSummary(summary: StoredSummary | undefined): StoredSummar
   return summary?.cost?.prices === snapshotPricing().version ? summary : undefined
 }
 
+/**
+ * Whether a session recorded in `cwd` ran in `directory` or inside it. `directory` is absolute or starts with `~`,
+ * which names each of `homes`: rows show the home the agent ran under and the server user's home alike as `~`.
+ * A POSIX path is compared as recorded, case and all. Windows paths are compared with `/` for a backslash and
+ * without case: discovery names a path with `/`, a user often writes a backslash, and the file system ignores case.
+ */
+export function withinDirectory(
+  cwd: string | undefined,
+  directory: string,
+  homes: readonly string[],
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  // An empty directory names none.
+  if (!cwd || !directory) {
+    return false
+  }
+  const fold = (path: string): string => {
+    const kit = toKitPath(path, platform)
+    return platform === 'win32' ? kit.toLowerCase() : kit
+  }
+  const withoutSlashes = (path: string): string => path.replace(/\/+$/, '')
+  const asked = fold(directory)
+  // `~` alone and `~/…` name a home; the rest after `~` is empty for the first.
+  const rest = asked === '~' ? '' : /^~\/(.*)$/.exec(asked)?.[1]
+  const roots = rest === undefined ? [asked] : homes.map(home => `${home}${rest === '' ? '' : `/${rest}`}`)
+  const recorded = withoutSlashes(fold(cwd))
+  return roots.some(path => {
+    const root = withoutSlashes(fold(path))
+    return recorded === root || recorded.startsWith(root === '' ? '/' : `${root}/`)
+  })
+}
+
 export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
   return {
     traceId: row.traceId,
@@ -83,6 +115,12 @@ export function publicRow(row: LiveRow, redact: Redactor): SessionListRow {
     ...(row.error ? { error: row.error } : {}),
   }
 }
+
+/**
+ * What a listing asks of the catalog: `ListSessionsQuery`, plus `cwd` to keep only the rows recorded in that
+ * directory. The agent tools send it; the browser's `list-sessions` has no such input.
+ */
+export type SessionQuery = ListSessionsQuery & { cwd?: string }
 
 /** The list cost of a session's request fields, by the rules the workspace prices its loaded requests with. */
 function listCost(requestUsage: Parameters<typeof priceRequestUsage>[0] | undefined): IndexCost {

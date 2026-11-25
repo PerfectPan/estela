@@ -5,8 +5,9 @@ import { dirname, resolve } from 'node:path'
 import process from 'node:process'
 import * as z from 'zod/mini'
 import { snapshotPricing, toAtif, toOtlp } from '@rivus/estela-kernel'
-import { redact, redactText } from '@rivus/agent-kit/redact'
+import { redactText } from '@rivus/agent-kit/redact'
 import { homeDir } from '@rivus/estela-runtime-node'
+import { homeRedaction } from '@rivus/estela-server'
 
 export type ExportFormat = 'atif' | 'otlp'
 
@@ -153,7 +154,8 @@ export async function writeExport(
 ): Promise<string> {
   const home = homeDir()
   const value = exportOf(trace, format)
-  const payload = `${JSON.stringify(redacts ? redact(value, { home }) : value, null, 2)}\n`
+  // The server's redaction: it keeps every value of object keys that redact to the same text, as in a tool call's arguments.
+  const payload = `${JSON.stringify(redacts ? homeRedaction(home).value(value) : value, null, 2)}\n`
   if (outFile === undefined) {
     const written = await writeDefaultUnique(trace.session.id, format, payload, home)
     return redactText(written, { home })

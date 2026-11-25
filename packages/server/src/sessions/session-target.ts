@@ -7,7 +7,6 @@ import type { SessionTarget } from '@rivus/agent-kit/transcript'
  * A session path with `/` separators on Windows, the form the kit reads a target in (it turns `\` into `/`
  * itself when the platform's `os` is `win32`); other systems keep the path as given. Trace ids hash this
  * form, and a caller that hands a path to an adapter directly, as the kit's conformance runner does, passes it.
- * @internal
  */
 export function toKitPath(path: string, platform: NodeJS.Platform = process.platform): string {
   return platform === 'win32' ? path.replaceAll('\\', '/') : path

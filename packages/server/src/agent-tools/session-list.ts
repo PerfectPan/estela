@@ -1,4 +1,5 @@
-import type { ListSessionsQuery, ListSessionsResult, SessionListRow } from '@rivus/estela-rpc'
+import type { ListSessionsResult, SessionListRow } from '@rivus/estela-rpc'
+import type { SessionQuery } from '../catalog/rows.ts'
 import type * as z from 'zod/mini'
 import type { listSessionsInput } from './inputs.ts'
 import {
@@ -13,13 +14,19 @@ import {
   type Redaction,
 } from './bounds.ts'
 
-/** What the session tools read from the session catalog. */
+/**
+ * What the session tools read from the session catalog. A `cwd` in the query keeps only the sessions recorded in
+ * that directory: the catalog compares it with each row's recorded working directory, which never leaves it.
+ * `redact` is applied to titles, projects, and prompts before the catalog shortens them, always.
+ */
 export interface SessionSource {
-  /** `redact` is applied to titles, projects, and prompts before the catalog shortens them, always. */
-  listSessions: (query: ListSessionsQuery, redact: (text: string) => string) => Promise<ListSessionsResult>
+  listSessions: (query: SessionQuery, redact: (text: string) => string) => Promise<ListSessionsResult>
 }
 
-export type SessionFilters = z.output<typeof listSessionsInput>
+type SessionFilters = z.output<typeof listSessionsInput>
+
+/** The filters of one page: the tool's input, plus `query` for the search tool. */
+type PageFilters = SessionFilters & { query?: string }
 
 /** One session in `estela_list_sessions` and `estela_search_sessions`. A count that is absent is not recorded. */
 interface SessionItem {
@@ -107,24 +114,13 @@ function flagVerdict(row: SessionListRow, value: number | undefined, wanted: boo
   return value > 0 === wanted ? 'match' : 'no'
 }
 
-/** A directory as rows show it: redacted to `~`, without a trailing slash. */
-function directoryOf(path: string, redact: (text: string) => string): string {
-  const dir = redact(path)
-  return dir.length > 1 ? dir.replace(/\/+$/, '') : dir
-}
-
-function verdict(row: SessionListRow, filters: SessionFilters, redact: (text: string) => string): Verdict {
+// The working-directory filter is not tested here: the catalog answers it against each row's recorded directory.
+function verdict(row: SessionListRow, filters: SessionFilters): Verdict {
   if (filters.agent !== undefined && row.agent !== filters.agent) {
     return 'no'
   }
   if (filters.project !== undefined && !(row.project ?? '').toLowerCase().includes(filters.project.toLowerCase())) {
     return 'no'
-  }
-  if (filters.cwd !== undefined) {
-    const dir = directoryOf(filters.cwd, redact)
-    if (row.cwd === undefined || (row.cwd !== dir && !row.cwd.startsWith(dir === '/' ? '/' : `${dir}/`))) {
-      return 'no'
-    }
   }
   if (filters.since !== undefined && row.lastActiveAt < Date.parse(filters.since)) {
     return 'no'
@@ -190,8 +186,7 @@ const WAIT_STEP_MS = 100
 /** Matching rows, and the trace ids of the rows a flag filter could not test yet. */
 function sortRows(
   listed: ListSessionsResult,
-  filters: SessionFilters & { query?: string },
-  redact: (text: string) => string,
+  filters: PageFilters,
 ): { rows: SessionListRow[]; unsummarized: string[] } {
   const found = filters.query === undefined ? undefined : new Set(listed.matches ?? [])
   const rows: SessionListRow[] = []
@@ -200,7 +195,7 @@ function sortRows(
     if (found && !found.has(row.traceId)) {
       continue
     }
-    const seen = verdict(row, filters, redact)
+    const seen = verdict(row, filters)
     if (seen === 'match') {
       rows.push(row)
     } else if (seen === 'unsummarized') {
@@ -212,28 +207,32 @@ function sortRows(
 
 /**
  * Sessions newest activity first, filtered, one page. With `query`, only the sessions the index (or, without one,
- * the same rule in memory) finds by title and the user's prompts. Each item is redacted before it is measured.
+ * the same rule in memory) finds by title and the user's prompts; with `cwd`, only the sessions the catalog
+ * recorded in that directory. Each item is redacted before it is measured.
  */
 export async function listSessionPage(
   source: SessionSource,
-  filters: SessionFilters & { query?: string },
+  filters: PageFilters,
   redaction: Redaction,
   waitMs = SUMMARY_WAIT_MS,
 ): Promise<SessionPage> {
   const deadline = Date.now() + waitMs
-  const query: ListSessionsQuery = filters.query === undefined ? {} : { query: filters.query }
-  let listed = await source.listSessions(query, redaction.text)
+  const asked: SessionQuery = {
+    ...(filters.query === undefined ? {} : { query: filters.query }),
+    ...(filters.cwd === undefined ? {} : { cwd: filters.cwd }),
+  }
+  let listed = await source.listSessions(asked, redaction.text)
   const known = listed.agents.map(agent => agent.id)
   if (filters.agent !== undefined && !known.includes(filters.agent)) {
     throw new TypeError(`unknown agent ${JSON.stringify(filters.agent)}; this server reads ${known.join(', ')}`)
   }
-  let sorted = sortRows(listed, filters, redaction.text)
+  let sorted = sortRows(listed, filters)
   while (sorted.unsummarized.length > 0 && Date.now() < deadline) {
     // The flag filters need counts: summarize those sessions first, and look again shortly.
-    await source.listSessions({ first: sorted.unsummarized.slice(0, 500) }, redaction.text)
+    await source.listSessions({ first: sorted.unsummarized.slice(0, 500), ...asked }, redaction.text)
     await new Promise(resolve => setTimeout(resolve, WAIT_STEP_MS))
-    listed = await source.listSessions(query, redaction.text)
-    sorted = sortRows(listed, filters, redaction.text)
+    listed = await source.listSessions(asked, redaction.text)
+    sorted = sortRows(listed, filters)
   }
   const { rows } = sorted
   const unsummarized = sorted.unsummarized.length

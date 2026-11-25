@@ -73,7 +73,7 @@ export function createTraceStore(options: TraceStoreOptions): ShellTraceStore {
       }
       return read.value
     },
-    present: options.redacts ? redact.value : undefined,
+    redact: options.redacts ? redact : undefined,
     log: log ? message => log(options.redacts ? redact.text(message) : message) : undefined,
   })
   return {

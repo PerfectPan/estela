@@ -1,5 +1,4 @@
 import type { ReconstructResult, Trace } from '@rivus/estela-schema'
-import type { FittedView } from '@rivus/estela-kernel'
 import type { FileStamp } from './source-check.ts'
 import type {
   EventDetail,
@@ -8,19 +7,15 @@ import type {
   LoadOpts,
   LoadProgress,
   ResolvedSession,
+  TraceRedaction,
   TraceStoreDeps,
   TraceViewResult,
 } from './trace-store-types.ts'
 import { fitView, fold, reconstruct, summaryOf, VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
-import { checkedOriginal, fingerprints, stampFiles, stampMatches } from './source-check.ts'
-import {
-  canonicalRecord,
-  compressedRecord,
-  reloadOnce,
-  reloadShared,
-  withoutOriginals,
-  type Reloadable,
-} from './original-reload.ts'
+import { TraceCache, type TraceEntry } from './trace-cache.ts'
+import { checkedOriginal, stampMatches } from './source-check.ts'
+import { TraceIdMaps } from './trace-ids.ts'
+import { canonicalRecord, compressedRecord, reloadOnce, reloadShared } from './original-reload.ts'
 
 export type {
   EventDetail,
@@ -30,29 +25,14 @@ export type {
   LoadOpts,
   LoadProgress,
   ResolvedSession,
+  TraceRedaction,
   TraceStoreDeps,
   TraceViewResult,
 }
 
 export const CURRENT_TRACE_ID = 'current' // Trace id of the launch session.
-const CAPACITY = 3 // Loaded traces kept in memory, without originals.
 const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024 // Reserve 64 KB of the 12 MB budget for `summary` and envelope.
 const READ_BATCH = 32 // Concurrent source-pointer reads in `withEvents`.
-
-interface Entry extends Reloadable {
-  session: ResolvedSession
-  trace: Trace
-  canonical: boolean
-  /** A compressed log's events read through the platform reader, one whole-file decompression per load. */
-  compressed: boolean
-  byId: Map<string, number>
-  stamps: Map<string, FileStamp>
-  prints: Uint32Array
-  view?: FittedView
-  /** Aborts the reload when the entry is evicted. */
-  evicted: AbortController
-}
-
 /** What a hold needs. It does not reach the loaded trace, so an evicted trace can be collected. */
 interface HoldState {
   controller: AbortController
@@ -64,7 +44,7 @@ interface HoldState {
 
 interface Pending {
   state: HoldState
-  promise: Promise<Entry>
+  promise: Promise<TraceEntry>
 }
 
 export class LoadCancelledError extends Error {
@@ -84,11 +64,15 @@ export class SnapshotChangedError extends Error {
 /**
  * Server side of `get-trace-view`, `get-event`, and `reconstruct`: resolves
  * trace ids, shares in-flight loads, keeps the last 3 traces without originals, and
- * reads originals back from source pointers on demand.
+ * reads originals back from source pointers on demand. With a redaction, every event and lane id it sends that
+ * redaction would change is an alias (`TraceIds`), and `get-event` and `reconstruct` take that alias back.
  */
 export class TraceStore {
   private readonly deps: TraceStoreDeps
-  private readonly entries = new Map<string, Entry>()
+  /** The last traces loaded, without originals. */
+  private readonly cache: TraceCache
+  /** Per loaded trace, the aliases a redacting store gives its ids. */
+  private readonly ids: TraceIdMaps
   private readonly pending = new Map<string, Pending>()
   private readonly owners = new WeakMap<object, { key: string; handle: LoadHandle }>()
   /** Latest `open` per owner, counted before any await, so a slower earlier open cannot win. */
@@ -96,16 +80,18 @@ export class TraceStore {
 
   constructor(deps: TraceStoreDeps) {
     this.deps = deps
+    this.cache = new TraceCache(deps.fs)
+    this.ids = new TraceIdMaps(deps.redact)
   }
 
   /** Keys of cached traces, least recently used first. */
   cachedKeys(): string[] {
-    return [...this.entries.keys()]
+    return this.cache.cachedKeys()
   }
 
   /** Put an already loaded trace in the cache (the shell loads the launch session before listening). */
   async seed(session: ResolvedSession, loaded: LoadedTrace): Promise<void> {
-    this.remember(await this.entryOf(session, loaded))
+    this.cache.add(await this.cache.of(session, loaded))
   }
 
   /**
@@ -150,7 +136,12 @@ export class TraceStore {
     return this.guard(async () => {
       const entry = await this.entryFor(traceId, owner)
       if (!entry.view) {
-        entry.view = fitView(this.present(entry.trace), { maxString: this.deps.maxString, maxBytes: VIEW_BYTES })
+        // Ids are shown before the text is redacted, since a shown id must come from the recorded one.
+        const ids = this.ids.of(entry.trace)
+        entry.view = fitView(this.show(ids?.shown(entry.trace) ?? entry.trace), {
+          maxString: this.deps.maxString,
+          maxBytes: VIEW_BYTES,
+        })
         if (entry.view.trace.view?.withinBudget === false) {
           this.deps.log?.(
             `view of ${traceId} is ${entry.view.bytes} bytes at the 256-character floor, over the ${VIEW_BYTES}-byte budget`,
@@ -161,17 +152,19 @@ export class TraceStore {
     })
   }
 
-  /** The full event, with `original` read back from its source pointer (or `originalUnavailable`). */
+  /** The full event `id` names (an id as recorded, or an alias the store gave out), with `original` read back from its
+   * source pointer (or `originalUnavailable`). */
   async event(traceId: string, id: string, owner?: object): Promise<EventDetail> {
     return this.guard(async () => {
       const entry = await this.entryFor(traceId, owner)
-      const index = entry.byId.get(id)
+      const ids = this.ids.of(entry.trace)
+      const index = entry.byId.get(ids?.findEvent(id) ?? id)
       if (index === undefined) {
         throw new Error(`no event ${id} in ${traceId}`)
       }
-      const event = entry.trace.events[index]!
+      const event = ids?.eventShown(entry.trace.events[index]!) ?? entry.trace.events[index]!
       if (entry.canonical) {
-        return this.present({
+        return this.show({
           ...event,
           original: await canonicalRecord(await reloadShared(entry, () => this.loadAgain(entry)), entry.trace, index),
         })
@@ -184,9 +177,9 @@ export class TraceStore {
         entry.prints[index]!,
       )
       if ('unavailable' in checked) {
-        return this.present({ ...event, originalUnavailable: checked.unavailable })
+        return this.show({ ...event, originalUnavailable: checked.unavailable })
       }
-      return this.present({ ...event, original: checked.original })
+      return this.show({ ...event, original: checked.original })
     })
   }
 
@@ -237,9 +230,31 @@ export class TraceStore {
     }
   }
 
-  /** Presented like `get-event`: event ids come from the log and may carry the paths and tokens it holds. */
+  /** Ids in and out like `get-event`: they come from the log and may carry the paths and tokens it holds. */
   async reconstruct(traceId: string, eventId: string, owner?: object): Promise<ReconstructResult> {
-    return this.guard(async () => this.present(reconstruct((await this.entryFor(traceId, owner)).trace, eventId)))
+    return this.guard(async () => {
+      const entry = await this.entryFor(traceId, owner)
+      const ids = this.ids.of(entry.trace)
+      const surface = reconstruct(entry.trace, ids?.findEvent(eventId) ?? eventId)
+      return this.show(ids?.surface(surface) ?? surface)
+    })
+  }
+
+  /**
+   * `get-event`'s results for `shown`, ids as the view shows them, with the events and their originals taken from
+   * `loaded`: a trace the caller loaded and kept whole, as `build` does, so no file is read again. Unlike
+   * `get-event`, nothing checks that the source still holds the record.
+   */
+  presented(loaded: Trace, shown: readonly string[]): EventDetail[] {
+    const ids = this.ids.of(loaded)
+    const byId = new Map(loaded.events.map(event => [event.id, event]))
+    return shown.map(id => {
+      const event = byId.get(ids?.findEvent(id) ?? id)
+      if (!event) {
+        throw new Error(this.show(`no event ${id}`))
+      }
+      return this.show(ids?.eventShown(event) ?? event)
+    })
   }
 
   /**
@@ -250,8 +265,8 @@ export class TraceStore {
     return this.guard(async () => read((await this.entryFor(traceId)).trace))
   }
 
-  private present<T>(value: T): T {
-    return this.deps.present ? this.deps.present(value) : value
+  private show<T>(value: T): T {
+    return this.deps.redact ? this.deps.redact.value(value) : value
   }
 
   /** Error messages carry paths and file content; they leave the store redacted. */
@@ -259,7 +274,7 @@ export class TraceStore {
     if (error instanceof LoadCancelledError || error instanceof SnapshotChangedError) {
       return error
     }
-    const out = new Error(this.present(error instanceof Error ? error.message : String(error)))
+    const out = new Error(this.show(error instanceof Error ? error.message : String(error)))
     if (error instanceof Error) {
       out.name = error.name
     }
@@ -286,9 +301,9 @@ export class TraceStore {
    * Through a hold, so another connection's supersede cannot cancel this read:
    * the owner's own open hold for this session, else a hold of its own.
    */
-  private async entryFor(traceId: string, owner?: object): Promise<Entry> {
+  private async entryFor(traceId: string, owner?: object): Promise<TraceEntry> {
     const session = await this.resolveOrThrow(traceId)
-    const cached = this.touch(session.key)
+    const cached = this.cache.get(session.key)
     if (cached) {
       return cached
     }
@@ -303,53 +318,11 @@ export class TraceStore {
         handle.release()
       }
     }
-    const entry = this.touch(session.key)
+    const entry = this.cache.get(session.key)
     if (!entry) {
       throw new Error(`${traceId} was evicted before it could be read`)
     }
     return entry
-  }
-
-  private async entryOf(session: ResolvedSession, loaded: LoadedTrace): Promise<Entry> {
-    const prints = fingerprints(loaded.trace)
-    const trace = withoutOriginals(loaded.trace)
-    const byId = new Map<string, number>()
-    trace.events.forEach((event, index) => byId.set(event.id, index))
-    const stamps = loaded.canonical ? new Map<string, FileStamp>() : await stampFiles(trace, this.deps.fs)
-    // A compressed file's source pointer carries `codec`; the reader decompresses the whole file for one
-    // record, so a batch of reads shares one reload instead of one decompression per event.
-    const compressed = !loaded.canonical && trace.events.some(event => event.source.codec !== undefined)
-    return {
-      session,
-      trace,
-      canonical: loaded.canonical,
-      compressed,
-      byId,
-      stamps,
-      prints,
-      pinned: 0,
-      evicted: new AbortController(),
-    }
-  }
-
-  private touch(key: string): Entry | undefined {
-    const entry = this.entries.get(key)
-    if (entry) {
-      this.entries.delete(key)
-      this.entries.set(key, entry)
-    }
-    return entry
-  }
-
-  private remember(entry: Entry): void {
-    this.entries.get(entry.session.key)?.evicted.abort()
-    this.entries.delete(entry.session.key)
-    this.entries.set(entry.session.key, entry)
-    while (this.entries.size > CAPACITY) {
-      const [key, oldest] = this.entries.entries().next().value!
-      oldest.evicted.abort()
-      this.entries.delete(key)
-    }
   }
 
   private async totalBytes(session: ResolvedSession): Promise<number> {
@@ -379,13 +352,13 @@ export class TraceStore {
     session: ResolvedSession,
     current: () => boolean = () => true,
   ): Promise<LoadHandle> {
-    if (this.touch(session.key)) {
+    if (this.cache.get(session.key)) {
       return this.cachedHandle(await this.totalBytes(session))
     }
     let pending = this.activePending(session.key)
     if (!pending) {
       const total = await this.totalBytes(session)
-      if (this.touch(session.key)) {
+      if (this.cache.get(session.key)) {
         return this.cachedHandle(total)
       }
       pending = this.activePending(session.key)
@@ -444,13 +417,13 @@ export class TraceStore {
       try {
         const loaded = await this.deps.load(session, { signal: state.controller.signal, onProgress })
         state.controller.signal.throwIfAborted()
-        const entry = await this.entryOf(session, loaded)
+        const entry = await this.cache.of(session, loaded)
         state.controller.signal.throwIfAborted()
         if (session.expect && !(await stampMatches(this.deps.fs, session.target.path, session.expect))) {
           throw new SnapshotChangedError(traceId)
         }
         state.controller.signal.throwIfAborted()
-        this.remember(entry)
+        this.cache.add(entry)
         onProgress(totalBytes)
         return entry
       } catch (error) {
@@ -482,14 +455,17 @@ export class TraceStore {
   }
 
   /** Load a canonical or compressed file again for its originals; the entry's pin keeps it while a batch runs. */
-  private loadAgain(entry: Entry): Promise<LoadedTrace> {
+  private loadAgain(entry: TraceEntry): Promise<LoadedTrace> {
     return this.deps.load(entry.session, { signal: entry.evicted.signal, onProgress: () => {} })
   }
 
-  private compressedEvent(entry: Entry, trace: Trace, id: string, traceId: string): EventDetail {
-    const found = compressedRecord(entry.trace, trace, entry.byId, entry.prints, id, traceId)
+  private compressedEvent(entry: TraceEntry, trace: Trace, id: string, traceId: string): EventDetail {
+    const ids = this.ids.of(entry.trace)
+    const found = compressedRecord(entry.trace, trace, entry.byId, entry.prints, ids?.findEvent(id) ?? id, traceId)
+    // Shown like `event`: the cached event still carries the recorded ids.
+    const event = ids?.eventShown(found.event) ?? found.event
     return 'unavailable' in found
-      ? this.present({ ...found.event, originalUnavailable: found.unavailable })
-      : this.present({ ...found.event, original: found.original })
+      ? this.show({ ...event, originalUnavailable: found.unavailable })
+      : this.show({ ...event, original: found.original })
   }
 }

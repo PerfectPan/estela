@@ -49,7 +49,8 @@ export async function buildReport(input: ReportInput): Promise<ReportTrace> {
   const maxEvents = input.maxEvents ?? REPORT_MAX_EVENTS
   const maxBytes = input.maxBytes ?? REPORT_MAX_BYTES
   const trace = input.redact(input.view.trace)
-  const ids = trace.events.map(event => event.id)
+  // Asked by the view's own ids, not the redacted ones: they name events in the store, which may not redact.
+  const ids = input.view.trace.events.map(event => event.id)
   const events: EventDetail[] = []
   let eventBytes = 0
   let full = false

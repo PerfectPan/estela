@@ -31,8 +31,9 @@ export async function runBuild(input: BuildInput, packageVersion: string): Promi
         return `${trace.events.length} events`
       },
       redact: async () => {
-        const byId = new Map(trace!.events.map(event => [event.id, event]))
-        report = await reportOf(server.store, CURRENT_TRACE_ID, async ids => ids.map(id => byId.get(id)!))
+        // Asked by the ids the view shows, the originals come from the trace already loaded.
+        const full = async (ids: readonly string[]) => server.store.presented(trace!, ids)
+        report = await reportOf(server.store, CURRENT_TRACE_ID, full)
         const included = report.truncated ? `; original records for the first ${report.events.length}` : ''
         return `redacted ${report.total} events${included}`
       },

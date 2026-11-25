@@ -126,6 +126,45 @@ describe('export', () => {
     }
   })
 
+  it('keeps every argument of a tool call whose input keys redact to the same text', async () => {
+    const source = { file: 'f.jsonl', offset: 0, length: 1, line: 1 }
+    const trace: Trace = {
+      schema: 'estela',
+      agent: 'test',
+      session: { id: 's-arguments' },
+      capabilities: [],
+      agents: [{ id: 'main' }],
+      events: [
+        { id: 'p1', seq: 0, ts: 1, kind: 'user', payload: { text: 'read both' }, source },
+        // Two token-shaped keys: each redacts to `[redacted]`, and only their suffix tells them apart.
+        {
+          id: 'c1',
+          seq: 1,
+          ts: 2,
+          kind: 'tool_call',
+          payload: {
+            callId: 'x1',
+            name: 'Read',
+            args: { 'sk-aaaaaaaaaaaaaaaa/x.ts': 1, 'sk-bbbbbbbbbbbbbbbb/x.ts': 2 },
+          },
+          source,
+        },
+        { id: 'o1', seq: 2, ts: 3, kind: 'tool_result', payload: { callId: 'x1', output: 'ok' }, source },
+      ],
+      skipped: [],
+    }
+    const dir = mkdtempSync(join(tmpdir(), 'at-export-keys-'))
+    try {
+      const out = join(dir, 'redacted.json')
+      await writeExport(trace, 'atif', out, true)
+      const written = JSON.parse(readFileSync(out, 'utf8')) as { steps: { tool_calls?: { arguments: unknown }[] }[] }
+      const calls = written.steps.flatMap(step => step.tool_calls ?? [])
+      expect(calls.map(call => call.arguments)).toEqual([{ '[redacted]/x.ts': 1, '[redacted]/x.ts#2': 2 }])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('exports every registered agent fixture to a structurally valid ATIF document', async () => {
     for (const [agent, relative, exports, sessionId] of FIXTURES) {
       const trace = await loadSession(

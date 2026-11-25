@@ -8,6 +8,7 @@ export {
 export type { AgentProgress, SessionCatalog, UnreadableRoot } from './catalog/session-catalog.ts'
 export { checkReportOutDir, reportOf, ReportOutDirError } from './report/report.ts'
 export { loadSession, type ShellPlatform } from './sessions/load-session.ts'
+export { homeRedaction, type HomeRedaction, type Redactor } from './sessions/redaction.ts'
 export { errorMessage } from './sessions/read-failure.ts'
 export { serverRedaction } from './sessions/redaction.ts'
 export { oneLine, parseSessionTarget, sessionTargetLabel } from './sessions/session-target.ts'

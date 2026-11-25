@@ -2,7 +2,7 @@ import type { ReconstructResult, Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { jsonChars, RESULT_CHARS } from './bounds.ts'
 import { eventResult, surfaceResult } from './event-read.ts'
-import { TraceIds } from './trace-ids.ts'
+import { TraceIds } from '@rivus/estela-rpc'
 
 function userEvent(id: string, text: string, seq = 0): TraceEvent {
   return {

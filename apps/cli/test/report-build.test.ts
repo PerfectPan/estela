@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,6 +22,70 @@ function build(path: string, outDir: string): Promise<number> {
 }
 
 describe('report site', () => {
+  it('builds a session whose event ids name the home directory, and shows each event under the id the view shows', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'at-m5-report-ids-'))
+    const sessionDir = await mkdtemp(join(tmpdir(), 'at-m5-session-ids-'))
+    try {
+      // Written at run time: the id names the home of whoever runs the test, which no fixture may hold.
+      const file = join(sessionDir, 'session.jsonl')
+      const base = { sessionId: 's-ids', version: '2.0.0', cwd: join(homedir(), 'work', 'anywhere') }
+      await writeFile(
+        file,
+        [
+          {
+            ...base,
+            type: 'user',
+            uuid: join(homedir(), 'ids', 'prompt'),
+            timestamp: '2026-02-01T00:00:00.000Z',
+            message: { role: 'user', content: 'list the files' },
+          },
+          {
+            ...base,
+            type: 'assistant',
+            uuid: join(homedir(), 'ids', 'reply'),
+            requestId: 'req-ids',
+            timestamp: '2026-02-01T00:00:01.000Z',
+            message: {
+              role: 'assistant',
+              model: 'claude-sonnet-4-5-20250929',
+              id: 'msg-ids',
+              stop_reason: 'end_turn',
+              usage: { input_tokens: 7, output_tokens: 3 },
+              content: [{ type: 'text', text: 'two files' }],
+            },
+          },
+        ]
+          .map(record => `${JSON.stringify(record)}\n`)
+          .join(''),
+      )
+      expect(await build(file, outDir)).toBe(0)
+      const html = await readFile(join(outDir, 'index.html'), 'utf8')
+      expect(html).not.toContain(homedir())
+      const json = /<script type="application\/json" id="report-trace">(.*?)<\/script>/s.exec(html)?.[1]
+      const report = z.parse(
+        z.object({
+          trace: z.object({ events: z.array(z.object({ id: z.string() })) }),
+          events: z.array(z.object({ id: z.string(), original: z.unknown() })),
+          total: z.number(),
+        }),
+        JSON.parse(json!),
+      )
+      // Every event is there in full, under the id the view shows it by.
+      expect(report.events.map(event => event.id)).toEqual(report.trace.events.map(event => event.id))
+      expect(report.events).toHaveLength(report.total)
+      for (const event of report.events) {
+        expect(event.original).toBeDefined()
+      }
+      // Both events whose id names the home are shown under an alias.
+      expect(report.trace.events.filter(event => event.id.startsWith('@e')).map(event => event.id)).toEqual([
+        '@e0',
+        '@e2',
+      ])
+    } finally {
+      await Promise.all([outDir, sessionDir].map(dir => rm(dir, { recursive: true, force: true })))
+    }
+  })
+
   it('is one index.html holding the redacted report-trace, the script, and the styles', async () => {
     const outDir = await mkdtemp(join(tmpdir(), 'at-m5-report-'))
     try {

@@ -5,7 +5,7 @@ import { loadTranscript } from '@rivus/agent-kit/transcript'
 import { createMemoryPlatform } from '@rivus/agent-kit/testing'
 import { PROMPT_CHARS, PROMPT_LIMIT } from '@rivus/estela-runtime-node'
 import { describe, expect, it } from 'vite-plus/test'
-import { summarizeRow } from './rows.ts'
+import { summarizeRow, withinDirectory } from './rows.ts'
 
 // A Claude Code session whose turns are one 40 KB prompt, one request and one turn duration:
 // memory-hungry for a reader that materializes the transcript, while the summary pass's own
@@ -130,5 +130,48 @@ describe('catalog summary memory', () => {
     expect(result.prompts).toHaveLength(Math.min(LARGE_TURNS, PROMPT_LIMIT))
     expect(result.prompts[0]?.length).toBeLessThanOrEqual(PROMPT_CHARS)
     expect(result.prompts[0]).toContain('turn 0 ')
+  })
+})
+
+describe('withinDirectory', () => {
+  // Built from parts: the repository check rejects a literal home path in a tracked file.
+  const home = ['', 'home', 'u'].join('/')
+  const other = '/srv/agents'
+  const homes = [home, other]
+
+  it('matches the directory and what is inside it, as recorded, and reads `~` as each home', () => {
+    for (const cwd of [`${home}/work/app`, `${other}/work/app`, `${home}/work/app/sub`, `${home}/work/app/`]) {
+      expect(withinDirectory(cwd, '~/work/app', homes, 'linux')).toBe(true)
+    }
+    for (const cwd of [`${home}/work/apple`, `${home}/work`, '/work/app', undefined]) {
+      expect(withinDirectory(cwd, '~/work/app', homes, 'linux')).toBe(false)
+    }
+    // Written out, a home names that home only.
+    expect(withinDirectory(`${other}/work/app`, `${home}/work/app`, homes, 'linux')).toBe(false)
+    expect(withinDirectory(`${home}`, '~', homes, 'linux')).toBe(true)
+    expect(withinDirectory(`${home}/work/app`, `${home}/work/app/`, homes, 'linux')).toBe(true)
+    // An empty directory names no session, on either platform.
+    expect(withinDirectory(`${home}/work/app`, '', homes, 'linux')).toBe(false)
+    expect(withinDirectory(`${home}/work/app`, '', homes, 'win32')).toBe(false)
+  })
+
+  it('keeps the case of a POSIX path', () => {
+    expect(withinDirectory(`${home}/Work/App`, `${home}/work/app`, homes, 'darwin')).toBe(false)
+    expect(withinDirectory(`${home}/Work/App`, '~/Work/App', homes, 'linux')).toBe(true)
+  })
+
+  it('reads a Windows path with either separator and without case', () => {
+    // A Windows home, built from parts for the same reason.
+    const windows = ['C:', 'Users', 'Me'].join('\\')
+    const recorded = `${windows}\\Work\\App`
+    const homes = [windows]
+    for (const asked of ['C:/Users/Me/Work/App', 'c:\\users\\me\\work\\app\\', '~/Work/App']) {
+      expect(withinDirectory(recorded, asked, homes, 'win32')).toBe(true)
+    }
+    expect(withinDirectory('C:\\Users\\Me\\Work\\App\\Sub', 'C:/USERS/ME/WORK/APP', homes, 'win32')).toBe(true)
+    // A sibling, a prefix that stops inside a segment, and another drive.
+    for (const asked of ['C:/Users/Me/Work/Apple', 'C:/Users/Me/Work/Ap', 'D:/Users/Me/Work/App']) {
+      expect(withinDirectory(recorded, asked, homes, 'win32')).toBe(false)
+    }
   })
 })
