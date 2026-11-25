@@ -20,12 +20,18 @@ const themeLabel = () =>
   })
 
 /**
- * The shared 52 px top bar of both screens: logo, breadcrumbs, the jump box, the
+ * The shared 52 px top bar of both screens: logo, breadcrumbs, the ⌘K button, the
  * theme and language switches, and screen actions (the workspace's "Export report").
+ * The ⌘K button is a plain button whose label names what it focuses: the event ledger, or the
+ * session list's search box, the one screen where it also carries a search icon.
  */
 export function TopBar(props: {
   crumbs?: string[]
   onJump?: () => void
+  /** The label of the ⌘K button; `common.goToEvents` unless set. */
+  jumpLabel?: MessageKey
+  /** Draws the search icon in front of the label, for a screen whose ⌘K button focuses a search box. */
+  searchIcon?: boolean
   actions?: JSX.Element
   report?: boolean
   embedded?: boolean
@@ -87,12 +93,20 @@ export function TopBar(props: {
       <div class="flex shrink-0 items-center gap-2.5">
         <button
           type="button"
-          class="flex h-8 w-[260px] items-center gap-2 rounded-lg border border-border bg-muted px-2.5 text-left text-[13px] text-subtle hover:border-input"
+          class="flex h-8 items-center gap-2 rounded-lg border border-input px-2.5 text-[13px] whitespace-nowrap text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-keyshortcuts="Meta+K Control+K"
           onClick={() => props.onJump?.()}
         >
-          <SearchIcon />
-          <span class="min-w-0 flex-1 truncate">{t('common.jumpTo')}</span>
-          <span class="rounded border font-mono border-input px-[5px] py-px text-[11px] text-subtle">⌘K</span>
+          <Show when={props.searchIcon}>
+            <SearchIcon />
+          </Show>
+          <span>{t(props.jumpLabel ?? 'common.goToEvents')}</span>
+          <kbd
+            aria-hidden="true"
+            class="rounded border border-input px-[5px] py-px font-mono text-[11px] leading-none text-subtle"
+          >
+            ⌘K
+          </kbd>
         </button>
         <Show when={!props.embedded}>
           <button

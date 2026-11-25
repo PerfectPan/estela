@@ -40,7 +40,7 @@ The plugin has no configuration of its own.
 1. Start `dsh web` and open a session that has already started (or send a first prompt to start one).
 2. Select the **Estela** tab beside Chat and Trajectory.
 3. Click a request bar on the timeline or an event in the ledger to inspect **Input**, **Output**, **Model saw**, **Compare**, or **Raw**.
-4. **Jump to** (`⌘K` / `Ctrl+K`) moves focus to the event ledger; the arrow keys then move between events.
+4. **Go to events** (`⌘K` / `Ctrl+K`) moves focus to the event ledger; the arrow keys then move between events.
 
 The View follows `dsh`'s appearance setting (light, dark, or system) and language setting (Simplified Chinese for Chinese, English for every other language) live. Language changes translate only the interface; session text stays in its recorded language.
 

@@ -159,7 +159,7 @@ Session files stay on disk. The dev server binds localhost. The index holds titl
 
 ## Out of the current viewer
 
-Not built: the ⌘K jump palette (the box focuses the ledger) and a composer overlay.
+Not built: the ⌘K jump palette (the **Go to events** button only focuses the ledger) and a composer overlay.
 
 Not supported:
 

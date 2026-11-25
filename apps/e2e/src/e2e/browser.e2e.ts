@@ -22,6 +22,25 @@ test('S1: the opened URL shows sessions from all three agents with per-agent cou
   }
 })
 
+test('the session list names its search box in the top bar button, which focuses it by click, Ctrl+K, and Meta+K', async ({
+  page,
+  launch,
+}) => {
+  const server = await launch({ args: ['--no-auth', '--no-open'] })
+  await page.goto(server.base)
+  const search = page.getByRole('searchbox')
+  await expect(search).toBeVisible()
+  const jump = page.getByRole('button', { name: 'Search sessions', exact: true })
+  await expect(jump).toHaveText('Search sessions⌘K')
+  await jump.click()
+  await expect(search).toBeFocused()
+  for (const shortcut of ['Control+k', 'Meta+k']) {
+    await page.locator('h1').click()
+    await page.keyboard.press(shortcut)
+    await expect(search).toBeFocused()
+  }
+})
+
 test('S3: a home without ~/.codex shows Codex with 0 and the checked path', async ({ page, launch }) => {
   const { home, counts } = ctx.homes.noCodex
   const server = await launch({ args: ['--no-auth', '--no-open'], home })

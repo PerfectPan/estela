@@ -80,7 +80,9 @@ describe('<estela-workspace>', () => {
       expect(shadow!.querySelector('nav')).toBeNull()
       expect(shadow!.querySelector('h1')).toBeNull()
       expect(shadow!.querySelector('[data-testid="embedded-header"]')).not.toBeNull()
-      expect(shadow!.querySelector('[data-testid="jump-to"]')?.textContent).toContain('Jump to')
+      const jump = shadow!.querySelector('[data-testid="jump-to"]')
+      expect(jump?.textContent).toContain('Go to events')
+      expect(jump?.querySelector('svg')).toBeNull()
       expect(reload).not.toHaveBeenCalled()
     } finally {
       reload.mockRestore()
