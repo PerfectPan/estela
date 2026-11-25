@@ -129,7 +129,12 @@ describe('@rivus/dsh-estela manifest', () => {
       const full = join(pluginDir, rel)
       expect(existsSync(full), `missing screenshot ${rel}`).toBe(true)
       const info = await stat(full)
+      expect(info.isFile(), `screenshot ${rel} must be a regular file`).toBe(true)
       expect(info.size).toBeLessThanOrEqual(400 * 1024)
+      const bytes = await readFile(full)
+      // RIFF....WEBP container header signature.
+      expect(bytes.subarray(0, 4).toString('ascii'), `screenshot ${rel} must start with RIFF`).toBe('RIFF')
+      expect(bytes.subarray(8, 12).toString('ascii'), `screenshot ${rel} must carry WEBP signature`).toBe('WEBP')
     }
   })
 })

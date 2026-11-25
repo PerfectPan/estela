@@ -128,6 +128,7 @@ function seedFromFixture({ home, cwd, fixturePath, title }) {
   }
   const sourceCwd = typeof rawHeader.cwd === 'string' && rawHeader.cwd.length > 0 ? rawHeader.cwd : undefined
   const id = `session-${randomUUID()}`
+  // Only used by the screenshot script with macOS/Linux temporary paths that contain no quotes or backslashes.
   const escapedFrom = sourceCwd ? jsonEscapeInner(sourceCwd) : undefined
   const escapedTo = jsonEscapeInner(cwd)
   const parsedEvents = rawTextLines.slice(1).map(line => {

@@ -11,8 +11,8 @@ The Estela View renders the workspace for the active DeepSeek Harness session, c
 - **Model saw:** reconstructs the context the model received at any request (system prompt, tool schemas, compaction summary, earlier messages, and current turn) alongside recorded token counts.
 - **Compare:** compares the context of two requests on the same lane, showing input token delta, per-slot event changes, events that entered the context, and events removed by a compaction between them.
 - **Compaction visibility:** marks compactions on the timeline, lists events hidden by compaction in **Model saw** and **Compare**, and lets you dim shadowed events in the ledger.
-- **Timeline and event ledger:** one bar per request, its height the request's context tokens, one row per lane, failed tool markers, and an ordered event ledger grouped by turn or by agent, with filters for requests, tools, and failures.
-- **List-price cost:** prices recorded tokens per request, turn, lane, and session (with cache hit rate) using the bundled LiteLLM model price snapshot; requests without recorded tokens, a model name, or a snapshot price are left unpriced with the reason stated (`Cost unavailable: <reason>`), never `$0` and never estimated.
+- **Timeline and event ledger:** request bars whose height is the context tokens, one row per lane, failed tool markers, and an ordered event ledger grouped by turn or by agent, with filters for requests, tools, and failures.
+- **List-price cost:** prices recorded tokens per request, turn, lane, and session (with cache hit rate) using the bundled LiteLLM model price snapshot; requests missing input/output tokens, a model name, or a snapshot price are left unpriced with the reason stated (`Cost unavailable: <reason>`) rather than priced as `$0` or estimated, while a request that records 0 tokens costs `$0`.
 - **Raw:** loads the original log record on disk for any selected event.
 
 Missing data is never estimated or invented.
@@ -23,7 +23,7 @@ Missing data is never estimated or invented.
 
 ## How it differs from Trajectory
 
-`dsh`'s built-in **Trajectory** view follows a running session live, shows first-token latency and decode time, and renders `dsh`-specific content such as `run_code` source and live tool output. **Estela** sits beside Chat and Trajectory as a snapshot view read from the log on disk (including sessions created before the plugin was installed), adding the full reconstructed context at any request (**Model saw**), before-and-after compaction diffs, side-by-side context comparison between two requests (**Compare**), and list-price cost.
+`dsh`'s built-in **Trajectory** view follows a running session live, shows first-token latency and decode time, and renders `dsh`-specific content such as `run_code` source and live tool output. **Estela** sits beside Chat and Trajectory as a snapshot view read from the log on disk (including sessions created before the plugin was installed), adding the reconstructed context the model received at any request as far as the log records it (**Model saw**, marking missing parts as partial), context diffs between two requests including events removed by compaction (**Compare**), and list-price cost.
 
 ## Install
 
@@ -40,7 +40,7 @@ The plugin has no configuration of its own.
 1. Start `dsh web` and open a session that has already started (or send a first prompt to start one).
 2. Select the **Estela** tab beside Chat and Trajectory.
 3. Click a request bar on the timeline or an event in the ledger to inspect **Input**, **Output**, **Model saw**, **Compare**, or **Raw**.
-4. Use **Jump to** (`⌘K` / `Ctrl+K`) to jump to an event, tool, or file.
+4. **Jump to** (`⌘K` / `Ctrl+K`) moves focus to the event ledger; the arrow keys then move between events.
 
 The View follows `dsh`'s appearance setting (light, dark, or system) and language setting (Simplified Chinese for Chinese, English for every other language) live. Language changes translate only the interface; session text stays in its recorded language.
 
@@ -69,7 +69,7 @@ While `dsh web` is running, the Estela tab disappears within a few seconds witho
 
 ## Incompatible `dsh` version
 
-If your `dsh` version is outside `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`), `dsh` refuses to install the plugin or disables an installed copy on startup. See [Troubleshooting: dsh says the plugin is incompatible](https://perfectpan.github.io/estela/docs/guide/troubleshooting/#dsh-says-the-plugin-is-incompatible).
+By default, if your `dsh` version is outside `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`), `dsh` refuses to install the plugin or disables an installed copy on startup; a specific version pair exempted with `dsh plugin allow-version` can still be installed. See [Troubleshooting: dsh says the plugin is incompatible](https://perfectpan.github.io/estela/docs/guide/troubleshooting/#dsh-says-the-plugin-is-incompatible).
 
 ## Documentation
 
