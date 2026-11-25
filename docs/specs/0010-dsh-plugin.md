@@ -50,7 +50,7 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 - Given a session is open in `dsh web` and its log on disk can be read,
 - When the user selects the Estela tab,
 - Then the View shows the workspace of that session: a compact stats bar with the session numbers, list cost, and a
-  "Jump to" button (`⌘K` / `Ctrl+K`) — without Estela's standalone top bar or a duplicated session title heading — plus
+  "Go to events" button (`⌘K` / `Ctrl+K`) — without Estela's standalone top bar or a duplicated session title heading — plus
   the timeline, the ledger, and the inspector with its Input, Output, Model saw, Compare, and Raw tabs.
 - And it shows the same content the `estela` command line shows for the same log file: Model saw reconstructs the
   context the model had at the selected request, and Compare shows how the contexts of two requests of one lane

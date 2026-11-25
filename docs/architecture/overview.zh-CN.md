@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 5b3e624d3f006ec053eaf95b904c8b50f03bab0c -->
+<!-- source-blob: e746aab4786d2cffd04d74a51397bb6179c817b9 -->
 
 # 架构
 
@@ -163,7 +163,7 @@ SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/repor
 
 ## 当前查看器范围之外
 
-尚未实现：⌘K 跳转面板（当前输入框只将焦点移至事件列表）以及 composer 覆盖层。
+尚未实现：⌘K 跳转面板（当前「转到事件列表」按钮只将焦点移至事件列表）以及 composer 覆盖层。
 
 不支持的功能：
 
