@@ -1,8 +1,48 @@
 import { stripVTControlCharacters } from 'node:util'
 import { createAuthBanner } from 'devframe/recipes/interactive-auth'
+import { homeDir } from '@rivus/estela-runtime-node'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
-import { isListenFailure } from '../failure.ts'
-import { browserPlan, resolveAuthBannerUrl, sanitizeAuthBannerInfo, withoutListenDiagnostic } from './dev.ts'
+import { CliError, failureReport, isListenFailure } from '../failure.ts'
+import {
+  browserPlan,
+  discoveredForPick,
+  resolveAuthBannerUrl,
+  sanitizeAuthBannerInfo,
+  withoutListenDiagnostic,
+} from './dev.ts'
+
+describe('discoveredForPick', () => {
+  it('ends a discover pass that failed behind the index rows as an index failure, with no home directory', async () => {
+    // As when a folder loses its search permission while the pass reads it: the stat made for a session's cache key fails.
+    const cause = Object.assign(
+      new Error(`EACCES: permission denied, stat '${homeDir()}/.claude/projects/app/session.jsonl'`),
+      { code: 'EACCES' },
+    )
+    const thrown: unknown = await discoveredForPick({
+      discovered: async () => {
+        throw cause
+      },
+    }).catch(error => error)
+    if (!(thrown instanceof CliError)) {
+      throw new TypeError(`a CliError was expected, got ${String(thrown)}`)
+    }
+    // Not the raw error `catalog.discovered()` rejected with: that one prints its stack.
+    expect(thrown).not.toBe(cause)
+    const report = failureReport(thrown.failure)
+    expect(report).toEqual({
+      message: {
+        cause: "Could not index sessions: EACCES: permission denied, stat '~/.claude/projects/app/session.jsonl'",
+        fix: 'Check the agent session directories, or pass --no-index.',
+      },
+      exitCode: 1,
+    })
+    expect(JSON.stringify(report)).not.toContain(homeDir())
+  })
+
+  it('returns once the pass is done', async () => {
+    await expect(discoveredForPick({ discovered: async () => {} })).resolves.toBeUndefined()
+  })
+})
 
 describe('browserPlan', () => {
   it('opens the browser from the CLI unless --no-open and passes --no-auth through', () => {

@@ -153,6 +153,20 @@ async function loadShown(open: () => Promise<OpenedSession>, label: string): Pro
   }
 }
 
+/**
+ * Waits for the `discover` pass that `--pick` lists. On a second launch that pass runs on behind the rows the
+ * index served, so a failure in it surfaces here rather than in `catalog.start`: it ends the command as an
+ * `index` failure, whose message shows no home directory and no stack.
+ * @internal
+ */
+export async function discoveredForPick(catalog: Pick<SessionCatalog, 'discovered'>): Promise<void> {
+  try {
+    await catalog.discovered()
+  } catch (cause) {
+    throw new CliError({ kind: 'index', cause })
+  }
+}
+
 /** Rows from the index at once when it has them, else after the first `discover` pass. */
 async function indexSessions(catalog: SessionCatalog): Promise<void> {
   const indexing = startSessionIndex()
@@ -250,7 +264,7 @@ export async function runDev(input: DevInput, packageVersion: string): Promise<v
     sayUnreadableRoots(catalog, root => sayWarning(`Session folder unreadable: ${unreadableRootLine(root)}`))
 
     if (input.pick) {
-      await catalog.discovered()
+      await discoveredForPick(catalog)
       const choices = catalog.pickChoices()
       if (choices.length === 0) {
         throw new CliError({ kind: 'no-sessions' })

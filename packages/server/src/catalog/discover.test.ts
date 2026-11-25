@@ -70,6 +70,11 @@ function ioError(message: string, code: string): Error {
   return Object.assign(new Error(message), { code })
 }
 
+/** A `stat` failure as Node reports it for `path`, when the search permission of a folder on the way is gone. */
+function ioErrorStat(path: string): Error {
+  return ioError(`EACCES: permission denied, stat '${path}'`, 'EACCES')
+}
+
 /** `stat` as the real platform does it, except for the paths `failing` returns an error for. */
 function platformFailingAt(home: string, failing: (path: string) => Promise<Error> | Error | undefined): ShellPlatform {
   const real = createNodePlatform({ home, env: {} })
@@ -182,6 +187,42 @@ describe('discover pass', () => {
     expect(progress.find(agent => agent.name === 'Fake')).toMatchObject({ read: 1, done: true })
     expect(progress.find(agent => agent.name === 'Fake')?.unreadable).toBeUndefined()
     catalog.close()
+  })
+
+  it('serves the rows of the index while its pass fails behind them', async () => {
+    const home = await tempHome()
+    const root = join(home, 'sessions')
+    const file = join(home, '1.jsonl')
+    await mkdir(root)
+    await writeFile(file, 'x')
+    const adapters = {
+      fake: adapter(
+        'fake',
+        'Fake',
+        () => [root],
+        async function* () {
+          yield head('fake', file, 1_000)
+        },
+      ),
+    }
+    // The first launch lists the session and leaves it in the index.
+    const first = new SessionCatalog({
+      adapters,
+      platform: createNodePlatform({ home, env: {} }),
+    })
+    await first.listSessions()
+    first.close()
+    // The second loses the search permission while its pass reads the session it had already listed.
+    const second = new SessionCatalog({
+      adapters,
+      platform: platformFailingAt(home, path => (path === file ? ioErrorStat(file) : undefined)),
+    })
+    await second.start()
+    expect((await second.listSessions()).rows.filter(row => !row.error)).toHaveLength(1)
+    expect(second.startedFromIndex).toBe(true)
+    // The pass behind those rows fails: `start` kept its rows, and `discovered` is what rejects.
+    await expect(second.discovered()).rejects.toThrow(`EACCES: permission denied, stat '${file}'`)
+    second.close()
   })
 
   it('says a root once when it is reported more than once', async () => {
