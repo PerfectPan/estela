@@ -170,6 +170,10 @@ export async function readHtmlAttrs(page: Page): Promise<HtmlAttrs> {
 
 export interface WorkspaceGeometry {
   readonly shadowText: string
+  readonly hasTopBar: boolean
+  readonly hasHeading: boolean
+  readonly hasEmbeddedHeader: boolean
+  readonly hasJumpButton: boolean
   readonly hasTimeline: boolean
   readonly hasLedger: boolean
   readonly hasInspector: boolean
@@ -182,6 +186,8 @@ export interface WorkspaceGeometry {
   readonly clientHeight: number
   readonly theme: string | null
   readonly lang: string | null
+  readonly background: string | null
+  readonly bodyBackground: string
   readonly htmlLang: string | null
   readonly htmlDataTheme: string | null
   readonly htmlStyle: string | null
@@ -221,6 +227,10 @@ export async function readWorkspaceGeometry(page: Page): Promise<WorkspaceGeomet
 
     return {
       shadowText: shadow?.textContent ?? '',
+      hasTopBar: shadow?.querySelector('nav') !== null,
+      hasHeading: shadow?.querySelector('h1') !== null,
+      hasEmbeddedHeader: shadow?.querySelector('[data-testid="embedded-header"]') !== null,
+      hasJumpButton: shadow?.querySelector('[data-testid="jump-to"]') !== null,
       hasTimeline: shadow?.querySelector('[data-testid="timeline-plot"]') !== null,
       hasLedger: ledger !== null,
       hasInspector: shadow?.querySelector('[data-testid="inspector"]') !== null,
@@ -233,6 +243,8 @@ export async function readWorkspaceGeometry(page: Page): Promise<WorkspaceGeomet
       clientHeight: ledger?.clientHeight ?? 0,
       theme: el?.getAttribute('data-theme') ?? null,
       lang: el?.getAttribute('lang') ?? null,
+      background: el ? getComputedStyle(el).backgroundColor : null,
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
       htmlLang: document.documentElement.getAttribute('lang'),
       htmlDataTheme: document.documentElement.getAttribute('data-theme'),
       htmlStyle: document.documentElement.getAttribute('style'),
@@ -253,6 +265,24 @@ export function assertWorkspaceHeightBounds(geometry: WorkspaceGeometry): void {
   expect(geometry.elHeight).not.toBeNull()
   expect(geometry.elBottom!).toBeLessThanOrEqual(geometry.composerTop! + 1)
   expect(geometry.elHeight!).toBeGreaterThanOrEqual(geometry.scrollerClientHeight! - geometry.composerHeight! - 8)
+}
+
+export async function assertEmbeddedChromeAndJump(page: Page, geometry: WorkspaceGeometry): Promise<void> {
+  expect(geometry.hasTopBar).toBe(false)
+  expect(geometry.hasHeading).toBe(false)
+  expect(geometry.hasEmbeddedHeader).toBe(true)
+  expect(geometry.hasJumpButton).toBe(true)
+  expect(geometry.background).toBe(geometry.bodyBackground)
+
+  const readFocusedTestId = () =>
+    page.evaluate(() =>
+      document.querySelector('estela-workspace')?.shadowRoot?.activeElement?.getAttribute('data-testid'),
+    )
+  await page.locator('estela-workspace [data-testid="jump-to"]').click({ timeout: 5_000 })
+  expect(await readFocusedTestId()).toBe('ledger')
+  await page.locator('estela-workspace [data-testid="jump-to"]').focus()
+  await page.keyboard.press('Control+k')
+  expect(await readFocusedTestId()).toBe('ledger')
 }
 
 export async function writeLightZhPatch(dshHome: string): Promise<void> {

@@ -8,8 +8,8 @@
 @import "@fontsource/jetbrains-mono/latin-500.css";
 
 @theme inline {
-  --font-sans: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", monospace;
+  --font-sans: var(--font-sans-stack);
+  --font-mono: var(--font-mono-stack);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -50,7 +50,7 @@
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-sans-stack);
   font-size: 13px;
   /* The design HTML uses the browser default, not Tailwind's 1.5. */
   line-height: normal;
@@ -59,10 +59,18 @@
   -webkit-text-size-adjust: 100%;
 }
 
-/* `:host` keeps same-named tokens of an outer host page out when rendered inside a shadow root. */
-:root,
-:host {
+/* `:host` keeps same-named tokens of an outer host page out when rendered inside a shadow root,
+   while letting an embedding host opt into token adoption through explicit `--estela-host-*` vars. */
+:root {
   --radius: 0.5rem;
+  --font-sans-stack: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-mono-stack: "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", monospace;
+}
+
+:host {
+  --radius: var(--estela-host-radius, 0.5rem);
+  --font-sans-stack: var(--estela-host-font-sans, "Instrument Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif);
+  --font-mono-stack: var(--estela-host-font-mono, "JetBrains Mono", "SF Mono", Menlo, Consolas, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", monospace);
 }
 
 /* Tokens from docs/design/README.md. Both themes share one layout; only these values change. */
@@ -158,6 +166,43 @@ html[data-theme="light"],
   color-scheme: light;
 }
 
+/* Embedded host token adoption: only `:host` reads `--estela-host-*` so standalone CLI and report pages
+   (`:root` / `html[data-theme]`) stay pixel-identical and hostile host `--background` / `--border` vars stay out. */
+:host,
+:host([data-theme="dark"]) {
+  --background: var(--estela-host-bg, #0d1013);
+  --secondary: var(--estela-host-secondary, #111519);
+  --muted: var(--estela-host-muted, #171c21);
+  --accent: var(--estela-host-accent, #1b2127);
+  --border: var(--estela-host-border, #222930);
+  --input: var(--estela-host-input, #2b333b);
+  --foreground: var(--estela-host-fg, #e6e9ec);
+  --muted-foreground: var(--estela-host-muted-fg, #a3acb5);
+  --subtle-foreground: var(--estela-host-subtle-fg, #6d7780);
+  --destructive: var(--estela-host-destructive, #e5534b);
+  --link: var(--estela-host-link, var(--kind-request));
+  --selection: var(--estela-host-selection, color-mix(in srgb, var(--kind-request) 10%, transparent));
+  --selection-ring: var(--estela-host-selection-ring, color-mix(in srgb, var(--kind-request) 55%, transparent));
+  --ring: var(--estela-host-ring, var(--selection-ring));
+}
+
+:host([data-theme="light"]) {
+  --background: var(--estela-host-bg, #fbfaf8);
+  --secondary: var(--estela-host-secondary, #f4f3f0);
+  --muted: var(--estela-host-muted, #ffffff);
+  --accent: var(--estela-host-accent, #efeeea);
+  --border: var(--estela-host-border, #e6e4df);
+  --input: var(--estela-host-input, #d9d7d1);
+  --foreground: var(--estela-host-fg, #17191c);
+  --muted-foreground: var(--estela-host-muted-fg, #555b62);
+  --subtle-foreground: var(--estela-host-subtle-fg, #858b92);
+  --destructive: var(--estela-host-destructive, #c93a32);
+  --link: var(--estela-host-link, var(--kind-request));
+  --selection: var(--estela-host-selection, color-mix(in srgb, var(--kind-request) 8%, transparent));
+  --selection-ring: var(--estela-host-selection-ring, color-mix(in srgb, var(--kind-request) 50%, transparent));
+  --ring: var(--estela-host-ring, var(--selection-ring));
+}
+
 html,
 body,
 #app {
@@ -168,7 +213,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-sans-stack);
   font-size: 13px;
   /* The design HTML uses the browser default, not Tailwind's 1.5. */
   line-height: normal;

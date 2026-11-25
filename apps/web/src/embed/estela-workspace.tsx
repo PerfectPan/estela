@@ -6,7 +6,6 @@ import { createSignal, ErrorBoundary, Show } from 'solid-js'
 import { render } from 'solid-js/web'
 import { applyLocale, locale } from '@/i18n/locale.ts'
 import { messageOf } from '@/lib/error-message.ts'
-import { TopBar } from '@/shell/top-bar.tsx'
 import { ErrorPanel } from '@/workspace/error-panel.tsx'
 import { Workspace } from '@/workspace/workspace.tsx'
 import embedCss from '../styles.css?inline'
@@ -78,8 +77,10 @@ export class EstelaWorkspaceElement extends HTMLElement {
             {current => (
               <ErrorBoundary
                 fallback={(error, reset) => (
-                  <div lang={locale()} class="flex h-full min-h-0 flex-col bg-background text-foreground">
-                    <TopBar embedded />
+                  <div
+                    lang={locale()}
+                    class="flex h-full min-h-0 flex-col border-b border-border bg-background text-foreground"
+                  >
                     <ErrorPanel failure={{ reason: messageOf(error) }} onRetry={reset} embedded />
                   </div>
                 )}

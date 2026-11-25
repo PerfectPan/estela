@@ -9,6 +9,7 @@ export const en = {
     session: 'Session',
     sessions: 'Sessions',
     jumpTo: 'Jump to event, tool, file…',
+    jumpToShort: 'Jump to',
     themeSystem: 'follow system',
     themeLight: 'light',
     themeDark: 'dark',

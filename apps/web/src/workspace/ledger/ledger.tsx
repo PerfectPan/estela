@@ -21,7 +21,7 @@ function rowId(key: string): string {
  * with `@tanstack/solid-virtual` at fixed row heights. A listbox: up / down move the selection,
  * Enter / Space toggle a turn or lane header, a subagent row, or a hook run.
  */
-export function Ledger(props: { state: WorkspaceState; start: number }) {
+export function Ledger(props: { state: WorkspaceState; start: number; embedded?: boolean }) {
   let scroller: HTMLDivElement | undefined
   const state = props.state
   const rows = state.rows
@@ -131,6 +131,7 @@ export function Ledger(props: { state: WorkspaceState; start: number }) {
         onLayout={state.setLayout}
         dim={state.dim()}
         onDim={state.setDim}
+        embedded={props.embedded}
       />
       <div
         ref={element => {

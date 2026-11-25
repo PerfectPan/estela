@@ -27,10 +27,21 @@ export function LedgerToolbar(props: {
   onLayout: (layout: LedgerLayout) => void
   dim: boolean
   onDim: (dim: boolean) => void
+  embedded?: boolean
 }) {
+  const chipPad = () => (props.embedded ? 'px-2 text-[12.5px]' : 'px-2.5 text-[13px]')
   return (
-    <div class="flex h-[42px] shrink-0 items-center justify-between gap-3 border-b border-border pr-4 pl-5">
-      <div class="flex items-center gap-2" role="radiogroup" aria-label={t('ledger.filterLabel')}>
+    <div
+      class={cx(
+        'flex h-[42px] shrink-0 items-center justify-between border-b border-border',
+        props.embedded ? 'gap-2 px-4' : 'gap-3 pr-4 pl-5',
+      )}
+    >
+      <div
+        class={cx('flex items-center', props.embedded ? 'gap-1' : 'gap-2')}
+        role="radiogroup"
+        aria-label={t('ledger.filterLabel')}
+      >
         <For each={CHIPS}>
           {chip => (
             <button
@@ -38,7 +49,8 @@ export function LedgerToolbar(props: {
               role="radio"
               aria-checked={props.filter === chip.id}
               class={cx(
-                'flex items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-[13px] whitespace-nowrap',
+                'flex items-center gap-1.5 rounded-[7px] border py-1 whitespace-nowrap',
+                chipPad(),
                 props.filter === chip.id
                   ? 'border-input bg-muted text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -53,7 +65,7 @@ export function LedgerToolbar(props: {
           )}
         </For>
       </div>
-      <div class="flex items-center gap-2">
+      <div class={cx('flex items-center', props.embedded ? 'gap-1.5' : 'gap-2')}>
         <div class="flex items-center gap-1" role="radiogroup" aria-label={t('ledger.layoutLabel')}>
           <For each={LAYOUTS}>
             {item => (
@@ -62,7 +74,8 @@ export function LedgerToolbar(props: {
                 role="radio"
                 aria-checked={props.layout === item.id}
                 class={cx(
-                  'flex items-center gap-1.5 rounded-[7px] border px-2.5 py-1 text-[12.5px] whitespace-nowrap',
+                  'flex items-center gap-1.5 rounded-[7px] border py-1 text-[12.5px] whitespace-nowrap',
+                  props.embedded ? 'px-2' : 'px-2.5',
                   props.layout === item.id
                     ? 'border-input bg-muted text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -79,7 +92,8 @@ export function LedgerToolbar(props: {
           type="button"
           aria-pressed={props.dim}
           class={cx(
-            'flex items-center gap-2 rounded-[7px] border px-2 py-1 text-[12.5px] whitespace-nowrap',
+            'flex items-center rounded-[7px] border px-2 py-1 text-[12.5px] whitespace-nowrap',
+            props.embedded ? 'gap-1.5' : 'gap-2',
             props.dim
               ? 'border-input bg-muted text-foreground'
               : 'border-transparent text-muted-foreground hover:text-foreground',

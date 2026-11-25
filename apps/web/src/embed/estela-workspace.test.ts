@@ -77,7 +77,10 @@ describe('<estela-workspace>', () => {
       expect(shadow!.querySelector('[data-testid="language-switch"]')).toBeNull()
       expect(shadow!.querySelector('[data-testid="export-report"]')).toBeNull()
       expect(shadow!.querySelector('[data-testid="connection-lost"]')).toBeNull()
-      expect(shadow!.querySelector('nav')?.textContent).toContain('Session')
+      expect(shadow!.querySelector('nav')).toBeNull()
+      expect(shadow!.querySelector('h1')).toBeNull()
+      expect(shadow!.querySelector('[data-testid="embedded-header"]')).not.toBeNull()
+      expect(shadow!.querySelector('[data-testid="jump-to"]')?.textContent).toContain('Jump to')
       expect(reload).not.toHaveBeenCalled()
     } finally {
       reload.mockRestore()
@@ -100,7 +103,7 @@ describe('<estela-workspace>', () => {
     await tick()
 
     expect(el.getAttribute('data-theme')).toBe('light')
-    expect(el.shadowRoot!.querySelector('nav')?.textContent).toContain('Session')
+    expect(el.shadowRoot!.querySelector('[data-testid="embedded-header"]')?.textContent).toContain('turns')
     expect(document.documentElement.dataset.theme).toBe('host-theme')
     expect(document.documentElement.lang).toBe('fr')
 
@@ -110,7 +113,7 @@ describe('<estela-workspace>', () => {
 
     expect(el.getAttribute('data-theme')).toBe('dark')
     expect(el.lang).toBe('zh-CN')
-    expect(el.shadowRoot!.querySelector('nav')?.textContent).toContain('会话')
+    expect(el.shadowRoot!.querySelector('[data-testid="embedded-header"]')?.textContent).toContain('轮次')
     expect(document.documentElement.dataset.theme).toBe('host-theme')
     expect(document.documentElement.lang).toBe('fr')
 
@@ -118,7 +121,7 @@ describe('<estela-workspace>', () => {
     el.setAttribute('lang', 'de')
     await tick()
     expect(el.lang).toBe('en')
-    expect(el.shadowRoot!.querySelector('nav')?.textContent).toContain('Session')
+    expect(el.shadowRoot!.querySelector('[data-testid="embedded-header"]')?.textContent).toContain('turns')
     expect(document.documentElement.lang).toBe('fr')
   })
 
@@ -293,7 +296,7 @@ describe('<estela-workspace>', () => {
     await tick()
 
     const shadow = el.shadowRoot!
-    expect(shadow.querySelector('nav')?.textContent).toContain('first snapshot')
+    expect(shadow.querySelector('[data-testid="embedded-header"]')?.getAttribute('aria-label')).toBe('first snapshot')
 
     // Move selection via keyboard on the ledger (happy-dom has zero viewport height for virtualized rows),
     // then open the Raw tab to trigger `source.event(traceId, id)`.
@@ -310,7 +313,9 @@ describe('<estela-workspace>', () => {
 
     expect(opens).toBe(2)
     expect(receivedTraceIds).toEqual(['trace-v1'])
-    expect(shadow.querySelector('nav')?.textContent).toContain('refreshed snapshot')
+    expect(shadow.querySelector('[data-testid="embedded-header"]')?.getAttribute('aria-label')).toBe(
+      'refreshed snapshot',
+    )
   })
 
   it('shows Try again when event() fails after load and reopens without replacing the element (DSH-6)', async () => {
@@ -409,7 +414,7 @@ describe('<estela-workspace>', () => {
     await tick()
 
     const shadow = el.shadowRoot!
-    expect(shadow.querySelector('nav')?.textContent).toContain('version-two')
+    expect(shadow.querySelector('[data-testid="embedded-header"]')?.getAttribute('aria-label')).toBe('version-two')
 
     const ledger = shadow.querySelector<HTMLElement>('[data-testid="ledger"]')
     expect(ledger).not.toBeNull()

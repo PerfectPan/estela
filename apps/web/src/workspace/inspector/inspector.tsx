@@ -45,7 +45,7 @@ const panelId = (id: InspectorTab) => `inspector-panel-${id}`
  * Each tab panel is built the first time it is opened and then only hidden, so switching
  * tabs does not draw a large text again.
  */
-export function Inspector(props: { state: WorkspaceState; start: number }) {
+export function Inspector(props: { state: WorkspaceState; start: number; embedded?: boolean }) {
   const state = props.state
   const tab = state.tab
   const [visited, setVisited] = createSignal<ReadonlySet<InspectorTab>>(new Set([tab()]))
@@ -197,7 +197,10 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
 
   return (
     <aside
-      class="flex w-[470px] shrink-0 flex-col border-l border-border bg-secondary"
+      class={cx(
+        'flex shrink-0 flex-col border-l border-border bg-secondary',
+        props.embedded ? 'w-[clamp(340px,38%,470px)]' : 'w-[470px]',
+      )}
       aria-label={t('inspector.label')}
       data-testid="inspector"
     >
@@ -267,7 +270,7 @@ export function Inspector(props: { state: WorkspaceState; start: number }) {
                 </For>
               </div>
             </div>
-            <div class="min-h-0 flex-1 overflow-y-auto px-[22px] py-4">
+            <div class={cx('min-h-0 flex-1 overflow-y-auto px-[22px]', props.embedded ? 'pt-4 pb-6' : 'py-4')}>
               <Panel id="input">
                 {shortenedNotice()}
                 <TextView text={input() || t('inspector.noInput')} muted={!input()} />

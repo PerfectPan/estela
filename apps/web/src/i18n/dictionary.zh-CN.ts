@@ -41,6 +41,7 @@ export const zhCN = {
     session: '会话',
     sessions: '会话',
     jumpTo: '跳转到事件、工具、文件…',
+    jumpToShort: '跳转',
     themeSystem: '跟随系统',
     themeLight: '浅色',
     themeDark: '深色',

@@ -1,15 +1,21 @@
 import type { LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { describe, expect, it, vi } from 'vite-plus/test'
-import { bindAppearance, resolveEstelaLocale, resolveEstelaTheme, type AppearanceTarget } from './appearance.ts'
+import {
+  bindAppearance,
+  resolveEstelaLocale,
+  resolveEstelaTheme,
+  resolveHostTokens,
+  type AppearanceTarget,
+} from './appearance.ts'
 import type { AppearanceContext } from './types.ts'
 
-function themeSnapshot(colorScheme: 'light' | 'dark'): ThemeSnapshot {
+function themeSnapshot(colorScheme: 'light' | 'dark', tokens: Record<string, string> = {}): ThemeSnapshot {
   return {
     preference: colorScheme,
     fontSizes: { text: 14, code: 11, terminal: 13 },
     fontFamilies: { text: '', code: '', terminal: '' },
-    active: { id: colorScheme, colorScheme, tokens: {} },
+    active: { id: colorScheme, colorScheme, tokens },
     themes: [],
     revision: 0,
   }
@@ -25,6 +31,7 @@ function localeSnapshot(active: string): LocaleSnapshot {
 
 function createTarget() {
   const attrs = new Map<string, string>()
+  const styles = new Map<string, string>()
   const writes: Array<{ name: string; value: string }> = []
   const target: AppearanceTarget = {
     getAttribute(name) {
@@ -34,8 +41,22 @@ function createTarget() {
       attrs.set(name, value)
       writes.push({ name, value })
     },
+    style: {
+      setProperty(name, value) {
+        if (value === null) {
+          styles.delete(name)
+        } else {
+          styles.set(name, value)
+        }
+      },
+      removeProperty(name) {
+        const previous = styles.get(name) ?? ''
+        styles.delete(name)
+        return previous
+      },
+    },
   }
-  return { target, attrs, writes }
+  return { target, attrs, styles, writes }
 }
 
 function createFakeContext(initialScheme: 'light' | 'dark', initialLocale: string) {
@@ -82,8 +103,8 @@ function createFakeContext(initialScheme: 'light' | 'dark', initialLocale: strin
 
   return {
     ctx,
-    emitTheme: (colorScheme: 'light' | 'dark') => {
-      currentTheme = themeSnapshot(colorScheme)
+    emitTheme: (colorScheme: 'light' | 'dark', tokens: Record<string, string> = {}) => {
+      currentTheme = themeSnapshot(colorScheme, tokens)
       for (const listener of themeListeners) {
         listener(currentTheme)
       }
@@ -186,6 +207,31 @@ describe('appearance', () => {
     expect(attrs.get('data-theme')).toBe('light')
     expect(attrs.get('lang')).toBe('en')
     expect(writes.length).toBe(writesBeforeDispose)
+  })
+
+  it('maps dsh theme tokens onto --estela-host-* vars, prefers active overrides, and cleans up on dispose', () => {
+    const base = resolveHostTokens(themeSnapshot('light'))
+    expect(base['--estela-host-bg']).toBe('var(--dsw-alias-bg-base)')
+    expect(base['--estela-host-secondary']).toBe('var(--dsw-specific-sidebar-fill, var(--dsw-alias-bg-layer-1))')
+    expect(base['--estela-host-fg']).toBe('var(--dsw-alias-label-primary)')
+    expect(base['--estela-host-font-sans']).toBe('var(--dsw-font-family)')
+    expect(base['--estela-host-font-mono']).toBe('var(--ds-font-family-code)')
+    expect(base['--estela-host-radius']).toBe('var(--dsw-radius-sm)')
+    expect(Object.values(base).some(v => /#[0-9a-f]{3,8}\b/i.test(v))).toBe(false)
+
+    const { ctx, emitTheme } = createFakeContext('light', 'en')
+    const { target, styles } = createTarget()
+    const dispose = bindAppearance(ctx, target)
+    expect(styles.get('--estela-host-bg')).toBe('var(--dsw-alias-bg-base)')
+    expect(styles.get('--estela-host-link')).toBe('var(--dsw-alias-link)')
+
+    emitTheme('dark', { '--dsw-alias-bg-base': 'rgb(10, 20, 30)', '--dsw-alias-link': 'rgb(100, 150, 255)' })
+    expect(styles.get('--estela-host-bg')).toBe('rgb(10, 20, 30)')
+    expect(styles.get('--estela-host-link')).toBe('rgb(100, 150, 255)')
+    expect(styles.get('--estela-host-selection')).toBe('color-mix(in srgb, rgb(100, 150, 255) 10%, transparent)')
+
+    dispose()
+    expect(styles.size).toBe(0)
   })
 
   it('also unsubscribes when the owning context disposes all effects', () => {

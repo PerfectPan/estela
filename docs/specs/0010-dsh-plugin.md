@@ -49,8 +49,9 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 
 - Given a session is open in `dsh web` and its log on disk can be read,
 - When the user selects the Estela tab,
-- Then the View shows the workspace of that session: the session header with its numbers and list cost, the
-  timeline, the ledger, and the inspector with its Input, Output, Model saw, Compare, and Raw tabs.
+- Then the View shows the workspace of that session: a compact stats bar with the session numbers, list cost, and a
+  "Jump to" button (`⌘K` / `Ctrl+K`) — without Estela's standalone top bar or a duplicated session title heading — plus
+  the timeline, the ledger, and the inspector with its Input, Output, Model saw, Compare, and Raw tabs.
 - And it shows the same content the `estela` command line shows for the same log file: Model saw reconstructs the
   context the model had at the selected request, and Compare shows how the contexts of two requests of one lane
   differ, including the events a compaction removed between them.
@@ -147,8 +148,9 @@ at tag `dsh-v0.2.2-rc.5`. Each scenario names the test that confirms it.
 
 **DSH-11: Theme and language follow dsh**
 
-- Given the user picks light, dark, or system in dsh's appearance settings, the Estela View uses that color scheme,
-  also when the setting changes while the View is open. The View has no theme switch.
+- Given the user picks light, dark, or system in dsh's appearance settings, the Estela View uses that color scheme and
+  adopts dsh's surface, border, text, accent, and font-family tokens, also when the setting changes while the View is
+  open. The View has no theme switch.
 - Given the user picks a language in dsh, the Estela View uses Simplified Chinese for Chinese and English for every
   other language, also when the language changes while the View is open. The View has no language switch.
 - Session content is shown as recorded in both languages.

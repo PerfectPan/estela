@@ -1,8 +1,9 @@
 import type { ReportTrace } from '@rivus/estela-rpc'
 import type { JSX } from 'solid-js'
 import type { LoadClient } from './load-session.ts'
-import { Match, Show, Switch } from 'solid-js'
+import { Match, Show, Switch, onCleanup, onMount } from 'solid-js'
 import { locale } from '@/i18n/locale.ts'
+import { cx } from '@/lib/cva'
 import { escapeBidi } from '@/lib/preview.ts'
 import { ConnectionLost } from '@/shell/connection-lost.tsx'
 import { TopBar } from '@/shell/top-bar.tsx'
@@ -25,6 +26,14 @@ type WorkspaceProps = (
   embedded?: boolean
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+}
+
 /**
  * `#/s/<traceId>`: load with progress, then header, timeline, ledger, and inspector.
  * With a `report`, the same view over the baked session: no load, no export, no server calls.
@@ -32,6 +41,36 @@ type WorkspaceProps = (
 export function Workspace(props: WorkspaceProps) {
   const report = props.report
   let root: HTMLDivElement | undefined
+  const focusLedger = () => root?.querySelector<HTMLElement>('[data-testid="ledger"]')?.focus()
+
+  // ⌘K / Ctrl+K focuses the ledger while this workspace is mounted, without stealing typing from host inputs.
+  onMount(() => {
+    const owner = root?.ownerDocument ?? (typeof document === 'undefined' ? undefined : document)
+    if (!owner) {
+      return
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'k') {
+        return
+      }
+      if (!root?.isConnected || root.closest('[hidden]') !== null) {
+        return
+      }
+      const target = event.composedPath()[0] ?? event.target
+      if (isEditableTarget(target)) {
+        return
+      }
+      const ledger = root.querySelector<HTMLElement>('[data-testid="ledger"]')
+      if (!ledger) {
+        return
+      }
+      event.preventDefault()
+      ledger.focus()
+    }
+    owner.addEventListener('keydown', onKeyDown)
+    onCleanup(() => owner.removeEventListener('keydown', onKeyDown))
+  })
+
   const baked = report ? ({ status: 'ready', session: reportSession(report) } as const) : undefined
   const load = baked
     ? { state: () => baked, retry: () => {} }
@@ -59,15 +98,19 @@ export function Workspace(props: WorkspaceProps) {
         root = element
       }}
       lang={locale()}
-      class="flex h-full min-h-0 flex-col bg-background text-foreground"
+      class={cx(
+        'flex h-full min-h-0 flex-col bg-background text-foreground',
+        props.embedded && 'border-b border-border',
+      )}
     >
-      <TopBar
-        crumbs={crumbs()}
-        report={report !== undefined}
-        embedded={props.embedded}
-        actions={ready() && !report ? props.export : undefined}
-        onJump={() => root?.querySelector<HTMLElement>('[data-testid="ledger"]')?.focus()}
-      />
+      <Show when={!props.embedded}>
+        <TopBar
+          crumbs={crumbs()}
+          report={report !== undefined}
+          actions={ready() && !report ? props.export : undefined}
+          onJump={focusLedger}
+        />
+      </Show>
       <Switch>
         <Match when={loading()}>
           {progress => <LoadingPanel bytesRead={progress().bytesRead} totalBytes={progress().totalBytes} />}
@@ -83,7 +126,12 @@ export function Workspace(props: WorkspaceProps) {
                 <ConnectionLost compact />
               </Show>
               <Show when={report}>{current => <ReportBanner report={current()} />}</Show>
-              <SessionView session={session} report={report !== undefined} />
+              <SessionView
+                session={session}
+                report={report !== undefined}
+                embedded={props.embedded}
+                onJump={focusLedger}
+              />
             </>
           )}
         </Match>
