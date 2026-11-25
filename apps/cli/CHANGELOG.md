@@ -2,6 +2,28 @@
 
 Versions up to 0.1.0 were published as `@rivus/agent-trace`.
 
+## 0.6.0
+
+### Minor Changes
+
+- [#165](https://github.com/PerfectPan/estela/pull/165) [`5c4f12c`](https://github.com/PerfectPan/estela/commit/5c4f12c3be6525c41cf801f65233cab08b0fdd1f) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Read more of each agent's log, from `@rivus/agent-kit` 0.27.0: DeepSeek Harness request durations, local subagents as lanes, and hooks; OpenCode and ZCode durations, compactions with their token counts, and subagent lanes; ZCode's recorded system prompt; DimCode run durations and reasoning; Kimi Code reasoning, compactions, hooks, and subagents; Codex tool definitions, hooks, and the token count before a compaction. ZCode 0.16.5 databases are read. A subagent the session records but whose log is missing shows a lane marked "log unavailable". A DimCode session keeps its cached summary across a start where nothing was written to it, as OpenCode and ZCode sessions do. On Windows, a session path typed with `\` is read by the kit itself.
+
+- [#168](https://github.com/PerfectPan/estela/pull/168) [`a37c38b`](https://github.com/PerfectPan/estela/commit/a37c38b76a7694f89a8d3686208d45880208f83e) Thanks [@PerfectPan](https://github.com/PerfectPan)! - `estela_list_sessions` and `estela_search_sessions` now include each session's list cost (`costUsd`, `unpricedRequests`) and the price snapshot (`pricesVersion`), and `estela_session_summary` marks a subagent lane whose log is missing with `unavailable: true`.
+
+- [#167](https://github.com/PerfectPan/estela/pull/167) [`a37c8f9`](https://github.com/PerfectPan/estela/commit/a37c8f9fe9809e4e14b1c3a2935771d97b1ead5c) Thanks [@PerfectPan](https://github.com/PerfectPan)! - The session browser's preview shows each session's list cost, priced from the request fields the kit's summary returns by the rules the workspace uses, so it matches the session header; it names the price snapshot, and cached costs are recomputed when the bundled prices change. A Codex request on the priority tier is priced at the tier's multiple of the list price.
+
+### Patch Changes
+
+- [#183](https://github.com/PerfectPan/estela/pull/183) [`1102350`](https://github.com/PerfectPan/estela/commit/1102350a11b3aebd0b58b701d5bdb8b552ee88f2) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Raw shows the original of an unchanged record in a compressed session log (such as a zstd log) after the log grew while the session was open, instead of reporting that the line holds a different record.
+
+- [#184](https://github.com/PerfectPan/estela/pull/184) [`c6e8490`](https://github.com/PerfectPan/estela/commit/c6e8490c75ad9c9aed9c334468f91634711abf5c) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Raw reports the original of a compressed session log record as unavailable when the record is rewritten while the session is open, instead of displaying the rewritten record.
+
+- [#178](https://github.com/PerfectPan/estela/pull/178) [`2f9dfaa`](https://github.com/PerfectPan/estela/commit/2f9dfaa8d673eaa00582da3c69bbeb9f29f0c7d8) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Show an indeterminate progress bar without `aria-valuenow` while the session file size is unknown (such as before `load-trace` reports total bytes or in embedded hosts), honoring `prefers-reduced-motion`.
+
+- [#188](https://github.com/PerfectPan/estela/pull/188) [`49e1702`](https://github.com/PerfectPan/estela/commit/49e17023e904d8c5d9971db819a05dc790773a3a) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Document the `@rivus/dsh-estela` plugin boundary in the public interface reference and user guide.
+
+- [#169](https://github.com/PerfectPan/estela/pull/169) [`5358a47`](https://github.com/PerfectPan/estela/commit/5358a47282d389c2f56980bc53a159aef25bbe61) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Point "could not read" errors for an unknown format generation to the issue tracker in both the CLI and the web UI.
+
 ## 0.5.0
 
 ### Minor Changes
