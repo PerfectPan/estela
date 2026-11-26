@@ -1,7 +1,7 @@
 import type {
-  EventDetail,
   ExportReportInput,
   ExportReportResult,
+  LoadedEvents,
   ReportLocale,
   ReportSource,
   ReportTrace,
@@ -10,7 +10,7 @@ import type {
 import { lstat, mkdir, readdir, readFile, realpath } from 'node:fs/promises'
 import { join, parse, resolve } from 'node:path'
 import process from 'node:process'
-import { buildReport } from '@rivus/estela-rpc'
+import { buildReport, loadedReport } from '@rivus/estela-rpc'
 import { homeDir } from '@rivus/estela-runtime-node'
 import type { DevframeDefinition } from 'devframe'
 import { createBuild } from 'devframe/adapters/build'
@@ -19,19 +19,17 @@ import { homeRedaction, type HomeRedaction } from '../sessions/redaction.ts'
 import { packForFile } from './report-site.ts'
 
 /**
- * The report payload for `traceId`: the view from the store and the first events in full from `full`
- * (`build` passes the trace it loaded, so the file is read once; the export reads through the
- * store). Always redacted, whatever the server's `redacts` says: with `redact`, or with the process
+ * The report payload of one loaded session: its view is built from `trace` and its full events come from `full`
+ * (`build` passes the trace it loaded, so the file is read once; the export reads through the store, from the
+ * same loaded trace). Always redacted, whatever the server's `redacts` says: with `redact`, or with the process
  * home alone when the caller names none, as the CLI's `build` does.
  */
 export async function reportOf(
-  store: TraceStore,
-  traceId: string,
-  full: (ids: readonly string[]) => Promise<EventDetail[]>,
+  loaded: LoadedEvents,
   locale?: ReportLocale,
   redact: HomeRedaction = homeRedaction(homeDir()),
 ): Promise<ReportTrace> {
-  return buildReport({ view: await store.view(traceId), full, redact: redact.value, locale })
+  return buildReport({ ...loaded, trace: loaded.trace, full: loaded.read, redact, locale })
 }
 
 /** One report at a time per server instance: its `report-trace` slot serves one build, and DevFrame replaces `outDir`. */
@@ -222,9 +220,8 @@ export async function exportReport(
 ): Promise<ExportReportResult> {
   const redact = options.redact ?? homeRedaction(homeDir())
   try {
-    const report = await store.withEvents(input.traceId, read =>
-      reportOf(store, input.traceId, read, input.locale, redact),
-    )
+    // The view and the full events come from one loaded trace, even if other reads evict it meanwhile.
+    const report = await loadedReport(store, input.traceId, { redact, locale: input.locale })
     const outDir = await queue.run(async () => {
       const dir = await reserveReportDir(options.dir ?? process.cwd(), input.traceId, now)
       await buildSite(definition, reportSource, dir, report)

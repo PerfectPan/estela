@@ -21,6 +21,7 @@
     "@rivus/estela-runtime-node": "workspace:*",
     "@rivus/estela-schema": "workspace:*",
     "devframe": "catalog:",
+    "es-toolkit": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

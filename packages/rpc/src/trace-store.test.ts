@@ -1,6 +1,7 @@
+import type { EventOf, Trace } from '@rivus/estela-schema'
 import type { LoadProgress } from './trace-store.ts'
-import { describe, expect, it } from 'vite-plus/test'
-import { deferred, fixture, HOME, present, recordOf, storeOf } from '../testing/store-fixture.ts'
+import { describe, expect, it, vi } from 'vite-plus/test'
+import { deferred, fixture, HOME, redact, recordOf, storeOf } from '../testing/store-fixture.ts'
 import { LoadCancelledError, TraceStore } from './trace-store.ts'
 
 const encoder = new TextEncoder()
@@ -31,7 +32,7 @@ describe('TraceStore', () => {
   it('returns the full payload in get-event while the view is capped and presented', async () => {
     const f = fixture()
     f.write('/logs/a.jsonl', [{ id: 'u1', kind: 'user', text: `${HOME} ${'x'.repeat(300)}` }])
-    const { store } = storeOf({ fs: f.fs, parse: f.parse, present, maxString: 256 })
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, redact, maxString: 256 })
     const view = await store.view('a')
     expect(view.trace.events[0]!.payload).toEqual({ text: `~ ${'x'.repeat(254)}`, $truncated: [['text']] })
     expect(view.summary).toMatchObject({ requests: 0 })
@@ -165,14 +166,128 @@ describe('TraceStore', () => {
     const f = fixture()
     const id = `${HOME}/u1`
     f.write('/logs/a.jsonl', [{ id, kind: 'user', text: 'hi' }])
-    const { store } = storeOf({ fs: f.fs, parse: f.parse, present })
-    const surface = await store.reconstruct('a', id)
-    expect(surface.eventId).toBe('~/u1')
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, redact })
+    const surface = await store.reconstruct('a', '@e0')
+    expect(surface).toMatchObject({ eventId: '@e0', visibleIds: ['@e0'] })
+    // The recorded id still names the event.
+    expect(await store.reconstruct('a', id)).toEqual(surface)
     expect(JSON.stringify(surface)).not.toContain(HOME)
     const events = await store.withTrace('a', trace => trace.events)
     expect(events.map(event => event.id)).toEqual([id])
     expect(events[0]).not.toHaveProperty('original')
     await expect(store.withTrace('missing', trace => trace)).rejects.toThrow('unknown trace id: missing')
+  })
+
+  it('shows an id the redaction would change as an alias, in every reference to it, and takes the alias back', async () => {
+    const f = fixture()
+    const lane = `${HOME}/agents/sub`
+    const child = `${HOME}/ids/child`
+    f.write('/logs/a.jsonl', [
+      { id: 'spawn', kind: 'user', text: 'start' },
+      { id: child, kind: 'user', text: 'found' },
+      { id: 'note', kind: 'user', text: 'kept' },
+      { id: 'summary', kind: 'user', text: 'summed up' },
+      { id: 'end', kind: 'user', text: 'after' },
+    ])
+    const parse = (file: string): Trace => {
+      const trace = f.parse(file)
+      const [spawn, found, note, summary, end] = trace.events as EventOf<'user'>[]
+      return {
+        ...trace,
+        agents: [{ id: 'main' }, { id: lane, parentId: 'main' }, { id: 'orphan', parentId: 'gone lane' }],
+        events: [
+          spawn!,
+          { ...found!, agentId: lane, parentId: 'spawn' },
+          { ...note!, parentId: `${HOME}/records/gone`, shadowedBy: 'summary' },
+          { ...summary!, kind: 'compaction', payload: { summaryEventId: child } },
+          end!,
+        ],
+      }
+    }
+    const { store } = storeOf({ fs: f.fs, parse, redact })
+    const { trace } = await store.view('a')
+    // Safe ids stay; one redaction changes is `@e<seq>` wherever it appears, in events and lanes alike.
+    // A lane whose parent is no lane of this trace keeps the reference for the text redaction.
+    expect(trace.agents).toEqual([
+      { id: 'main' },
+      { id: '@l1', parentId: 'main' },
+      { id: 'orphan', parentId: 'gone lane' },
+    ])
+    expect(trace.events.map(event => [event.id, event.agentId, event.parentId, event.shadowedBy])).toEqual([
+      ['spawn', undefined, undefined, undefined],
+      ['@e1', '@l1', 'spawn', undefined],
+      ['note', undefined, '~/records/gone', 'summary'],
+      ['summary', undefined, undefined, undefined],
+      ['end', undefined, undefined, undefined],
+    ])
+    expect(trace.events[3]!.payload).toEqual({ summaryEventId: '@e1' })
+
+    const event = await store.event('a', '@e1')
+    expect(event).toMatchObject({ id: '@e1', agentId: '@l1', parentId: 'spawn', payload: { text: 'found' } })
+    expect(event.original).toEqual({ id: '~/ids/child', kind: 'user', text: 'found' })
+    // The original is redacted as text: its `id` names the home, which is hidden.
+    expect(JSON.stringify(event)).not.toContain(HOME)
+    expect((await store.event('a', child)).id).toBe('@e1')
+    await expect(store.event('a', '~/ids/child')).rejects.toThrow('no event ~/ids/child')
+    // What a compaction removed is named by its shown id.
+    expect((await store.reconstruct('a', 'end')).removedIds).toEqual(['note'])
+    // What `build` does: events with their originals from the trace it loaded itself, asked for as recorded.
+    const loaded = parse('/logs/a.jsonl')
+    const indexing = vi.spyOn(loaded.events, 'map')
+    const [found, safe] = store.fromLoaded(loaded, [child, 'spawn'])
+    expect(found).toMatchObject({ id: child, agentId: lane, parentId: 'spawn', original: { id: child } })
+    expect(safe!.id).toBe('spawn')
+    expect(() => store.fromLoaded(loaded, ['@e9'])).toThrow('no event @e9')
+    expect(() => store.fromLoaded(loaded, ['gone'])).toThrow('no event gone')
+    // Indexed once for the trace, however many batches ask: `build` reads 250 events at a time.
+    expect(indexing).toHaveBeenCalledTimes(1)
+    for (let batch = 0; batch < 8; batch++) {
+      store.fromLoaded(loaded, ['spawn'])
+    }
+    expect(indexing).toHaveBeenCalledTimes(1)
+  })
+
+  it('never shows a reference to no event under a form that reads as an alias of one', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [
+      { id: 'first', kind: 'user', text: 'kept' },
+      { id: `${HOME}/ids/compaction`, kind: 'user', text: 'summary' },
+      { id: 'laneless', kind: 'user' },
+    ])
+    const parse = (file: string): Trace => {
+      const [first, compaction, other] = f.parse(file).events as EventOf<'user'>[]
+      return {
+        ...f.parse(file),
+        agents: [{ id: 'main' }, { id: 'orphan', parentId: '@l7' }],
+        // The log points at `@e1`, which no recorded id equals; the compaction below is shown as `@e1`.
+        events: [
+          { ...first!, shadowedBy: '@e1' },
+          { ...compaction!, kind: 'compaction', payload: {} },
+          { ...other!, parentId: '@e9' },
+        ],
+      }
+    }
+    const { store } = storeOf({ fs: f.fs, parse, redact })
+    const { trace } = await store.view('a')
+    expect(trace.agents[1]).toEqual({ id: 'orphan', parentId: '@l?' })
+    expect(trace.events.map(event => [event.id, event.shadowedBy, event.parentId])).toEqual([
+      ['first', '@e?', undefined],
+      ['@e1', undefined, undefined],
+      ['laneless', undefined, '@e?'],
+    ])
+    // The alias still names the compaction alone.
+    expect((await store.event('a', '@e1')).payload).toEqual({})
+  })
+
+  it('sends ids as recorded, and looks them up as recorded, without a redaction', async () => {
+    const f = fixture()
+    const id = `${HOME}/ids/u1`
+    f.write('/logs/a.jsonl', [{ id, kind: 'user', text: 'hi' }])
+    const { store } = storeOf({ fs: f.fs, parse: f.parse })
+    expect((await store.view('a')).trace.events[0]!.id).toBe(id)
+    expect((await store.event('a', id)).id).toBe(id)
+    await expect(store.event('a', '@e0')).rejects.toThrow('no event @e0')
+    expect(store.fromLoaded(f.parse('/logs/a.jsonl'), [id])[0]!.id).toBe(id)
   })
 
   it('withEvents reads source pointers in the order asked', async () => {
@@ -185,7 +300,7 @@ describe('TraceStore', () => {
     await store.view('a')
     const before = f.reads.length
     const ids = Array.from({ length: 100 }, (_, index) => `e${99 - index}`)
-    const events = await store.withEvents('a', read => read(ids))
+    const events = await store.withEvents('a', loaded => loaded.read(ids))
     expect(events.map(event => event.id)).toEqual(ids)
     expect(f.reads.length - before).toBe(100)
   })
@@ -206,9 +321,9 @@ describe('TraceStore', () => {
       },
     })
     await store.view('a')
-    const got = await store.withEvents('a', async read => {
-      const first = await read(['e0', 'e1', 'e2'])
-      const second = await read(['e3', 'e4', 'e5'])
+    const got = await store.withEvents('a', async loaded => {
+      const first = await loaded.read(['e0', 'e1', 'e2'])
+      const second = await loaded.read(['e3', 'e4', 'e5'])
       return [...first, ...second].map(event => recordOf(event.original).id)
     })
     expect(got).toEqual(['e0', 'e1', 'e2', 'e3', 'e4', 'e5'])
@@ -243,9 +358,9 @@ describe('TraceStore', () => {
       },
     })
     await store.view('a')
-    const got = await store.withEvents('a', async read => {
-      const first = await read(['e0', 'e1', 'e2'])
-      const second = await read(['e3', 'e4', 'e5'])
+    const got = await store.withEvents('a', async loaded => {
+      const first = await loaded.read(['e0', 'e1', 'e2'])
+      const second = await loaded.read(['e3', 'e4', 'e5'])
       return [...first, ...second].map(event => recordOf(event.original).id)
     })
     expect(got).toEqual(['e0', 'e1', 'e2', 'e3', 'e4', 'e5'])
@@ -279,7 +394,7 @@ describe('TraceStore', () => {
     const bytes = f.files.get('/logs/a.jsonl')!
     const text = new TextDecoder().decode(bytes).replace('"content":"second"', '"content":"changed"')
     f.files.set('/logs/a.jsonl', new TextEncoder().encode(text))
-    const got = await store.withEvents('a', read => read(['e0', 'e1']))
+    const got = await store.withEvents('a', loaded => loaded.read(['e0', 'e1']))
     expect(got[0]!.original).toBeDefined()
     expect(got[1]!.originalUnavailable).toContain('holds a different record')
   })
@@ -332,7 +447,7 @@ describe('TraceStore', () => {
     })
     await store.view('a')
     // The reload fails, so the batch reads the pointer instead of failing the whole report.
-    const got = await store.withEvents('a', read => read(['e0']))
+    const got = await store.withEvents('a', loaded => loaded.read(['e0']))
     expect(got[0]!.original).toEqual(record)
     expect(reads).toBe(1)
     expect(loads).toBe(2)

@@ -1,4 +1,5 @@
 import type { SessionSummary, SessionTarget } from '@rivus/agent-kit/transcript'
+import { VIEW_BUDGET_BYTES } from '@rivus/estela-kernel'
 import type { SessionFs } from '@rivus/estela-kernel'
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import type { FileStamp, ReadOriginal } from './source-check.ts'
@@ -20,12 +21,47 @@ export interface TraceStoreDeps {
   fs: SessionFs
   /** Reads one original through its source pointer (compressed files, SQLite rows); defaults to a raw file range. */
   readOriginal?: ReadOriginal
-  /** Applied to everything sent out: view trace, events, and error messages. Redaction lives here. */
-  present?: <T>(value: T) => T
+  /**
+   * Redaction of everything sent out: view trace, events, reconstructions, and error messages. Omit to send
+   * recorded values. An event or lane id `text` would change is shown as an alias (`@e<seq>`, `@l<n>`), and every
+   * id input takes an alias back.
+   */
+  redact?: TraceRedaction
   /** Server log, for conditions the operator should see (a view over budget). */
   log?: (message: string) => void
   /** The view's starting string cap: 4,096 characters by default; `fitView` raises a value below 256 to 256. */
   maxString?: number
+}
+
+/** How a reader redacts: a whole value (every string in it) or one string. */
+export interface TraceRedaction {
+  value: <T>(value: T) => T
+  text: (text: string) => string
+}
+
+/** How one read of an event names it. */
+export interface EventRead {
+  /** The calling connection. Its reads ride on its own `open` of the same session, so its supersede or cancel also ends them. */
+  owner?: object
+  /**
+   * Resolves and shows ids with this redaction instead of the store's own, for a caller that always redacts while
+   * the server shows the browser unredacted. The ids of the result are shown already; the caller shows nothing more.
+   */
+  redact?: TraceRedaction
+}
+
+/** What a view may take of the 12 MB budget, leaving the rest for `summary` and the envelope. */
+export const VIEW_BYTES = VIEW_BUDGET_BYTES - 64 * 1024
+
+/** One loaded trace as a report reads it: its view is built from `trace`, its full events come from `read`. */
+export interface LoadedEvents {
+  /** The trace as cached: every string whole, no originals. */
+  trace: Trace
+  /** The view's starting string cap the store was given, and where its warnings go; either may be left out. */
+  maxString?: number
+  log?: (line: string) => void
+  /** Full events (with `original`, or `originalUnavailable`) for ids as recorded, in the order asked; not shown. */
+  read: (ids: readonly string[]) => Promise<EventDetail[]>
 }
 
 export interface LoadedTrace {

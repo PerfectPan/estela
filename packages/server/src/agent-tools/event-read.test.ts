@@ -2,7 +2,8 @@ import type { ReconstructResult, Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { jsonChars, RESULT_CHARS } from './bounds.ts'
 import { eventResult, surfaceResult } from './event-read.ts'
-import { TraceIds } from './trace-ids.ts'
+import type { EventDetail } from '@rivus/estela-rpc'
+import { TraceIds } from '@rivus/estela-rpc'
 
 function userEvent(id: string, text: string, seq = 0): TraceEvent {
   return {
@@ -30,15 +31,7 @@ const tilde = {
 describe('eventResult', () => {
   it('redacts before cutting and lists the cut paths', () => {
     const event = userEvent('u1', `/h/a ${'x'.repeat(400)}`)
-    const trace = traceOf([event])
-    const result = eventResult(
-      trace,
-      't',
-      event,
-      new TraceIds(trace, () => true),
-      { maxChars: 256, original: false },
-      tilde,
-    )
+    const result = eventResult('t', event, 'main', { maxChars: 256, original: false }, tilde)
     expect(result.event.payload).toEqual({ text: `~/a ${'x'.repeat(252)}` })
     expect(result.event.truncated).toEqual([['payload', 'text']])
     expect(result.event.source).toEqual({ file: '~/log.jsonl', line: 1 })
@@ -47,9 +40,7 @@ describe('eventResult', () => {
   it('lowers the cap, then leaves out the original, to stay under the size bound', () => {
     const many = Array.from({ length: 400 }, () => 'z'.repeat(300))
     const event: TraceEvent = { ...userEvent('u1', 'short'), original: { many } }
-    const trace = traceOf([event])
-    const ids = new TraceIds(trace, () => true)
-    const result = eventResult(trace, 't', event, ids, { maxChars: 20_000, original: true }, plain)
+    const result = eventResult('t', event, 'main', { maxChars: 20_000, original: true }, plain)
     expect(result.maxChars).toBe(256)
     expect(result.event.omitted).toEqual(['original'])
     expect(result.event.payload).toEqual({ text: 'short' })
@@ -59,17 +50,63 @@ describe('eventResult', () => {
   it('leaves out only the parts it holds', () => {
     const many = Array.from({ length: 400 }, () => 'z'.repeat(300))
     const event: TraceEvent = { ...userEvent('u1', 'short'), kind: 'user', payload: { text: 'short', many } }
-    const trace = traceOf([event])
-    const result = eventResult(
-      trace,
-      't',
-      event,
-      new TraceIds(trace, () => true),
-      { maxChars: 2000, original: false },
-      plain,
-    )
+    const result = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)
     expect(result.event.omitted).toEqual(['payload'])
     expect(jsonChars(result)).toBeLessThanOrEqual(RESULT_CHARS)
+  })
+
+  it('cuts an id reference like any other string, so one event stays within the size bound', () => {
+    // A dangling parent id far over the bound: nothing else in the event is long enough to matter.
+    const event: TraceEvent = { ...userEvent('u1', 'short'), parentId: 'p'.repeat(40_001), shadowedBy: 's'.repeat(300) }
+    const result = eventResult('t', event, 'main', { maxChars: 256, original: false }, plain)
+    expect(jsonChars(result)).toBeLessThanOrEqual(RESULT_CHARS)
+    // The payload was kept, and the references were cut and said so, instead of the whole event growing past the bound.
+    expect(result).toMatchObject({ maxChars: 256, event: { payload: { text: 'short' } } })
+    expect(result.event.parentId).toBe('p'.repeat(256))
+    expect(result.event.shadowedBy).toBe('s'.repeat(256))
+    expect(result.event.truncated).toEqual([['parentId'], ['shadowedBy']])
+    expect(result.event.omitted).toBeUndefined()
+  })
+
+  it('lists a log file cut to its bound or the cap, like any other cut string', () => {
+    const event: TraceEvent = {
+      ...userEvent('u1', 'short'),
+      source: { file: 'f'.repeat(400), offset: 0, length: 1, line: 1 },
+    }
+    const whole = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)
+    expect(whole.event.source.file).toBe('f'.repeat(300))
+    expect(whole.event.truncated).toEqual([['source', 'file']])
+    const capped = eventResult('t', event, 'main', { maxChars: 256, original: false }, plain)
+    expect(capped.event.source.file).toBe('f'.repeat(256))
+    expect(capped.event.truncated).toEqual([['source', 'file']])
+  })
+
+  it('lists why an original could not be read when that is cut, as it lists the other strings', () => {
+    const event: EventDetail = { ...userEvent('u1', 'short'), originalUnavailable: 'w'.repeat(400) }
+    const result = eventResult('t', event, 'main', { maxChars: 256, original: true }, plain)
+    expect(result.event.originalUnavailable).toBe('w'.repeat(256))
+    expect(result.event.truncated).toEqual([['originalUnavailable']])
+    // Not asked for: the reason is not returned at all.
+    expect(eventResult('t', event, 'main', { maxChars: 256, original: false }, plain).event).not.toHaveProperty(
+      'originalUnavailable',
+    )
+  })
+
+  it('lists a request id cut to its own bound, like any other cut string', () => {
+    const event: TraceEvent = { ...userEvent('u1', 'short'), requestId: 'r'.repeat(300) }
+    const result = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)
+    expect(result.event.requestId).toBe('r'.repeat(128))
+    expect(result.event.truncated).toEqual([['requestId']])
+  })
+
+  it('keeps every key of the original record, `__proto__` as a key among them', () => {
+    const original = JSON.parse('{"__proto__": "plain text", "other": "kept"}')
+    const event: TraceEvent = { ...userEvent('u1', 'short'), original }
+    for (const maxChars of [2000, 256]) {
+      const shown = eventResult('t', event, 'main', { maxChars, original: true }, plain).event.original
+      // Serialized, an own key is told from one that merely set the prototype.
+      expect(JSON.stringify(shown)).toBe('{"__proto__":"plain text","other":"kept"}')
+    }
   })
 })
 

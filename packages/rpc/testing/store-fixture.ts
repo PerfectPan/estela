@@ -9,8 +9,11 @@ const encoder = new TextEncoder()
 /** A home directory built from parts, so no literal home path sits in the repo. */
 export const HOME = ['', 'home', 'u'].join('/')
 
-export function present<T>(value: T): T {
-  return cloneDeepWith(value, item => (typeof item === 'string' ? item.replaceAll(HOME, '~') : undefined))
+/** The fixture's redaction: every `HOME` becomes `~`. */
+export const redact = {
+  value: <T>(value: T): T =>
+    cloneDeepWith(value, item => (typeof item === 'string' ? item.replaceAll(HOME, '~') : undefined)),
+  text: (text: string): string => text.replaceAll(HOME, '~'),
 }
 
 /** The records the tests write: an id, one of the kinds the fixture maps, and optional text. */

@@ -59,21 +59,24 @@ class Capper {
   }
 
   record(record: Record<string, unknown>, path: TruncatedPath): Record<string, unknown> {
-    const out: Record<string, unknown> = {}
+    const out: [string, unknown][] = []
+    const taken = new Set(Object.keys(record))
     for (const [key, item] of Object.entries(record)) {
       // A long key is cut too; its path names the key as it appears in the view.
       // Two long keys with the same prefix would collide, so a later one gets `#2`, `#3`, ….
       let shown = key.length > this.max ? cut(key, this.max) : key
       if (shown !== key) {
         const base = shown
-        for (let suffix = 2; Object.hasOwn(out, shown) || Object.hasOwn(record, shown); suffix++) {
+        for (let suffix = 2; taken.has(shown); suffix++) {
           shown = `${base}#${suffix}`
         }
         this.truncated.push([...path, shown])
       }
-      out[shown] = this.value(item, [...path, shown])
+      taken.add(shown)
+      out.push([shown, this.value(item, [...path, shown])])
     }
-    return out
+    // Built from entries, not by assignment: a `__proto__` key of the record stays an own key with its value.
+    return Object.fromEntries(out)
   }
 }
 

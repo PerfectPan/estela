@@ -1,11 +1,5 @@
 import type { IndexSummary, SessionIndex } from '@rivus/estela-runtime-node'
-import type {
-  AgentListEntry,
-  ListSessionsQuery,
-  ListSessionsResult,
-  ResolvedSession,
-  SessionsSignal,
-} from '@rivus/estela-rpc'
+import type { AgentListEntry, ListSessionsResult, ResolvedSession, SessionsSignal } from '@rivus/estela-rpc'
 import type { Trace } from '@rivus/estela-schema'
 import { sessionAdapterHome, type SessionAdapter, type SessionAdapters } from '@rivus/agent-kit/sessions'
 import { SESSION_SUMMARY_VERSION, type SessionTarget } from '@rivus/agent-kit/transcript'
@@ -22,9 +16,11 @@ import {
   activityLabel,
   indexHeadOf,
   publicRow,
+  withinDirectory,
   currentSummary,
   rowFromIndex,
   sameRow,
+  type SessionQuery,
   summarizeRow,
   type LiveRow,
   type SummarizeResult,
@@ -238,16 +234,24 @@ export class SessionCatalog {
 
   /**
    * `redact` replaces the catalog's own rule (the server's `redacts`) for this call's titles, projects, and prompts;
-   * the MCP tools pass one that always redacts, because a prompt is shortened after redaction.
+   * the MCP tools pass one that always redacts, because a prompt is shortened after redaction. `input.cwd`
+   * keeps only the rows recorded in that directory, compared before any redaction.
    */
-  async listSessions(input: ListSessionsQuery = {}, redact: Redactor = this.redact): Promise<ListSessionsResult> {
+  async listSessions(input: SessionQuery = {}, redact: Redactor = this.redact): Promise<ListSessionsResult> {
     await this.start()
     if (input.first && input.first.length > 0) {
       this.queue.prioritize(input.first)
     }
     const since = input.since
+    const cwd = input.cwd
     const rows = this.sortedRows()
       .filter(row => since === undefined || row.revision > since)
+      // Against the recorded directory: two directories can redact to the same text.
+      .filter(
+        row =>
+          cwd === undefined
+          || withinDirectory(row.rawCwd, cwd, this.redaction.homes, this.platform.os ?? process.platform),
+      )
       .map(row => publicRow(row, redact))
     const removed =
       since === undefined ? [] : [...this.removed].filter(([, at]) => at > since).map(([traceId]) => traceId)

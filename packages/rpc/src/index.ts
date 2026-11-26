@@ -45,9 +45,11 @@ export {
   type SessionsSignal,
 } from './list-types.ts'
 export { createSessionPublisher, type SessionPublisher } from './publish.ts'
-export { buildReport, type ReportLocale, type ReportTrace } from './report.ts'
+export { buildReport, loadedReport, type ReportLocale, type ReportSettings, type ReportTrace } from './report.ts'
 export {
   CURRENT_TRACE_ID,
+  type EventRead,
+  type LoadedEvents,
   LoadCancelledError,
   SnapshotChangedError,
   TraceStore,
@@ -58,9 +60,11 @@ export {
   type LoadOpts,
   type LoadProgress,
   type ResolvedSession,
+  type TraceRedaction,
   type TraceStoreDeps,
   type TraceViewResult,
 } from './trace-store.ts'
+export { TraceIds } from './trace-ids.ts'
 
 declare module 'devframe' {
   interface DevframeRpcServerFunctions extends RpcDefinitionsToFunctionsWithNamespace<

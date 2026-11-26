@@ -1,6 +1,6 @@
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
-import { deferred, fixture, HOME, present, storeOf } from '../testing/store-fixture.ts'
+import { deferred, fixture, HOME, redact, storeOf } from '../testing/store-fixture.ts'
 import { TraceStore } from './trace-store.ts'
 
 /** Rejections the tests read back as `Error`s; anything else keeps its string form. */
@@ -9,11 +9,12 @@ function asError(error: unknown): Error {
 }
 
 /**
- * The store's cached entry for `key`. `entries` is private, so it is reached by index — a rename
- * or a type change here fails typecheck, which an assertion would hide.
+ * The store's cached entry for `key`. `cache` is private, so it is reached by index — a rename
+ * or a type change here fails typecheck, which an assertion would hide. A read moves nothing: it is not
+ * the lookup a request goes through.
  */
 function cachedEntry(store: TraceStore, key: string) {
-  return store['entries'].get(key)!
+  return store['cache'].get(key)!
 }
 
 function cachedTrace(store: TraceStore, key: string): Trace {
@@ -103,7 +104,7 @@ describe('TraceStore lifecycle', () => {
     const store = new TraceStore({
       resolve: traceId => ({ key: traceId, target: { path: `${HOME}/logs/${traceId}.jsonl` } }),
       fs: f.fs,
-      present,
+      redact,
       load: async () => {
         throw new Error(`codex: ${HOME}/logs/a.jsonl:3: invalid JSON`)
       },

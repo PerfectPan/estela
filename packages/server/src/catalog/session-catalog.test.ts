@@ -373,3 +373,37 @@ describe('session catalog', () => {
     catalogB.close()
   })
 })
+
+describe('the working-directory filter', () => {
+  it('compares by the platform the catalog reads for, whatever system it runs on', async () => {
+    const home = await tempHome()
+    const recorded: Record<string, string> = { windows: 'C:/Work/App', posix: '/work/app' }
+    for (const [name, cwd] of Object.entries(recorded)) {
+      await mkdir(join(home, '.claude/projects', name), { recursive: true })
+      await writeFile(
+        join(home, '.claude/projects', name, 'session.jsonl'),
+        `${JSON.stringify({
+          type: 'user',
+          uuid: `u-${name}`,
+          timestamp: '2026-02-01T00:00:00.000Z',
+          sessionId: `s-${name}`,
+          cwd,
+          version: '2.0.0',
+          message: { role: 'user', content: `hi ${name}` },
+        })}\n`,
+      )
+    }
+    // A server that reads a Windows user's sessions: its platform says so, wherever the server itself runs.
+    const catalog = new SessionCatalog({
+      platform: { ...createNodePlatform({ home, env: {} }), os: 'win32' },
+      noIndex: true,
+    })
+    const titles = async (cwd: string): Promise<(string | undefined)[]> =>
+      (await catalog.listSessions({ cwd })).rows.map(row => row.title)
+    // Windows paths are compared without case and with either separator.
+    expect(await titles('C:\\Work\\App')).toEqual(['hi windows'])
+    expect(await titles('c:/work/app')).toEqual(['hi windows'])
+    expect(await titles('/work/app')).toEqual(['hi posix'])
+    catalog.close()
+  })
+})

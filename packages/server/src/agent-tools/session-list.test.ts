@@ -1,13 +1,27 @@
 import type { SessionListRow } from '@rivus/estela-rpc'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { describe, expect, it } from 'vite-plus/test'
+import { withinDirectory } from '../catalog/rows.ts'
 import { listSessionPage, type SessionSource } from './session-list.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 const T0 = Date.UTC(2026, 10, 1)
+const same = <T>(value: T): T => value
+/** Built from parts: the repository check rejects a literal home path in a tracked file. */
+const LIST_HOME = ['', 'home', 'u'].join('/')
+const tilde = (text: string): string => text.replace(LIST_HOME, '~')
 
 function row(traceId: string, fields: Partial<SessionListRow> = {}): SessionListRow {
   return { traceId, agent: 'claude-code', lastActiveAt: T0, sizeBytes: 10, pending: false, ...fields }
+}
+
+/** Each row's recorded working directory. A row shows it redacted, which is what cannot be compared. */
+const recorded: Record<string, string> = {
+  a: `${LIST_HOME}/work/app`,
+  b: `${LIST_HOME}/work/app/sub`,
+  c: `${LIST_HOME}/work/apple`,
+  e: `${LIST_HOME}/work/sk-aaaaaaaaaaaaaaaa/app`,
+  f: `${LIST_HOME}/work/sk-bbbbbbbbbbbbbbbb/app`,
 }
 
 function sourceOf(rows: SessionListRow[], matches: string[] = []): SessionSource {
@@ -17,7 +31,10 @@ function sourceOf(rows: SessionListRow[], matches: string[] = []): SessionSource
         { id: 'claude-code', displayName: 'Claude Code', count: rows.length },
         { id: 'codex', displayName: 'Codex', count: 0 },
       ],
-      rows,
+      // As the catalog does: against the recorded directory, before any redaction.
+      rows: rows.filter(
+        row => query.cwd === undefined || withinDirectory(recorded[row.traceId], query.cwd, [LIST_HOME], 'linux'),
+      ),
       complete: true,
       pricesVersion: 'test-prices',
       ...(query.query === undefined ? {} : { matches }),
@@ -27,10 +44,6 @@ function sourceOf(rows: SessionListRow[], matches: string[] = []): SessionSource
   }
 }
 
-const same = <T>(value: T): T => value
-/** Built from parts: the repository check rejects a literal home path in a tracked file. */
-const LIST_HOME = ['', 'home', 'u'].join('/')
-const tilde = (text: string): string => text.replace(LIST_HOME, '~')
 const redaction = { value: same, text: tilde }
 
 describe('listSessionPage', () => {
@@ -45,10 +58,24 @@ describe('listSessionPage', () => {
     const ids = async (filters: Parameters<typeof listSessionPage>[1]) =>
       (await listSessionPage(sourceOf(rows), filters, redaction)).sessions.map(item => item.traceId)
     expect(await ids({ cwd: `${LIST_HOME}/work/app/` })).toEqual(['a', 'b'])
+    expect(await ids({ cwd: '~/work/app' })).toEqual(['a', 'b'])
     expect(await ids({ project: 'APP' })).toEqual(['a', 'c'])
     expect(await ids({ since: '2026-11-02' })).toEqual(['a', 'b'])
     expect(await ids({ until: '2026-11-01T00:00:00Z' })).toEqual(['c', 'd'])
     expect(await ids({ agent: 'codex' })).toEqual(['d'])
+  })
+
+  it('asks the catalog about a working directory two directories redact to the same text', async () => {
+    const kit = {
+      value: <T>(value: T): T => redact(value, { home: LIST_HOME }),
+      text: (text: string) => redactText(text, { home: LIST_HOME }),
+    }
+    // What the two rows show is the same text; only what each session recorded tells them apart.
+    const met = [row('e', { cwd: '~/work/[redacted]/app' }), row('f', { cwd: '~/work/[redacted]/app' })]
+    const ids = async (cwd: string): Promise<string[]> =>
+      (await listSessionPage(sourceOf(met), { cwd }, kit)).sessions.map(item => item.traceId)
+    expect(await ids(`${LIST_HOME}/work/sk-aaaaaaaaaaaaaaaa/app`)).toEqual(['e'])
+    expect(await ids(`${LIST_HOME}/work/sk-bbbbbbbbbbbbbbbb/app`)).toEqual(['f'])
   })
 
   it('tests flags on recorded counts and counts the sessions still unsummarized', async () => {

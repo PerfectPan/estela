@@ -1,7 +1,7 @@
 import type { Trace, TraceEvent } from '@rivus/estela-schema'
 import { redact, redactText } from '@rivus/agent-kit/redact'
 import { describe, expect, it } from 'vite-plus/test'
-import { TraceIds } from './trace-ids.ts'
+import { TraceIds } from '@rivus/estela-rpc'
 import { listRequests, listTurns, sessionSummary } from './trace-reads.ts'
 
 const source = (line: number) => ({ file: 'f', offset: 0, length: 1, line })
@@ -48,6 +48,46 @@ describe('trace reads', () => {
       ['sub', 1, 'r1'],
     ])
     expect(summary.truncated).toEqual([['title']])
+  })
+
+  it('shows a lane whose parent is no lane of the trace as the view shows it: as recorded, or `@l?` when it reads like an alias', () => {
+    const withOrphans: Trace = {
+      ...trace,
+      agents: [
+        { id: 'main' },
+        { id: 'orphan', parentId: 'missing lane' },
+        { id: 'shaped', parentId: '@l7' },
+        { id: 'named lane!', parentId: 'gone lane' },
+      ],
+    }
+    const summary = sessionSummary(withOrphans, 't1', new TraceIds(withOrphans, () => true), plain)
+    expect(summary.lanes.map(lane => [lane.id, lane.parentId])).toEqual([
+      ['main', undefined],
+      ['orphan', 'missing lane'],
+      // A safe id is shown as written; `@l7` reads like an alias of this trace, so it is `@l?`.
+      ['shaped', '@l?'],
+      ['@l3', 'gone lane'],
+      ['sub', undefined],
+    ])
+  })
+
+  it('cuts a long reference to a missing lane, so the other lanes stay in the summary', () => {
+    const withLongParent: Trace = {
+      ...trace,
+      agents: [
+        { id: 'main' },
+        { id: 'sub', parentId: 'main', spawnEventId: 'r1' },
+        { id: 'lost lane', parentId: 'p'.repeat(40_001) },
+      ],
+    }
+    const summary = sessionSummary(withLongParent, 't1', new TraceIds(withLongParent, () => true), plain)
+    expect(summary.laneCount).toBe(3)
+    expect(summary.lanes.map(lane => [lane.id, lane.parentId?.length])).toEqual([
+      ['main', undefined],
+      ['sub', 4],
+      ['@l2', 128],
+    ])
+    expect(summary.truncated).toEqual([['lanes', 2, 'parentId'], ['title']])
   })
 
   it('marks a subagent lane whose log is missing as unavailable', () => {
