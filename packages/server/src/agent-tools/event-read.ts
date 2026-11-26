@@ -52,7 +52,8 @@ export interface EventResult {
 /**
  * One event whose ids the store showed already, every string cut to `maxChars` and the result kept under its size
  * bound: the cap is lowered in steps of 0.75 down to 256, then the original record (when asked for) and then the
- * payload are left out, and every string is cut to the cap, the id references among them. Everything is redacted
+ * payload are left out, and every string is cut to its bound or the cap, whichever is lower, and listed when
+ * it was cut. Everything is redacted
  * before anything is cut, so a cut never leaves part of a home path or token behind. `mainLane` is the main lane's
  * id as the tools show it.
  */
@@ -90,6 +91,12 @@ export function eventResult(
     }
     if (parts.original !== undefined && !omitted.includes('original')) {
       event.original = capped('original', parts.original)
+    }
+    // The log file is a string like any other: cut to its bound or the cap, and listed when it was.
+    const file = shown(detail.source.file, Math.min(PATH_CHARS, max), redaction)
+    event.source = { file: file.text, line: detail.source.line }
+    if (file.cut) {
+      truncated.push(['source', 'file'])
     }
     // A reference to another event is a string like any other: cut to the cap, and listed when it was.
     for (const [field, id, bound] of [

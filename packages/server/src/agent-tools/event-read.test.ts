@@ -67,6 +67,19 @@ describe('eventResult', () => {
     expect(result.event.omitted).toBeUndefined()
   })
 
+  it('lists a log file cut to its bound or the cap, like any other cut string', () => {
+    const event: TraceEvent = {
+      ...userEvent('u1', 'short'),
+      source: { file: 'f'.repeat(400), offset: 0, length: 1, line: 1 },
+    }
+    const whole = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)
+    expect(whole.event.source.file).toBe('f'.repeat(300))
+    expect(whole.event.truncated).toEqual([['source', 'file']])
+    const capped = eventResult('t', event, 'main', { maxChars: 256, original: false }, plain)
+    expect(capped.event.source.file).toBe('f'.repeat(256))
+    expect(capped.event.truncated).toEqual([['source', 'file']])
+  })
+
   it('lists a request id cut to its own bound, like any other cut string', () => {
     const event: TraceEvent = { ...userEvent('u1', 'short'), requestId: 'r'.repeat(300) }
     const result = eventResult('t', event, 'main', { maxChars: 2000, original: false }, plain)

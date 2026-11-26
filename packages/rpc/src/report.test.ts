@@ -195,6 +195,15 @@ describe('buildReport', () => {
     await expect(reportOf(store)).rejects.toThrow(`cannot reread ~/logs/a.jsonl`)
   })
 
+  it('builds its view with the string cap the store was given', async () => {
+    const f = fixture()
+    f.write('/logs/a.jsonl', [{ id: 'e0', kind: 'user', text: 'x'.repeat(1000) }])
+    const { store } = storeOf({ fs: f.fs, parse: f.parse, maxString: 256 })
+    const report = await reportOf(store)
+    expect(report.trace.events[0]!.payload).toEqual({ text: 'x'.repeat(256), $truncated: [['text']] })
+    expect(report.trace.view?.maxString).toBe(256)
+  })
+
   it('stops at the event limit', async () => {
     const { report } = await plainReport(12, () => 'x', { maxEvents: 5 })
     expect(report.events.map(event => event.id)).toEqual(['e0', 'e1', 'e2', 'e3', 'e4'])
