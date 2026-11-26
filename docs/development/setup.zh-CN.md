@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: e974265c8b0dc91a9f439af487ce6a84f9f96a04 -->
+<!-- source-blob: 6f14d3bd6a7dd1fdf1df94faa915975d9a69d4d2 -->
 
 # 开发
 
@@ -148,10 +148,10 @@ dsh 插件（`@rivus/dsh-estela`）：
 | DSH-2 | 切换到 `Estela` 标签页显示会话头部、时间线、虚拟化账本和检查器（`Input`、`Output`、`Model saw`、`Compare`、`Raw`），高度止于输入框上方，且不含「导出报告」按钮 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts` |
 | DSH-3 | 空白会话不显示视图标签页，也没有 `/estela` 斜杠命令 | `dsh.smoke.ts` |
 | DSH-4 | 已开始但磁盘尚无日志的会话显示「This session has no log on disk yet.」且无错误详情 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-5 | 不可读或未知格式代际的日志显示「Could not open this session」、未知格式提示与反馈链接，且不含会话浏览器链接 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-5 | 不可读或未知格式代次的日志显示「Could not open this session」且不含会话浏览器链接；当原因为未知格式代次时，还会显示未知格式提示与 GitHub 反馈链接 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-6 | 传输或渲染失败被限制在视图内部并显示「Try again」，不影响其他 dsh 视图，且重试时不重挂元素 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-7 | 大型会话账本保持虚拟化，同时 dsh 自身的 `POST /api/session/list` 延迟增幅不超过 `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-8 | 超过 12 MB 预算的视图会缩短长字符串，并在选中事件时加载完整文本 | `packages/kernel/src/view.test.ts` |
+| DSH-8 | 超过 12 MB 预算的视图会缩短长字符串，并在选中事件时加载完整文本 | `packages/kernel/src/view.test.ts`、`apps/e2e/src/e2e/scale.e2e.ts`（共享工作区选中事件读回全文），以及 [#109](https://github.com/PerfectPan/estela/issues/109#issuecomment-7127872610) 中约 12 MB（`11,931,777` 字节）通过 dsh 通道的实测（`dsh.smoke.ts` 尚未在 dsh 内用 12 MB 视图做端到端验证） |
 | DSH-9 | 向运行中的会话追加新帧时，已打开的视图保持原快照且无报错；刷新页面后展示新内容，过期快照会自动重开且不混用状态 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/sessions.test.ts`、`channel.test.ts`、`stale.test.ts`、`stale-races.test.ts`、`apps/dsh-plugin/src/client/source.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-10 | 默认脱敏替换主目录路径与敏感凭据；`ESTELA_REDACT=0` 关闭脱敏 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/lifecycle.test.ts` |
 | DSH-11 | 主题与语言跟随 dsh（`ctx.theme` / `ctx.locale`），不写 `document.documentElement` | `dsh.smoke.ts`、`apps/dsh-plugin/src/client/appearance.test.ts`、`apps/e2e/src/e2e/embed.e2e.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
@@ -194,7 +194,7 @@ cd apps/dsh-plugin
 pnpm run test:smoke
 ```
 
-`ESTELA_DSH_VERSION` 可覆盖安装的 dsh 版本（例如 `ESTELA_DSH_VERSION=latest`）。`ESTELA_E2E_CHANNEL=chrome` 可在本地改用已安装的 Google Chrome，而不必下载 Playwright Chromium。`ESTELA_SMOKE_KEEP=1` 会在运行结束后保留临时目录。CI 中的 `dsh-plugin` 作业运行在 `ubuntu-latest` 与 Node.js `^26.13.1` 上：PR 触发时针对固定版本运行，每周 `schedule` 和手动 `workflow_dispatch` 时针对 dsh 的 `latest` 标签运行。每周 `latest` 运行标红表示新版 dsh 破坏了兼容性；此时更新 `apps/dsh-plugin`，保持 `DSH_VERSION` 与 `engines.dsh` 对齐（`apps/dsh-plugin/src/package.test.ts` 锁定了下界），并发布新版本插件（0.x 期间收窄 `engines.dsh` 属于 minor 发布）。
+`ESTELA_DSH_VERSION` 可覆盖安装的 dsh 版本（例如 `ESTELA_DSH_VERSION=latest`）。`ESTELA_E2E_CHANNEL=chrome` 可在本地改用已安装的 Google Chrome，而不必下载 Playwright Chromium。`ESTELA_SMOKE_KEEP=1` 会在运行结束后保留临时目录。CI 中的 `dsh-plugin` 作业运行在 `ubuntu-latest` 与 Node.js `^26.13.1` 上：PR 触发时针对固定版本运行，每周 `schedule` 和手动 `workflow_dispatch` 时针对 dsh 的 `latest` 标签运行。每周 `latest` 运行标红时，先看是哪一步失败；确认是新版 dsh 破坏了兼容性（而非依赖安装、Chromium 或 runner 故障）后，再更新 `apps/dsh-plugin`、保持 `DSH_VERSION` 与 `engines.dsh` 对齐（`apps/dsh-plugin/src/package.test.ts` 锁定了下界）并发布新版本插件（0.x 期间收窄 `engines.dsh` 属于 minor 发布）。
 
 ## 在真实浏览器中检查
 

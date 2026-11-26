@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/dsh-plugin.md 为准。
 
-<!-- source-blob: eef01b2d92de45e4472c8ed340c2ef361e886d7f -->
+<!-- source-blob: 1b5a3ddf900116388c8171faacfcc254d0a03278 -->
 
 # DeepSeek Harness 插件
 
@@ -36,7 +36,7 @@ dsh plugin --profile web add @rivus/dsh-estela
 
 大型会话遵循与 CLI 相同的 12 MB 视图预算：过长文本会截短以适应预算，选中事件后会加载其完整文本。如果截短到最短文本长度后仍超过 12 MB，视图仍会照常打开并提示页面可能较慢，选中某个事件后依然可以加载其完整文本。
 
-插件只关注当前打开的对话：不包含会话浏览器、「导出报告」以及 ATIF 和 OTLP 导出。如需这些功能，请使用 `@rivus/estela` CLI。
+插件只关注当前打开的对话：不包含会话浏览器、「导出报告」以及 ATIF 和 OTLP 导出。如需这些功能，请使用 `@rivus/estela` CLI。插件也不提供单独的时间视图：首 Token 延迟和解码时间请查看 `dsh` 的 Trajectory 视图。
 
 ## 会话必须已经开始
 
@@ -72,6 +72,6 @@ dsh plugin --profile web remove @rivus/dsh-estela
 
 ## 版本范围
 
-`@rivus/dsh-estela` 在 `engines.dsh` 中声明其支持的 DeepSeek Harness 版本范围（`>=0.2.2-rc.5 <0.3.0-0`），并要求 Node.js `>=24.9.0`。
+`@rivus/dsh-estela` 在 `engines.dsh` 中声明其支持的 DeepSeek Harness 版本范围（`>=0.2.2-rc.5 <0.3.0-0`），并要求 Node.js `>=24.9.0`。`dsh` 在安装和启动 profile 时都以 `includePrerelease: true` 判定 `engines.dsh`，因此低于上限的预发布版本（例如 `0.2.3-alpha.2`）也落在范围内。
 
 如果你的 `dsh` 版本不在 `engines.dsh` 范围内，请见[故障排查](troubleshooting.zh-CN.md#dsh-提示插件不兼容)。

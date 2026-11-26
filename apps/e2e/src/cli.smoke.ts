@@ -384,7 +384,7 @@ describe('installed tarball', () => {
     }
   })
 
-  it('#126 / M1: --host [::1] binds IPv6 loopback and prints and opens http://[::1]:<port>', async () => {
+  it('#126: --host [::1] binds IPv6 loopback and prints and opens http://[::1]:<port>', async () => {
     const v6Probe = createServer()
     const v6Supported = await new Promise<boolean>(resolve => {
       v6Probe.once('error', () => resolve(false))

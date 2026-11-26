@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/guide/privacy.md 为准。
 
-<!-- source-blob: 7f7a10021ae68d8e1130306495e4f768eeeae1ef -->
+<!-- source-blob: 1ec6d3ae223545f6416ce72cd91c7efef0683f45 -->
 
 # 隐私与脱敏
 
@@ -50,6 +50,7 @@ rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/rivus-estela"
 | 输出 | 脱敏 |
 |---|---|
 | 本地服务器：工作区、会话列表、`--pick` 标签、错误消息 | 开启，除非设置 `ESTELA_REDACT=0` |
+| DeepSeek Harness 插件（`@rivus/dsh-estela`；见 [dsh 插件脱敏](dsh-plugin.zh-CN.md#脱敏)） | 开启，除非设置 `ESTELA_REDACT=0` |
 | `export-atif`、`export-otlp` | 开启，除非设置 `ESTELA_REDACT=0` |
 | 报告（`build`、「导出报告」） | 始终开启，无论 `ESTELA_REDACT` 如何设置 |
 | MCP 工具结果与错误 | 始终开启，无论 `ESTELA_REDACT` 如何设置 |
