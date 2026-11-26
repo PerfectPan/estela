@@ -177,9 +177,9 @@ export class TraceStore {
   /**
    * `run` reads one loaded trace, as a report does: `loaded.trace` is that trace as cached (no originals), and
    * `loaded.read` the full events of the ids it names, as recorded, not shown. The caller builds its view from
-   * `loaded.trace`, so view and events are one snapshot of the session, whatever else is loaded meanwhile.
-   * Source pointers are read a few at a time; a canonical file is reloaded once for `run`, a compressed log
-   * decompressed once. Errors leave redacted like every other read.
+   * `loaded.trace`, so view and events are one snapshot, whatever else is loaded meanwhile. Source pointers
+   * are read a few at a time; a canonical file is reloaded once, a compressed log decompressed once. Errors
+   * leave redacted like every other read.
    */
   async withEvents<T>(traceId: string, run: (loaded: LoadedEvents) => Promise<T>, owner?: object): Promise<T> {
     const entry = await this.guard(() => this.entryFor(traceId, owner))
@@ -203,7 +203,7 @@ export class TraceStore {
         }
         return out
       }
-      return await run({ trace: entry.trace, read, maxString: this.deps.maxString, log: this.deps.log })
+      return await run({ trace: entry.trace, read, ...this.viewLimits() })
     } finally {
       entry.pinned -= 1
       if (entry.pinned === 0) {
@@ -217,12 +217,12 @@ export class TraceStore {
     return this.guard(async () => {
       const entry = await this.entryFor(traceId, owner)
       const ids = this.ids.of(entry.trace, this.deps.redact)
-      // `@e?` names no event, and must not reach the kernel, which would find a recorded id of that text.
-      // An alias beyond the trace is the kernel's to report, like any other id it cannot find.
-      if (ids && eventId === '@e?') {
-        throw new Error(`no event ${eventId} in ${traceId}`)
+      const recorded = this.recorded(eventId, ids)
+      if (recorded === undefined) {
+        // Not handed to the kernel as written: it would find a recorded id of that text.
+        return this.show({ eventId, visibleIds: [], unavailable: ['event'], completeness: 'unavailable' })
       }
-      const surface = reconstruct(entry.trace, this.recorded(eventId, ids) ?? eventId)
+      const surface = reconstruct(entry.trace, recorded)
       return this.show(ids?.surface(surface) ?? surface)
     })
   }
@@ -254,11 +254,16 @@ export class TraceStore {
 
   /**
    * The recorded id `shown` names, or `undefined` for none. Without aliases (nothing redacts) an id is looked up
-   * as recorded. With them, an id in the form the store shows (`@e<seq>`, `@e?`) is resolved only as that form:
-   * `@e?` is what a reference to no event is shown as, and no recorded id of that form is shown as written.
+   * as recorded. With them, an id in a form the store shows (an alias, or `@e?` / `@l?`) is resolved only as that
+   * form: no recorded id of such a form is shown as written, so one that arrives was given out, and names nothing.
    */
   private recorded(shown: string, ids: TraceIds | undefined): string | undefined {
     return ids?.isShown(shown) ? ids.findEvent(shown) : shown
+  }
+
+  /** The view's starting string cap and the warning sink the store builds its views with, for a report's own view. */
+  viewLimits(): Pick<LoadedEvents, 'maxString' | 'log'> {
+    return { maxString: this.deps.maxString, log: this.deps.log }
   }
 
   private shown(detail: EventDetail, ids: TraceIds | undefined): EventDetail {
@@ -297,10 +302,7 @@ export class TraceStore {
     return session
   }
 
-  /**
-   * Through a hold, so another connection's supersede cannot cancel this read:
-   * the owner's own open hold for this session, else a hold of its own.
-   */
+  /** Through a hold, so another connection's supersede cannot cancel this read: the owner's, else one of its own. */
   private async entryFor(traceId: string, owner?: object): Promise<TraceEntry> {
     const session = await this.resolveOrThrow(traceId)
     const cached = this.cache.get(session.key)

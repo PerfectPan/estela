@@ -21,7 +21,45 @@ function build(path: string, outDir: string): Promise<number> {
   })
 }
 
+/** `build` with its stderr kept: the warnings the store and the report give end up there. */
+function buildCapturing(path: string, outDir: string): Promise<{ code: number; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['bin.mjs', 'build', path, '--out-dir', outDir], {
+      cwd: cliDir,
+      stdio: ['ignore', 'ignore', 'pipe'],
+      env: { ...process.env, ESTELA_REDACT: '0' },
+    })
+    let stderr = ''
+    child.stderr.on('data', chunk => {
+      stderr += String(chunk)
+    })
+    child.on('error', reject)
+    child.on('close', code => resolve({ code: code ?? 1, stderr }))
+  })
+}
+
 describe('report site', () => {
+  it('warns on stderr when its view is over the budget, as the dev server does', async () => {
+    const outDir = await mkdtemp(join(tmpdir(), 'at-m5-report-budget-'))
+    const sessionDir = await mkdtemp(join(tmpdir(), 'at-m5-session-budget-'))
+    try {
+      // A canonical trace of 40,000 events: over the view's budget even at the 256-character floor.
+      const text = 'x'.repeat(300)
+      const event = (index: number): string =>
+        `{"id":"e${index}","seq":${index},"ts":${index + 1},"kind":"user","payload":{"text":"${text}"},"source":{"file":"log.jsonl","offset":0,"length":1,"line":1},"original":{"id":"e${index}","text":"${text}"}}`
+      const file = join(sessionDir, 'big.trace.json')
+      await writeFile(
+        file,
+        `{"schema":"estela","agent":"test","session":{"id":"s"},"capabilities":[],"agents":[{"id":"main"}],"events":[${Array.from({ length: 40_000 }, (_, index) => event(index)).join(',')}],"skipped":[]}`,
+      )
+      const { code, stderr } = await buildCapturing(file, outDir)
+      expect(code).toBe(0)
+      expect(stderr).toContain('bytes at the 256-character floor, over the 11934464-byte budget')
+    } finally {
+      await Promise.all([outDir, sessionDir].map(dir => rm(dir, { recursive: true, force: true })))
+    }
+  })
+
   it('builds a session whose event ids name the home directory, and shows each event under the id the view shows', async () => {
     const outDir = await mkdtemp(join(tmpdir(), 'at-m5-report-ids-'))
     const sessionDir = await mkdtemp(join(tmpdir(), 'at-m5-session-ids-'))

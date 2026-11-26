@@ -77,9 +77,12 @@ export class TraceIds {
     return index === undefined ? '@l?' : `@l${index}`
   }
 
-  /** Whether `id` has a form `event` gives out: `@e<seq>`, or `@e?` for an id no event has. */
+  /**
+   * Whether `id` has a form this trace gives out instead of a recorded id: `@e<seq>`, `@l<n>`, or `@e?` and `@l?`
+   * for a reference with no target. Such an id is resolved only as that form, never looked up as recorded.
+   */
   isShown(id: string): boolean {
-    return /^@e\d+$/.test(id) || id === '@e?'
+    return /^@[el](?:\d+|\?)$/.test(id)
   }
 
   /** The recorded event id a shown id (an id as written, or an alias) names; `undefined` when none. */

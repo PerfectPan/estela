@@ -33,7 +33,8 @@ export async function runBuild(input: BuildInput, packageVersion: string): Promi
         // One load per build: the view and the originals come from the trace already loaded.
         const loaded = trace!
         const read = async (ids: readonly string[]) => server.store.fromLoaded(loaded, ids)
-        report = await reportOf({ trace: loaded, read })
+        // The report's view keeps the store's string cap and reports a view over budget where the store does.
+        report = await reportOf({ trace: loaded, read, ...server.store.viewLimits() })
         const included = report.truncated ? `; original records for the first ${report.events.length}` : ''
         return `redacted ${report.total} events${included}`
       },

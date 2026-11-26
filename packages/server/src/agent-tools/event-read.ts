@@ -73,9 +73,6 @@ export function eventResult(
     lane: detail.agentId ?? mainLane,
     source: { file: shown(detail.source.file, PATH_CHARS, redaction).text, line: detail.source.line },
   }
-  if (options.original && detail.originalUnavailable !== undefined) {
-    fields.originalUnavailable = shown(detail.originalUnavailable, PROMPT_CHARS, redaction).text
-  }
   const parts = redaction.value({ fields, payload, original: options.original ? detail.original : undefined })
 
   const build = (max: number, omitted: ('original' | 'payload')[]): EventResult => {
@@ -103,6 +100,7 @@ export function eventResult(
       ['parentId', detail.parentId, max],
       ['shadowedBy', detail.shadowedBy, max],
       ['requestId', detail.requestId, Math.min(FIELD_CHARS, max)],
+      ['originalUnavailable', options.original ? detail.originalUnavailable : undefined, Math.min(PROMPT_CHARS, max)],
     ] as const) {
       if (id !== undefined) {
         const cut = shown(id, bound, redaction)

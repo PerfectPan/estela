@@ -1,8 +1,11 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, parse } from 'node:path'
-import { afterEach, describe, expect, it } from 'vite-plus/test'
-import { checkReportOutDir, ReportOutDirError } from './report.ts'
+import type { EventOf, Trace } from '@rivus/estela-schema'
+import type { LoadedEvents } from '@rivus/estela-rpc'
+import type { HomeRedaction } from '../sessions/redaction.ts'
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
+import { checkReportOutDir, reportOf, ReportOutDirError } from './report.ts'
 
 const dirs: string[] = []
 
@@ -85,5 +88,57 @@ describe('checkReportOutDir', () => {
     const parentLink = join(root, 'parent-link')
     await symlink(parentReal, parentLink)
     await expect(checkReportOutDir(join(parentLink, 'sub'), { cwd: subCwd, home })).rejects.toThrow('working directory')
+  })
+})
+
+/** A session of `count` user events, each with its original, as `build` holds the trace it loaded. */
+function session(count: number, text: (index: number) => string): Trace {
+  const source = { file: 'log.jsonl', offset: 0, length: 1, line: 1 }
+  const events: EventOf<'user'>[] = Array.from({ length: count }, (_, index) => ({
+    id: `e${index}`,
+    seq: index,
+    ts: index + 1,
+    kind: 'user',
+    payload: { text: text(index) },
+    source,
+    original: { id: `e${index}`, text: text(index) },
+  }))
+  return {
+    schema: 'estela',
+    agent: 'test',
+    session: { id: 's' },
+    capabilities: [],
+    agents: [{ id: 'main' }],
+    events,
+    skipped: [],
+  }
+}
+
+const same = <T>(value: T): T => value
+const plain: HomeRedaction = { value: same, text: same, homes: [] }
+const loaded = (trace: Trace): LoadedEvents => ({
+  trace,
+  read: async ids => ids.map(id => trace.events.find(event => event.id === id)!),
+})
+
+describe('reportOf', () => {
+  it('builds the view with the string cap it is given, as `build` passes the store’s', async () => {
+    const report = await reportOf({ ...loaded(session(2, () => 'x'.repeat(1000))), maxString: 320 }, undefined, plain)
+    expect(report.trace.view?.maxString).toBe(320)
+    expect(report.trace.events.map(event => event.payload)).toEqual([
+      { text: 'x'.repeat(320), $truncated: [['text']] },
+      { text: 'x'.repeat(320), $truncated: [['text']] },
+    ])
+  })
+
+  it('reports a view over budget where it is told to, as `build` passes the store’s warning sink', async () => {
+    // Even at the 256-character floor this view is over the budget.
+    const log = vi.fn<(line: string) => void>()
+    const report = await reportOf({ ...loaded(session(40_000, () => 'x'.repeat(300))), log }, undefined, plain)
+    expect(report.trace.view?.withinBudget).toBe(false)
+    expect(log).toHaveBeenCalledTimes(1)
+    expect(log.mock.calls[0]![0]).toMatch(
+      /^a report view is \d+ bytes at the 256-character floor, over the \d+-byte budget$/,
+    )
   })
 })

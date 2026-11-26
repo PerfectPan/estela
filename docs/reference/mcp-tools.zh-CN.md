@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/reference/mcp-tools.md 为准。
 
-<!-- source-blob: 04d20160f5ac65db7989040b5ba399768a68e145 -->
+<!-- source-blob: 81760fecae6eab37667b6d715d21140cf03790ff -->
 
 # MCP 工具参考
 

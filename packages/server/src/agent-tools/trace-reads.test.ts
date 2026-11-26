@@ -71,6 +71,25 @@ describe('trace reads', () => {
     ])
   })
 
+  it('cuts a long reference to a missing lane, so the other lanes stay in the summary', () => {
+    const withLongParent: Trace = {
+      ...trace,
+      agents: [
+        { id: 'main' },
+        { id: 'sub', parentId: 'main', spawnEventId: 'r1' },
+        { id: 'lost lane', parentId: 'p'.repeat(40_001) },
+      ],
+    }
+    const summary = sessionSummary(withLongParent, 't1', new TraceIds(withLongParent, () => true), plain)
+    expect(summary.laneCount).toBe(3)
+    expect(summary.lanes.map(lane => [lane.id, lane.parentId?.length])).toEqual([
+      ['main', undefined],
+      ['sub', 4],
+      ['@l2', 128],
+    ])
+    expect(summary.truncated).toEqual([['lanes', 2, 'parentId'], ['title']])
+  })
+
   it('marks a subagent lane whose log is missing as unavailable', () => {
     const withMissing: Trace = {
       ...trace,

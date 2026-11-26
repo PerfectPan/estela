@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: c2541bf90bc780c00e9cc91cab4cab3210a46406 -->
+<!-- source-blob: 12ca8c05e6664f75a707def7e0d57b793c5a784a -->
 
 # 架构
 
@@ -69,7 +69,7 @@ one session (build <path>, or export-report on the dev server)
 
 加载流程：浏览器调用 `load-trace(traceId)`，使用返回的 id 订阅 `load-progress` 流（已读取字节数占文件大小的比例），然后调用 `get-trace-view(traceId)`。需要两次调用是因为 DevFrame 会拒绝订阅尚未存在的流 id（`DF0030`）。同一会话的加载会共享。取消流、断开连接、5 秒内未订阅，或同一连接发起更新的 `load-trace` 都会释放持有引用；最后一个引用释放时会中止加载。该连接的 `get-trace-view` 复用其持有引用；其他任何读取方（另一个标签页、MCP 工具）各自持有引用，因此一个浏览器的导航绝不会取消另一方的读取。持有引用不触及已加载的 trace，因此被逐出的 trace 可以被垃圾回收。错误消息离开 TraceStore 时已经脱敏。`traceId` 是不透明的，由壳层解析：在开发服务器上通过会话目录解析（TraceStore 的缓存键为 trace id，因此 `current` 与启动会话的列表行共享同一缓存条目）；在 `mcp <path>` 和 `build` 下只解析 `current`，以启动会话的 `path#id` 字符串为键；不带路径的 `mcp` 像开发服务器一样运行会话目录。工作区路由会展示该加载进度（已读取字节数占文件大小的比例），调用 `get-trace-view(traceId)`，并为「原始记录」标签页以及被截短事件的完整文本调用 `get-event(traceId, id)`。按 DevFrame 的设计，已关闭的客户端视为终态且从不重连，因此当套接字断开时，工作区和会话浏览器会提示「与 Estela 服务的连接已断开。」并提供「重新加载」；在该提示下，已加载的工作区仍可继续阅读。
 
-开启脱敏时，脱敏会改写的事件或泳道 id（例如指向主目录的 id）以别名形式离开 store：该位置上的事件为 `@e<seq>`，泳道为 `@l<n>`，在 `id` 以及引用它的每个字段（`agentId`、`parentId`、`shadowedBy`、`agents[]`、`summaryEventId`、`systemPromptSameAs`、`toolsSameAs`）中都是如此。id 仅当由 1–128 个 `[A-Za-z0-9_.:-]` 字符组成且脱敏后保持不变时才按原样显示；其他都是别名。别名总能指到它的记录：`get-event` 和 `reconstruct` 接受别名作为输入，`estela_get_event` 也一样，它把 id 交给 store，事件的 id 按 store 显示的形式原样使用，用的是工具自己的脱敏规则。指向不存在事件的引用保留原文交给文本脱敏，除非它本身形似别名：这时显示为 `@e?`，以免指到 trace 中的某个事件。`@e?` 永远不会被解析成事件，即使某个记录 id 的字面就是它。`requestId` 把同一次模型请求的事件归为一组，和其他字符串一样脱敏。
+开启脱敏时，脱敏会改写的事件或泳道 id（例如指向主目录的 id）以别名形式离开 store：该位置上的事件为 `@e<seq>`，泳道为 `@l<n>`，在 `id` 以及引用它的每个字段（`agentId`、`parentId`、`shadowedBy`、`agents[]`、`summaryEventId`、`systemPromptSameAs`、`toolsSameAs`）中都是如此。id 仅当由 1–128 个 `[A-Za-z0-9_.:-]` 字符组成且脱敏后保持不变时才按原样显示；其他都是别名。别名总能指到它的记录：`get-event` 和 `reconstruct` 接受别名作为输入，`estela_get_event` 也一样，它把 id 交给 store，事件的 id 按 store 显示的形式原样使用，用的是工具自己的脱敏规则。指向不存在事件的引用保留原文交给文本脱敏，除非它本身形似别名：这时显示为 `@e?`，以免指到 trace 中的某个事件。store 显示出来的形式的 id（别名、`@e?`、`@l?`）只按这种形式解析，即使某个记录 id 的字面就是它：`get-event` 回答没有这个事件，`reconstruct` 按事件缺失作答。`requestId` 把同一次模型请求的事件归为一组，和其他字符串一样脱敏。
 
 投影全部为基于 `Trace` 的纯函数：`projectRequests`（每个请求一条，仅包含已记录的数字）、`projectLanes`（主泳道加上每个子代理一条泳道，含请求以及提示词、失败工具和上下文压缩标记）、`projectTurns`（轮次从主泳道提示词开始；钩子运行折叠为一行；按轮次汇总），以及 `hiddenAfterCompaction`（源自 `shadowedBy`）。`fold` 只对代理声明的能力累加会话摘要数字。
 

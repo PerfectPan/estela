@@ -2,6 +2,7 @@ import type { ReconstructResult, Trace, TraceEvent } from '@rivus/estela-schema'
 import { describe, expect, it } from 'vite-plus/test'
 import { jsonChars, RESULT_CHARS } from './bounds.ts'
 import { eventResult, surfaceResult } from './event-read.ts'
+import type { EventDetail } from '@rivus/estela-rpc'
 import { TraceIds } from '@rivus/estela-rpc'
 
 function userEvent(id: string, text: string, seq = 0): TraceEvent {
@@ -78,6 +79,17 @@ describe('eventResult', () => {
     const capped = eventResult('t', event, 'main', { maxChars: 256, original: false }, plain)
     expect(capped.event.source.file).toBe('f'.repeat(256))
     expect(capped.event.truncated).toEqual([['source', 'file']])
+  })
+
+  it('lists why an original could not be read when that is cut, as it lists the other strings', () => {
+    const event: EventDetail = { ...userEvent('u1', 'short'), originalUnavailable: 'w'.repeat(400) }
+    const result = eventResult('t', event, 'main', { maxChars: 256, original: true }, plain)
+    expect(result.event.originalUnavailable).toBe('w'.repeat(256))
+    expect(result.event.truncated).toEqual([['originalUnavailable']])
+    // Not asked for: the reason is not returned at all.
+    expect(eventResult('t', event, 'main', { maxChars: 256, original: false }, plain).event).not.toHaveProperty(
+      'originalUnavailable',
+    )
   })
 
   it('lists a request id cut to its own bound, like any other cut string', () => {
