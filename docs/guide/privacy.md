@@ -46,6 +46,7 @@ Everything else passes through: **redaction replaces only your home directory, t
 | Output | Redaction |
 |---|---|
 | Local server: workspace, session list, `--pick` labels, error messages | on, unless `ESTELA_REDACT=0` |
+| DeepSeek Harness plugin (`@rivus/dsh-estela`; [dsh plugin redaction](dsh-plugin.md#redaction)) | on, unless `ESTELA_REDACT=0` |
 | `export-atif`, `export-otlp` | on, unless `ESTELA_REDACT=0` |
 | Report (`build`, "Export report") | always on, whatever `ESTELA_REDACT` says |
 | MCP tool results and errors | always on, whatever `ESTELA_REDACT` says |

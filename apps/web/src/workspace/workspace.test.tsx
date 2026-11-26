@@ -159,7 +159,7 @@ describe('Workspace shell split', () => {
   })
 })
 
-describe('embedded mode (B8)', () => {
+describe('embedded mode', () => {
   it('Workspace omits TopBar and session h1 when embedded, keeping compact stats and Go to events, while page mode keeps TopBar', async () => {
     const embedded = mount(() => <Workspace traceId="t1" connect={fakeConnect()} embedded />)
     await tick()

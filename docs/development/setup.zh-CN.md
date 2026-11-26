@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: eaddf21fa06349b4cec4b4b5a6d5402019bfc3fd -->
+<!-- source-blob: 6f14d3bd6a7dd1fdf1df94faa915975d9a69d4d2 -->
 
 # 开发
 
@@ -37,11 +37,11 @@ node scripts/check-budgets.mjs
 
 ### 性能与体积预算
 
-`node scripts/check-budgets.mjs` 在 `pnpm build` 之后运行，并使用 `apps/cli/dist`。它在临时目录中生成数据并随后删除（设置 `ESTELA_BUDGETS_KEEP=1` 可保留）；不会向仓库提交任何生成文件。它测量以下指标：
+`node scripts/check-budgets.mjs` 在 `pnpm build` 之后运行，并使用 `apps/cli/dist` 和 `apps/dsh-plugin/dist`。它在临时目录中生成数据并随后删除（设置 `ESTELA_BUDGETS_KEEP=1` 可保留）；不会向仓库提交任何生成文件。它测量以下指标：
 
 - 首屏行耗时：包含 2,500 个 Claude Code 会话和 2,500 个 Codex 会话的合成主目录（约 190 MB，`scripts/budgets/synthetic-home.mjs`）。计时从启动 `dist/bin.mjs` 进程开始，到通过会话浏览器使用的同一 DevFrame 客户端收到首个包含全部会话的 `list-sessions({})` 响应为止。服务器只有在会话目录取得列表行后才开始监听，因此这一刻正是浏览器能够展示它们的时刻。冷启动没有索引；热启动复用冷启动在所有摘要完成后写下的索引，且如果 CLI 未报告行数据来自索引则判为失败。
 - 大型会话：通过命令行传入由 `packages/server/src/testsupport/large-session.ts`（S12 生成器）生成的 100 MB Codex rollout 文件；计时持续到收到 `get-trace-view` 响应，峰值 RSS 取 CLI 进程的 `maxRSS`。
-- 体积：网页打包产物的 JS 与 CSS 原始体积和 gzip 体积、`dist/cli.mjs` 体积，以及 `pnpm pack` 生成的 tarball 体积。
+- 体积：网页打包产物的 JS 与 CSS 原始体积和 gzip 体积、`dist/cli.mjs` 体积、CLI 的 `pnpm pack` tarball 体积，以及 dsh 插件的 `dist/client.js`（原始体积与 gzip 体积）、`dist/host.mjs` 和 `pnpm pack` tarball 体积。
 
 它会打印实测值与预算的对比表，在设置了 `$GITHUB_STEP_SUMMARY` 时将其追加到该文件中，并在任一强制预算超出时以 1 退出。各预算项、是否强制执行以及各项数字的依据均写在 `scripts/budgets/budgets.mjs` 中。使体积超出预算的 PR 需在同一个 PR 中上调该文件中的数字，并在依据和 PR 的 Validation 部分写明新测量值。CI 会在 `test` 作业的 tarball 冒烟步骤之后，基于该步骤的构建产物运行此检查。
 
@@ -87,6 +87,8 @@ cd apps/cli
 node dist/bin.mjs --help          # the bundle, from the workspace
 pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md once versioned
 ```
+
+`pnpm --filter '@rivus/dsh-estela...' run build` 将 DeepSeek Harness 插件构建为 `apps/dsh-plugin/dist/host.mjs`（`vp pack`）、`dist/client.js`（`apps/dsh-plugin/scripts/build-client.mjs`）和 `dist/THIRD-PARTY-NOTICES.txt`；`pnpm --filter @rivus/dsh-estela pack` 会将这些文件连同 `cordis.patch.yml`（dsh 激活插件所必需）和 `assets/icon.png` 一同打包。
 
 `pnpm pack` 会把清单中的 `workspace:` 和 `catalog:` 说明符重写为实际版本号。`npm pack` 会保留它们，而 `catalog:` 协议会导致 npm 无法安装该 tarball。
 
@@ -146,13 +148,13 @@ dsh 插件（`@rivus/dsh-estela`）：
 | DSH-2 | 切换到 `Estela` 标签页显示会话头部、时间线、虚拟化账本和检查器（`Input`、`Output`、`Model saw`、`Compare`、`Raw`），高度止于输入框上方，且不含「导出报告」按钮 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts` |
 | DSH-3 | 空白会话不显示视图标签页，也没有 `/estela` 斜杠命令 | `dsh.smoke.ts` |
 | DSH-4 | 已开始但磁盘尚无日志的会话显示「This session has no log on disk yet.」且无错误详情 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-5 | 不可读或未知格式代际的日志显示「Could not open this session」、未知格式提示与反馈链接，且不含会话浏览器链接 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-6 | 传输或渲染失败被限制在视图内部并显示「Try again」，不影响其他 dsh 视图，且重试时不重挂元素 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts` |
-| DSH-7 | 大型会话账本保持虚拟化，同时 dsh 自身的 `POST /api/session/list` 延迟增幅不超过 `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-8 | 超过 12 MB 预算的视图会缩短长字符串，并在选中事件时加载完整文本 | `packages/kernel/src/view.test.ts` |
-| DSH-9 | 向运行中的会话追加新帧时，已打开的视图保持原快照且无报错；刷新页面后展示新内容，过期快照会自动重开且不混用状态 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/sessions.test.ts`、`apps/dsh-plugin/src/client/source.test.ts` |
+| DSH-5 | 不可读或未知格式代次的日志显示「Could not open this session」且不含会话浏览器链接；当原因为未知格式代次时，还会显示未知格式提示与 GitHub 反馈链接 | `apps/dsh-plugin/src/host/channel.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-6 | 传输或渲染失败被限制在视图内部并显示「Try again」，不影响其他 dsh 视图，且重试时不重挂元素 | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-7 | 大型会话账本保持虚拟化，同时 dsh 自身的 `POST /api/session/list` 延迟增幅不超过 `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`、`apps/e2e/src/e2e/embed.e2e.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-8 | 超过 12 MB 预算的视图会缩短长字符串，并在选中事件时加载完整文本 | `packages/kernel/src/view.test.ts`、`apps/e2e/src/e2e/scale.e2e.ts`（共享工作区选中事件读回全文），以及 [#109](https://github.com/PerfectPan/estela/issues/109#issuecomment-7127872610) 中约 12 MB（`11,931,777` 字节）通过 dsh 通道的实测（`dsh.smoke.ts` 尚未在 dsh 内用 12 MB 视图做端到端验证） |
+| DSH-9 | 向运行中的会话追加新帧时，已打开的视图保持原快照且无报错；刷新页面后展示新内容，过期快照会自动重开且不混用状态 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/sessions.test.ts`、`channel.test.ts`、`stale.test.ts`、`stale-races.test.ts`、`apps/dsh-plugin/src/client/source.test.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-10 | 默认脱敏替换主目录路径与敏感凭据；`ESTELA_REDACT=0` 关闭脱敏 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/lifecycle.test.ts` |
-| DSH-11 | 主题与语言跟随 dsh（`ctx.theme` / `ctx.locale`），不写 `document.documentElement` | `dsh.smoke.ts`、`apps/dsh-plugin/src/client/appearance.test.ts` |
+| DSH-11 | 主题与语言跟随 dsh（`ctx.theme` / `ctx.locale`），不写 `document.documentElement` | `dsh.smoke.ts`、`apps/dsh-plugin/src/client/appearance.test.ts`、`apps/e2e/src/e2e/embed.e2e.ts`、`apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-12 | 在 `dsh web` 运行期间移除 `@rivus/dsh-estela` 后，标签页消失、`/estela` 返回 405、监听端口不变，且 profile 的 `package.json` 和 `node_modules` 清理干净 | `dsh.smoke.ts` |
 | DSH-13 | `engines.dsh` 不兼容的 tarball 安装以退出码 1 拒绝；已装不兼容副本在启动时被禁用且不显示标签页 | `dsh.smoke.ts`、`apps/dsh-plugin/src/package.test.ts` |
 | DSH-14 | `/estela` 受 dsh 准入保护（无 cookie 返回 401，跨源返回 403）并拒绝非 owner 对端 | `dsh.smoke.ts`、`apps/dsh-plugin/src/host/channel.test.ts` |
@@ -192,7 +194,7 @@ cd apps/dsh-plugin
 pnpm run test:smoke
 ```
 
-`ESTELA_DSH_VERSION` 可覆盖安装的 dsh 版本（例如 `ESTELA_DSH_VERSION=latest`）。`ESTELA_E2E_CHANNEL=chrome` 可在本地改用已安装的 Google Chrome，而不必下载 Playwright Chromium。`ESTELA_SMOKE_KEEP=1` 会在运行结束后保留临时目录。CI 中的 `dsh-plugin` 作业运行在 `ubuntu-latest` 与 Node.js `^26.13.1` 上：PR 触发时针对固定版本运行，每周 `schedule` 和手动 `workflow_dispatch` 时针对 dsh 的 `latest` 标签运行。
+`ESTELA_DSH_VERSION` 可覆盖安装的 dsh 版本（例如 `ESTELA_DSH_VERSION=latest`）。`ESTELA_E2E_CHANNEL=chrome` 可在本地改用已安装的 Google Chrome，而不必下载 Playwright Chromium。`ESTELA_SMOKE_KEEP=1` 会在运行结束后保留临时目录。CI 中的 `dsh-plugin` 作业运行在 `ubuntu-latest` 与 Node.js `^26.13.1` 上：PR 触发时针对固定版本运行，每周 `schedule` 和手动 `workflow_dispatch` 时针对 dsh 的 `latest` 标签运行。每周 `latest` 运行标红时，先看是哪一步失败；确认是新版 dsh 破坏了兼容性（而非依赖安装、Chromium 或 runner 故障）后，再更新 `apps/dsh-plugin`、保持 `DSH_VERSION` 与 `engines.dsh` 对齐（`apps/dsh-plugin/src/package.test.ts` 锁定了下界）并发布新版本插件（0.x 期间收窄 `engines.dsh` 属于 minor 发布）。
 
 ## 在真实浏览器中检查
 

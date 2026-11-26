@@ -32,7 +32,7 @@ The View follows `dsh`'s appearance setting (light, dark, or system) and uses `d
 
 Large sessions follow the same 12 MB view budget as the CLI: long text is shortened to fit, and selecting an event loads its full text. If the view still exceeds 12 MB even at the shortest text length, it still opens with a notice that the page may be slow, and selecting an event still loads its full text.
 
-The plugin focuses on the active conversation: it does not include a session browser, "Export report", or ATIF and OTLP exports. Use the `@rivus/estela` CLI for those.
+The plugin focuses on the active conversation: it does not include a session browser, "Export report", or ATIF and OTLP exports. Use the `@rivus/estela` CLI for those. It also adds no separate time view: use `dsh`'s Trajectory view for first-token latency and decode time.
 
 ## A session must have started
 
@@ -68,6 +68,6 @@ If `dsh web` is running, the Estela tab disappears within a few seconds without 
 
 ## Version range
 
-`@rivus/dsh-estela` declares its supported DeepSeek Harness range in `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`) and requires Node.js `>=24.9.0`.
+`@rivus/dsh-estela` declares its supported DeepSeek Harness range in `engines.dsh` (`>=0.2.2-rc.5 <0.3.0-0`) and requires Node.js `>=24.9.0`. `dsh` checks `engines.dsh` with `includePrerelease: true` both on install and at profile startup, so prereleases within the upper bound (for example `0.2.3-alpha.2`) also satisfy the range.
 
 If your `dsh` version is outside `engines.dsh`, see [Troubleshooting](troubleshooting.md#dsh-says-the-plugin-is-incompatible).

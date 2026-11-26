@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 12ca8c05e6664f75a707def7e0d57b793c5a784a -->
+<!-- source-blob: 109851f5b3263e95622f429e2cd6c31a2a208380 -->
 
 # 架构
 
@@ -28,6 +28,11 @@ one session (build <path>, or export-report on the dev server)
   -> DevFrame static build baking report-trace
   -> packForFile: one index.html (report JSON, script, styles, fonts inlined)
   -> the same SPA in report mode, opened from file://
+
+dsh plugin (@rivus/dsh-estela inside dsh web)
+  -> conversation.view slot (React, no JSX) -> <estela-workspace> (Shadow DOM, Solid)
+  -> /estela RPC channel (session/open, trace/view, trace/event; unary, owner-only)
+  -> createEstelaCore -> TraceStore (opaque stamp-keyed traceId) -> kit dsh reader
 ```
 
 `events[]` 是归档存储。每个事件都可以返回其原始记录：TraceStore 保存每个事件的源指针，`get-event(traceId, id)` 会通过平台再次读取它——对于普通文件是字节范围，对于压缩日志或 SQLite 行则使用 kit 的读取器，将指针解析到解压偏移量或存储的记录。TraceStore 在加载时记录每个源文件的大小与 mtime，以及每条记录的指纹（对于 SQLite 行则是整条存储记录）；如果此后文件发生变化（例如运行中的会话追加写入），当前读回的记录仍必须匹配该指纹，否则事件会返回 `originalUnavailable` 及原因。规范 JSON 文件把原始记录保存在文件内部，因此 `get-event` 对每个缓存条目只需重新加载该文件一次；报告则一次性解压压缩日志以获取其全部事件。
@@ -48,6 +53,7 @@ one session (build <path>, or export-report on the dev server)
 | MCP 工具输入 | `packages/server` `agent-tools/inputs.ts` | 每个工具一个严格的 `zod/mini` schema，同时作为其对外声明的 JSON Schema；错误文本标明工具名和字段名 |
 | 索引行、捕获的错误、`emitWarning` 参数 | `runtime-node` | 每条 SELECT 一套行 schema；针对 `errcode` 和 `EEXIST` 的 `z.object`；Node 的重载类型 |
 | DevFrame 转储文件、包清单 | `packages/server`（转储文件）、`apps/cli`（包清单） | `zod/mini` schema |
+| dsh 插件通道输入与格式错误 | `apps/dsh-plugin` `src/contract/channel.ts`、`src/host/sessions.ts` | 每个端点对应的 `zod/mini` schema（有界、不含控制字符的 id）及 `SessionFormatUnsupportedError` 校验 |
 
 每种 kind 的载荷 schema 都是在 kit 已声明字段之上的松散对象。`satisfies` 将每个 schema 的输出绑定到 kit 的载荷类型，而 `payloads.test.ts` 检查该类型的每个载荷都能通过校验，从而使已声明字段无法偏离 kit 类型，且 kit 新增必填字段时会导致类型检查失败。kit 新增的可选字段会同时通过这两项检查：松散对象会保留它，但在 schema 声明它之前不做校验。这些 schema 不含默认值或转换逻辑，调用方通过类型守卫而非解析输出保留已校验的值，因此对象引用和键顺序都按原样保留，规范夹具加载后与其原文件一致。实时 RPC 结果不会在浏览器中再次解析：两端打包在同一个 tarball 中，且服务器已在上表任一边界检查过该值。处理函数自行解析输入，而不使用 DevFrame 的 `args` 选项，因为该选项会在 MCP 接口上声明位置参数 `arg0`（[devframe#420](https://github.com/devframes/devframe/issues/420)）。MCP 工具（见下文）通过 `ctx.agent.registerTool` 注册，其 `inputSchema` 由解析调用的同一严格 `zod/mini` schema 生成，因此声明的 schema 与实际校验不可能发生漂移。
 
@@ -67,7 +73,7 @@ one session (build <path>, or export-report on the dev server)
 
 `get-trace-view(traceId)` 返回 `toView(trace)`：不含 `original`，每个字符串和键均截短至最多 4,096 个 UTF-16 码元（绝不切分代理对），被截短的路径以键和索引数组的形式记在 `payload.$truncated` 中，源文件驻留去重在 `sourceFiles` 中，`skipped` 按文件和原因合并。仅当视图会超过 12 MB 预算时，`fitView` 才以 0.75 为步长逐步降低上限；视图会在 `view.maxString` 记录实际使用的上限，且当即使降到 256 下限仍超出预算时记录 `view.withinBudget: false`（同时在服务器端记录一次日志）。当上限低于 4,096 或视图超出预算时，工作区会显示提示。视图只保留每个不同的提示词快照系统提示词和非空工具列表各一份，存放在第一个拥有它的快照上；之后内容相同的快照在 `systemPromptSameAs` / `toolsSameAs` 中指名该快照，并将字段列在 `payload.$truncated` 中，以便 `get-event` 仍能返回完整内容且 `reconstruct` 在视图上给出相同结果。Codex 事件 id 采用 `L<line>`（每个 trace 一个文件）以降低每个事件的开销。
 
-加载流程：浏览器调用 `load-trace(traceId)`，使用返回的 id 订阅 `load-progress` 流（已读取字节数占文件大小的比例），然后调用 `get-trace-view(traceId)`。需要两次调用是因为 DevFrame 会拒绝订阅尚未存在的流 id（`DF0030`）。同一会话的加载会共享。取消流、断开连接、5 秒内未订阅，或同一连接发起更新的 `load-trace` 都会释放持有引用；最后一个引用释放时会中止加载。该连接的 `get-trace-view` 复用其持有引用；其他任何读取方（另一个标签页、MCP 工具）各自持有引用，因此一个浏览器的导航绝不会取消另一方的读取。持有引用不触及已加载的 trace，因此被逐出的 trace 可以被垃圾回收。错误消息离开 TraceStore 时已经脱敏。`traceId` 是不透明的，由壳层解析：在开发服务器上通过会话目录解析（TraceStore 的缓存键为 trace id，因此 `current` 与启动会话的列表行共享同一缓存条目）；在 `mcp <path>` 和 `build` 下只解析 `current`，以启动会话的 `path#id` 字符串为键；不带路径的 `mcp` 像开发服务器一样运行会话目录。工作区路由会展示该加载进度（已读取字节数占文件大小的比例），调用 `get-trace-view(traceId)`，并为「原始记录」标签页以及被截短事件的完整文本调用 `get-event(traceId, id)`。按 DevFrame 的设计，已关闭的客户端视为终态且从不重连，因此当套接字断开时，工作区和会话浏览器会提示「与 Estela 服务的连接已断开。」并提供「重新加载」；在该提示下，已加载的工作区仍可继续阅读。
+加载流程：浏览器调用 `load-trace(traceId)`，使用返回的 id 订阅 `load-progress` 流（已读取字节数占文件大小的比例），然后调用 `get-trace-view(traceId)`。需要两次调用是因为 DevFrame 会拒绝订阅尚未存在的流 id（`DF0030`）。同一会话的加载会共享。取消流、断开连接、5 秒内未订阅，或同一连接发起更新的 `load-trace` 都会释放持有引用；最后一个引用释放时会中止加载。该连接的 `get-trace-view` 复用其持有引用；其他任何读取方（另一个标签页、MCP 工具）各自持有引用，因此一个浏览器的导航绝不会取消另一方的读取。持有引用不触及已加载的 trace，因此被逐出的 trace 可以被垃圾回收。当解析器附加了预期文件印记（`ResolvedSession.expect`，由 dsh 插件使用）时，`TraceStore` 会在读取之后、写入缓存之前重新核对 `target.path`，不匹配时直接抛出 `SnapshotChangedError` 且不缓存。错误消息离开 TraceStore 时已经脱敏。`traceId` 是不透明的，由壳层解析：在开发服务器上通过会话目录解析（TraceStore 的缓存键为 trace id，因此 `current` 与启动会话的列表行共享同一缓存条目）；在 `mcp <path>` 和 `build` 下只解析 `current`，以启动会话的 `path#id` 字符串为键；不带路径的 `mcp` 像开发服务器一样运行会话目录。工作区路由会展示该加载进度（已读取字节数占文件大小的比例），调用 `get-trace-view(traceId)`，并为「原始记录」标签页以及被截短事件的完整文本调用 `get-event(traceId, id)`。按 DevFrame 的设计，已关闭的客户端视为终态且从不重连，因此当套接字断开时，工作区和会话浏览器会提示「与 Estela 服务的连接已断开。」并提供「重新加载」；在该提示下，已加载的工作区仍可继续阅读。
 
 开启脱敏时，脱敏会改写的事件或泳道 id（例如指向主目录的 id）以别名形式离开 store：该位置上的事件为 `@e<seq>`，泳道为 `@l<n>`，在 `id` 以及引用它的每个字段（`agentId`、`parentId`、`shadowedBy`、`agents[]`、`summaryEventId`、`systemPromptSameAs`、`toolsSameAs`）中都是如此。id 仅当由 1–128 个 `[A-Za-z0-9_.:-]` 字符组成且脱敏后保持不变时才按原样显示；其他都是别名。别名总能指到它的记录：`get-event` 和 `reconstruct` 接受别名作为输入，`estela_get_event` 也一样，它把 id 交给 store，事件的 id 按 store 显示的形式原样使用，用的是工具自己的脱敏规则。指向不存在事件的引用保留原文交给文本脱敏，除非它本身形似别名：这时显示为 `@e?`，以免指到 trace 中的某个事件。store 显示出来的形式的 id（别名、`@e?`、`@l?`）只按这种形式解析，即使某个记录 id 的字面就是它：`get-event` 回答没有这个事件，`reconstruct` 按事件缺失作答。`requestId` 把同一次模型请求的事件归为一组，和其他字符串一样脱敏。
 
@@ -145,9 +151,19 @@ SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/repor
 
 `export-atif <path> [--out <file>]` 和 `export-otlp <path> [--out <file>]`（`apps/cli/src/export/write-export.ts`）加载会话一次并写出一个文件：ATIF v1.8 轨迹（`toAtif`，`packages/kernel/src/export-atif.ts`）或 OTLP/JSON `ExportTraceServiceRequest`（`toOtlp`，`packages/kernel/src/export-otlp.ts`）。两个投影均为基于已校验 `Trace` 的纯函数，不导入任何 `node:*` 模块；CLI 负责脱敏和写出文件。两种映射均在[导出格式](../reference/export-formats.zh-CN.md)中逐字段列出。ATIF：每个 user 事件、每个 `requestId` 分组和每次上下文压缩对应一个步骤（上下文压缩为带有 `extra.context_management` 的 system 步骤），子代理泳道作为内嵌 `subagent_trajectories` 由启动步骤引用，ATIF 未定义的字段连同规范事件 id 放在 `extra.estela` 下。OTLP 固定为 `OTLP_SEMCONV_VERSION` 指定的语义约定版本（`gen-ai-dev/1.42.0-dev`；GenAI 语义约定尚未发布正式版，因此更新版本号属于有意变更）：每条泳道一个 `invoke_agent` span、每次请求一个 `chat` span（含 `gen_ai.usage.*` 计数，以及来自 `reconstruct` 的模型可见表面作为 `gen_ai.input.messages` / `gen_ai.output.messages` / `gen_ai.system_instructions` / `gen_ai.tool.definitions`）、每次工具调用一个 `execute_tool` span。对于没有任何内容可构成步骤的 trace（没有用户、代理或系统提示词内容），ATIF 导出会以该原因失败；ATIF 导出还会省略没有任何可导出事件的子代理泳道，其启动引用也一并省略。除非设置 `ESTELA_REDACT=0`，导出文件会像服务器一样脱敏：数据集或追踪后端可能需要未脱敏的原始字节，因此与报告不同，导出允许选择关闭脱敏。`node scripts/validate-exports.mjs` 会导出所有代理的夹具并运行 Harbor 的校验器（`uv run --python 3.12 --with harbor`）；它依赖 uv 且需要联网，因此 CI 仅运行 `apps/cli/src/export/write-export.test.ts` 中的结构化 ATIF 检查。
 
+## dsh 插件
+
+所有与 DeepSeek Harness 相关的代码都留在 `apps/dsh-plugin`（`@rivus/dsh-estela`）内；插件通过 dsh 自身的 RPC 通道把 `createEstelaCore`（`@rivus/estela-server/core`）连接到 `<estela-workspace>`（`@rivus/estela-web/embed`），不为第二个 harness 引入抽象。
+
+- **嵌入元素（`apps/web/src/embed/`）：**`<estela-workspace>` 将同一套 Solid `Workspace` 挂载到开放的 shadow root 中，不引入 DevFrame、会话浏览器、路由器或报告模式（独立 SPA 将其 DevFrame 客户端、连接监视器和「导出报告」按钮留在 `apps/web/src/shell/app-shell.tsx` 中）。宿主将 `source`（`WorkspaceSource`：`open()`、`event(traceId, id)`，配合 `NoLogError` 和 `StaleError`）设为 DOM 属性，并传入 `data-theme`、`lang` 以及可选的 `--estela-host-*` 自定义属性。`embed/stylesheet.ts` 拆分 Tailwind 编译出的 CSS，使顶层 `@property` 规则在每个文档中仅挂载一份引用计数的 `<style data-estela-shared>`（在最后一个元素断开时移除），其余规则全部留在 shadow root 内；`:host` 重置从宿主页面继承的样式（`all: initial`），通过 `--estela-host-*` 承接宿主 token 而不让宿主的 `:root` 变量渗入，同时保留 Estela 自己的事件类型配色（`--kind-*`）、字号和固定事件列表行高。嵌入构建（`vp build --mode embed` → `apps/web/dist-embed/`，由 `apps/e2e/src/e2e/embed.e2e.ts` 验证）会剥离 `@fontsource/*` 导入，不向宿主页面注入任何 `@font-face` 规则或字体文件。
+- **宿主端（`apps/dsh-plugin/src/host/`）：**声明注入 `['connection', 'webServer', 'sessionPersistence']`，构建一个 `createEstelaCore` 实例（除非 `ESTELA_REDACT=0`，否则启用脱敏），并在 `ctx.effect` 内通过 `resolveConnectionRpc`（`src/host/rpc.ts`，先调用 `ctx.connection` 原型上的 `rpc` getter，以使 dsh `0.2.2-rc.5` 在插件自身的 `webServer` 作用域内注册通道路由，再回退到普通属性 `connection.rpc`）注册单一的一元通道 `/estela`。通道包含 `session/open`、`trace/view` 和 `trace/event` 三个端点（`src/contract/channel.ts`）；dsh 的浏览器连接不提供流式 RPC（`rpc.open`），因此加载时显示不定进度指示器，且读取在 dsh 的事件循环中执行（冒烟测试以 `DSH_LOAD_STALL_MS` 限制阻塞时长）。`session/open` 调用 `ctx.sessionPersistence.stat`（将 `SessionFormatUnsupportedError` 映射为 kit 风格的脱敏消息 `dsh: <path>:1: unknown format generation: <reason>`，并忽略 `location.kind`），然后以代理、路径、文件大小和 mtime 的哈希签发不透明 `traceId`（`src/host/sessions.ts`）。宿主保留最近签发的 16 个 id（多于 TraceStore 的 3 份缓存快照）并固定进行中的 id；冷读取和已缓存的 `originalUnavailable` 读取都会重新核对文件印记（配合 `TraceStore` 的 `ResolvedSession.expect` 保护），发生变化时返回 `estela/stale` 并丢弃该 id（保持相同大小与同一时间戳粒度的重写不会被察觉）。`trace/view` 获取不带 `owner` 的 `TraceStore` 持有引用（浏览器标签页共享同一个 owner 对端，避免一个标签页取消另一个标签页的加载），并在调用结束、中止信号触发或插件释放时释放（进行中的调用以 `estela/closed` 结束）。
+- **客户端（`apps/dsh-plugin/src/client/`）：**使用不含 JSX 的 React 18（`createElement`）注册 `conversation.view` 插槽（`id: 'estela'`、`order: 60`、`label: 'Estela'`），通过 ref 在 `<estela-workspace>` 上设置 `source`（React 18 会把自定义元素上的对象 prop 序列化为特性），让 Solid 仅在 shadow root 内运行，而 `react` 来自 dsh 的模块加载器。`source.ts` 在每次 `open()` 时都重新调用 `session/open`（并发写入导致 `estela/stale` 时最多重试 3 次），并将 `estela/no-log` / `estela/stale` 映射为 `NoLogError` / `StaleError`；调用 `rpc.call` 时不传入 `AbortSignal`，因此浏览器离开页面后，宿主端进行中的加载可能会继续运行直至完成。`appearance.ts` 将 `ctx.theme`（`active.colorScheme` 与 `--dsw-*` / `--ds-*` token）和 `ctx.locale`（`zh*` → `zh-CN`，其余为 `en`）映射到元素上的 `data-theme`、`lang` 和 `--estela-host-*`，绝不修改 `document.documentElement`，并在释放时清除自定义属性。`view-height.ts` 通过 `ResizeObserver` 和 `MutationObserver` 将外层 `div` 的像素高度设为最近纵向可滚动祖先的 `clientHeight` 减去该祖先内贴底覆盖层兄弟节点（如 dsh 的粘性输入框底座）的高度。
+
 ## 打包产物
 
 `apps/cli` 通过 `vp pack` 构建为 `dist/bin.mjs`（检查 Node 版本后动态导入）和 `dist/cli.mjs`（打包所有 `@rivus/*` 包；`devframe` 和 `@devframes/agentic` 保留为运行时依赖）。网页构建产物复制到 `dist/web/`，`src/paths.ts` 通过构建时常量 `ESTELA_BUNDLE` 定位它。网页打包产物包含用于报告校验的 `zod/mini` 和 trace schema（gzip 后约 8 KB），以及 kit 的计价函数和 LiteLLM 价格快照（gzip 后约 8 KB）。`node scripts/check-budgets.mjs` 按 `scripts/budgets/budgets.mjs` 中的预算检查体积。上次设定预算时，网页 JS 和 CSS 原始体积为 426.1 kB、gzip 后为 124.2 kB，`dist/cli.mjs` 为 1,023.6 kB，打包后的 tarball 为 654.7 kB；同一检查打开一个 100 MB 的 Codex 会话直至返回 `get-trace-view` 用时 0.5 到 0.9 秒，峰值 RSS 为 400 到 500 MB。`apps/e2e` 从外部测试打包后的 tarball：`test:smoke`（CLI、S2、S10、S13、S15、S16 以及 MCP 工具的 S17 和 S18）和 `test:e2e`（Playwright 浏览器场景）。
+
+`apps/dsh-plugin` 构建两份产物且不声明任何运行时 `dependencies` 或 `peerDependencies`（避免在 dsh 提升安装的 profile 中产生依赖冲突）：`dist/host.mjs`（由 `vp pack` 构建，打包 `@rivus/estela-server/core`、`@rivus/agent-kit`、`zod` 和 `es-toolkit`；`apps/dsh-plugin/test/package-artifacts.test.ts` 检查其模块导入与再导出说明符既不含 `devframe` 也不含 `node:sqlite`，从而隔离 DevFrame 和会话索引，同时 kit 内部保留的按需调用 `process.getBuiltinModule("node:sqlite")` 不会用于 dsh 日志）和 `dist/client.js`（由 `scripts/build-client.mjs` 构建为单个经典脚本，包装在 `window.__ModuleLoader__.load({ id: '@rivus/dsh-estela', factory(require) { ... } })` 中，仅保留 `react` 为外部依赖，内联不含字体的 `@rivus/estela-web/embed`，不做代码拆分）。包内同时发布 `cordis.patch.yml`（dsh 激活插件所必需）、`assets/icon.png` 和 `dist/THIRD-PARTY-NOTICES.txt`，不在宿主页面定义任何插件全局变量（仅保留浏览器的自定义元素注册）。`node scripts/check-budgets.mjs` 同样对 `dist/client.js`（原始体积与 gzip 体积）、`dist/host.mjs` 和插件 tarball 强制执行体积预算；即使用户从未打开 Estela 标签页，dsh 每次加载页面仍会下载所有已安装插件的客户端脚本，因此守住 `dist/client.js` 的 gzip 预算关乎每次 `dsh web` 页面加载。
 
 ## 终端
 
@@ -155,13 +171,15 @@ SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/repor
 
 ## 信任
 
-会话文件留在磁盘上。开发服务器绑定 localhost。索引保存标题、用户提示词（每条 500 个字符）、路径和数字，存放在用户缓存目录中且权限模式为 0600。无论 `ESTELA_REDACT` 如何设置，`build`、「导出报告」以及每条 MCP 工具结果和错误始终进行脱敏（主目录和令牌模式）；报告中仍保留会话文本和文件内容，并会明确提示。ATIF 和 OTLP 导出默认与服务器一样脱敏，设置 `ESTELA_REDACT=0` 可写出未脱敏的原始字节。脱敏逻辑由 kit 提供（`@rivus/agent-kit/redact`，由 `packages/server` 和 `apps/cli` 导入）：它替换字符串中出现的所有主目录拼写（也包括 git diff 标头 `a/<home>/…` 中的拼写）、去掉前导 `/` 的形式（`Users/<name>/…`）、JSON 转义形式（`\/Users\/<name>`）、Claude 的短横线拼接形式以及 Grok 的 `%2F` 形式，不区分大小写，覆盖值和键；更长的名称（`/Users/<name>x`、`/Users/<name>.bak`）保留原样。同一对象中脱敏后文字相同的两个键，各自的值都保留：后出现的键在显示名后加 `#2`、`#3`…，服务器和导出都是如此，因为键可能是代理记录的路径或令牌，值不能随键一起丢失。其令牌模式采用固定的前缀列表（`sk-`、`AKIA`/`ASIA`、GitHub、Slack、npm）和 PEM 私钥；其他形式的机密会原样通过，用户文档对此也有说明（见[隐私与脱敏](../guide/privacy.zh-CN.md#脱敏覆盖的范围)）。两个主目录不同时，服务器把两者都隐藏（`packages/server/src/sessions/redaction.ts`）：平台主目录（`platform.home`：代理根目录、索引，以及会话记录的内容，例如工作目录、标题或提示词）和进程主目录（`os.homedir()`：服务器自身产生的内容，例如报告构建的错误消息或导出路径，以及会话中记录的服务器运行用户的路径）。CLI 的平台主目录就是进程主目录，因此其输出只经过一次脱敏。`build --out-dir` 仅在目标目录为空或包含先前 Estela 报告时才替换已有目录（并在 DevFrame 的 `createBuild` 移除目录前拒绝 `/`、工作目录、主目录、符号链接、非目录以及其他非空目录）；「导出报告」始终创建新目录。除非设置 `ESTELA_REDACT=0`，开发服务器对视图 trace、`get-event`、错误消息和列表行一视同仁地执行脱敏。切勿将本机路径或真实机密放入夹具。
+会话文件留在磁盘上。开发服务器绑定 localhost。索引保存标题、用户提示词（每条 500 个字符）、路径和数字，存放在用户缓存目录中且权限模式为 0600。无论 `ESTELA_REDACT` 如何设置，`build`、「导出报告」以及每条 MCP 工具结果和错误始终进行脱敏（主目录和令牌模式）；报告中仍保留会话文本和文件内容，并会明确提示。ATIF 和 OTLP 导出默认与服务器一样脱敏，设置 `ESTELA_REDACT=0` 可写出未脱敏的原始字节。脱敏逻辑由 kit 提供（`@rivus/agent-kit/redact`，由 `packages/server` 和 `apps/cli` 导入）：它替换字符串中出现的所有主目录拼写（也包括 git diff 标头 `a/<home>/…` 中的拼写）、去掉前导 `/` 的形式（`Users/<name>/…`）、JSON 转义形式（`\/Users\/<name>`）、Claude 的短横线拼接形式以及 Grok 的 `%2F` 形式，不区分大小写，覆盖值和键；更长的名称（`/Users/<name>x`、`/Users/<name>.bak`）保留原样。同一对象中脱敏后文字相同的两个键，各自的值都保留：后出现的键在显示名后加 `#2`、`#3`…，服务器和导出都是如此，因为键可能是代理记录的路径或令牌，值不能随键一起丢失。其令牌模式采用固定的前缀列表（`sk-`、`AKIA`/`ASIA`、GitHub、Slack、npm）和 PEM 私钥；其他形式的机密会原样通过，用户文档对此也有说明（见[隐私与脱敏](../guide/privacy.zh-CN.md#脱敏覆盖的范围)）。两个主目录不同时，服务器把两者都隐藏（`packages/server/src/sessions/redaction.ts`）：平台主目录（`platform.home`：代理根目录、索引，以及会话记录的内容，例如工作目录、标题或提示词）和进程主目录（`os.homedir()`：服务器自身产生的内容，例如报告构建的错误消息或导出路径，以及会话中记录的服务器运行用户的路径）。CLI 的平台主目录就是进程主目录，因此其输出只经过一次脱敏。`build --out-dir` 仅在目标目录为空或包含先前 Estela 报告时才替换已有目录（并在 DevFrame 的 `createBuild` 移除目录前拒绝 `/`、工作目录、主目录、符号链接、非目录以及其他非空目录）；「导出报告」始终创建新目录。除非设置 `ESTELA_REDACT=0`，开发服务器对视图 trace、`get-event`、错误消息和列表行一视同仁地执行脱敏。在共享工作区中（无论是独立 SPA、静态报告还是嵌入 dsh 的 `<estela-workspace>`），记录的会话内容始终按文本渲染，不当 HTML 解释（`apps/web/src/workspace/inspector/text-view.tsx`）。切勿将本机路径或真实机密放入夹具。
+
+dsh 插件不自行注册 HTTP 路由、不启动独立进程、也不向磁盘写入任何内容（不写会话日志、dsh 文件或会话索引）。对 `/estela` 的调用先经过 dsh 自身的准入检查（无 cookie 返回 401，`Origin` 或 `Host` 不匹配返回 403；浏览器 cookie 和 `/connect?token=…` 签发的独立 API cookie 都会以 `owner` 身份通过准入，已在固定版本 dsh 上实测，见 [#109](https://github.com/PerfectPan/estela/issues/109#issuecomment-7127872610)），处理函数随后拒绝所有 `principal.kind` 不是 `owner` 的对端。处理函数内的未预期异常会被捕获并转为固定消息 `estela/failed`，避免未处理的异常直接到达 dsh；store 错误与 dsh 格式拒绝的原因会经过 `core.redact`，默认按开发服务器的规则脱敏，但在设置 `ESTELA_REDACT=0` 时原样返回（因此关闭脱敏时，通过准入的 owner 可以在错误响应中看到未脱敏原文）。`dist/client.js` 与其他插件脚本一样由 dsh 在无 cookie 情况下下发，仅包含代码。
 
 ## 兼容性
 
 [公共接口](../reference/public-interface.zh-CN.md)列出了 semver 覆盖与不覆盖的内容。规范 trace 文件格式、索引、打包后的服务器与网页应用之间的 RPC，以及各 workspace 包的导出均不保证稳定：它们会就地修改，不提供兼容层也不读取旧格式。更名为 Estela 之前的旧名称（`@rivus/agent-trace`、`AGENT_TRACE_*`、`schema: 'agent-trace'`、`rivus-agent-trace` 缓存）不再读取；它们仅保留在已发布的 `apps/cli/CHANGELOG.md` 条目、`.changeset/ledger.yaml` 以及 `v0.1.0` 标签中。
 
-`@rivus/estela` 不导出编程 API：`createEstelaServer` 和 `createEstelaCore` 仅在 workspace 内部可访问。
+`@rivus/estela` 不导出编程 API，`@rivus/dsh-estela` 也不公开嵌入 SDK：`createEstelaServer`、`createEstelaCore` 以及 `<estela-workspace>`（`@rivus/estela-web/embed`）均仅限 workspace 内部使用。
 
 ## 当前查看器范围之外
 

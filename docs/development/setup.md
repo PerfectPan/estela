@@ -33,11 +33,11 @@ node scripts/check-budgets.mjs
 
 ### Performance and size budgets
 
-`node scripts/check-budgets.mjs` runs after `pnpm build` and uses `apps/cli/dist`. It generates its data into a temp directory and deletes it (`ESTELA_BUDGETS_KEEP=1` keeps it); nothing generated is committed. It measures:
+`node scripts/check-budgets.mjs` runs after `pnpm build` and uses `apps/cli/dist` and `apps/dsh-plugin/dist`. It generates its data into a temp directory and deletes it (`ESTELA_BUDGETS_KEEP=1` keeps it); nothing generated is committed. It measures:
 
 - First rows: a synthetic home with 2,500 Claude Code and 2,500 Codex sessions (about 190 MB, `scripts/budgets/synthetic-home.mjs`). The clock runs from spawning `dist/bin.mjs` to the first `list-sessions({})` response that holds every session, called through DevFrame's own client as the session browser does. The server listens only after the catalog has rows, so this is the moment the browser can show them. Cold has no index; warm reuses the index the cold run wrote after every summary finished, and fails unless the CLI reports that its rows came from the index.
 - Large session: a 100 MB Codex rollout from `packages/server/src/testsupport/large-session.ts` (the S12 generator), given on the command line; the clock runs to the `get-trace-view` response, and peak RSS is the CLI process's `maxRSS`.
-- Sizes: the web bundle's JS and CSS raw and gzip, `dist/cli.mjs`, and the `pnpm pack` tarball.
+- Sizes: the web bundle's JS and CSS raw and gzip, `dist/cli.mjs`, the CLI `pnpm pack` tarball, and the dsh plugin's `dist/client.js` (raw and gzip), `dist/host.mjs`, and `pnpm pack` tarball.
 
 It prints a measured-vs-budget table, appends it to `$GITHUB_STEP_SUMMARY` when set, and exits 1 when an enforced budget is exceeded. The budgets, which ones are enforced, and the reason for each number live in `scripts/budgets/budgets.mjs`. A PR that grows a size past its budget raises the number there in the same PR, with the new measurement in the reason and in its Validation section. CI runs it in the `test` job after the tarball smoke step, on that step's build.
 
@@ -83,6 +83,8 @@ cd apps/cli
 node dist/bin.mjs --help          # the bundle, from the workspace
 pnpm pack --pack-destination /tmp  # the tarball; `files` ships dist (with THIRD-PARTY-NOTICES.txt), README.md, LICENSE, CHANGELOG.md once versioned
 ```
+
+`pnpm --filter '@rivus/dsh-estela...' run build` builds the DeepSeek Harness plugin into `apps/dsh-plugin/dist/host.mjs` (`vp pack`), `dist/client.js` (`apps/dsh-plugin/scripts/build-client.mjs`), and `dist/THIRD-PARTY-NOTICES.txt`; `pnpm --filter @rivus/dsh-estela pack` packs those files along with `cordis.patch.yml` (required for dsh activation) and `assets/icon.png`.
 
 `pnpm pack` rewrites the `workspace:` and `catalog:` specifiers in the manifest into real versions. `npm pack` leaves them in, and the `catalog:` protocol makes the tarball uninstallable by npm.
 
@@ -142,13 +144,13 @@ dsh plugin (`@rivus/dsh-estela`):
 | DSH-2 | Selecting the `Estela` tab shows header, timeline, virtualized ledger, and inspector (`Input`, `Output`, `Model saw`, `Compare`, `Raw`) sized above the composer with no "Export report" button | `dsh.smoke.ts`, `apps/e2e/src/e2e/embed.e2e.ts` |
 | DSH-3 | A blank session shows no View tabs and no `/estela` slash command | `dsh.smoke.ts` |
 | DSH-4 | A started session with no log on disk yet shows "This session has no log on disk yet." and no error details | `apps/dsh-plugin/src/host/channel.test.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-5 | Unreadable or unknown-generation logs show "Could not open this session" with the unknown-format hint and issue link, and no session-browser link | `apps/dsh-plugin/src/host/channel.test.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-6 | A transport or render failure stays inside the View with "Try again" while other dsh Views keep working, and recovers without remounting | `dsh.smoke.ts`, `apps/e2e/src/e2e/embed.e2e.ts` |
-| DSH-7 | Large sessions load with virtualized rows while dsh's own `POST /api/session/list` latency stays within `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
-| DSH-8 | Views over the 12 MB budget shorten long strings and load full event text on selection | `packages/kernel/src/view.test.ts` |
-| DSH-9 | Appending to a running session leaves the open snapshot steady without error; reloading shows the new turn, and stale snapshots auto-reopen without mixing states | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/sessions.test.ts`, `apps/dsh-plugin/src/client/source.test.ts` |
+| DSH-5 | Unreadable or unknown-generation logs show "Could not open this session" with no session-browser link; unknown format generation also shows the unknown-format hint and GitHub issue link | `apps/dsh-plugin/src/host/channel.test.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-6 | A transport or render failure stays inside the View with "Try again" while other dsh Views keep working, and recovers without remounting | `dsh.smoke.ts`, `apps/e2e/src/e2e/embed.e2e.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-7 | Large sessions load with virtualized rows while extra latency on dsh's own `POST /api/session/list` stays within `DSH_LOAD_STALL_MS` | `dsh.smoke.ts`, `apps/e2e/src/e2e/embed.e2e.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
+| DSH-8 | Views over the 12 MB budget shorten long strings and load full event text on selection | `packages/kernel/src/view.test.ts`, `apps/e2e/src/e2e/scale.e2e.ts` (shared workspace full-text readback), and the ~12 MB (`11,931,777` bytes) dsh channel measurement in [#109](https://github.com/PerfectPan/estela/issues/109#issuecomment-7127872610) (`dsh.smoke.ts` does not test a 12 MB view end-to-end inside dsh) |
+| DSH-9 | Appending to a running session leaves the open snapshot steady without error; reloading shows the new turn, and stale snapshots auto-reopen without mixing states | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/sessions.test.ts`, `channel.test.ts`, `stale.test.ts`, `stale-races.test.ts`, `apps/dsh-plugin/src/client/source.test.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-10 | Default redaction replaces the home path and secrets; `ESTELA_REDACT=0` disables redaction | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/lifecycle.test.ts` |
-| DSH-11 | Theme and language follow dsh (`ctx.theme` / `ctx.locale`) without writing `document.documentElement` | `dsh.smoke.ts`, `apps/dsh-plugin/src/client/appearance.test.ts` |
+| DSH-11 | Theme and language follow dsh (`ctx.theme` / `ctx.locale`) without writing `document.documentElement` | `dsh.smoke.ts`, `apps/dsh-plugin/src/client/appearance.test.ts`, `apps/e2e/src/e2e/embed.e2e.ts`, `apps/web/src/embed/estela-workspace.test.ts` |
 | DSH-12 | Removing `@rivus/dsh-estela` while `dsh web` runs removes the tab, returns 405 on `/estela`, leaves listening sockets unchanged, and cleans the profile's `package.json` and `node_modules` | `dsh.smoke.ts` |
 | DSH-13 | An incompatible `engines.dsh` tarball is refused with exit 1, and a pre-installed incompatible copy is disabled at startup without showing the tab | `dsh.smoke.ts`, `apps/dsh-plugin/src/package.test.ts` |
 | DSH-14 | `/estela` enforces dsh admission (401 without cookie, 403 on cross-origin) and refuses non-owner peers | `dsh.smoke.ts`, `apps/dsh-plugin/src/host/channel.test.ts` |
@@ -188,7 +190,7 @@ cd apps/dsh-plugin
 pnpm run test:smoke
 ```
 
-`ESTELA_DSH_VERSION` overrides the installed dsh version (for example `ESTELA_DSH_VERSION=latest`). `ESTELA_E2E_CHANNEL=chrome` uses an installed Google Chrome locally instead of Playwright's downloaded Chromium. `ESTELA_SMOKE_KEEP=1` keeps the temporary directory after the run. In CI, the `dsh-plugin` job runs on `ubuntu-latest` with Node.js `^26.13.1` against the pinned dsh version on pull requests, and runs weekly on `schedule` (and on `workflow_dispatch`) against dsh's `latest` tag.
+`ESTELA_DSH_VERSION` overrides the installed dsh version (for example `ESTELA_DSH_VERSION=latest`). `ESTELA_E2E_CHANNEL=chrome` uses an installed Google Chrome locally instead of Playwright's downloaded Chromium. `ESTELA_SMOKE_KEEP=1` keeps the temporary directory after the run. In CI, the `dsh-plugin` job runs on `ubuntu-latest` with Node.js `^26.13.1` against the pinned dsh version on pull requests, and runs weekly on `schedule` (and on `workflow_dispatch`) against dsh's `latest` tag. When a weekly `latest` run turns red, check which step failed first; once you confirm a newer dsh release broke compatibility (rather than a dependency, Chromium, or runner failure), update `apps/dsh-plugin`, keep `DSH_VERSION` and `engines.dsh` aligned (`apps/dsh-plugin/src/package.test.ts` pins the lower bound), and ship a new plugin release (narrowing `engines.dsh` is a minor release while on 0.x).
 
 ## Check in a real browser
 

@@ -155,7 +155,7 @@ test('DSH-11: host tokens, inherited styles, theme/lang attributes, and @propert
   })
 })
 
-test('A7, A8, B8: Go to events, inspector arrow keys, failed load, and Try again never reload or change the host URL', async ({
+test('embedded workspace: Go to events, inspector arrow keys, failed load, and Try again never reload or change the host URL', async ({
   page,
 }) => {
   await withEmbedHost(sessions.claudeRising, 'rising', async open => {

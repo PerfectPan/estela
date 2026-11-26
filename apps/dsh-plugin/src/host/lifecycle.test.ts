@@ -222,7 +222,7 @@ describe('dsh host redaction, holds, signal abort, and dispose', () => {
     await vi.waitFor(() => {
       expect(channel.activeHoldCount()).toBe(2)
     })
-    // T9: trace/view takes holds with no owner so one tab never supersedes another.
+    // trace/view takes holds with no owner so one tab never supersedes another.
     expect(openSpy).toHaveBeenNthCalledWith(1, traceId)
     expect(openSpy).toHaveBeenNthCalledWith(2, traceId)
 
