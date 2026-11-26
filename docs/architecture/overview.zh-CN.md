@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 2bdfbe4b7496786f9f740db4b83071f67f5758ff -->
+<!-- source-blob: c2541bf90bc780c00e9cc91cab4cab3210a46406 -->
 
 # 架构
 
