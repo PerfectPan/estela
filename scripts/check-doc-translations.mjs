@@ -6,17 +6,8 @@ import process from 'node:process'
 import { runDocTranslations } from '../packages/schema/node_modules/@perfectpan/lint-config/doc-translations.js'
 
 process.exitCode = runDocTranslations({
-  sources: [
-    'README.md',
-    'docs/guide/*.md',
-    'docs/reference/*.md',
-    'docs/architecture/*.md',
-    'docs/development/*.md',
-    'docs/specs/*.md',
-    'docs/plans/*.md',
-  ],
+  sources: ['README.md', 'docs/guide/*.md', 'docs/reference/*.md', 'docs/architecture/*.md', 'docs/development/*.md'],
   translations: ['README.zh-CN.md', 'docs/**/*.zh-CN.md'],
-  exclude: ['docs/specs/README.md', 'docs/plans/README.md', 'docs/*/0000-template.md'],
   translationOf: path => path.replace(/\.md$/, '.zh-CN.md'),
   header: path => `> 中文阅读版。以英文原文 ${path} 为准。`,
   stamp: true,

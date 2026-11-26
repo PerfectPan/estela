@@ -44,53 +44,45 @@ The toolchain is Vite+ (`vp`): every workspace package lints with `vp lint` and 
 ## Contribution Flow
 
 1. Open an issue or discussion for ambiguous work.
-2. Choose Spec and Plan artifacts using the [Change Design Gate](#change-design-gate) before substantial work. Review the behavior and technical design before implementing that scope.
+2. Check the [Change Design Gate](#change-design-gate). Write an implementation plan only when the change meets the gate; bugfixes and routine changes go straight to implementation and PR summary.
 3. Create a focused branch with a short descriptive name.
 4. Install local Git hooks with `./scripts/install-git-hooks.sh` if this checkout has not already done so.
 5. Identify the affected domain concepts, layer boundaries, data flow, and tests before changing code.
 6. Implement the change, keeping responsibilities separated and using existing project patterns.
 7. Add or update tests for behavior changes.
-8. Update `README.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Spec and Plan when user-facing behavior, architecture, development workflow, operations, or project policy changes.
+8. Update `README.md`, `docs/`, `AGENTS.md`, `CONTRIBUTING.md`, or the active Plan when user-facing behavior, architecture, development workflow, or project policy changes.
 9. Run repository checks, title and description checks, the format check, and the pnpm lint, test, typecheck, and build gates.
 10. Open a pull request with a conventional title, a summary of what changed and why, validation with skipped gates, and any risks.
 11. Keep the PR description current after review feedback, rebases, validation reruns, or scope changes.
 
-Small typo corrections, narrow documentation fixes, and repository metadata updates do not need a separate Spec and Plan.
+## Plan Lifecycle And Retirement
 
-## SDD Workflow And Document Lifecycle
-
-1. Record the problem, affected users or maintainers, in-scope behavior, non-goals, and acceptance conditions.
-2. Choose artifacts with the [Change Design Gate](#change-design-gate). Product work defaults to one behavioral Spec and one detailed Plan for the same deliverable. The Spec states required behavior: interactions and acceptance scenarios. The Plan owns the technical decisions (design, component and interface changes, data flow) and the detailed execution plan (ordered tasks, tests, exit conditions, validation, and rollback).
-3. Review the behavior and technical design before implementing the affected scope. The Plan must resolve implementation decisions rather than leave them to the implementer; keep it blocked while a material decision is unresolved. New behavior revises the Spec. New implementation decisions revise the Plan.
-4. Implement inside that boundary. Add evidence for each acceptance condition, or say why existing evidence is enough. Update current-state docs in the same change.
-5. Before retiring a completed Spec or Plan, move still-valid behavior, invariants, and operational limits into current-state docs and tests. The final delivery PR may delete the completed files, together with their Chinese reading copies. Keep an unfinished Spec or Plan active.
-6. Git history and the delivery PR keep the retired decision. Do not copy completed Specs or Plans into a second archive.
+1. Draft a plan from [`docs/plans/0000-template.md`](docs/plans/0000-template.md) only when triggered by the [Change Design Gate](#change-design-gate). Keep `Status: blocked` while a material scope, interface, data, or rollout decision is unresolved.
+2. Review the goals, boundaries, and key decisions before implementing; update the plan if design choices change mid-flight.
+3. Implement within that scope, adding tests and updating current-state `docs/` in the same change.
+4. Retire the plan as soon as its code scope lands on the default branch. Do not keep a completed plan in `docs/plans/` waiting on deferred manual checks or future polish. In the final delivery PR:
+   - Move any remaining manual verification or follow-up work to issues.
+   - Migrate lasting knowledge that code cannot express (invariants, ownership/trust boundaries, tradeoffs, external quirks, validation limits) into current-state `docs/` (and local `Why:` comments in code).
+   - Delete the completed plan file. Git history and the delivery PR keep the full execution record.
 
 ## Change Design Gate
 
-Every change needs a requirement record. Use the smallest set of artifacts that makes behavior and implementation reviewable.
+Most changes need only a clear PR description (`## Summary` and `## Validation`), not a separate document.
 
-| Change type | Required artifact |
+| Change scope | Required artifact |
 | --- | --- |
-| Product behavior | One Spec plus one detailed Plan for the same deliverable |
-| Technical refactor without changed user behavior | Detailed Plan with compatibility and acceptance conditions |
-| Narrow maintenance, tests, or documentation | Requirement and PR checklist; a separate Plan only when useful |
-
-A Spec defines observable interactions, scope, failure behavior, and acceptance examples. Use stable scenario IDs and Given/When/Then where useful. Link scenarios to tests. A Spec does not prescribe components, interfaces, or execution order. Keep active Specs under [`docs/specs/`](docs/specs/). A small change may keep both sections in the PR description. Split only when each slice has an independently demonstrable outcome.
-
-A Plan records technical decisions and the detailed execution plan that implements them. Shared architecture, compatibility, security, and recovery decisions belong in a reviewed Plan. After implementation, move lasting constraints into current-state architecture or operations docs. This repository does not keep an RFC directory. Removing a proposal does not mark unimplemented ideas as delivered.
+| Bugfix, localized feature/refactor, tests, dependencies, or docs | PR description explaining what changed, why, and how it was verified |
+| New subsystem or package, public contract/schema/protocol change, major design tradeoffs, or multi-PR/multi-session work | One Plan in [`docs/plans/`](docs/plans/) |
 
 ## Implementation Plans
 
-[`docs/plans/`](docs/plans/) contains active Plans: technical decisions plus a detailed execution plan. Copy [`0000-template.md`](docs/plans/0000-template.md) and keep only the sections that apply. A product plan links its paired Spec. Explain the current constraints, the decisions, the boundaries, the failure and rollback behavior, and how the change will be verified. A file list alone is not a design.
+[`docs/plans/`](docs/plans/) holds active Plans only while non-trivial work is in flight. Copy [`0000-template.md`](docs/plans/0000-template.md) and keep only the sections that apply. State the problem, goals, non-goals, boundaries, rejected alternatives, failure/rollback behavior, and verification; a file list alone is not a design.
 
-The execution plan tells the implementer exactly what to do: preconditions, a completion contract, ordered tasks with files, changes, tests, and exit conditions, a validation ledger, and rollback per batch. Keep the plan blocked while a decision that changes scope, interfaces, data, or rollout is unresolved.
-
-Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make feature-specific technical decisions, but it cannot silently override current architecture. At completion, migrate lasting constraints into current-state docs and tests, then delete the completed Spec and plan in the final delivery PR. Keep unfinished scope visible.
+Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make feature-specific technical decisions, but it cannot silently override current architecture. This repository does not keep an RFC directory. Follow [Plan Lifecycle And Retirement](#plan-lifecycle-and-retirement) when the code lands.
 
 ## Bilingual Documentation
 
-These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`, and every active Spec and Plan (`docs/specs/0001-foo.md` pairs with `docs/specs/0001-foo.zh-CN.md`). The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, the other READMEs (such as `apps/cli/README.md`), and every template.
+These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, and every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, `docs/plans/`, the other READMEs (such as `apps/cli/README.md`), and every template.
 
 - The English file changes first; the Chinese copy follows in the same PR.
 - The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`, followed by a `<!-- source-blob: <hash> -->` line: the Git blob hash of the English file the copy was last checked against.
@@ -327,7 +319,7 @@ CI results are not cached. Keep cache storage inside the included repository all
 
 The PR template has three sections:
 
-- **Summary**: what changed and why, with links to the issue, Spec, or Plan.
+- **Summary**: what changed and why, with links to the issue or Plan when there is one.
 - **Validation**: the commands you ran and their results, evidence for behavior or packaging claims, and skipped gates with reasons.
 - **Risks** (optional): compatibility, rollout, rollback, or follow-up risks. Delete it when there are none.
 
