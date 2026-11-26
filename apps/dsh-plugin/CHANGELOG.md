@@ -1,5 +1,13 @@
 # @rivus/dsh-estela
 
+## 0.1.2
+
+### Patch Changes
+
+- [#194](https://github.com/PerfectPan/estela/pull/194) [`742d878`](https://github.com/PerfectPan/estela/commit/742d87847a285ea7ab999305371f796fee5703cb) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Name the ⌘K button after what it does: "Go to events" moves focus to the event ledger, as a plain button without a search icon (CLI top bar and the dsh plugin's stats row), and the session list's button reads "Search sessions" because it focuses the search box.
+
+- [#197](https://github.com/PerfectPan/estela/pull/197) [`6fd5018`](https://github.com/PerfectPan/estela/commit/6fd5018dd442d057ece3fde1471051351545dce4) Thanks [@PerfectPan](https://github.com/PerfectPan)! - Keep what is looked up by out of redaction. With redaction on, an event or lane id that redaction would change (one that names the home directory, say) is shown as `@e<seq>` / `@l<n>` and every id input takes that form back, so `get-event`, "Export report", and `build` work for such ids. The MCP `cwd` filter matches the working directory as recorded, so two directories that redact to the same text are told apart. A report gives such ids their own aliases even with `ESTELA_REDACT=0`, so an exported report no longer fails to open them and two ids that redact alike do not get mixed up. Redacting a value keeps every value of object keys that redact to the same text (the later ones get `[#2](https://github.com/PerfectPan/estela/issues/2)`, `[#3](https://github.com/PerfectPan/estela/issues/3)`).
+
 ## 0.1.1
 
 ### Patch Changes
