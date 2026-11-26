@@ -103,18 +103,18 @@ These documents have a Chinese reading copy beside them, named with `.zh-CN.md` 
 
 ## Release Intent
 
-`@rivus/estela` is the published CLI package, bundling `apps/cli/`, `apps/web/`, and `packages/`. Once `@rivus/dsh-estela` (`apps/dsh-plugin/`) becomes public (its `private` flag is removed), the repository publishes both `@rivus/estela` and `@rivus/dsh-estela`. A PR that changes what a published package ships carries a changeset under `.changeset/` naming that package:
+The repository publishes two independent packages: `@rivus/estela` (the CLI, bundling `apps/cli/`, `apps/web/`, and `packages/`) and `@rivus/dsh-estela` (the DeepSeek Harness plugin, bundling `apps/dsh-plugin/`, `apps/web/`, and `packages/`). They version independently (not in a `fixed` group). A PR that changes what a published package ships carries a changeset under `.changeset/` naming that package:
 
 - For `@rivus/estela`: any file under `apps/cli/`, `apps/web/`, or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect bundled dependencies.
-- For `@rivus/dsh-estela` (once public): any file under `apps/dsh-plugin/`, `apps/web/`, or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect its bundled dependencies. While `@rivus/dsh-estela` remains `private: true`, do not name it in a changeset (`gh repo-checks release-plan` rejects records for private packages).
-- An edit under `apps/web/` or `packages/` ships in both packages, so once `@rivus/dsh-estela` is public it names both `@rivus/estela` and `@rivus/dsh-estela`; the version bump and changelog line ride on each published package it affects.
+- For `@rivus/dsh-estela`: any file under `apps/dsh-plugin/`, `apps/web/`, or `packages/` except tests, fixtures, and Markdown, plus lockfile changes that affect its bundled dependencies.
+- An edit under `apps/web/` or `packages/` ships in both packages, so it names both `@rivus/estela` and `@rivus/dsh-estela`; the version bump and changelog line ride on each published package it affects.
 - Changes limited to root release-tool dependencies or `apps/site` (the landing and docs site, bundled into neither package) need no release changeset.
 
-- Create the file with `pnpm exec changeset --patch @rivus/estela --message "<text>"` (use `--minor` or `--major` for another bump, and add `@rivus/dsh-estela` when the plugin is public and affected), or run `pnpm exec changeset` interactively. Rename the generated random file name to a kebab-case slug.
+- Create the file with `pnpm exec changeset --patch @rivus/estela --message "<text>"` (use `--minor` or `--major` for another bump, and add `@rivus/dsh-estela` when the plugin is affected), or run `pnpm exec changeset` interactively. Rename the generated random file name to a kebab-case slug.
 - The bump type follows semver for users of each published package: `major` for a breaking change once 1.0 exists, `minor` for a new capability, `patch` for a fix. `none` on a public package records an internal change without a release or changelog line; native versioning consumes it even when no version changes. `pnpm exec changeset --empty` is also valid, but an empty marker alone leaves the workflow in `none` mode until a release changeset is added.
 - The message is one or two sentences written for users of the package. It becomes a line in the generated `CHANGELOG.md`.
 - CI runs `gh repo-checks release-plan` (v1.4.0 or later) from [PerfectPan/gh-repo-checks](https://github.com/PerfectPan/gh-repo-checks), which validates the configuration and every pending changeset with the installed Changesets, without filtering committed records or depending on a local base branch. Records for private or ignored packages that Changesets skips are rejected because native versioning leaves them pending. So is a `major` record while a package is 0.x: going 1.0 is a deliberate decision, made by listing `allow-major <package>` in `.github/repo-checks.conf` in the PR that adds the record. Public `none` records, empty changesets, and a version PR with no remaining changesets are valid. CI does not verify that each shipped change has a changeset; the PR template carries the reminder. One exception: a PR that changes `docs/reference/public-interface.md` changes a covered surface, so `node scripts/check-release-intent.mjs` inspects each diff hunk's nearest heading and fails unless the PR adds or edits a release changeset (`patch`, `minor`, or `major`) for `@rivus/dsh-estela` when lines under the dsh plugin section change, for `@rivus/estela` when lines anywhere else in the file change, and for both when both regions change. The script checks only that the required release changeset(s) exist; the level follows the document's [version policy](docs/reference/public-interface.md#version-policy) and is checked in review. Locally it compares `HEAD` with its merge base on `origin/main`.
-- On a push to `main`, the [Publish workflow](#publishing-to-npm) opens or updates the `chore(release): version packages` PR. The native `changeset version` consumes pending changesets, writes each released package's `CHANGELOG.md` (`apps/cli/CHANGELOG.md`, and `apps/dsh-plugin/CHANGELOG.md` once public) through `@changesets/changelog-github`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
+- On a push to `main`, the [Publish workflow](#publishing-to-npm) opens or updates the `chore(release): version packages` PR. The native `changeset version` consumes pending changesets, writes each released package's `CHANGELOG.md` (`apps/cli/CHANGELOG.md` and `apps/dsh-plugin/CHANGELOG.md`) through `@changesets/changelog-github`, and applies the version bump. Each update leaves the PR in Draft; a maintainer marks it Ready for review to start CI, then merges after CI passes.
 - `.changeset/config.json` disables versioning and tagging private packages. The existing `.changeset/ledger.yaml` is a read-only pnpm history record; Changesets CLI neither reads nor extends it. Existing changelog entries and the historical `v0.1.0` tag and Release remain intact.
 - Release notes come only from changesets. Do not edit the generated changelog or keep a hand-written root `CHANGELOG.md` beside it.
 
@@ -186,21 +186,21 @@ These documents have a Chinese reading copy beside them, named with `.zh-CN.md` 
 
 - **Changesets**: bot PRs carry none. Because the lockfile counts as what the published packages ship, an npm update that passes
   CI still needs a patch changeset added by the reviewer before merging for each published package whose bundled dependencies
-  changed (`@rivus/estela`, and `@rivus/dsh-estela` once it is public — or both when a shared dependency changed), per the Release
+  changed (`@rivus/estela`, `@rivus/dsh-estela`, or both when a shared dependency changed), per the Release
   Intent rules above. Lock-file-only updates follow the same rule when a bundled dependency changed the shipped output.
 
 ### Kit Upgrades and Format-Change Releases
 
-Session readers live in [`@rivus/agent-kit`](https://github.com/PerfectPan/agent-kit) and are bundled into `@rivus/estela`. Two paths keep Estela current with the kit:
+Session readers live in [`@rivus/agent-kit`](https://github.com/PerfectPan/agent-kit) and are bundled into both `@rivus/estela` and `@rivus/dsh-estela`. Two paths keep Estela current with the kit:
 
 - **Routine kit upgrades**: Renovate places `@rivus/agent-kit` in its own group and exempts `@rivus/*` from its seven-day release-age wait, so a new kit release opens a dedicated PR on the next Monday run (or a maintainer can open the bump PR directly). Before merging a kit upgrade PR, verify:
   1. If any `TranscriptEvent` payload type changed, update `packages/schema/src/types.ts` and `packages/schema/src/payloads.test.ts` in the same PR.
   2. If a reader gained capabilities, changed fixtures, or a new agent was added, copy the updated conformance fixtures into `fixtures/sessions/<agent>/conformance/`, update `packages/server/src/sessions/conformance.test.ts`, and update [`docs/guide/supported-agents.md`](docs/guide/supported-agents.md) (plus `.zh-CN.md`). See [`docs/development/adding-an-agent.md`](docs/development/adding-an-agent.md) for adding a new agent.
-  3. Add a changeset for `@rivus/estela` (`patch` for reader fixes or format updates; `minor` for new agents or new capabilities) and pass all PR gates (`pnpm test`, `pnpm typecheck`, `pnpm build`, `node scripts/check-budgets.mjs`).
+  3. Add a changeset for `@rivus/estela` (and `@rivus/dsh-estela` when the kit release affects the dsh reader or shared code it bundles; `patch` for reader fixes or format updates, `minor` for new agents or new capabilities) and pass all PR gates (`pnpm test`, `pnpm typecheck`, `pnpm build`, `node scripts/check-budgets.mjs`).
 - **Urgent patch-release path when an agent changes its log format**: readers fail loud with `UnknownFormatGeneration` rather than guessing, so an upstream format change blocks reading new sessions of that agent until an updated reader ships. Do not wait for Monday's Renovate run:
   1. Update the reader and its conformance fixtures in [`PerfectPan/agent-kit`](https://github.com/PerfectPan/agent-kit) and publish the new `@rivus/agent-kit` release.
   2. In Estela, bump `@rivus/agent-kit` in `pnpm-workspace.yaml` and run `pnpm install`. Because `@rivus/agent-kit` is listed in `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`, the new release installs immediately after npm publication without waiting 24 hours.
-  3. Copy the updated conformance fixtures, update the tested versions (agent versions the kit's source or README says the reader was verified or captured on, plus any log-format version recorded in the fixtures) and capabilities in `docs/guide/supported-agents.md` (and `.zh-CN.md`), and add a `patch` changeset for `@rivus/estela`.
+  3. Copy the updated conformance fixtures, update the tested versions (agent versions the kit's source or README says the reader was verified or captured on, plus any log-format version recorded in the fixtures) and capabilities in `docs/guide/supported-agents.md` (and `.zh-CN.md`), and add a `patch` changeset for `@rivus/estela` (plus `@rivus/dsh-estela` when dsh reading or shared kit code changed).
   4. Merge the PR once CI passes. On push to `main`, `.github/workflows/publish.yml` opens or updates the draft `chore(release): version packages` PR; mark it Ready and merge it once CI passes to publish the patch release to npm.
 
 ### Publishing to npm
@@ -232,6 +232,8 @@ Authentication, network, and other query failures do not establish that a versio
 1. Use a clean checkout of the original run's `GITHUB_SHA`. Confirm the published package came from that run using its publish output and registry metadata; check `gitHead` against the commit when the field is present. Stop if the package's source cannot be confirmed.
 2. Set `tag="$pkg@$version"` for a native release (`tag="v0.1.0"` for the historical release). Inspect it with `git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}"`. An existing tag must resolve to the original commit. If absent, set `release_sha` to the original run's SHA and run `git push origin "$release_sha:refs/tags/$tag"`. Stop on any conflict; do not move or force-push a tag.
 3. If the GitHub Release is missing, save the body of that version's `CHANGELOG.md` section (`apps/cli/CHANGELOG.md` or `apps/dsh-plugin/CHANGELOG.md`) to a temporary notes file, then run `gh release create "$tag" --verify-tag --title "$tag" --notes-file "$notes_file"`, setting `notes_file` to that file. Verify an existing Release against the same tag instead of creating another one.
+
+To roll back a published release without unpublishing or overwriting an npm version, deprecate the affected version (`npm deprecate <pkg>@<version> "<reason>"`) and, when needed, point `latest` back to the previous release (`npm dist-tag add <pkg>@<previous> latest`). `@rivus/estela` and `@rivus/dsh-estela` release and roll back independently; for `@rivus/dsh-estela`, users can also remove the plugin cleanly with `dsh plugin --profile web remove @rivus/dsh-estela`.
 
 Documentation-only and workflow-only PRs need no changeset.
 
@@ -274,7 +276,7 @@ CI listens for PRs being opened, reopened, updated with new commits (`synchroniz
 The `test` job runs for non-Draft PRs, including ordinary and Renovate PRs opened directly as Ready. New commits
 on a Ready PR run CI automatically; they no longer require another Draft-to-Ready transition. Keep work in Draft
 until local checks are finished. When a Draft PR event starts this workflow, its `test` job is skipped. GitHub
-reports that skipped job as successful, but the skipped status is not validation evidence. Mark the PR Ready and confirm that the actual `test` and `platforms` jobs ran
+reports that skipped job as successful, but the skipped status is not validation evidence. Mark the PR Ready and confirm that the actual `test`, `platforms`, and `dsh-plugin` jobs ran
 and passed for its current head and merge result before merging. Release PRs still return to Draft on every
 version update and wait for a maintainer to mark them Ready.
 
@@ -289,12 +291,12 @@ runs until the blocker is resolved.
 
 CI runs all package typechecks and builds Web before the CLI smoke tests so the tests reuse that Web output.
 The tarball smoke step then builds `@rivus/estela` with `vp pack` (`pnpm --filter '@rivus/estela...' run build`, which also
-runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball. If another package gains
+runs the other packages' `tsc --noEmit` builds), packs it, and tests the installed tarball, followed by building `@rivus/dsh-estela` (`pnpm --filter '@rivus/dsh-estela...' run build`). If another package gains
 a distinct build command, add it to CI. The CLI build smoke assertions share one subprocess. The budgets step
-(`node scripts/check-budgets.mjs`) then runs on that build and writes its measured-vs-budget table to the job summary;
+(`node scripts/check-budgets.mjs`) then runs on those builds and writes its measured-vs-budget table to the job summary;
 the budgets and their reasons live in `scripts/budgets/budgets.mjs`. The `platforms` job runs beside `test` on the same
 events: the unit suites on macOS and Windows, and the smoke suite on Linux, macOS, and Windows with the installed CLI on
-Node.js 24 (through `ESTELA_SMOKE_NODE`) and 26. The budgets and the Playwright suite run in `test` only, because their
+Node.js 24 (through `ESTELA_SMOKE_NODE`) and 26. The `dsh-plugin` job runs on Linux beside them, packing `@rivus/dsh-estela` and running `apps/dsh-plugin/test/dsh.smoke.ts` against the pinned dsh release (plus a non-required weekly `schedule` and manual `workflow_dispatch` canary against dsh's `latest` tag). The budgets and the Playwright suite run in `test` only, because their
 numbers are set on Linux runners. Text files check out with LF on every system (`.gitattributes`), because fixtures are
 read back by byte offset. Dependency installation uses
 `pnpm install --frozen-lockfile` with the committed lockfile; refresh the lockfile with `pnpm install` when dependency

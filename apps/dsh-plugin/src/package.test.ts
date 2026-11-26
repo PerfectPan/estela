@@ -41,7 +41,7 @@ const manifestSchema = z.object({
   peerDependencies: z.optional(z.unknown()),
 })
 
-/** Manifest fields from Plan 0010 §3.5.1. */
+/** Expected package manifest fields for the published dsh plugin. */
 const EXPECTED_MANIFEST = {
   name: '@rivus/dsh-estela',
   description: 'Estela view of the current DeepSeek Harness session: ledger, Model saw, Compare, and cost.',
@@ -86,7 +86,7 @@ const EXPECTED_MANIFEST = {
 } as const
 
 describe('@rivus/dsh-estela manifest', () => {
-  it('matches the Plan 3.5.1 manifest key-by-key, pins engines.dsh to DSH_VERSION, and has no bin or runtime dependencies', async () => {
+  it('matches the expected manifest key-by-key, pins engines.dsh to DSH_VERSION, and has no bin or runtime dependencies', async () => {
     const raw: unknown = JSON.parse(await readFile(join(pluginDir, 'package.json'), 'utf8'))
     const manifest = z.parse(manifestSchema, raw)
 

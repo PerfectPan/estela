@@ -16,7 +16,7 @@ const FONTSOURCE_IMPORT = /^\s*@import\s+["']@fontsource\/[^"']+["']\s*;\s*$/gm
 
 /**
  * Strips `@fontsource/*` imports from `apps/web/src/styles.css` so the client bundle injects no
- * `@font-face` rules and ships no webfont files (T19).
+ * `@font-face` rules and ships no webfont files.
  */
 function stripEmbedFonts() {
   return {

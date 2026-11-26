@@ -4,11 +4,7 @@ Active Specs define interactions, scope, failure behavior, compatibility, and ac
 
 Each Spec has a Chinese reading copy; see [Bilingual Documentation](../../CONTRIBUTING.md#bilingual-documentation).
 
-Active Specs:
-
-- [0010: Estela as a dsh plugin](0010-dsh-plugin.md) (Draft), with its [Plan](../plans/0010-dsh-plugin.md).
-
-Delivered Specs were retired after their behavior moved into the [user guide](../guide/README.md), the [public interface](../reference/public-interface.md), the [architecture overview](../architecture/overview.md), and the tests; the acceptance scenario IDs that tests still use are listed in [Development](../development/setup.md#acceptance-scenarios). Git history keeps the retired files.
+There are no active Specs. Delivered Specs were retired after their behavior moved into the [user guide](../guide/README.md), the [public interface](../reference/public-interface.md), the [architecture overview](../architecture/overview.md), and the tests; the acceptance scenario IDs that tests still use are listed in [Development](../development/setup.md#acceptance-scenarios). Git history keeps the retired files.
 
 Start from [`0000-template.md`](0000-template.md). Use `Draft`, `Accepted`, or `Superseded`. Give acceptance scenarios stable IDs and use Given/When/Then where useful. Link them to tests. No separate BDD document or framework is required. Technical decisions and the detailed execution plan belong in the paired Plan.
 

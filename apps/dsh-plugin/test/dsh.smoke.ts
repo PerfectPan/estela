@@ -159,7 +159,7 @@ describe('@rivus/dsh-estela smoke on dsh web', () => {
       expect(tabs).toContain('Estela')
       expect(tabs.indexOf('Estela')).toBeGreaterThan(tabs.indexOf('Trajectory'))
 
-      // DSH-2 + T25 + DSH-10: verify compact embedded header, host token adoption, height, redaction, and untouched <html>.
+      // DSH-2 + DSH-10: verify compact embedded header, host token adoption, height bounds, redaction, and untouched <html>.
       const geometry = await readWorkspaceGeometry(page)
       expect(geometry.hasTimeline).toBe(true)
       expect(geometry.hasLedger).toBe(true)
