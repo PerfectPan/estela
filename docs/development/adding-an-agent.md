@@ -72,9 +72,9 @@ Every document under `docs/guide/`, `docs/reference/`, `docs/architecture/`, `do
 
 1. `docs/guide/supported-agents.md` (+ `.zh-CN.md`): update the kit version and agent count, add the agent to **Where sessions are found**, add its **Tested against** entry (the agent version the kit's source or README says the reader was verified or captured on, plus any log-format version the conformance fixtures record, or `not recorded`) and capability row to **What each agent records**, and note any **Known limits**.
 2. `docs/guide/troubleshooting.md` (+ `.zh-CN.md`): add the agent's home override variable to the list under **An agent shows 0 sessions**.
-3. `README.md` (+ `.zh-CN.md`), `docs/guide/getting-started.md` (+ `.zh-CN.md`), `docs/guide/concepts.md` (+ `.zh-CN.md`, for the database-agent list), `docs/architecture/overview.md` (+ `.zh-CN.md`), `docs/reference/public-interface.md` / `docs/reference/mcp-tools.md` (+ `.zh-CN.md`), and `AGENTS.md` (the session-index rule if adding a database agent) wherever the agent list, count, database agents, or home overrides appear.
+3. `README.md` (+ `.zh-CN.md`), `apps/cli/README.md`, `docs/guide/getting-started.md` (+ `.zh-CN.md`), `docs/guide/concepts.md` (+ `.zh-CN.md`, for the database-agent list), `docs/architecture/overview.md` (+ `.zh-CN.md`), `docs/reference/public-interface.md` / `docs/reference/mcp-tools.md` (+ `.zh-CN.md`), and `AGENTS.md` (the session-index rule if adding a database agent) wherever the agent list, count, database agents, or home overrides appear.
 4. Record the updated English blob hashes with `node scripts/check-doc-translations.mjs --write <zh-CN files...>`.
-5. Add a changeset under `.changeset/` for `@rivus/estela` (`minor` for a new agent, `patch` for updating an existing reader; see [`CONTRIBUTING.md`](../../CONTRIBUTING.md#kit-upgrades-and-format-change-releases)).
+5. Add a changeset under `.changeset/` for each published package whose shipped output changes (`@rivus/estela`, `@rivus/dsh-estela`, or both — `@rivus/dsh-estela` also bundles the kit's default readers; `minor` for a new agent, `patch` for updating an existing reader; see [`CONTRIBUTING.md`](../../CONTRIBUTING.md#kit-upgrades-and-format-change-releases)).
 
 ### Verify
 

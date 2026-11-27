@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/adding-an-agent.md 为准。
 
-<!-- source-blob: ecadffe2a0b4dccc4cf8a8503330d0e50c56f7ab -->
+<!-- source-blob: e685f51709a430503ea89c45031344234a544b43 -->
 
 # 添加代理
 
@@ -76,9 +76,9 @@
 
 1. `docs/guide/supported-agents.md`（及 `.zh-CN.md`）：更新套件版本与代理数量，在**会话位置**中添加该代理，在**各代理记录的内容**中添加其**测试版本**（套件源码或 README 说明读取器已验证或采集的代理版本，加上一致性测试夹具记录的日志格式版本；均无记录时写「未记录」）和能力行，并在**已知限制**中记录限制。
 2. `docs/guide/troubleshooting.md`（及 `.zh-CN.md`）：在**显示 0 个会话的代理**下的环境变量列表中加入该代理的主目录覆盖变量。
-3. `README.md`（及 `.zh-CN.md`）、`docs/guide/getting-started.md`（及 `.zh-CN.md`）、`docs/guide/concepts.md`（及 `.zh-CN.md`，数据库代理列表）、`docs/architecture/overview.md`（及 `.zh-CN.md`）、`docs/reference/public-interface.md` / `docs/reference/mcp-tools.md`（及 `.zh-CN.md`）以及 `AGENTS.md`（若新增数据库代理，更新会话索引规则）中涉及代理列表、数量、数据库代理或主目录覆盖变量的位置。
+3. `README.md`（及 `.zh-CN.md`）、`apps/cli/README.md`、`docs/guide/getting-started.md`（及 `.zh-CN.md`）、`docs/guide/concepts.md`（及 `.zh-CN.md`，数据库代理列表）、`docs/architecture/overview.md`（及 `.zh-CN.md`）、`docs/reference/public-interface.md` / `docs/reference/mcp-tools.md`（及 `.zh-CN.md`）以及 `AGENTS.md`（若新增数据库代理，更新会话索引规则）中涉及代理列表、数量、数据库代理或主目录覆盖变量的位置。
 4. 使用 `node scripts/check-doc-translations.mjs --write <zh-CN 文件...>` 记录更新后的英文 blob 哈希。
-5. 在 `.changeset/` 下为 `@rivus/estela` 添加 changeset（新增代理使用 `minor`，更新现有读取器使用 `patch`；见 [`CONTRIBUTING.md`](../../CONTRIBUTING.md#kit-upgrades-and-format-change-releases)）。
+5. 在 `.changeset/` 下为每个发布产物发生变化的已发布包添加 changeset（`@rivus/estela`、`@rivus/dsh-estela`，或两者兼有——`@rivus/dsh-estela` 也会打包套件的默认读取器；新增代理使用 `minor`，更新现有读取器使用 `patch`；见 [`CONTRIBUTING.md`](../../CONTRIBUTING.md#kit-upgrades-and-format-change-releases)）。
 
 ### 验证
 

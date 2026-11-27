@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/architecture/overview.md 为准。
 
-<!-- source-blob: 109851f5b3263e95622f429e2cd6c31a2a208380 -->
+<!-- source-blob: 7436063f47d11a578a18fb83936996e05d746e21 -->
 
 # 架构
 
@@ -67,7 +67,7 @@ dsh plugin (@rivus/dsh-estela inside dsh web)
 
 `packages/runtime-node/src/session-index.ts` 通过 `node:sqlite` 管理 `index.sqlite`（位于 `$XDG_CACHE_HOME/rivus-estela/`，否则为 `~/.cache/rivus-estela/`，权限模式 0600）：包含 `sessions`（头部字段、摘要数字、缓存键）、`prompts`（前 200 条提示词，每条 500 个字符）以及 `search`（每个会话一行的 FTS5 `trigram` 表）。3 个及以上字符的查询使用 FTS5；更短的查询在标题和提示词上执行子串匹配，两侧应用统一的 JavaScript 大小写折叠（注册的 `casefold()` 函数），因此 `Über` 和 `Добро` 在任意大小写下都能匹配。每个摘要行存储壳层的 `INDEX_SUMMARY_VERSION = SESSION_SUMMARY_VERSION + HOST_ERA_OFFSET + INDEX_CONTENT_REVISION`；来自其他版本的行会重新计算。各组成部分定义在 [`packages/server/src/catalog/session-catalog.ts`](../../packages/server/src/catalog/session-catalog.ts)。索引以 WAL 模式运行并设置 200 ms 的 busy timeout（node:sqlite 是同步的，更长的等待会阻塞服务器）：读操作从不等待其他进程，而无法获取锁的写操作会被跳过。Schema 在 `BEGIN IMMEDIATE` 内创建，因此多个进程可以同时打开全新缓存；损坏或其他布局的文件只由持有 `index.sqlite.lock` 的进程重建；无法打开的索引（例如只读缓存目录）会打印一条警告并跳过。`PRAGMA user_version` 记录表结构版本；版本不同或无法读取的文件会被删除并重建。第二次启动时列表行直接立即从索引返回，`discover` 扫描则在后台对账。`--no-index` 不打开任何索引文件。由于首屏只需要 `discover` 和索引读取，即使面对数千个会话和数 GB 日志，设计目标也是在 2 秒内显示行。`node scripts/check-budgets.mjs` 在 5,000 个合成会话（Claude Code 和 Codex，约 190 MB）上测量从进程启动到返回包含所有行的首个 `list-sessions` 响应的时间：在设定预算时，一台 Apple-silicon 笔记本上冷启动为 1.0 到 1.8 秒，热启动为 0.2 到 0.4 秒。CI 设有宽松上限以在较慢 runner 上捕获数量级退化，并在热启动未从索引提供行时判为失败；预算数值及其原因见 `scripts/budgets/budgets.mjs`。
 
-会话通过其 trace id（`traceId`）寻址，它是代理和路径的哈希。OpenCode 列表行始终包含会话 id，即使数据库中只有一个会话也是如此；打开方式为 `estela <path>#<sessionId>`。其他代理仅当多个会话共享同一个文件时包含会话 id（`path#id` 形式），因此使用 `estela <path>` 打开单会话文件时会保留其列表行的 trace id。命令行上的 `path` 或 `path#id` 字符串会在入口解析一次为 kit 的 `SessionTarget`（`parseSessionTarget`）；已发现的会话则是 kit 的 `SessionRef`。列表和 `--pick` 标签中的标题、项目和提示词像工作区一样经过脱敏（主目录和令牌模式），是否脱敏由服务器的 `redacts` 选项决定（见[服务器组装](#服务器组装)）；只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`。会话目录维护 trace id → 目标的映射并作为 TraceStore 的解析器：每个列表行都可以解析，从命令行（通过路径或 `--pick`）打开的会话同样如此，并会成为 `current`。URL 只携带 trace id（`#/s/<traceId>`）。CLI 打开时使用 `?s=<traceId>`，因为 DevFrame 的一次性验证码占用了 URL fragment；SPA 会在首次连接尝试结束时（无论成功与否）把 id 移回 `#/s/<traceId>`。
+会话通过其 trace id（`traceId`）寻址，它是代理和路径的哈希。数据库代理（OpenCode、DimCode 和 ZCode）的列表行始终包含会话 id，即使数据库中只有一个会话也是如此；打开方式为 `estela <path>#<sessionId>`。其他代理仅当多个会话共享同一个文件时包含会话 id（`path#id` 形式），因此使用 `estela <path>` 打开单会话文件时会保留其列表行的 trace id。命令行上的 `path` 或 `path#id` 字符串会在入口解析一次为 kit 的 `SessionTarget`（`parseSessionTarget`）；已发现的会话则是 kit 的 `SessionRef`。列表和 `--pick` 标签中的标题、项目和提示词像工作区一样经过脱敏（主目录和令牌模式），是否脱敏由服务器的 `redacts` 选项决定（见[服务器组装](#服务器组装)）；只有设置了 `ESTELA_REDACT=0` 时开发服务器才传入 `false`。会话目录维护 trace id → 目标的映射并作为 TraceStore 的解析器：每个列表行都可以解析，从命令行（通过路径或 `--pick`）打开的会话同样如此，并会成为 `current`。URL 只携带 trace id（`#/s/<traceId>`）。CLI 打开时使用 `?s=<traceId>`，因为 DevFrame 的一次性验证码占用了 URL fragment；SPA 会在首次连接尝试结束时（无论成功与否）把 id 移回 `#/s/<traceId>`。
 
 ## 视图 trace、加载与重建
 
@@ -90,7 +90,7 @@ dsh plugin (@rivus/dsh-estela inside dsh web)
 | 包 | 职责 |
 |---|---|
 | `packages/schema`（`@rivus/estela-schema`） | 规范 `Trace`（`schema: 'estela'`）、事件类型、能力、`shadowedBy`、基于 kit 构建的事件载荷类型，以及校验 JSON trace 的 `zod/mini` schema |
-| `packages/kernel`（`@rivus/estela-kernel`） | 规范文件头部检查、`SessionFs` 读取接口形状、折叠、重建、`diffContext`、`toView` / `fitView`、投影、目录价费用 |
+| `packages/kernel`（`@rivus/estela-kernel`） | 规范文件头部检查、`SessionFs` 读取接口形状、折叠、重建、`diffContext`、`toView` / `fitView`、投影、目录价费用、ATIF 与 OTLP 导出投影 |
 | `packages/runtime-node`（`@rivus/estela-runtime-node`） | 主目录、会话索引（`node:sqlite`） |
 | `packages/rpc`（`@rivus/estela-rpc`） | 基于注入会话服务的 `list-sessions`；基于 `TraceStore` 与注入解析器的 `load-trace`、`get-trace-view`、`get-event`、`reconstruct`；基于注入写入器的 `export-report`；`buildReport`；仅在 DevFrame 构建模式下注册的 `report-trace` |
 | `packages/server`（`@rivus/estela-server`） | `createEstelaCore`（`./core`）：不含 DevFrame 与会话目录的加固平台、基于 Node 读取的 TraceStore 和脱敏；`createEstelaServer`：在其上加入会话目录、按实例构建的 RPC 定义、报告写入器、MCP 代理工具（`src/agent-tools/`）以及由 `setup` 负责注册和启动的 DevFrame 定义；通过 kit 读取会话 |
@@ -98,6 +98,7 @@ dsh plugin (@rivus/dsh-estela inside dsh web)
 | `apps/cli`（`@rivus/estela`） | 命令行、终端输出、打开浏览器，以及 ATIF 和 OTLP 导出；基于 `createEstelaServer` 启动 `dev`、`build` 和 `mcp`；以 `@rivus/estela` 发布 |
 | `apps/dsh-plugin`（`@rivus/dsh-estela`） | DeepSeek Harness 插件：基于 `createEstelaCore` 的宿主端（`src/host/`）、基于 `<estela-workspace>` 的客户端（`src/client/`）、通道契约（`src/contract/`）、清单与 `cordis.patch.yml`，以及两份产物（`dist/host.mjs`、`dist/client.js`）；以 `@rivus/dsh-estela` 发布 |
 | `apps/e2e`（`@rivus/estela-e2e`） | 私有包：针对已安装 tarball 的 CLI 冒烟测试和 Playwright 测试套件 |
+| `apps/site`（`@rivus/estela-site`） | 私有包：静态落地页和双语文档站（React + TanStack Start + Fumadocs）以及部署到 GitHub Pages 的在线演示报告；不随 npm 包发布 |
 
 ## 服务器组装
 
@@ -171,7 +172,7 @@ SPA 在检测到该元素时即以报告模式启动（`apps/web/src/shell/repor
 
 ## 信任
 
-会话文件留在磁盘上。开发服务器绑定 localhost。索引保存标题、用户提示词（每条 500 个字符）、路径和数字，存放在用户缓存目录中且权限模式为 0600。无论 `ESTELA_REDACT` 如何设置，`build`、「导出报告」以及每条 MCP 工具结果和错误始终进行脱敏（主目录和令牌模式）；报告中仍保留会话文本和文件内容，并会明确提示。ATIF 和 OTLP 导出默认与服务器一样脱敏，设置 `ESTELA_REDACT=0` 可写出未脱敏的原始字节。脱敏逻辑由 kit 提供（`@rivus/agent-kit/redact`，由 `packages/server` 和 `apps/cli` 导入）：它替换字符串中出现的所有主目录拼写（也包括 git diff 标头 `a/<home>/…` 中的拼写）、去掉前导 `/` 的形式（`Users/<name>/…`）、JSON 转义形式（`\/Users\/<name>`）、Claude 的短横线拼接形式以及 Grok 的 `%2F` 形式，不区分大小写，覆盖值和键；更长的名称（`/Users/<name>x`、`/Users/<name>.bak`）保留原样。同一对象中脱敏后文字相同的两个键，各自的值都保留：后出现的键在显示名后加 `#2`、`#3`…，服务器和导出都是如此，因为键可能是代理记录的路径或令牌，值不能随键一起丢失。其令牌模式采用固定的前缀列表（`sk-`、`AKIA`/`ASIA`、GitHub、Slack、npm）和 PEM 私钥；其他形式的机密会原样通过，用户文档对此也有说明（见[隐私与脱敏](../guide/privacy.zh-CN.md#脱敏覆盖的范围)）。两个主目录不同时，服务器把两者都隐藏（`packages/server/src/sessions/redaction.ts`）：平台主目录（`platform.home`：代理根目录、索引，以及会话记录的内容，例如工作目录、标题或提示词）和进程主目录（`os.homedir()`：服务器自身产生的内容，例如报告构建的错误消息或导出路径，以及会话中记录的服务器运行用户的路径）。CLI 的平台主目录就是进程主目录，因此其输出只经过一次脱敏。`build --out-dir` 仅在目标目录为空或包含先前 Estela 报告时才替换已有目录（并在 DevFrame 的 `createBuild` 移除目录前拒绝 `/`、工作目录、主目录、符号链接、非目录以及其他非空目录）；「导出报告」始终创建新目录。除非设置 `ESTELA_REDACT=0`，开发服务器对视图 trace、`get-event`、错误消息和列表行一视同仁地执行脱敏。在共享工作区中（无论是独立 SPA、静态报告还是嵌入 dsh 的 `<estela-workspace>`），记录的会话内容始终按文本渲染，不当 HTML 解释（`apps/web/src/workspace/inspector/text-view.tsx`）。切勿将本机路径或真实机密放入夹具。
+会话文件留在磁盘上。开发服务器绑定 localhost。索引保存标题、用户提示词（每条 500 个字符）、路径和数字，存放在用户缓存目录中且权限模式为 0600。无论 `ESTELA_REDACT` 如何设置，`build`、「导出报告」以及每条 MCP 工具结果和错误始终进行脱敏（主目录和令牌模式）；报告中仍保留会话文本和文件内容，并会明确提示。ATIF 和 OTLP 导出默认与服务器一样脱敏，设置 `ESTELA_REDACT=0` 可写出未脱敏的原始字节。脱敏逻辑由 kit 提供（`@rivus/agent-kit/redact`，由 `packages/server` 和 `apps/cli` 导入）：它替换字符串中出现的所有主目录拼写（也包括 git diff 标头 `a/<home>/…` 中的拼写）、去掉前导 `/` 的形式（`Users/<name>/…`）、JSON 转义形式（`\/Users\/<name>`）、Claude 的短横线拼接形式以及 Grok 的 `%2F` 形式，不区分大小写，覆盖值和键；更长的名称（`/Users/<name>x`、`/Users/<name>.bak`）保留原样。同一对象中脱敏后文字相同的两个键，各自的值都保留：后出现的键在显示名后加 `#2`、`#3`…，服务器和导出都是如此，因为键可能是代理记录的路径或令牌，值不能随键一起丢失。它替换固定列表中的已知令牌形态（API 密钥、各平台令牌、JWT、Slack webhook、PEM 私钥）以及带标签凭据的值（如 `PASSWORD=`、`Authorization: Bearer` 和 URL 中的密码）；其他形式的机密会原样通过，用户文档列出了具体规则（见[隐私与脱敏](../guide/privacy.zh-CN.md#脱敏覆盖的范围)）。两个主目录不同时，服务器把两者都隐藏（`packages/server/src/sessions/redaction.ts`）：平台主目录（`platform.home`：代理根目录、索引，以及会话记录的内容，例如工作目录、标题或提示词）和进程主目录（`os.homedir()`：服务器自身产生的内容，例如报告构建的错误消息或导出路径，以及会话中记录的服务器运行用户的路径）。CLI 的平台主目录就是进程主目录，因此其输出只经过一次脱敏。`build --out-dir` 仅在目标目录为空或包含先前 Estela 报告时才替换已有目录（并在 DevFrame 的 `createBuild` 移除目录前拒绝 `/`、工作目录、主目录、符号链接、非目录以及其他非空目录）；「导出报告」始终创建新目录。除非设置 `ESTELA_REDACT=0`，开发服务器对视图 trace、`get-event`、错误消息和列表行一视同仁地执行脱敏。在共享工作区中（无论是独立 SPA、静态报告还是嵌入 dsh 的 `<estela-workspace>`），记录的会话内容始终按文本渲染，不当 HTML 解释（`apps/web/src/workspace/inspector/text-view.tsx`）。切勿将本机路径或真实机密放入夹具。
 
 dsh 插件不自行注册 HTTP 路由、不启动独立进程、也不向磁盘写入任何内容（不写会话日志、dsh 文件或会话索引）。对 `/estela` 的调用先经过 dsh 自身的准入检查（无 cookie 返回 401，`Origin` 或 `Host` 不匹配返回 403；浏览器 cookie 和 `/connect?token=…` 签发的独立 API cookie 都会以 `owner` 身份通过准入，已在固定版本 dsh 上实测，见 [#109](https://github.com/PerfectPan/estela/issues/109#issuecomment-7127872610)），处理函数随后拒绝所有 `principal.kind` 不是 `owner` 的对端。处理函数内的未预期异常会被捕获并转为固定消息 `estela/failed`，避免未处理的异常直接到达 dsh；store 错误与 dsh 格式拒绝的原因会经过 `core.redact`，默认按开发服务器的规则脱敏，但在设置 `ESTELA_REDACT=0` 时原样返回（因此关闭脱敏时，通过准入的 owner 可以在错误响应中看到未脱敏原文）。`dist/client.js` 与其他插件脚本一样由 dsh 在无 cookie 情况下下发，仅包含代码。
 

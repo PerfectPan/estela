@@ -1,6 +1,6 @@
 # @rivus/estela
 
-A local viewer for agent sessions: every request, what the model saw, and what it cost. It lists the sessions of Claude Code, Codex, DeepSeek Harness, Gemini CLI, Grok, OpenCode, and Pi on this machine, opens one in a workspace in your browser, and rebuilds the context the model received at any event. Anything a log does not record is shown as `unavailable`, never estimated.
+A local viewer for agent sessions: every request, what the model saw, and what it cost. It lists the sessions of Antigravity CLI, Claude Code, Codex, DeepSeek Harness, DimCode, Gemini CLI, Grok, Kimi Code, OpenCode, Pi, Qoder CLI, and ZCode on this machine, opens one in a workspace in your browser, and rebuilds the context the model received at any event. Anything a log does not record is shown as `unavailable`, never estimated.
 
 Requires Node.js 24 or later.
 
@@ -17,7 +17,7 @@ npx @rivus/estela mcp <session>            # MCP tools over one session
 
 `<session>` is a session file, `path#sessionId`, or a canonical Estela JSON trace. `estela --help` and `estela <command> --help` list every option.
 
-The server binds `localhost` and sends nothing anywhere. Reports and MCP results are always redacted (home directory and some token shapes, not every secret); a report still holds session text and file contents, so read it before you share it. The session index is a cache in `$XDG_CACHE_HOME/rivus-estela/` (default `~/.cache/rivus-estela/`); delete it at any time.
+The server binds `localhost` and sends nothing anywhere. Reports and MCP results are always redacted (home directory, some token shapes, and the values of labelled credentials, not every secret); a report still holds session text and file contents, so read it before you share it. The session index is a cache in `$XDG_CACHE_HOME/rivus-estela/` (default `~/.cache/rivus-estela/`); delete it at any time.
 
 - User guide: https://github.com/PerfectPan/estela/blob/main/docs/guide/README.md
 - Supported agents and what each records: https://github.com/PerfectPan/estela/blob/main/docs/guide/supported-agents.md

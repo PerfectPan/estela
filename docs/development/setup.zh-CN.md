@@ -1,6 +1,6 @@
 > 中文阅读版。以英文原文 docs/development/setup.md 为准。
 
-<!-- source-blob: 6f14d3bd6a7dd1fdf1df94faa915975d9a69d4d2 -->
+<!-- source-blob: 70d353ccb5a3989f294fb72b61fdc8076761cae9 -->
 
 # 开发
 
@@ -24,7 +24,9 @@ node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
+node scripts/check-release-intent.mjs
 node scripts/format.mjs --check
+node scripts/lint-scripts.mjs
 pnpm lint
 pnpm test
 pnpm typecheck

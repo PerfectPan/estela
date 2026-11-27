@@ -5,11 +5,12 @@ Contribution workflow and Change Design Gate: [`CONTRIBUTING.md`](../CONTRIBUTIN
 
 ## Index
 
-- [`guide/README.md`](guide/README.md) — user guide: install and run Estela, concepts, workspace, supported agents, reports and exports, MCP tools, privacy, and troubleshooting.
+- [`guide/README.md`](guide/README.md) — user guide: install and run Estela, concepts, workspace, supported agents, reports and exports, MCP tools, DeepSeek Harness plugin, privacy, and troubleshooting.
 - [`reference/public-interface.md`](reference/public-interface.md) — what SemVer covers from 1.0, and the current pre-1.0 policy.
 - [`reference/export-formats.md`](reference/export-formats.md) — ATIF and OTLP mappings and their pinned versions.
 - [`reference/mcp-tools.md`](reference/mcp-tools.md) — every tool's inputs, result fields, bounds, and errors.
 - [`architecture/overview.md`](architecture/overview.md) — system boundaries, data flow, and bundle constraints.
+- [`design/README.md`](design/README.md) — visual design tokens, event-kind palette, typography, logo, and static HTML mockups.
 - [`development/setup.md`](development/setup.md) — contributor setup and local workflows.
 - [`development/adding-an-agent.md`](development/adding-an-agent.md) — adding support for a new agent.
 - [`plans/`](plans/) — active implementation plans; each is retired in its final delivery PR.

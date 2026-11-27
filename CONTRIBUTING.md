@@ -139,39 +139,12 @@ The repository publishes two independent packages: `@rivus/estela` (the CLI, bun
   reviewed separately. Workflows keep their major-version action tags; automatic merging is disabled for all
   Renovate PRs, and required CI must pass before a maintainer merges. Workflow-only updates need no changeset.
 
-- **Rollout and security ownership**: this configuration does not install or authorize the Renovate App and does
-  not change GitHub repository security settings. At the 2026-11-03 adoption baseline, `main` had neither Renovate
-  nor Dependabot version-update configuration, so this change adds no temporary Dependabot configuration.
-  Introduce the initial configuration through normal PR review. Once it is available on the default branch,
-  verify a real hosted run using this policy with npm and GitHub Actions extraction, the Dependency Dashboard,
-  and update-PR creation when an update is available. Keep rollout under this policy marked unverified until
-  this evidence is recorded. Local config validation and extraction are not evidence of a hosted run. Do not
-  add a second routine updater while Renovate owns these ecosystems.
-
-  Rollout snapshot (2026-11-03): the owner authorized this repository for the existing Renovate App; its existing
-  permissions include reading Dependabot alerts and writing workflows. The [hosted onboarding run](https://developer.mend.io/github/PerfectPan/agent-trace/-/job/6df4e1d0-a6af-4e67-a065-da20b0dc27df)
-  completed at 05:28:06 UTC with exit code 0 against `main` at
-  `4d9610c3d1d9b8e5a048f9f6269bec2568c1e785`: it extracted 2 GitHub Actions files / 21 dependencies and
-  9 npm files / 89 dependencies, and created [onboarding PR #73](https://github.com/PerfectPan/estela/pull/73).
-  Its result was `onboarding` with `onboarded: false`; it used generated onboarding configuration, not this
-  hand-authored policy. A Dependency Dashboard and an actual dependency-update PR with passing CI remain
-  unverified. Keep [issue #59](https://github.com/PerfectPan/estela/issues/59) open until its remaining
-  acceptance criteria, including a real kit-update PR and CI, are met.
-
-  At the same audit, the repository's [security settings](https://github.com/PerfectPan/estela/settings/security_analysis)
-  showed the dependency graph, Dependabot alerts, and Dependabot security updates disabled. The hosted run
-  reported that vulnerability alerts were not enabled. App permission alone does not prove alert-to-fix
-  coverage, and no security setting was changed as part of this rollout.
-
-  Keep the dependency graph and Dependabot alerts enabled independently of the version-update bot. If either is
-  disabled, enabling it is a separate owner action; the config does not enable it. Security-fix PR ownership is
-  also separate from `.github/dependabot.yml`. Before changing the existing security-update setting, verify the
-  Renovate App's Dependabot-alert read permission and a hosted run that reads the repository's alerts, then
-  confirm a security fix can produce a PR and pass required CI. OSV support alone is not that verification.
-  Once coverage is demonstrated, the owner can select Renovate as the primary security-PR owner and explicitly
-  disable Dependabot security updates, leaving the dependency graph and alerts enabled. Until then, preserve
-  any existing security-PR coverage. If alerts or security updates are already disabled, record that gap and
-  confirm the intended owner settings separately; do not describe the config-only change as security coverage.
+- **Security ownership**: do not add a second routine dependency updater while Renovate owns npm and GitHub
+  Actions. Keep the repository's dependency graph and Dependabot alerts enabled independently of Renovate;
+  `renovate.json` does not manage GitHub repository security settings. Before changing security-update PR
+  ownership (for example disabling Dependabot security updates in favor of Renovate), verify that the hosted
+  Renovate App can read this repository's Dependabot alerts and open a security-fix PR that passes required CI
+  (OSV support alone is not that verification).
 
 - **Changesets**: bot PRs carry none. Because the lockfile counts as what the published packages ship, an npm update that passes
   CI still needs a patch changeset added by the reviewer before merging for each published package whose bundled dependencies
