@@ -60,10 +60,7 @@ The toolchain is Vite+ (`vp`): every workspace package lints with `vp lint` and 
 1. Draft a plan from [`docs/plans/0000-template.md`](docs/plans/0000-template.md) only when triggered by the [Change Design Gate](#change-design-gate). Keep `Status: blocked` while a material scope, interface, data, or rollout decision is unresolved.
 2. Review the goals, boundaries, and key decisions before implementing; update the plan if design choices change mid-flight.
 3. Implement within that scope, adding tests and updating current-state `docs/` in the same change.
-4. Retire the plan as soon as its code scope lands on the default branch. Do not keep a completed plan in `docs/plans/` waiting on deferred manual checks or future polish. In the final delivery PR:
-   - Move any remaining manual verification or follow-up work to issues.
-   - Migrate lasting knowledge that code cannot express (invariants, ownership/trust boundaries, tradeoffs, external quirks, validation limits) into current-state `docs/` (and local `Why:` comments in code).
-   - Delete the completed plan file. Git history and the delivery PR keep the full execution record.
+4. Retire the plan in its final delivery PR as soon as its code scope lands on the default branch; move deferred manual checks and future polish to issues rather than keeping the plan open. Follow [`docs/AGENTS.md` §4](docs/AGENTS.md#4-retiring-a-plan).
 
 ## Change Design Gate
 
@@ -82,7 +79,7 @@ Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make
 
 ## Bilingual Documentation
 
-These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, and every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, `docs/plans/`, the other READMEs (such as `apps/cli/README.md`), and every template.
+These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, and every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, `docs/AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, `docs/plans/`, the other READMEs (such as `apps/cli/README.md`), and every template.
 
 - The English file changes first; the Chinese copy follows in the same PR.
 - The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`, followed by a `<!-- source-blob: <hash> -->` line: the Git blob hash of the English file the copy was last checked against.
