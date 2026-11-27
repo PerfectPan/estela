@@ -20,7 +20,9 @@ node scripts/check-doc-translations.mjs
 node scripts/check-conventions.mjs
 node scripts/check-layers.mjs
 node scripts/check-browser-bundle.mjs
+node scripts/check-release-intent.mjs
 node scripts/format.mjs --check
+node scripts/lint-scripts.mjs
 pnpm lint
 pnpm test
 pnpm typecheck

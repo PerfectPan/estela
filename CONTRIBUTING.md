@@ -58,16 +58,13 @@ The toolchain is Vite+ (`vp`): every workspace package lints with `vp lint` and 
 ## Plan Lifecycle And Retirement
 
 1. Draft a plan from [`docs/plans/0000-template.md`](docs/plans/0000-template.md) only when triggered by the [Change Design Gate](#change-design-gate). Keep `Status: blocked` while a material scope, interface, data, or rollout decision is unresolved.
-2. Review the goals, boundaries, and key decisions before implementing; update the plan if design choices change mid-flight.
+2. Review the goals, boundaries, and key decisions before implementing; update an active plan mid-flight only when remaining multi-PR or multi-session work still needs re-alignment.
 3. Implement within that scope, adding tests and updating current-state `docs/` in the same change.
-4. Retire the plan as soon as its code scope lands on the default branch. Do not keep a completed plan in `docs/plans/` waiting on deferred manual checks or future polish. In the final delivery PR:
-   - Move any remaining manual verification or follow-up work to issues.
-   - Migrate lasting knowledge that code cannot express (invariants, ownership/trust boundaries, tradeoffs, external quirks, validation limits) into current-state `docs/` (and local `Why:` comments in code).
-   - Delete the completed plan file. Git history and the delivery PR keep the full execution record.
+4. Retire the plan in its final delivery PR as soon as its code scope lands on the default branch; move deferred manual checks and future polish to issues rather than keeping the plan open. Follow [`docs/AGENTS.md` §4](docs/AGENTS.md#4-retiring-a-plan).
 
 ## Change Design Gate
 
-Most changes need only a clear PR description (`## Summary` and `## Validation`), not a separate document.
+Most changes need only a clear PR description (`## Summary` and `## Validation`), not a separate document. Write a Plan only when upfront alignment with a human is needed before implementing. Do not write a Plan for adjustments requested during implementation or review—reflect those directly in code, durable docs, and the PR description.
 
 | Change scope | Required artifact |
 | --- | --- |
@@ -82,7 +79,7 @@ Keep unknown owners, dates, and interfaces marked "unconfirmed". A plan may make
 
 ## Bilingual Documentation
 
-These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, and every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, `docs/plans/`, the other READMEs (such as `apps/cli/README.md`), and every template.
+These documents have a Chinese reading copy beside them, named with `.zh-CN.md` in place of `.md`: the root `README.md`, and every document in `docs/guide/`, `docs/reference/`, `docs/architecture/`, and `docs/development/`. The English file is the source of truth for review and implementation. The Chinese copy lets Chinese-speaking users and reviewers read the same content. Every other document is English only, such as `AGENTS.md`, `docs/AGENTS.md`, this file, `SECURITY.md`, `docs/README.md`, `docs/design/`, `docs/plans/`, the other READMEs (such as `apps/cli/README.md`), and every template.
 
 - The English file changes first; the Chinese copy follows in the same PR.
 - The Chinese copy starts with `> 中文阅读版。以英文原文 <English path> 为准。`, followed by a `<!-- source-blob: <hash> -->` line: the Git blob hash of the English file the copy was last checked against.
@@ -142,39 +139,12 @@ The repository publishes two independent packages: `@rivus/estela` (the CLI, bun
   reviewed separately. Workflows keep their major-version action tags; automatic merging is disabled for all
   Renovate PRs, and required CI must pass before a maintainer merges. Workflow-only updates need no changeset.
 
-- **Rollout and security ownership**: this configuration does not install or authorize the Renovate App and does
-  not change GitHub repository security settings. At the 2026-11-03 adoption baseline, `main` had neither Renovate
-  nor Dependabot version-update configuration, so this change adds no temporary Dependabot configuration.
-  Introduce the initial configuration through normal PR review. Once it is available on the default branch,
-  verify a real hosted run using this policy with npm and GitHub Actions extraction, the Dependency Dashboard,
-  and update-PR creation when an update is available. Keep rollout under this policy marked unverified until
-  this evidence is recorded. Local config validation and extraction are not evidence of a hosted run. Do not
-  add a second routine updater while Renovate owns these ecosystems.
-
-  Rollout snapshot (2026-11-03): the owner authorized this repository for the existing Renovate App; its existing
-  permissions include reading Dependabot alerts and writing workflows. The [hosted onboarding run](https://developer.mend.io/github/PerfectPan/agent-trace/-/job/6df4e1d0-a6af-4e67-a065-da20b0dc27df)
-  completed at 05:28:06 UTC with exit code 0 against `main` at
-  `4d9610c3d1d9b8e5a048f9f6269bec2568c1e785`: it extracted 2 GitHub Actions files / 21 dependencies and
-  9 npm files / 89 dependencies, and created [onboarding PR #73](https://github.com/PerfectPan/estela/pull/73).
-  Its result was `onboarding` with `onboarded: false`; it used generated onboarding configuration, not this
-  hand-authored policy. A Dependency Dashboard and an actual dependency-update PR with passing CI remain
-  unverified. Keep [issue #59](https://github.com/PerfectPan/estela/issues/59) open until its remaining
-  acceptance criteria, including a real kit-update PR and CI, are met.
-
-  At the same audit, the repository's [security settings](https://github.com/PerfectPan/estela/settings/security_analysis)
-  showed the dependency graph, Dependabot alerts, and Dependabot security updates disabled. The hosted run
-  reported that vulnerability alerts were not enabled. App permission alone does not prove alert-to-fix
-  coverage, and no security setting was changed as part of this rollout.
-
-  Keep the dependency graph and Dependabot alerts enabled independently of the version-update bot. If either is
-  disabled, enabling it is a separate owner action; the config does not enable it. Security-fix PR ownership is
-  also separate from `.github/dependabot.yml`. Before changing the existing security-update setting, verify the
-  Renovate App's Dependabot-alert read permission and a hosted run that reads the repository's alerts, then
-  confirm a security fix can produce a PR and pass required CI. OSV support alone is not that verification.
-  Once coverage is demonstrated, the owner can select Renovate as the primary security-PR owner and explicitly
-  disable Dependabot security updates, leaving the dependency graph and alerts enabled. Until then, preserve
-  any existing security-PR coverage. If alerts or security updates are already disabled, record that gap and
-  confirm the intended owner settings separately; do not describe the config-only change as security coverage.
+- **Security ownership**: do not add a second routine dependency updater while Renovate owns npm and GitHub
+  Actions. Keep the repository's dependency graph and Dependabot alerts enabled independently of Renovate;
+  `renovate.json` does not manage GitHub repository security settings. Before changing security-update PR
+  ownership (for example disabling Dependabot security updates in favor of Renovate), verify that the hosted
+  Renovate App can read this repository's Dependabot alerts and open a security-fix PR that passes required CI
+  (OSV support alone is not that verification).
 
 - **Changesets**: bot PRs carry none. Because the lockfile counts as what the published packages ship, an npm update that passes
   CI still needs a patch changeset added by the reviewer before merging for each published package whose bundled dependencies
